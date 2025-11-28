@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>工事用黒板編集ツール</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <!-- Tailwind CSS (Utility classes for layout) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* カスタムスタイル */
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f3f4f6;
+            touch-action: manipulation; /* タッチ操作の最適化 */
+        }
+        
+        .canvas-container {
+            background-image: repeating-linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb), repeating-linear-gradient(45deg, #e5e7eb 25%, #f3f4f6 25%, #f3f4f6 75%, #e5e7eb 75%, #e5e7eb);
+            background-position: 0 0, 10px 10px;
+            background-size: 20px 20px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        /* スライダーのカスタマイズ */
+        input[type=range] {
+            height: 24px;
+            -webkit-appearance: none;
+            margin: 10px 0;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            cursor: pointer;
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+
+        details > summary {
+            list-style: none;
+            cursor: pointer;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-gray-800 pb-10">
+
+    <!-- ヘッダー -->
+    <header class="bg-slate-800 text-white p-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <h1 class="text-lg font-bold flex items-center gap-2">
+                <span class="material-icons">construction</span>
+                工事用黒板ツール
+            </h1>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 mt-6 max-w-6xl">
+        
+        <!-- メインレイアウト -->
+        <div class="flex flex-col md:flex-row gap-6">
+
+            <!-- 左側: キャンバスエリア -->
+            <div class="editor-area w-full md:w-2/3 flex flex-col gap-4">
+                
+                <!-- 画像アップロードエリア -->
+                <!-- 修正: divタグをlabelタグに変更し、タップ反応領域を改善 -->
+                <label id="drop_zone" class="block border-4 border-dashed border-gray-300 rounded-xl p-6 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer relative">
+                    <input type="file" id="imageInput" accept="image/*" capture="environment" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                    <div class="pointer-events-none">
+                        <span class="material-icons text-4xl text-gray-400">add_a_photo</span>
+                        <p class="mt-2 text-sm text-gray-500 font-bold">タップしてカメラ撮影 / 写真選択</p>
+                        <p class="text-xs text-gray-400">または画像をドロップ</p>
+                    </div>
+                </label>
+
+                <!-- キャンバス -->
+                <div class="canvas-container w-full rounded-lg overflow-hidden border border-gray-200 bg-white relative">
+                    <div id="loading" class="hidden absolute inset-0 bg-white/80 z-20 flex items-center justify-center">
+                        <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                    </div>
+                    <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height: 80vh;"></canvas>
+                </div>
+                
+                <!-- ダウンロードボタン -->
+                <button id="downloadBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg shadow-lg flex items-center justify-center gap-2 text-lg active:scale-95 transition-transform">
+                    <span class="material-icons">download</span>
+                    画像を保存
+                </button>
+            </div>
+
+            <!-- 右側: 操作パネル -->
+            <div class="controls w-full md:w-1/3 flex flex-col gap-4">
+                
+                <!-- 黒板設定 -->
+                <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                    <h3 class="font-bold text-gray-700 mb-3 flex items-center gap-2 border-b pb-2">
+                        <span class="material-icons text-green-700">dashboard</span> 黒板設定
+                    </h3>
+                    
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <button onclick="setBoardPos('left')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500">
+                            左下に配置
+                        </button>
+                        <button onclick="setBoardPos('right')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500">
+                            右下に配置
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                         <div class="flex flex-col">
+                            <label class="text-xs text-gray-500 mb-1">黒板の色</label>
+                            <select id="boardColor" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                                <option value="green">緑 (標準)</option>
+                                <option value="black">黒板 (黒)</option>
+                                <option value="white">ホワイトボード</option>
+                                <option value="blue">青 (現場用)</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col">
+                            <label class="text-xs text-gray-500 mb-1">サイズ</label>
+                            <select id="boardSize" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                                <option value="small">小 (Small)</option>
+                                <option value="medium">中 (Medium)</option>
+                                <option value="large" selected>大 (Large)</option>
+                                <option value="extraLarge">特大 (Ex-Large)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                     <div class="flex items-center justify-between mb-2">
+                        <label class="text-sm font-bold text-gray-600">黒板表示</label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleBoard" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- テキスト編集 -->
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="bg-gray-50 p-3 border-b border-gray-200 font-bold text-gray-700 flex items-center gap-2">
+                        <span class="material-icons text-blue-600">edit</span> 内容編集
+                    </div>
+                    
+                    <div class="p-4 flex flex-col gap-4">
+                        <!-- フォント -->
+                        <div>
+                            <label class="text-xs text-gray-500">フォント</label>
+                            <select id="fontFamily" class="w-full mt-1 p-2 bg-white border border-gray-300 rounded text-sm">
+                                <option value="'M PLUS Rounded 1c', sans-serif">M PLUS Rounded 1c (丸ゴシック)</option>
+                                <option value="'Kosugi Maru', monospace">Kosugi Maru (等幅風)</option>
+                                <option value="sans-serif">標準ゴシック</option>
+                                <option value="serif">標準明朝</option>
+                            </select>
+                        </div>
+
+                        <!-- 工事名 -->
+                        <div class="border-b pb-3 border-dashed border-gray-300">
+                            <label id="labelProject" class="block text-sm font-bold text-gray-700 mb-1">工事件名</label>
+                            <input type="text" id="inputProject" placeholder="◯◯改修工事" class="w-full p-2 border border-gray-300 rounded mb-2 focus:ring-2 focus:ring-blue-200 outline-none">
+                        </div>
+
+                        <!-- 工種 / 場所 -->
+                        <div class="border-b pb-3 border-dashed border-gray-300">
+                            <label id="labelWorkType" class="block text-sm font-bold text-gray-700 mb-1">工事場所</label>
+                            <input type="text" id="inputWorkType" placeholder="東京都〇〇区..." class="w-full p-2 border border-gray-300 rounded mb-2 focus:ring-2 focus:ring-blue-200 outline-none">
+                        </div>
+                        
+                         <!-- 任意・備考（テキストエリア） -->
+                        <div id="containerMemo" class="border-b pb-3 border-dashed border-gray-300">
+                            <label id="labelMemo" class="block text-sm font-bold text-gray-700 mb-1">備考・内容</label>
+                            <textarea id="inputMemo" rows="3" placeholder="状況写真&#13;&#10;配筋D13&#13;&#10;@200" class="w-full p-2 border border-gray-300 rounded mb-2 focus:ring-2 focus:ring-blue-200 outline-none resize-none"></textarea>
+                        </div>
+
+                        <!-- 日付・時間 -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label class="block text-sm font-bold text-gray-700">日付・時間</label>
+                                <div class="flex items-center gap-3">
+                                    <label class="text-xs flex items-center gap-1 cursor-pointer font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                                        <input type="checkbox" id="toggleTime" class="rounded text-blue-600 focus:ring-blue-500" checked>
+                                        時間も表示
+                                    </label>
+                                    <button onclick="setToday()" class="bg-gray-200 px-2 py-1 rounded text-xs hover:bg-gray-300 font-bold text-gray-600 flex items-center gap-1">
+                                        <span class="material-icons text-xs">update</span>現在日時
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="date" id="inputDate" class="flex-1 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-200 outline-none">
+                                <input type="time" id="inputTime" class="w-24 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-200 outline-none">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 詳細調整 -->
+                <details class="bg-white rounded-lg shadow-sm border border-gray-200 group">
+                    <summary class="p-4 font-bold text-gray-700 flex justify-between items-center bg-gray-50 cursor-pointer hover:bg-gray-100">
+                        <span class="flex items-center gap-2"><span class="material-icons text-gray-500">tune</span> 文字サイズ・位置調整</span>
+                        <span class="material-icons transition-transform group-open:rotate-180 text-gray-400">expand_more</span>
+                    </summary>
+                    <div class="p-4 border-t border-gray-200 space-y-4">
+                        
+                        <!-- サイズスライダー -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-600">文字サイズ</span>
+                                <span id="dispFontSize" class="font-mono bg-gray-100 px-2 rounded">1.0</span>
+                            </div>
+                            <input type="range" id="fontSizeRatio" min="0.5" max="2.0" step="0.1" value="1.0">
+                        </div>
+
+                        <!-- 行間調整 -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-gray-600">行間 / 余白</span>
+                                <span id="dispLineHeight" class="font-mono bg-gray-100 px-2 rounded">1.2</span>
+                            </div>
+                            <input type="range" id="lineHeight" min="0.8" max="2.0" step="0.1" value="1.2">
+                        </div>
+
+                         <!-- オフセット調整 -->
+                        <div>
+                            <label class="text-sm font-bold text-gray-600 block mb-2">黒板内 微調整 (Y軸)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="adjustOffset(-5)" class="bg-gray-100 p-2 rounded hover:bg-gray-200"><span class="material-icons text-sm">arrow_upward</span> 上へ</button>
+                                <button onclick="adjustOffset(5)" class="bg-gray-100 p-2 rounded hover:bg-gray-200"><span class="material-icons text-sm">arrow_downward</span> 下へ</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <div class="text-center mt-2">
+                    <button onclick="resetAll()" class="text-sm text-red-500 underline hover:text-red-700">全てリセット</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        const state = {
+            image: null,
+            boardPos: 'right', // 'left' or 'right'
+            boardSize: 'large',
+            boardColor: 'green', // 'green', 'black', 'white', 'blue'
+            showBoard: true,
+            showTime: true, // 時間表示フラグ
+            text: {
+                project: '',
+                workType: '',
+                memo: '',
+                date: '',
+                time: '' 
+            },
+            style: {
+                fontFamily: "'M PLUS Rounded 1c', sans-serif",
+                fontSizeBase: 24, 
+                fontScale: 1.0,
+                lineHeight: 1.2,
+                yOffset: 0
+            }
+        };
+
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const loading = document.getElementById('loading');
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('imageInput').addEventListener('change', handleImageUpload);
+            
+            // inputTime のリスナーを追加
+            ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime'].forEach(id => {
+                document.getElementById(id).addEventListener('input', updateTextState);
+            });
+
+            document.getElementById('boardColor').addEventListener('change', (e) => { 
+                state.boardColor = e.target.value; 
+                draw(); 
+            });
+            document.getElementById('boardSize').addEventListener('change', (e) => { 
+                state.boardSize = e.target.value; 
+                draw(); 
+            });
+            document.getElementById('toggleBoard').addEventListener('change', (e) => { state.showBoard = e.target.checked; draw(); });
+            document.getElementById('toggleTime').addEventListener('change', (e) => { state.showTime = e.target.checked; draw(); });
+
+            document.getElementById('fontFamily').addEventListener('change', (e) => { state.style.fontFamily = e.target.value; draw(); });
+            
+            const fsSlider = document.getElementById('fontSizeRatio');
+            fsSlider.addEventListener('input', (e) => { 
+                state.style.fontScale = parseFloat(e.target.value); 
+                document.getElementById('dispFontSize').innerText = state.style.fontScale;
+                draw(); 
+            });
+
+            const lhSlider = document.getElementById('lineHeight');
+            lhSlider.addEventListener('input', (e) => { 
+                state.style.lineHeight = parseFloat(e.target.value); 
+                document.getElementById('dispLineHeight').innerText = state.style.lineHeight;
+                draw(); 
+            });
+
+            document.getElementById('downloadBtn').addEventListener('click', downloadImage);
+
+            setToday();
+            loadPlaceholder();
+        });
+
+        function setToday() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const hh = String(today.getHours()).padStart(2, '0');
+            const min = String(today.getMinutes()).padStart(2, '0');
+            
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+            const timeStr = `${hh}:${min}`;
+            
+            document.getElementById('inputDate').value = dateStr;
+            document.getElementById('inputTime').value = timeStr;
+            
+            state.text.date = dateStr;
+            state.text.time = timeStr;
+            draw();
+        }
+
+        function updateTextState(e) {
+            const map = {
+                'inputProject': 'project',
+                'inputWorkType': 'workType',
+                'inputMemo': 'memo',
+                'inputDate': 'date',
+                'inputTime': 'time'
+            };
+            if(map[e.target.id]) {
+                state.text[map[e.target.id]] = e.target.value;
+                draw();
+            }
+        }
+
+        function setBoardPos(pos) {
+            state.boardPos = pos;
+            draw();
+        }
+
+        function adjustOffset(delta) {
+            state.style.yOffset += delta;
+            draw();
+        }
+
+        function resetAll() {
+            if(confirm('設定を初期状態に戻しますか？')) {
+                location.reload();
+            }
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            loading.classList.remove('hidden');
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    state.image = img;
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    state.style.fontSizeBase = Math.max(16, Math.floor(img.width * 0.015));
+
+                    loading.classList.add('hidden');
+                    draw();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function loadPlaceholder() {
+            canvas.width = 800;
+            canvas.height = 600;
+            state.style.fontSizeBase = 16;
+            
+            ctx.fillStyle = "#e2e8f0";
+            ctx.fillRect(0,0,800,600);
+            ctx.fillStyle = "#94a3b8";
+            ctx.font = "bold 30px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("ここに写真をドロップ", 400, 300);
+        }
+
+        function draw() {
+            if (!state.image && canvas.width === 800) {
+                 // return; 
+            }
+
+            if (state.image) {
+                ctx.drawImage(state.image, 0, 0);
+            } else {
+                 ctx.fillStyle = "#e2e8f0";
+                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                 ctx.fillStyle = "#94a3b8";
+                 ctx.font = "bold 30px sans-serif";
+                 ctx.textAlign = "center";
+                 ctx.fillText("写真を選択してください", canvas.width/2, canvas.height/2);
+            }
+
+            if (!state.showBoard) return;
+
+            let boardW, boardH;
+
+            switch (state.boardSize) {
+                case 'extraLarge':
+                    boardW = canvas.width / 2;
+                    boardH = canvas.height / 2;
+                    break;
+                case 'large':
+                    boardW = canvas.width / 2.2;
+                    boardH = canvas.height / 2.2;
+                    break;
+                case 'medium':
+                    boardW = canvas.width / 2.5;
+                    boardH = canvas.height / 2.6; 
+                    break;
+                case 'small':
+                    boardW = canvas.width / 3;
+                    boardH = canvas.height / 3;
+                    break;
+                default: 
+                    boardW = canvas.width / 2.2;
+                    boardH = canvas.height / 2.2;
+            }
+
+            // 修正: マージンを0にして、端まで黒板を配置する
+            const margin = 0; 
+            
+            let boardX = margin;
+            let boardY = canvas.height - boardH - margin;
+
+            if (state.boardPos === 'right') {
+                boardX = canvas.width - boardW - margin;
+            }
+
+            const colors = getBoardColors();
+
+            drawBlackboard(boardX, boardY, boardW, boardH, colors);
+            drawTextOnBoard(boardX, boardY, boardW, boardH, colors);
+        }
+
+        function getBoardColors() {
+            switch(state.boardColor) {
+                case 'black':
+                    return { bg: "#1a1a1a", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+                case 'white':
+                    return { bg: "#ffffff", line: "#333333", text: "#111111", shadow: "rgba(0,0,0,0.3)" };
+                case 'blue':
+                    return { bg: "#0d47a1", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+                case 'green':
+                default:
+                    return { bg: "#004d40", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+            }
+        }
+
+        function drawBlackboard(x, y, w, h, colors) {
+            ctx.save();
+            ctx.shadowColor = colors.shadow;
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+
+            ctx.fillStyle = colors.bg; 
+            ctx.fillRect(x, y, w, h);
+
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = "#e0e0e0"; 
+            if(state.boardColor === 'white') ctx.strokeStyle = "#999999"; 
+
+            ctx.lineWidth = Math.max(2, w * 0.005);
+            ctx.strokeRect(x, y, w, h);
+
+            ctx.strokeStyle = colors.line;
+            ctx.lineWidth = Math.max(1, w * 0.003);
+            ctx.beginPath();
+
+            ctx.moveTo(x, y + h * 0.15);
+            ctx.lineTo(x + w, y + h * 0.15);
+            
+            ctx.moveTo(x, y + h * 0.30);
+            ctx.lineTo(x + w, y + h * 0.30);
+            
+            ctx.moveTo(x + w * 0.25, y);
+            ctx.lineTo(x + w * 0.25, y + h * 0.30);
+
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawTextOnBoard(bx, by, bw, bh, colors) {
+            ctx.save();
+            ctx.fillStyle = colors.text;
+            
+            const responsiveBaseSize = bw * 0.055; 
+            const fontSize = state.style.fontScale * responsiveBaseSize;
+            
+            ctx.font = `${fontSize}px ${state.style.fontFamily}`;
+            ctx.textBaseline = "middle";
+            
+            const pad = bw * 0.05; 
+            const lineHeight = fontSize * state.style.lineHeight;
+
+            ctx.beginPath();
+            ctx.rect(bx, by, bw, bh);
+            ctx.clip();
+
+            const globalOffsetY = state.style.yOffset;
+
+            ctx.textAlign = "center";
+            const labelSize = fontSize * 0.7; 
+            ctx.font = `${labelSize}px ${state.style.fontFamily}`;
+            
+            ctx.fillText("工事件名", bx + bw * 0.125, by + bh * 0.075);
+            ctx.fillText("工事場所", bx + bw * 0.125, by + bh * 0.225);
+
+            ctx.textAlign = "left";
+            ctx.font = `${fontSize}px ${state.style.fontFamily}`;
+
+            drawMultilineText(state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, lineHeight);
+            drawMultilineText(state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, lineHeight);
+            drawMultilineText(state.text.memo, bx + pad, by + bh * 0.55 + globalOffsetY, lineHeight);
+            
+            // 日付と時間の表示
+            ctx.textAlign = "right";
+            ctx.font = `${fontSize * 0.8}px ${state.style.fontFamily}`;
+            
+            // 日付と時間を結合して表示（時間が入力されている場合かつスイッチがONの場合）
+            let dateString = state.text.date;
+            if (state.showTime && state.text.time) {
+                dateString += " " + state.text.time;
+            }
+            
+            ctx.fillText(dateString, bx + bw - pad, by + bh - pad);
+
+            ctx.restore();
+        }
+
+        function drawMultilineText(text, x, y, lineHeight) {
+            if(!text) return;
+            const lines = text.split('\n'); 
+            const offset = ((lines.length - 1) * lineHeight) / 2;
+            
+            lines.forEach((line, index) => {
+                ctx.fillText(line, x, y - offset + (index * lineHeight));
+            });
+        }
+
+        function downloadImage() {
+            if (!state.image) {
+                alert("画像が選択されていません。");
+                return;
+            }
+
+            const link = document.createElement('a');
+            const safeProject = state.text.project.replace(/[\/\s]/g, '_') || 'photo';
+            link.download = `board_${safeProject}_${state.text.date}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        }
+
+    </script>
+</body>
+</html>
