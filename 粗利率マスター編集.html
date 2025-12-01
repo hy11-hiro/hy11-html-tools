@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excelデータ結合・抽出ツール NextGen</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3a7bd5;
+            --secondary-color: #00d2ff;
+            --primary-gradient: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --shadow-sm: 0 2px 5px rgba(0,0,0,0.05);
+            --shadow-md: 0 5px 15px rgba(0,0,0,0.1);
+            --border-radius: 12px;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        h2 {
+            text-align: center;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            font-weight: 800;
+        }
+
+        .step {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-md);
+            margin-bottom: 25px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .step:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        h3 {
+            color: var(--primary-color);
+            border-left: 5px solid var(--primary-color);
+            padding-left: 15px;
+            margin-top: 0;
+            font-weight: 700;
+        }
+        h4 { font-weight: 600; margin-bottom: 15px; }
+        small { color: #666; display: block; margin-top: 5px; }
+        p { font-weight: 500; margin-bottom: 10px; }
+
+        input[type="file"], input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+        input[type="file"] { padding: 8px; background: #fafafa; }
+        input:focus, select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(58, 123, 213, 0.2);
+            outline: none;
+        }
+
+        button {
+            background: var(--primary-gradient);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            margin-right: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(58, 123, 213, 0.3);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(58, 123, 213, 0.4);
+            filter: brightness(1.1);
+        }
+        button:disabled {
+            background: #ccc;
+            color: #777;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top: 3px solid white;
+            width: 18px;
+            height: 18px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+            display: none;
+        }
+        button.loading { padding-left: 20px; pointer-events: none; opacity: 0.9; }
+        button.loading .spinner { display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        #export-btn {
+            background: linear-gradient(135deg, #11998e, #38ef7d);
+            box-shadow: 0 4px 10px rgba(17, 153, 142, 0.3);
+        }
+        #export-btn:hover { box-shadow: 0 6px 15px rgba(17, 153, 142, 0.4); }
+
+        #column-selection-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 12px;
+            padding: 20px;
+            background-color: #fafafa;
+            border-radius: var(--border-radius);
+            border: 1px solid #eee;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #column-selection-container label {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+            border: 1px solid transparent;
+        }
+        #column-selection-container label:hover {
+            background-color: #f0f7ff;
+            border-color: var(--primary-color);
+        }
+        input[type="checkbox"].column-checkbox {
+            accent-color: var(--primary-color);
+            transform: scale(1.2);
+            margin-right: 10px;
+        }
+
+        #filter-container { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .filter-group {
+            display: grid;
+            grid-template-columns: 2fr auto 3fr auto;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid #eee;
+        }
+        .filter-group span { font-size: 14px; color: #666; text-align: center; }
+        .filter-group button {
+            background: linear-gradient(135deg, #ff5f6d, #ffc371);
+            padding: 8px 15px;
+            font-size: 13px;
+            margin: 0;
+            box-shadow: 0 2px 5px rgba(255, 95, 109, 0.3);
+        }
+        .filter-group button:hover { box-shadow: 0 4px 10px rgba(255, 95, 109, 0.4); }
+        #add-filter-btn { background: #eee; color: #333; box-shadow: none; }
+        #add-filter-btn:hover { background: #ddd; filter: none; transform: translateY(-1px); }
+
+        #result-container {
+            margin-top: 30px;
+            max-height: 600px;
+            overflow: auto;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow-md);
+            background: #fff;
+        }
+        #result-container h4 {
+            padding: 15px 20px;
+            margin: 0;
+            background: #fafafa;
+            border-bottom: 1px solid #eee;
+        }
+        table { border-collapse: collapse; width: 100%; font-size: 14px; }
+        th, td { padding: 12px 15px; text-align: left; white-space: nowrap; border-bottom: 1px solid #eee; }
+        th {
+            background-color: #f8f9fa;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        tr:hover td { background-color: #f0f7ff; }
+        td.percent { text-align: right; font-family: 'Roboto Mono', monospace; }
+
+        @media (max-width: 768px) {
+            .filter-group { grid-template-columns: 1fr; gap: 5px; }
+            .filter-group span { display: none; }
+            button { width: 100%; margin-bottom: 10px; }
+        }
+        /* アニメーション */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Excelデータ抽出ツール NextGen 🚀</h2>
+
+    <div class="step">
+        <h3>STEP 1: ファイルの選択</h3>
+        <p><strong>原価集計データ</strong>を選択してください。<br>
+        <small>※A列の5行目または6行目に「コード」という文字があるか自動チェックして取り込みます。</small></p>
+        <input type="file" id="cost-file" accept=".xlsx, .xls">
+
+        <p style="margin-top: 25px;"><strong>現場マスター</strong>を選択してください。</p>
+        <input type="file" id="master-file" accept=".xlsx, .xls">
+    </div>
+
+    <div class="step">
+        <h3>STEP 2: データの処理と抽出</h3>
+        <button id="process-btn">
+            <span class="spinner"></span>
+            <span class="btn-text">ファイルを読み込んで結合を開始</span>
+        </button>
+        
+        <div id="column-section" style="display:none; margin-top:30px; animation: fadeIn 0.5s ease;">
+            <h4><strong>出力項目の選択</strong> <small>（必要な項目にチェックを入れてください）</small></h4>
+            <div id="column-selection-container"></div>
+        </div>
+
+        <div id="filter-section" style="display:none; margin-top:30px; animation: fadeIn 0.5s ease;">
+            <h4><strong>データの絞り込み</strong> <small>（同一項目への複数条件は「または(OR)」で検索します）</small></h4>
+            <div id="filter-container"></div>
+            <button id="add-filter-btn" style="margin-top:15px;">＋ フィルター条件を追加</button>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+            <button id="filter-btn">
+                <span class="spinner"></span>
+                <span class="btn-text">フィルタリングを実行</span>
+            </button>
+        </div>
+    </div>
+    
+    <div class="step">
+        <h3>STEP 3: 結果のエクスポート</h3>
+        <button id="export-btn" disabled>
+            <span class="spinner"></span>
+            <span class="btn-text">Excelファイル(.xlsx)で出力</span>
+        </button>
+    </div>
+
+    <div id="result-container">
+        <h4>処理結果プレビュー（上位表示）</h4>
+        <table id="result-table"></table>
+    </div>
+</div>
+
+<script>
+    let mergedData = [];
+    let filteredData = [];
+    let headers = [];
+
+    // UIヘルパー関数
+    function setButtonLoading(buttonId, isLoading, loadingText = "処理中...", defaultText = "") {
+        const btn = document.getElementById(buttonId);
+        const btnTextSpan = btn.querySelector('.btn-text');
+        if (isLoading) {
+            btn.classList.add('loading');
+            btn.disabled = true;
+            if (!btn.dataset.defaultText) btn.dataset.defaultText = btnTextSpan.textContent;
+            btnTextSpan.textContent = loadingText;
+        } else {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+            btnTextSpan.textContent = defaultText || btn.dataset.defaultText;
+        }
+    }
+
+    // 1. ファイルを読み込んで結合
+    document.getElementById('process-btn').addEventListener('click', async () => {
+        const costFile = document.getElementById('cost-file').files[0];
+        const masterFile = document.getElementById('master-file').files[0];
+
+        if (!costFile || !masterFile) {
+            alert('⚠️ 2つのExcelファイルを選択してください。');
+            return;
+        }
+
+        setButtonLoading('process-btn', true, 'ファイルを解析・結合中...');
+
+        try {
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const [costData, masterData] = await Promise.all([
+                parseCostExcel(costFile),  
+                parseExcel(masterFile, 0)
+            ]);
+            
+            const masterMap = new Map();
+            const processedMasterCodes = new Set();
+            for (const row of masterData.data) {
+                const code = row[0];
+                if (code != null && !processedMasterCodes.has(code)) {
+                    masterMap.set(code, row);
+                    processedMasterCodes.add(code);
+                }
+            }
+
+            const masterHeader = masterData.header;
+            const costHeader = costData.header;
+            headers = [...costHeader, ...masterHeader.slice(1)];
+
+            mergedData = costData.data.map(costRow => {
+                const masterRow = masterMap.get(costRow[0]);
+                const newRow = [...costRow];
+                if (masterRow) {
+                    newRow.push(...masterRow.slice(1));
+                } else {
+                    newRow.push(...Array(masterHeader.length - 1).fill(''));
+                }
+                return newRow;
+            });
+
+            alert(`✅ データの結合が完了しました！\n\n・${costData.mode}\n・データ件数: ${mergedData.length}件`);
+            
+            document.getElementById('column-section').style.display = 'block';
+            populateColumnSelector();
+
+            document.getElementById('filter-section').style.display = 'block';
+            document.getElementById('filter-container').innerHTML = '';
+            addFilter();
+            
+            filteredData = mergedData;
+            displayData(filteredData.slice(0, 500));
+            if (filteredData.length > 500) {
+                document.querySelector('#result-container h4').textContent = `処理結果プレビュー（全${filteredData.length}件中、上位500件を表示）`;
+            }
+            document.getElementById('export-btn').disabled = false;
+
+        } catch (error) {
+            console.error(error);
+            alert('❌ エラーが発生しました:\n' + error.message);
+        } finally {
+            setButtonLoading('process-btn', false);
+        }
+    });
+
+    function populateColumnSelector() {
+        const container = document.getElementById('column-selection-container');
+        container.innerHTML = '';
+        headers.forEach((header, index) => {
+            const label = document.createElement('label');
+            label.innerHTML = `
+                <input type="checkbox" class="column-checkbox" value="${index}" checked>
+                <span>${header}</span>
+            `;
+            container.appendChild(label);
+        });
+    }
+
+    document.getElementById('export-btn').addEventListener('click', async () => {
+        const selectedIndices = Array.from(document.querySelectorAll('.column-checkbox:checked')).map(cb => parseInt(cb.value, 10));
+        
+        if (selectedIndices.length === 0) {
+            alert('⚠️ 出力する項目が1つも選択されていません。');
+            return;
+        }
+
+        setButtonLoading('export-btn', true, 'Excelファイルを生成中...');
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        try {
+            const selectedHeaders = selectedIndices.map(index => headers[index]);
+            const dataToExport = filteredData.map(row => {
+                return selectedIndices.map(index => {
+                    const value = row[index];
+                    return !isNaN(parseFloat(value)) && isFinite(value) && typeof value !== 'string' ? parseFloat(value) : value;
+                });
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet([selectedHeaders, ...dataToExport]);
+
+            const percentHeaders = ['(売上累計－原価累計)／売上累計', '(期間売上－期間原価)／期間売上'];
+            const indicesToFormat = percentHeaders.map(h => selectedHeaders.indexOf(h)).filter(i => i !== -1);
+
+            for (let R = 1; R < dataToExport.length + 1; ++R) {
+                for (const C_idx of indicesToFormat) {
+                    const cell_address = XLSX.utils.encode_cell({c: C_idx, r: R});
+                    const cell = ws[cell_address];
+                    if (cell && typeof cell.v === 'number') {
+                        cell.z = '0.00%';
+                    }
+                }
+            }
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '集計データ');
+            
+            const now = new Date();
+            const timestamp = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`;
+            XLSX.writeFile(wb, `集計結果_${timestamp}.xlsx`);
+
+        } catch(e) {
+             alert('❌ エクスポート中にエラーが発生しました。');
+             console.error(e);
+        } finally {
+             setButtonLoading('export-btn', false);
+        }
+    });
+
+    function addFilter() {
+        const filterContainer = document.getElementById('filter-container');
+        const filterGroup = document.createElement('div');
+        filterGroup.className = 'filter-group';
+        let optionsHtml = `<option value="" disabled selected>対象項目を選択</option>` + headers.map(h => `<option value="${h}">${h}</option>`).join('');
+        filterGroup.innerHTML = `
+            <select class="filter-column">${optionsHtml}</select>
+            <span>を含む</span>
+            <input type="text" class="filter-value" placeholder="検索キーワードを入力...">
+            <button onclick="this.parentElement.remove()">削除</button>
+        `;
+        filterContainer.appendChild(filterGroup);
+    }
+
+    document.getElementById('add-filter-btn').addEventListener('click', addFilter);
+    
+    // ★修正：フィルタリングロジック（同一カラムはOR、別カラムはAND）
+    document.getElementById('filter-btn').addEventListener('click', async () => {
+        setButtonLoading('filter-btn', true, 'フィルタリングリング中...');
+        await new Promise(resolve => setTimeout(resolve, 50));
+
+        const filterGroups = document.querySelectorAll('.filter-group');
+        
+        // 1. フィルター条件をカラムごとにグループ化
+        const filtersByColumn = {};
+        filterGroups.forEach(group => {
+            const columnSelect = group.querySelector('.filter-column');
+            const column = columnSelect.value;
+            const value = group.querySelector('.filter-value').value.toLowerCase();
+            
+            if (column && value) {
+                if (!filtersByColumn[column]) {
+                    filtersByColumn[column] = [];
+                }
+                filtersByColumn[column].push(value);
+            }
+        });
+
+        // 2. フィルタリング実行
+        filteredData = mergedData.filter(row => {
+            // すべての「対象項目」に対して条件を満たす必要がある (AND)
+            return Object.keys(filtersByColumn).every(column => {
+                const keywords = filtersByColumn[column];
+                const colIndex = headers.indexOf(column);
+                
+                if (colIndex === -1) return true; // エラー回避
+
+                const cellValue = String(row[colIndex] || '').toLowerCase();
+
+                // 同じ項目内では、いずれかのキーワードを含んでいればOK (OR)
+                return keywords.some(keyword => cellValue.includes(keyword));
+            });
+        });
+        
+        displayData(filteredData.slice(0, 500)); 
+        document.querySelector('#result-container h4').textContent = `処理結果プレビュー（全${filteredData.length}件中${filteredData.length > 500 ? '、上位500件を表示' : ''}）`;
+
+        setButtonLoading('filter-btn', false);
+        alert(`🔍 フィルタリング結果: ${filteredData.length}件のデータが抽出されました。`);
+    });
+
+    // 原価集計データの判定
+    function parseCostExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const workbook = XLSX.read(e.target.result, {type: 'binary', cellDates: true});
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+                    
+                    if (!json || json.length === 0) {
+                        throw new Error("ファイルにデータが見つかりません");
+                    }
+
+                    const cellA5 = (json[4] && json[4][0]) ? String(json[4][0]).trim() : "";
+                    const cellA6 = (json[5] && json[5][0]) ? String(json[5][0]).trim() : "";
+
+                    let skipRows;
+                    let modeMessage = "";
+
+                    if (cellA5 === 'コード') {
+                        skipRows = 4; 
+                        modeMessage = "A5に「コード」検出 (6行目開始)";
+                    } else if (cellA6 === 'コード') {
+                        skipRows = 5;
+                        modeMessage = "A6に「コード」検出 (7行目開始)";
+                    } else {
+                        skipRows = 5;
+                        modeMessage = "自動判定不可 (デフォルト適用:7行目開始)";
+                        console.warn("A5, A6のどちらにも「コード」が見つかりませんでした。");
+                    }
+
+                    const dataWithHeader = json.slice(skipRows);
+                    if (dataWithHeader.length === 0) {
+                         throw new Error("指定された開始行以降にデータが存在しません。");
+                    }
+                    resolve({ header: dataWithHeader[0], data: dataWithHeader.slice(1), mode: modeMessage });
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            reader.onerror = (error) => reject(error);
+            reader.readAsBinaryString(file);
+        });
+    }
+
+    function parseExcel(file, skipRows) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const workbook = XLSX.read(e.target.result, {type: 'binary', cellDates: true});
+                    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true }); 
+                    const dataWithHeader = json.slice(skipRows);
+                    resolve({ header: dataWithHeader[0], data: dataWithHeader.slice(1) });
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            reader.onerror = (error) => reject(error);
+            reader.readAsBinaryString(file);
+        });
+    }
+
+    function displayData(data) {
+        const table = document.getElementById('result-table');
+        table.innerHTML = '';
+        
+        if (data.length === 0) {
+            table.innerHTML = '<tr><td colspan="' + headers.length + '" style="text-align:center; padding: 20px;">データがありません</td></tr>';
+            return;
+        }
+
+        const thead = table.createTHead();
+        const headerRow = thead.insertRow();
+        headers.forEach(text => {
+            const th = document.createElement('th');
+            th.textContent = text;
+            headerRow.appendChild(th);
+        });
+
+        const tbody = table.createTBody();
+        const percentHeaders = ['(売上累計－原価累計)／売上累計', '(期間売上－期間原価)／期間売上'];
+        
+        const fragment = document.createDocumentFragment();
+        data.forEach(rowData => {
+            const row = document.createElement('tr');
+            rowData.forEach((cellData, index) => {
+                const cell = document.createElement('td');
+                cell.textContent = cellData !== null && cellData !== undefined ? cellData : '';
+                if (percentHeaders.includes(headers[index])) {
+                    cell.className = 'percent';
+                }
+                row.appendChild(cell);
+            });
+            fragment.appendChild(row);
+        });
+        tbody.appendChild(fragment);
+    }
+</script>
+
+</body>
+</html>
