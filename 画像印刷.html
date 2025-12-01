@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>印刷レイアウト ビルダー - 最終修正版</title>
+<style>
+  :root{ --bg:#0f1724; --accent:#6ee7b7; --muted:#94a3b8; --radius:12px; }
+  *{box-sizing:border-box;font-family:Inter, "Hiragino Kaku Gothic ProN", "Helvetica Neue", Arial, sans-serif;}
+  body{margin:0;background:linear-gradient(180deg,#071028 0%, #081226 60%);color:#e6ef;min-height:100vh;padding:24px;}
+  .wrap{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:380px 1fr;gap:24px;align-items:start;}
+  .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:var(--radius);padding:16px;border:1px solid rgba(255,255,255,0.04);}
+  h1{font-size:18px;margin:0 0 8px;color:var(--accent);}
+  .muted{color:var(--muted);font-size:13px;margin-bottom:10px;}
+  label{display:block;font-size:13px;margin:8px 0 6px;color:#d7e9f3;}
+  input[type="file"]{display:block;}
+  select,input[type=number]{width:100%;padding:8px;border-radius:8px;border:none;background:#fff;color:#000;-webkit-appearance:none;appearance:none;}
+  .row{display:flex;gap:8px;}
+  .btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:10px;border:none;background:linear-gradient(90deg,var(--accent),#3ddc97);color:#042028;cursor:pointer;font-weight:700;}
+  .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent);}
+  
+  .thumbs{margin-top:12px;display:flex;flex-wrap:wrap;gap:8px;max-height:260px;overflow:auto;padding-right:6px;}
+  /* カーソルをzoom-inに変更してクリック可能であることを示す */
+  .thumb{width:72px;height:72px;border-radius:8px;background:rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative;border:1px solid rgba(255,255,255,0.03);cursor:zoom-in;}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block;pointer-events: none;} 
+  .thumb .idx{position:absolute;left:4px;top:4px;background:rgba(0,0,0,0.6);padding:2px 6px;border-radius:4px;font-size:11px;color:#fff;pointer-events:none;}
+  
+  /* 削除ボタン */
+  .thumb .close-btn {
+    position: absolute; top: 2px; right: 2px;
+    width: 20px; height: 20px;
+    background: rgba(0,0,0,0.5); color: #fff;
+    border-radius: 50%; display:flex; align-items:center; justify-content:center;
+    cursor: pointer; font-size: 14px; line-height: 1;
+    transition: background 0.2s; z-index: 10;
+  }
+  .thumb .close-btn:hover { background: #ef4444; }
+
+  .drop-hint{border:2px dashed rgba(255,255,255,0.04);padding:12px;border-radius:10px;text-align:center;color:var(--muted);font-size:13px;}
+  .preview-area{background:#071022;border-radius:12px;padding:12px;min-height:640px;display:flex;flex-direction:column;gap:12px;align-items:stretch;}
+  .preview-top{display:flex;justify-content:space-between;align-items:center;}
+  .page-preview{background:#fff;border-radius:8px;padding:12px;color:#000;flex:1;overflow:auto;display:grid;place-items:center;}
+  
+  .print-page{background:#fff;padding:0;border-radius:4px;box-shadow:none;border:1px solid #ddd;align-items:stretch;box-sizing:border-box; display:grid; gap:8px;}
+  .print-page > div{background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+
+  /* ★ 追加: モーダル（拡大プレビュー）用のスタイル */
+  .modal {
+    display: none; /* 初期状態は非表示 */
+    position: fixed; z-index: 2000; left: 0; top: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background-color: rgba(0,0,0,0.9);
+    align-items: center; justify-content: center;
+  }
+  .modal.show { display: flex; animation: fadeIn 0.2s; }
+  .modal-content {
+    max-width: 90%; max-height: 90%;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(255,255,255,0.1);
+    object-fit: contain;
+  }
+  .modal-close {
+    position: absolute; top: 20px; right: 30px;
+    color: #f1f1f1; font-size: 40px; font-weight: bold;
+    cursor: pointer; z-index: 2001;
+  }
+  .modal-close:hover { color: var(--accent); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  
+  @media print{
+    @page { size: A4 portrait; margin:4mm; }
+    html,body{width:100%;height:100%;margin:0;padding:0;}
+    .print-root, .print-root *{visibility:visible;}
+    .print-root{position:fixed;left:0;top:0;width:100%;}
+    .print-page{page-break-after:always;break-inside:avoid;}
+    /* 印刷時はモーダルを隠す */
+    .modal { display: none !important; }
+  }
+  small{color:var(--muted);display:block;margin-top:6px;font-size:12px;}
+  @media (max-width:980px){ .wrap{grid-template-columns:1fr;padding:12px;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>Print Layout Builder</h1>
+    <div class="muted">空白ページが入る問題を防ぐ印刷出力（Edge 対応）</div>
+    <label>画像を追加</label>
+    <input id="fileInput" type="file" accept="image/*" multiple />
+    <label>1ページあたりの枚数</label>
+    <div class="row">
+      <select id="perPage" title="1ページあたり">
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4" selected>4</option><option value="6">6</option><option value="8">8</option><option value="9">9</option><option value="12">12</option><option value="16">16</option><option value="20">20</option><option value="24">24</option><option value="32">32</option>
+      </select>
+      <input id="gap" type="number" min="0" value="4" title="セル間ギャップ(mm)" />
+    </div>
+    <label>並び順のプリセット</label>
+    <select id="orderPreset">
+      <option value="row">行優先 左→右 上→下</option><option value="col">列優先 上→下 左→右</option><option value="zigzag">ジグザグ</option><option value="reverse">逆順</option><option value="custom">カスタム（ドラッグ順）</option>
+    </select>
+    <label>用紙と向き</label>
+    <div class="row">
+      <select id="paper"><option value="A4" selected>A4</option><option value="A3">A3</option><option value="LETTER">Letter</option></select>
+      <select id="orientation"><option value="portrait" selected>縦</option><option value="landscape">横</option></select>
+    </div>
+    <label>印刷オプション</label>
+    <div class="row" style="margin-bottom: 12px;">
+      <div style="flex:1;">
+        <input id="showPageNumber" type="checkbox" checked />
+        <label for="showPageNumber" style="display:inline;margin-left:8px;">ページ番号を印刷</label>
+      </div>
+    </div>
+    <label>画像フィット (object-fit)</label>
+    <select id="fitMode">
+      <option value="contain" selected>枠内に収める (contain)</option><option value="cover">枠いっぱいに表示 (cover - 切り抜きあり)</option>
+    </select>
+    <label>サムネイル（クリックで拡大）</label>
+    <div id="thumbs" class="thumbs drop-hint">まだ画像が追加されていません</div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button id="previewBtn" class="btn">プレビュー</button>
+      <button id="printBtn" class="btn ghost">印刷</button>
+      <button id="clearBtn" class="btn ghost">クリア</button>
+    </div>
+    <small>印刷ダイアログで Pages per sheet を 1、Scale を 100% にしてください</small>
+  </div>
+  <div class="panel preview-area">
+    <div class="preview-top">
+      <div><strong>プレビュー</strong><div class="muted" style="margin-top:2px">画面は縮小表示。印刷は mm 指定で出力します</div></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="margin:0;font-size:13px;color:var(--muted)">縮小フィット</label>
+        <input id="fit" type="checkbox" checked />
+      </div>
+    </div>
+    <div id="pageContainer" class="page-preview">ここでプレビューが表示されます</div>
+  </div>
+</div>
+
+<div id="imgModal" class="modal">
+  <span id="modalClose" class="modal-close">&times;</span>
+  <img class="modal-content" id="modalImg">
+</div>
+
+<script>
+/* 定数 */
+const PAPER_SIZES = { A4:{w:210,h:297}, A3:{w:297,h:420}, LETTER:{w:216,h:279} };
+const LAYOUT_PRESETS = {1:{r:1,c:1},2:{r:1,c:2},3:{r:1,c:3},4:{r:2,c:2},6:{r:2,c:3},8:{r:2,c:4},9:{r:3,c:3},12:{r:3,c:4},16:{r:4,c:4},20:{r:4,c:5},24:{r:4,c:6},32:{r:4,c:8}};
+
+/* State */
+const files = [];
+let currentOrder = [];
+let dragSrcIdx = null;
+
+/* DOM Elements */
+const fileInput=document.getElementById('fileInput'),thumbs=document.getElementById('thumbs'),perPage=document.getElementById('perPage'),gapInput=document.getElementById('gap'),orderPreset=document.getElementById('orderPreset'),previewBtn=document.getElementById('previewBtn'),printBtn=document.getElementById('printBtn'),clearBtn=document.getElementById('clearBtn'),pageContainer=document.getElementById('pageContainer'),paperSelect=document.getElementById('paper'),orientationSelect=document.getElementById('orientation'),fitModeSelect=document.getElementById('fitMode'),
+showPageNumber=document.getElementById('showPageNumber');
+
+/* ★ 追加: モーダル関連の要素 */
+const modal = document.getElementById('imgModal');
+const modalImg = document.getElementById('modalImg');
+const modalClose = document.getElementById('modalClose');
+
+/* ★ 追加: モーダル操作関数 */
+function openModal(src) {
+  modal.classList.add('show');
+  modalImg.src = src;
+}
+function closeModal() {
+  modal.classList.remove('show');
+  setTimeout(() => { modalImg.src = ''; }, 200);
+}
+modalClose.onclick = closeModal;
+modal.onclick = (e) => { if(e.target === modal) closeModal(); }; // 背景クリックで閉じる
+
+function updatePreview() {
+  const {html} = buildPages(true);
+  if (!html) { pageContainer.innerHTML = 'プレビュー生成不可'; return; }
+  pageContainer.innerHTML = '';
+  pageContainer.appendChild(html);
+  
+  const pages = pageContainer.querySelectorAll('.print-page');
+  pages.forEach(p => {
+    const availW = pageContainer.clientWidth - 40;
+    const mmToPx = 96 / 25.4;
+    const wPx = parseFloat(p.style.width) * mmToPx;
+    const scale = Math.min(1, availW / wPx);
+    p.style.transformOrigin = 'top center';
+    p.style.transform = `scale(${scale})`;
+    p.style.margin = '8px 0';
+
+    if (showPageNumber.checked) {
+        const pageNumberDiv = document.createElement('div');
+        pageNumberDiv.textContent = `${Array.from(pages).indexOf(p) + 1} / ${pages.length}`;
+        pageNumberDiv.style.position = 'absolute';
+        pageNumberDiv.style.bottom = '16px';
+        pageNumberDiv.style.right = '16px';
+        pageNumberDiv.style.fontSize = '10px';
+        pageNumberDiv.style.color = '#000';
+        p.style.position = 'relative';
+        p.appendChild(pageNumberDiv);
+    }
+  });
+}
+
+function removeFile(visualIndex) {
+  const sortedFiles = currentOrder.map(idx => files[idx]);
+  sortedFiles.splice(visualIndex, 1);
+  files.length = 0;
+  sortedFiles.forEach(f => files.push(f));
+  currentOrder = files.map((_, i) => i);
+  orderPreset.value = 'custom';
+  updateThumbs();
+  updatePreview();
+}
+
+function updateThumbs() {
+  thumbs.innerHTML = '';
+  if (files.length === 0) {
+    thumbs.className = 'thumbs drop-hint';
+    thumbs.textContent = 'まだ画像が追加されていません';
+    return;
+  }
+  thumbs.className = 'thumbs';
+  currentOrder = currentOrder.length === files.length ? currentOrder : files.map((_, i) => i);
+  
+  currentOrder.forEach((idx, pos) => {
+    const f = files[idx];
+    const d = document.createElement('div');
+    d.className = 'thumb';
+    d.draggable = true;
+    d.dataset.idx = idx;
+    d.innerHTML = `<img src="${f.url}" alt=""><div class="idx">${pos + 1}</div><div class="close-btn" title="削除">×</div>`;
+    
+    // 削除ボタンのイベント
+    d.querySelector('.close-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeFile(pos);
+    });
+
+    // ★ 追加: サムネイル本体クリックでモーダルを開く
+    d.addEventListener('click', (e) => {
+       // ドラッグ終了直後などでなければ開く
+       if (!d.classList.contains('dragging')) {
+           openModal(f.url);
+       }
+    });
+
+    d.addEventListener('dragstart', () => { 
+        dragSrcIdx = Number(d.dataset.idx); 
+        d.style.opacity = '0.5'; 
+        d.classList.add('dragging'); // ドラッグ中フラグ
+    });
+    d.addEventListener('dragend', () => { 
+        dragSrcIdx = null; 
+        d.style.opacity = ''; 
+        setTimeout(() => d.classList.remove('dragging'), 100); // クリック判定防止用遅延
+    });
+    d.addEventListener('dragover', e => e.preventDefault());
+    d.addEventListener('drop', e => {
+      e.preventDefault();
+      const targetIdx = Number(d.dataset.idx);
+      if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+      const posA = currentOrder.indexOf(dragSrcIdx);
+      const posB = currentOrder.indexOf(targetIdx);
+      currentOrder.splice(posA, 1);
+      currentOrder.splice(posB, 0, dragSrcIdx);
+      orderPreset.value = 'custom';
+      updateThumbs();
+      updatePreview();
+    });
+    thumbs.appendChild(d);
+  });
+}
+
+fileInput.addEventListener('change', e => {
+  Array.from(e.target.files).forEach(f => files.push({ file: f, url: URL.createObjectURL(f) }));
+  currentOrder = files.map((_, i) => i);
+  updateThumbs();
+  updatePreview();
+});
+
+clearBtn.addEventListener('click', () => {
+  files.length = 0;
+  currentOrder = [];
+  updateThumbs();
+  pageContainer.innerHTML = 'ここでプレビューが表示されます';
+});
+
+function applyOrderPreset() {
+  const preset = orderPreset.value;
+  if (files.length === 0 || preset === 'custom') return;
+  const base = files.map((_, i) => i);
+  if (preset === 'row') currentOrder = base.slice();
+  else if (preset === 'reverse') currentOrder = base.slice().reverse();
+  updateThumbs();
+}
+orderPreset.addEventListener('change', () => { applyOrderPreset(); updatePreview(); });
+[perPage, gapInput, paperSelect, orientationSelect, fitModeSelect, showPageNumber].forEach(el => {
+  el.addEventListener('change', () => updatePreview());
+});
+previewBtn.addEventListener('click', () => { applyOrderPreset(); updatePreview(); });
+
+function buildPages(isPreview = false) {
+  if (files.length === 0) { pageContainer.innerHTML = '画像を追加してください'; return { html: null }; }
+
+  const pp = Number(perPage.value);
+  const gapMm = Number(gapInput.value) || 4;
+  const { r: rows, c: cols } = LAYOUT_PRESETS[pp] || { r: Math.ceil(Math.sqrt(pp)), c: Math.ceil(pp / Math.ceil(Math.sqrt(pp))) };
+
+  const paper = paperSelect.value;
+  const orientation = orientationSelect.value;
+  const paperDim = PAPER_SIZES[paper] || PAPER_SIZES.A4;
+  const pageWmm = orientation === 'portrait' ? paperDim.w : paperDim.h;
+  const pageHmm = orientation === 'portrait' ? paperDim.h : paperDim.w;
+  
+  const shouldShowPageNumber = showPageNumber.checked;
+  const pageNumberSpace = shouldShowPageNumber && !isPreview ? 15 : 0; 
+  const pageMarginMm = 4;
+  
+  const printableW = pageWmm - pageMarginMm * 2;
+  const printableH = pageHmm - pageMarginMm * 2 - pageNumberSpace; 
+  
+  const cellWmm = (printableW - (cols - 1) * gapMm) / cols;
+  const cellHmm = (printableH - (rows - 1) * gapMm) / rows;
+
+  const pages = [];
+  for (let i = 0; i < currentOrder.length; i += pp) {
+    const pageItems = currentOrder.slice(i, i + pp);
+    const page = document.createElement('div');
+    page.className = 'print-page';
+    page.style.width = `${pageWmm}mm`;
+    page.style.height = `${pageHmm}mm`;
+    page.style.padding = `${pageMarginMm}mm ${pageMarginMm}mm ${pageMarginMm + pageNumberSpace}mm ${pageMarginMm}mm`;
+    
+    page.style.gridTemplateColumns = `repeat(${cols}, ${cellWmm}mm)`;
+    page.style.gridTemplateRows = `repeat(${rows}, ${cellHmm}mm)`;
+    page.style.gap = `${gapMm}mm`;
+
+    for (let cell = 0; cell < cols * rows; cell++) {
+      const cellDiv = document.createElement('div');
+      if (cell < pageItems.length) {
+        const img = document.createElement('img');
+        img.src = files[pageItems[cell]].url;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = fitModeSelect.value;
+        cellDiv.appendChild(img);
+      }
+      page.appendChild(cellDiv);
+    }
+    pages.push(page);
+  }
+  const container = document.createElement('div');
+  pages.forEach(p => container.appendChild(p));
+  return { html: container };
+}
+
+printBtn.addEventListener('click', () => {
+  applyOrderPreset();
+  const { html } = buildPages(false);
+  if (!html) return;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('ポップアップがブロックされました。'); return; }
+  const doc = w.document;
+  
+  const paper = paperSelect.value;
+  const orientation = orientationSelect.value;
+  const dim = PAPER_SIZES[paper] || PAPER_SIZES.A4;
+  const widthMM = orientation === 'portrait' ? dim.w : dim.h;
+  const heightMM = orientation === 'portrait' ? dim.h : dim.w;
+  const shouldShowPageNumber = showPageNumber.checked;
+
+  const css = `
+    @page { size: ${widthMM}mm ${heightMM}mm; margin: 0; }
+    body { 
+      margin: 0; 
+      background: #fff;
+      display: grid;
+      justify-items: center;
+      align-content: start;
+    }
+    .print-page {
+      width: ${widthMM}mm;
+      height: ${heightMM}mm;
+      box-sizing: border-box;
+      display: grid;
+      page-break-after: always;
+      break-inside: avoid;
+      position: relative; 
+      padding: ${document.querySelector('.print-page').style.padding}; 
+    }
+    .print-page:last-child {
+      page-break-after: auto;
+    }
+    img { max-width: 100%; max-height: 100%; object-fit: ${fitModeSelect.value}; display: block; }
+
+    .page-number {
+      position: absolute;
+      bottom: 5mm; 
+      right: 5mm; 
+      font-size: 10pt;
+      color: #000;
+      width: ${widthMM - 8}mm; 
+      text-align: right;
+      z-index: 1000;
+      display: ${shouldShowPageNumber ? 'block' : 'none'};
+    }
+  `;
+
+  doc.write(`<!doctype html><html><head><title>Print</title><style>${css}</style></head><body></body></html>`);
+  doc.close();
+  
+  const pages = html.querySelectorAll('.print-page');
+  const totalPages = pages.length;
+
+  pages.forEach((p, index) => {
+    const clone = p.cloneNode(true);
+    if (index === pages.length - 1) {
+      clone.style.pageBreakAfter = 'auto';
+    }
+
+    if (shouldShowPageNumber) {
+      const pageNumberDiv = doc.createElement('div');
+      pageNumberDiv.className = 'page-number';
+      pageNumberDiv.textContent = `${index + 1} / ${totalPages}`;
+      clone.appendChild(pageNumberDiv);
+    }
+
+    doc.body.appendChild(clone);
+  });
+
+  const imgs = Array.from(doc.images);
+  const allPromises = imgs.map(img => new Promise(resolve => {
+    img.onload = img.onerror = resolve;
+    setTimeout(resolve, 3000); 
+  }));
+
+  Promise.all(allPromises).then(() => {
+    setTimeout(() => { w.focus(); w.print(); }, 100);
+  });
+});
+
+updateThumbs();
+</script>
+</body>
+</html>
