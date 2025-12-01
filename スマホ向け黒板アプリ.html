@@ -170,9 +170,10 @@
                 </div>
                 
                 <button onclick="downloadImage()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-5 px-6 rounded-2xl shadow-lg flex items-center justify-center gap-3 text-2xl active:scale-95 transition-transform touch-manipulation border-b-4 border-blue-800">
-                    <span class="material-icons text-3xl">download</span>
-                    画像を保存する
+                    <span class="material-icons text-3xl">share</span>
+                    保存・共有する
                 </button>
+                <p class="text-center text-sm font-bold text-gray-500">※「画像を保存」または「フォト」を選択してください</p>
             </div>
 
             <!-- 右側: 操作パネル (スマホでは下部) -->
@@ -637,16 +638,44 @@
                 window.requestSave();
             }
 
+            // 修正: スマホ対応の保存処理 (Web Share API)
             window.downloadImage = function() {
                 if (!window.state.image) {
                     alert("画像が選択されていません。");
                     return;
                 }
-                const link = document.createElement('a');
+                
+                const canvas = document.getElementById('mainCanvas');
                 const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
-                link.download = `board_${safeProject}_${window.state.text.date}.jpg`;
-                link.href = canvas.toDataURL('image/jpeg', 0.95);
-                link.click();
+                const fileName = `board_${safeProject}_${window.state.text.date}.jpg`;
+
+                // キャンバスをBlobに変換
+                canvas.toBlob(async (blob) => {
+                    const file = new File([blob], fileName, { type: "image/jpeg" });
+
+                    // Web Share API (スマホ向け: フォトアプリに保存できる)
+                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: '工事写真',
+                                text: '作成した工事写真を保存します。'
+                            });
+                            return; // 共有成功したら終了
+                        } catch (error) {
+                            // キャンセルされた場合などは何もしない、またはダウンロードにフォールバック
+                            console.log("Share skipped", error);
+                        }
+                    }
+
+                    // PCや非対応ブラウザ向け (ダウンロードフォルダへ)
+                    const link = document.createElement('a');
+                    link.download = fileName;
+                    link.href = URL.createObjectURL(blob);
+                    link.click();
+                    URL.revokeObjectURL(link.href);
+
+                }, 'image/jpeg', 0.95);
             };
 
             function handleImageUpload(e) {
