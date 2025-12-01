@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>画像ファイル名ツール（改） - Light Theme</title>
+<style>
+  /* ▼▼▼ 修正点2: 明るいカラーテーマに変更 ▼▼▼ */
+  :root {
+    --bg-dark: #f9fafb;      /* Main background (was dark, now very light gray) */
+    --bg-med: #ffffff;      /* Card background (was medium, now white) */
+    --bg-light: #f3f4f6;     /* Hover background (was light, now light gray) */
+    --border-color: rgba(0, 0, 0, 0.1); /* Border color (inverted) */
+    --text-primary: #1f2937; /* Primary text (was light, now dark gray) */
+    --text-muted: #6b7280;   /* Muted text (was light gray, now medium gray) */
+    --accent1: #38bdf8;
+    --accent2: #818cf8;
+    --shadow-color: rgba(0, 0, 0, 0.1); /* Softer shadow for light theme */
+    --radius: 12px;
+  }
+  /* ▲▲▲ 修正点2 ▲▲▲ */
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body {
+    height: 100%;
+    font-family: "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-size: 16px;
+  }
+
+  .page-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+
+  /* --- ヘッダー --- */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+    padding: 12px 0; /* Adjusted padding */
+  }
+  .logo {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--accent1), var(--accent2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 20px;
+    color: white; /* Changed logo text to white for better contrast */
+  }
+  .title-block {
+    display: flex;
+    flex-direction: column;
+  }
+  .title {
+    font-weight: 700;
+    font-size: 22px;
+  }
+  .sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  /* --- 固定ツールバー --- */
+  /* ▼▼▼ 調整ヒント1: バーの高さを変えるにはここを調整 ▼▼▼ */
+  .fixed-toolbar {
+    position: sticky;
+    top: 16px;
+    z-index: 100;
+    width: 100%;
+    padding: 12px; /* ← この数値を小さくするとバー自体の余白が減ります */
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.8); /* White transparent background */
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 32px var(--shadow-color);
+  }
+  
+  .label-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+    width: 100%;
+    align-items: center;
+  }
+
+  .btn, .label-btn {
+    padding: 6px 10px; /* ← ボタンの上下の余白を小さくすると、ボタン自体の背が低くなります */
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px; /* ← 文字サイズも高さに影響します */
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  /* ▲▲▲ 調整ヒント1 ▲▲▲ */
+
+  .btn:hover, .label-btn:hover {
+    background: var(--bg-light);
+    color: var(--text-primary);
+  }
+
+  .btn.primary {
+    background: linear-gradient(90deg, var(--accent1), var(--accent2));
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+
+  .input {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-light);
+    color: var(--text-primary);
+    min-width: 180px;
+  }
+  .input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .view-controls .btn.active {
+      background-color: var(--accent2);
+      color: white;
+      border-color: var(--accent2);
+  }
+
+  .download-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: linear-gradient(90deg, var(--accent1), var(--accent2));
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 16px;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+  }
+  .download-btn:hover {
+      transform: scale(1.05);
+  }
+  .download-btn svg {
+      width: 1.0em;
+      height: 1.0em;
+      stroke: white;
+      stroke-width: 2.5;
+  }
+
+  /* --- メインコンテンツ --- */
+  .main-content {
+    margin-top: 24px;
+  }
+
+  #empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      background: var(--bg-med);
+      border-radius: var(--radius);
+      border: 2px dashed var(--border-color); /* Dashed border for light theme */
+  }
+  #empty-state p {
+      color: var(--text-muted);
+      font-size: 18px;
+  }
+
+  #containers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  #containers.size-s { grid-template-columns: repeat(4, 1fr); }
+  #containers.size-m { grid-template-columns: repeat(3, 1fr); }
+  #containers.size-l { grid-template-columns: repeat(2, 1fr); }
+
+
+  .card {
+    background: var(--bg-med);
+    border-radius: var(--radius);
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px var(--shadow-color);
+  }
+  .card.selected {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent1), 0 12px 24px var(--shadow-color);
+  }
+
+  .thumb {
+    width: 100%;
+    height: 240px;
+    object-fit: contain;
+    border-radius: 8px;
+    background: var(--bg-dark);
+  }
+  #containers.size-s .thumb { height: 180px; }
+  #containers.size-m .thumb { height: 240px; }
+  #containers.size-l .thumb { height: 360px; }
+
+  .filename {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+  }
+  .meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 0 4px;
+  }
+
+  @media (max-width: 1200px) {
+    #containers.size-l { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 980px) {
+    .toolbar-group { flex-direction: column; align-items: stretch; }
+    #containers, #containers.size-s, #containers.size-m { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 768px) {
+    .fixed-toolbar { flex-direction: column; gap: 16px; }
+    #containers, #containers.size-s, #containers.size-m, #containers.size-l { grid-template-columns: 1fr; }
+    .thumb, #containers.size-s .thumb, #containers.size-m .thumb, #containers.size-l .thumb {
+        height: 280px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <header class="top-bar" id="topbar">
+      <div class="logo">FN</div>
+      <div class="title-block">
+        <div class="title">画像ファイル名修正ツール</div>
+        <div class="sub">画像を選択し、ボタンで素早く名前を付け、一括ダウンロード</div>
+      </div>
+      <div class="toolbar-group">
+        <label for="imageInput" class="btn primary">画像を選択</label>
+        <input id="imageInput" type="file" accept="image/*" multiple style="display:none">
+      </div>
+    </header>
+    <div class="fixed-toolbar" id="fixedToolbar" role="toolbar">
+      <div class="label-grid" id="labelGrid"></div>
+      <div class="toolbar-group">
+        <div style="display:flex; gap: 8px;">
+            <input id="newLabelInput" class="input" placeholder="カスタム" />
+            <button class="btn" id="addLabelBtn">追加</button>
+        </div>
+        <div class="view-controls" id="viewControls">
+            <button class="btn" data-size="s">小</button>
+            <button class="btn active" data-size="m">中</button>
+            <button class="btn" data-size="l">大</button>
+        </div>
+<button class="download-btn" id="downloadBtn">
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+    <polyline points="7 10 12 15 17 10"></polyline>
+    <line x1="12" y1="15" x2="12" y2="3"></line>
+  </svg>
+  <span>DL</span>
+</button>
+        </div>
+    </div>
+    <main class="main-content">
+        <div id="empty-state">
+            <p>上の「画像を選択」ボタンからファイルを選んでください。</p>
+        </div>
+        <div id="containers" class="size-m"></div>
+    </main>
+  </div>
+<script>
+// JavaScriptは変更なし
+document.addEventListener('DOMContentLoaded', () => {
+    const imageInput = document.getElementById('imageInput');
+    const containers = document.getElementById('containers');
+    const labelGrid = document.getElementById('labelGrid');
+    const newLabelInput = document.getElementById('newLabelInput');
+    const addLabelBtn = document.getElementById('addLabelBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const emptyState = document.getElementById('empty-state');
+    const viewControls = document.getElementById('viewControls');
+    const defaultLabels = [
+        '解体作業前', '解体作業状況', '解体作業後', '掘削', '転圧', '砕石転圧',
+        '基礎配筋', 'ベース', '基礎', '横筋', '天端', '完了', '土間補修', '砂利埋め戻し',
+        '完了 全景','完了 境界','完了 水道','完了 道路','造成状況','除草'
+
+    ];　
+    let selectedCards = new Set();
+    let filesData = [];
+    let objectUrls = [];
+    function renderLabels() {
+        labelGrid.innerHTML = '';
+        defaultLabels.forEach(label => addLabelButton(label));
+    }
+    function addLabelButton(text) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'label-btn';
+        b.title = text;
+        b.textContent = text;
+        labelGrid.appendChild(b);
+        b.animate([{ opacity: 0, transform: 'scale(0.9)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 200 });
+    }
+    labelGrid.addEventListener('click', (e) => {
+        if (e.target.classList.contains('label-btn')) {
+            applyLabelAndMoveToNext(e.target.textContent);
+        }
+    });
+    addLabelBtn.addEventListener('click', () => {
+        const text = newLabelInput.value.trim();
+        if (!text) return;
+        if (!defaultLabels.includes(text)) {
+            defaultLabels.push(text);
+            addLabelButton(text);
+        }
+        newLabelInput.value = '';
+    });
+    newLabelInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addLabelBtn.click();
+    });
+    function applyLabelAndMoveToNext(text) {
+        if (containers.children.length === 0) return;
+        let targetElements = [];
+        if (selectedCards.size === 0) {
+            const firstCard = containers.querySelector('.card');
+            if(firstCard) {
+                targetElements.push(firstCard);
+                highlightSingle(firstCard);
+            }
+        } else {
+            selectedCards.forEach(id => {
+                const card = document.getElementById(id);
+                if (card) targetElements.push(card);
+            });
+        }
+        let maxIndex = -1;
+        targetElements.forEach(card => {
+            const input = card.querySelector('.filename');
+            input.value = (input.value ? input.value + ' ' : '') + text;
+            const cardIndex = parseInt(card.id.split('-')[1], 10);
+            if (cardIndex > maxIndex) maxIndex = cardIndex;
+        });
+        if (maxIndex > -1) {
+            moveToNext(maxIndex);
+        }
+    }
+    function highlightSingle(card) {
+        if (!card) return;
+        selectedCards.clear();
+        selectedCards.add(card.id);
+        Array.from(containers.querySelectorAll('.card')).forEach(c => {
+            c.classList.toggle('selected', c.id === card.id);
+        });
+    }
+    function toggleCardSelection(card) {
+        if (selectedCards.has(card.id)) {
+            selectedCards.delete(card.id);
+            card.classList.remove('selected');
+        } else {
+            selectedCards.add(card.id);
+            card.classList.add('selected');
+        }
+    }
+    imageInput.addEventListener('change', function(e) {
+        objectUrls.forEach(url => URL.revokeObjectURL(url));
+        objectUrls = [];
+        containers.innerHTML = '';
+        selectedCards.clear();
+        filesData = Array.from(e.target.files).filter(f => f.type.startsWith('image/')).slice(0, 200);
+        if (filesData.length > 0) {
+            emptyState.style.display = 'none';
+        } else {
+            emptyState.style.display = 'block';
+            return;
+        }
+        filesData.forEach((file, idx) => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.id = 'card-' + idx;
+            const img = document.createElement('img');
+            img.className = 'thumb';
+            img.alt = file.name;
+            const url = URL.createObjectURL(file);
+            img.src = url;
+            objectUrls.push(url);
+            const fname = document.createElement('input');
+            fname.type = 'text';
+            fname.className = 'filename input';
+            fname.placeholder = file.name.replace(/\.[^/.]+$/, '');
+            fname.dataset.index = idx;
+            fname.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    moveToNext(idx);
+                }
+            });
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+            meta.innerHTML = `<span>${Math.round(file.size / 1024)} KB</span><span>${file.type.split('/')[1] || ''}</span>`;
+            card.append(img, fname, meta);
+            card.addEventListener('click', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+                if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                    toggleCardSelection(card);
+                } else {
+                    highlightSingle(card);
+                    fname.focus();
+                    fname.select();
+                }
+            });
+            containers.appendChild(card);
+        });
+        setTimeout(() => {
+            const firstCard = containers.querySelector('.card');
+            if (firstCard) {
+                highlightSingle(firstCard);
+                const firstInput = firstCard.querySelector('.filename');
+                firstInput.focus();
+                firstInput.select();
+            }
+        }, 100);
+    });
+    function moveToNext(currentIdx) {
+        const nextCard = document.getElementById('card-' + (currentIdx + 1));
+        if (nextCard) {
+            highlightSingle(nextCard);
+            const nextInput = nextCard.querySelector('.filename');
+            nextInput.focus();
+            nextInput.select();
+        } else {
+            const currentCard = document.getElementById('card-' + currentIdx);
+            if(currentCard) currentCard.querySelector('.filename').blur();
+        }
+    }
+    viewControls.addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+            const size = e.target.dataset.size;
+            if (!size) return;
+            containers.className = `size-${size}`;
+            viewControls.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+        }
+    });
+    downloadBtn.addEventListener('click', async () => {
+        if (filesData.length === 0) {
+            alert('ダウンロードする画像がありません。');
+            return;
+        }
+        for (let i = 0; i < filesData.length; i++) {
+            const card = document.getElementById('card-' + i);
+            const file = filesData[i];
+            if (!card || !file) continue;
+            const input = card.querySelector('.filename');
+            const originalExtension = file.name.split('.').pop() || 'jpg';
+            const nameBase = (input.value.trim() || input.placeholder).replace(/[\\/:*?"<>|]/g, '_');
+            const finalName = `${nameBase}.${originalExtension}`;
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(file);
+            link.download = finalName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            await new Promise(resolve => setTimeout(resolve, 150));
+        }
+    });
+    renderLabels();
+});
+</script>
+</body>
+</html>
