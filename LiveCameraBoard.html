@@ -1,0 +1,416 @@
+!DOCTYPE html
+html lang=ja
+head
+    meta charset=UTF-8
+    meta name=viewport content=width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no
+    title現場用AR黒板カメラtitle
+    
+    !-- Google Fonts --
+    link rel=preconnect href=httpsfonts.googleapis.com
+    link rel=preconnect href=httpsfonts.gstatic.com crossorigin
+    link href=httpsfonts.googleapis.comcss2family=Kosugi+Maru&family=M+PLUS+Rounded+1cwght@400;700&display=swap rel=stylesheet
+    !-- Material Icons --
+    link href=httpsfonts.googleapis.comiconfamily=Material+Icons rel=stylesheet
+    !-- Tailwind CSS --
+    script src=httpscdn.tailwindcss.comscript
+
+    style
+        body {
+            font-family 'M PLUS Rounded 1c', sans-serif;
+            background-color #000;
+            color white;
+            overflow hidden;  スクロール禁止 
+            touch-action manipulation;
+        }
+
+         カメラ映像表示用ビデオ 
+        #cameraVideo {
+            position fixed;
+            top 0;
+            left 0;
+            width 100%;
+            height 100%;
+            object-fit cover;  全画面に広げる 
+            z-index 1;
+        }
+
+         黒板描画用キャンバス (映像の上に重ねる) 
+        #overlayCanvas {
+            position fixed;
+            top 0;
+            left 0;
+            width 100%;
+            height 100%;
+            z-index 2;
+            pointer-events none;  タッチ操作を下のUIに通す 
+        }
+
+         UIレイヤー 
+        #uiLayer {
+            position fixed;
+            top 0;
+            left 0;
+            width 100%;
+            height 100%;
+            z-index 10;
+            pointer-events none;  ボタン以外はタッチを通す 
+            display flex;
+            flex-direction column;
+            justify-content space-between;
+        }
+
+         操作可能な要素 
+        .interactive {
+            pointer-events auto;
+        }
+
+         半透明の背景パネル 
+        .panel-bg {
+            background-color rgba(0, 0, 0, 0.6);
+            backdrop-filter blur(4px);
+        }
+    style
+head
+body
+
+    !-- カメラ映像 --
+    video id=cameraVideo autoplay playsinline mutedvideo
+    
+    !-- 黒板レイヤー --
+    canvas id=overlayCanvascanvas
+
+    !-- UIレイヤー --
+    div id=uiLayer
+        
+        !-- 上部設定バー --
+        div class=p-4 panel-bg interactive flex justify-between items-start transition-transform duration-300 id=topBar
+            div class=flex flex-col gap-2 w-full
+                div class=flex justify-between items-center
+                    h1 class=font-bold text-lg flex items-center gap-2
+                        span class=material-icons text-green-400view_in_arspan 現場カメラ
+                    h1
+                    button onclick=toggleSettings() class=p-2 bg-gray-700 rounded-full border border-gray-500
+                        span class=material-icons text-whitesettingsspan
+                    button
+                div
+                
+                !-- 設定パネル (開閉式) --
+                div id=settingsPanel class=hidden mt-2 space-y-3 text-sm
+                    div class=grid grid-cols-2 gap-2
+                        input type=text id=inpProject placeholder=工事件名 class=bg-gray-800 border border-gray-600 rounded p-2 text-white placeholder-gray-400
+                        input type=text id=inpPlace placeholder=工事場所 class=bg-gray-800 border border-gray-600 rounded p-2 text-white placeholder-gray-400
+                    div
+                    textarea id=inpMemo rows=2 placeholder=備考・内容 class=w-full bg-gray-800 border border-gray-600 rounded p-2 text-white placeholder-gray-400textarea
+                    
+                    div class=flex gap-2
+                        select id=selSize class=bg-gray-800 border border-gray-600 rounded p-2 text-white flex-1
+                            option value=mediumサイズ 中option
+                            option value=largeサイズ 大option
+                            option value=smallサイズ 小option
+                        select
+                        select id=selPos class=bg-gray-800 border border-gray-600 rounded p-2 text-white flex-1
+                            option value=right位置 右下option
+                            option value=left位置 左下option
+                        select
+                    div
+                    button onclick=updateBoard() class=w-full bg-blue-600 py-2 rounded font-bold mt-2黒板を更新button
+                div
+            div
+        div
+
+        !-- 中央エリア (タップでピント合わせ等の演出用エリア - 今回は空) --
+        div class=flex-1div
+
+        !-- 下部コントロールバー --
+        div class=p-6 pb-10 panel-bg interactive flex justify-around items-center
+            !-- カメラ切り替え --
+            button onclick=switchCamera() class=p-3 bg-gray-700 rounded-full border border-gray-500 activebg-gray-600
+                span class=material-icons text-2xlflip_camera_iosspan
+            button
+
+            !-- シャッターボタン --
+            button onclick=takePhoto() class=w-20 h-20 rounded-full border-4 border-white bg-transparent flex items-center justify-center activescale-95 transition-transform
+                div class=w-16 h-16 rounded-full bg-whitediv
+            button
+
+            !-- 画像確認保存 (最初は非表示) --
+            div id=previewThumb class=w-12 h-12 bg-gray-800 rounded overflow-hidden border border-gray-500 relative
+                span class=material-icons text-gray-500 absolute inset-0 m-auto text-xlimagespan
+            div
+        div
+    div
+
+    !-- 開始前のオーバーレイ --
+    div id=startOverlay class=fixed inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center p-6 text-center interactive
+        span class=material-icons text-6xl text-green-500 mb-4camera_enhancespan
+        h2 class=text-2xl font-bold mb-2現場用ARカメラh2
+        p class=text-gray-300 mb-8画面を見ながら黒板の位置を確認してbrそのまま撮影できます。p
+        
+        div class=bg-yellow-90050 border border-yellow-600 p-4 rounded-lg mb-8 text-left text-sm text-yellow-200
+            p class=font-bold mb-1span class=material-icons text-sm align-middlewarningspan 注意p
+            p・必ず「カメラの許可」をしてください。p
+            p・ブラウザ版のため、標準カメラより画質が落ちる場合があります。p
+        div
+
+        button onclick=startCamera() class=bg-green-600 hoverbg-green-500 text-white font-bold py-4 px-10 rounded-full text-xl shadow-lg flex items-center gap-2
+            span class=material-iconscamera_altspan カメラを開始する
+        button
+    div
+
+    !-- 撮影後の確認モーダル --
+    div id=resultModal class=hidden fixed inset-0 z-50 bg-black flex flex-col interactive
+        div class=flex-1 relative bg-black flex items-center justify-center
+            img id=resultImage src= alt=Result class=max-w-full max-h-full object-contain
+        div
+        div class=p-4 bg-gray-900 flex justify-between gap-4
+            button onclick=closeResult() class=flex-1 py-3 bg-gray-700 rounded text-white font-bold撮り直すbutton
+            button onclick=saveResult() class=flex-1 py-3 bg-blue-600 rounded text-white font-bold flex items-center justify-center gap-2
+                span class=material-iconssave_altspan 保存する
+            button
+        div
+    div
+
+    script
+         --- 変数 ---
+        const video = document.getElementById('cameraVideo');
+        const canvas = document.getElementById('overlayCanvas');
+        const ctx = canvas.getContext('2d');
+        let stream = null;
+        let isSettingsOpen = false;
+        
+         黒板の状態
+        const boardState = {
+            pos 'right',
+            size 'medium',
+            text {
+                project '',
+                place '',
+                memo '',
+                date ''
+            }
+        };
+
+         --- 初期化 ---
+        window.addEventListener('load', () = {
+            resizeCanvas();
+             日付の初期値
+            const now = new Date();
+            boardState.text.date = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+            
+             UIに初期反映
+            document.getElementById('selPos').value = boardState.pos;
+            document.getElementById('selSize').value = boardState.size;
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            drawBoardLoop();  再描画
+        }
+
+         --- カメラ制御 ---
+        async function startCamera() {
+            try {
+                 背面カメラを優先
+                const constraints = {
+                    audio false,
+                    video {
+                        facingMode { ideal environment },
+                        width { ideal 1920 },
+                        height { ideal 1080 }
+                    }
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                video.onloadedmetadata = () = {
+                    video.play();
+                    document.getElementById('startOverlay').classList.add('hidden');
+                    drawBoardLoop();  描画ループ開始
+                };
+            } catch (err) {
+                console.error(err);
+                alert('カメラの起動に失敗しました。nブラウザの設定でカメラを許可してください。n(iOSの場合はSafariを使用してください)');
+            }
+        }
+
+         --- 黒板描画ロジック (メインツールの簡易版) ---
+        function drawBoardLoop() {
+             画面クリア
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+             黒板の設定
+            const screenW = canvas.width;
+            const screenH = canvas.height;
+            
+             サイズ計算 (画面幅に対する割合)
+            let boardW;
+            if(boardState.size === 'large') boardW = screenW  0.5;
+            else if(boardState.size === 'small') boardW = screenW  0.3;
+            else boardW = screenW  0.4;  medium
+
+            const boardH = boardW  0.75;  43
+            const margin = 10;  端からの隙間
+
+            let x = margin;
+            let y = screenH - boardH - margin - 120;  下部UIバー(約100px)を避ける
+            
+             UIバーの上に配置するため、Y座標を調整（簡易的）
+             ※実際のアプリではsafe-areaなどを考慮するが、ここでは決め打ち調整
+            
+            if(boardState.pos === 'right') {
+                x = screenW - boardW - margin;
+            }
+
+             黒板本体
+            ctx.fillStyle = #004d40;  濃い緑
+            ctx.fillRect(x, y, boardW, boardH);
+            
+             枠線
+            ctx.strokeStyle = #e0e0e0;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, boardW, boardH);
+
+             罫線 (Type C準拠)
+            ctx.strokeStyle = #ffffff;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+             横線
+            ctx.moveTo(x, y + boardH  0.15); ctx.lineTo(x + boardW, y + boardH  0.15);
+            ctx.moveTo(x, y + boardH  0.30); ctx.lineTo(x + boardW, y + boardH  0.30);
+             縦線
+            ctx.moveTo(x + boardW  0.25, y); ctx.lineTo(x + boardW  0.25, y + boardH  0.30);
+            ctx.stroke();
+
+             文字描画
+            ctx.fillStyle = #ffffff;
+            ctx.textAlign = center;
+            ctx.textBaseline = middle;
+            
+            const baseSize = boardW  0.055;  フォントサイズ基準
+
+             ラベル
+            ctx.font = `${baseSize  0.7}px sans-serif`;
+            ctx.fillText(工事件名, x + boardW  0.125, y + boardH  0.075);
+            ctx.fillText(工事場所, x + boardW  0.125, y + boardH  0.225);
+
+             内容
+            ctx.textAlign = left;
+            ctx.font = `bold ${baseSize}px sans-serif`;
+            
+             工事件名
+            ctx.fillText(boardState.text.project  '', x + boardW  0.27, y + boardH  0.075);
+             工事場所
+            ctx.fillText(boardState.text.place  '', x + boardW  0.27, y + boardH  0.225);
+            
+             備考 (簡易的に1行目だけ表示)
+            const memoLines = (boardState.text.memo  '').split('n');
+            ctx.textBaseline = top;
+            let memoY = y + boardH  0.35;
+            memoLines.forEach(line = {
+                ctx.fillText(line, x + 10, memoY);
+                memoY += baseSize  1.2;
+            });
+
+             日付
+            ctx.textAlign = right;
+            ctx.textBaseline = bottom;
+            ctx.font = `${baseSize  0.8}px sans-serif`;
+            ctx.fillText(boardState.text.date, x + boardW - 5, y + boardH - 5);
+        }
+
+        function updateBoard() {
+            boardState.text.project = document.getElementById('inpProject').value;
+            boardState.text.place = document.getElementById('inpPlace').value;
+            boardState.text.memo = document.getElementById('inpMemo').value;
+            boardState.pos = document.getElementById('selPos').value;
+            boardState.size = document.getElementById('selSize').value;
+            
+            drawBoardLoop();
+             設定パネルを閉じる
+            toggleSettings();
+        }
+
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            isSettingsOpen = !isSettingsOpen;
+            if(isSettingsOpen) {
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        }
+
+         --- 撮影処理 ---
+        function takePhoto() {
+             1. 撮影用のオフスクリーンキャンバスを作成
+            const captureCanvas = document.createElement('canvas');
+            captureCanvas.width = video.videoWidth;
+            captureCanvas.height = video.videoHeight;
+            const capCtx = captureCanvas.getContext('2d');
+
+             2. ビデオ映像を描画
+            capCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+
+             3. 黒板を合成
+             注 overlayCanvasは画面サイズに合わせてリサイズされているため、
+             ビデオの解像度に合わせてスケール変換する必要がある
+            const scaleX = captureCanvas.width  canvas.width;
+            const scaleY = captureCanvas.height  canvas.height;
+             アスペクト比維持のため、coverフィットのロジックが必要だが、
+             ここでは簡易的に「画面で見えている黒板」をそのままの比率で合成する
+            
+             現在の黒板描画関数を、撮影用キャンバスコンテキストを使って呼び出せばよいが、
+             座標系が違うため、一時的にコンテキストをスワップするなどの工夫が必要。
+             今回はシンプルに「overlayCanvasの内容」を拡大縮小して貼り付ける
+            capCtx.drawImage(canvas, 0, 0, captureCanvas.width, captureCanvas.height);
+
+             4. 画像化して表示
+            const dataUrl = captureCanvas.toDataURL('imagejpeg');
+            document.getElementById('resultImage').src = dataUrl;
+            document.getElementById('resultModal').classList.remove('hidden');
+        }
+
+        function closeResult() {
+            document.getElementById('resultModal').classList.add('hidden');
+        }
+
+        function saveResult() {
+            const dataUrl = document.getElementById('resultImage').src;
+            const link = document.createElement('a');
+            const now = new Date();
+            const timestamp = `${now.getFullYear()}${now.getMonth()+1}${now.getDate()}_${now.getHours()}${now.getMinutes()}`;
+            link.download = `site_photo_${timestamp}.jpg`;
+            link.href = dataUrl;
+            link.click();
+            closeResult();
+        }
+
+         カメラ切り替え (前面背面)
+        let currentFacingMode = environment;
+        async function switchCamera() {
+            if(stream) {
+                stream.getTracks().forEach(t = t.stop());
+            }
+            currentFacingMode = currentFacingMode === environment  user  environment;
+            const constraints = {
+                audio false,
+                video {
+                    facingMode { ideal currentFacingMode },
+                    width { ideal 1920 },
+                    height { ideal 1080 }
+                }
+            };
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                video.play();
+            } catch(e) {
+                console.error(e);
+            }
+        }
+    script
+body
+html
