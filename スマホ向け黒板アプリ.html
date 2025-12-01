@@ -116,7 +116,7 @@
         
         <div class="flex flex-col lg:flex-row gap-8">
 
-            <!-- 左側: キャンバスエリア -->
+            <!-- 左側: キャンバスエリア (スマホでは上部) -->
             <div class="editor-area w-full lg:w-2/3 flex flex-col gap-6">
                 
                 <!-- 撮影ルール -->
@@ -166,17 +166,25 @@
                     <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height: 80vh;"></canvas>
                 </div>
                 
-                <button onclick="downloadImage()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-5 px-6 rounded-2xl shadow-lg flex items-center justify-center gap-3 text-2xl active:scale-95 transition-transform touch-manipulation border-b-4 border-blue-800">
-                    <span class="material-icons text-3xl">share</span>
-                    保存・共有する
-                </button>
-                <p class="text-center text-sm font-bold text-gray-500">※「画像を保存」または「フォト」を選択してください</p>
+                <!-- 保存・共有ボタン（分離版） -->
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="downloadImage()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-blue-800">
+                        <span class="material-icons text-4xl">download</span>
+                        <span>端末に保存</span>
+                        <span class="text-xs font-normal opacity-80">(ダウンロード)</span>
+                    </button>
+                    <button onclick="shareImage()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-green-800">
+                        <span class="material-icons text-4xl">share</span>
+                        <span>アプリで共有</span>
+                        <span class="text-xs font-normal opacity-80">(LINE/フォト等)</span>
+                    </button>
+                </div>
             </div>
 
             <!-- 右側: 操作パネル -->
             <div class="controls w-full lg:w-1/3 flex flex-col gap-6">
 
-                <!-- タブボタン (4分割) -->
+                <!-- タブボタン -->
                 <div class="flex rounded-xl shadow-md overflow-hidden border-2 border-blue-600 bg-white">
                     <button type="button" onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-4 text-base md:text-lg font-bold text-blue-700 border-r-2 border-blue-600 hover:bg-blue-50 transition-colors flex flex-col md:flex-row items-center justify-center gap-1 tab-active touch-manipulation">
                         <span class="material-icons text-xl md:text-2xl">settings</span>設定
@@ -646,43 +654,47 @@
                 window.requestSave();
             }
 
-            // 修正: スマホ対応の保存処理 (Web Share API)
             window.downloadImage = function() {
                 if (!window.state.image) {
                     alert("画像が選択されていません。");
                     return;
                 }
-                
                 const canvas = document.getElementById('mainCanvas');
                 const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
                 const fileName = `board_${safeProject}_${window.state.text.date}.jpg`;
 
-                // キャンバスをBlobに変換
+                // PC向けダウンロード
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = canvas.toDataURL('image/jpeg', 0.95);
+                link.click();
+            };
+
+            window.shareImage = function() {
+                if (!window.state.image) {
+                    alert("画像が選択されていません。");
+                    return;
+                }
+                const canvas = document.getElementById('mainCanvas');
+                const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
+                const fileName = `board_${safeProject}_${window.state.text.date}.jpg`;
+
                 canvas.toBlob(async (blob) => {
                     const file = new File([blob], fileName, { type: "image/jpeg" });
-
-                    // Web Share API (スマホ向け: フォトアプリに保存できる)
+                    
                     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                         try {
                             await navigator.share({
                                 files: [file],
                                 title: '工事写真',
-                                text: '作成した工事写真を保存します。'
+                                text: '作成した工事写真'
                             });
-                            return; // 共有成功したら終了
                         } catch (error) {
-                            // キャンセルされた場合などは何もしない、またはダウンロードにフォールバック
-                            console.log("Share skipped", error);
+                            console.log("Share cancelled", error);
                         }
+                    } else {
+                        alert("お使いのブラウザは共有機能に対応していません。\n「端末に保存」ボタンを使用してください。");
                     }
-
-                    // PCや非対応ブラウザ向け (ダウンロードフォルダへ)
-                    const link = document.createElement('a');
-                    link.download = fileName;
-                    link.href = URL.createObjectURL(blob);
-                    link.click();
-                    URL.revokeObjectURL(link.href);
-
                 }, 'image/jpeg', 0.95);
             };
 
