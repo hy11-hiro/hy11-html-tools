@@ -21,6 +21,7 @@
             font-family: 'M PLUS Rounded 1c', sans-serif;
             background-color: #f3f4f6;
             touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
         
         .canvas-container {
@@ -30,6 +31,7 @@
             box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
         }
 
+        /* スライダー共通スタイル */
         input[type=range] {
             height: 24px;
             -webkit-appearance: none;
@@ -59,21 +61,22 @@
         }
 
         .tab-active {
-            background-color: #3b82f6;
-            color: white;
-            border-color: #3b82f6;
+            background-color: #3b82f6 !important;
+            color: white !important;
+            border-color: #3b82f6 !important;
         }
-        
-        .sr-input {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            border: 0;
-            opacity: 0;
+
+        /* ボタンを押している最中のスタイル */
+        button:active, label:active {
+            transform: scale(0.98);
+            opacity: 0.8;
+        }
+
+        /* Posボタンの選択状態 */
+        .pos-btn-active {
+            background-color: #dbeafe !important; /* blue-100 */
+            border-color: #3b82f6 !important; /* blue-500 */
+            color: #1d4ed8 !important; /* blue-700 */
         }
     </style>
 </head>
@@ -118,20 +121,22 @@
                     </ul>
                 </div>
 
-                <!-- 画像入力エリア -->
-                <div class="grid grid-cols-2 gap-4 relative">
-                    <input type="file" id="cameraInput" accept="image/*" capture="environment" class="sr-input">
-                    <input type="file" id="fileInput" accept="image/*" class="sr-input">
-
-                    <button type="button" onclick="document.getElementById('cameraInput').click()" class="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none touch-manipulation">
+                <!-- 画像入力エリア (修正: labelタグで直接ラップ) -->
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- カメラ起動ボタン -->
+                    <label class="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-sm select-none relative">
+                        <!-- Android対応のため accept に capture=camera を含める -->
+                        <input type="file" id="cameraInput" accept="image/*;capture=camera" capture="environment" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         <span class="material-icons text-3xl text-blue-500 mb-2">photo_camera</span>
                         <span class="text-sm font-bold text-blue-700">カメラ起動</span>
-                    </button>
+                    </label>
 
-                    <button type="button" onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none touch-manipulation">
+                    <!-- アルバム選択ボタン -->
+                    <label class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-sm select-none relative">
+                        <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         <span class="material-icons text-3xl text-gray-400 mb-2">photo_library</span>
                         <span class="text-sm font-bold text-gray-600">アルバム選択</span>
-                    </button>
+                    </label>
                 </div>
 
                 <!-- キャンバス -->
@@ -153,13 +158,13 @@
 
                 <!-- タブボタン -->
                 <div class="flex rounded-lg shadow-sm overflow-hidden border border-blue-600 bg-white">
-                    <button type="button" onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 border-r border-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-center gap-1 tab-active touch-manipulation">
+                    <button type="button" onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 border-r border-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1 tab-active touch-manipulation">
                         <span class="material-icons text-base">dashboard</span>設定
                     </button>
-                    <button type="button" onclick="switchTab('content')" id="btn-tab-content" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 border-r border-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-center gap-1 touch-manipulation">
+                    <button type="button" onclick="switchTab('content')" id="btn-tab-content" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 border-r border-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1 touch-manipulation">
                         <span class="material-icons text-base">edit</span>編集
                     </button>
-                    <button type="button" onclick="switchTab('adjust')" id="btn-tab-adjust" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-center gap-1 touch-manipulation">
+                    <button type="button" onclick="switchTab('adjust')" id="btn-tab-adjust" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1 touch-manipulation">
                         <span class="material-icons text-base">tune</span>調整
                     </button>
                 </div>
@@ -172,10 +177,10 @@
                         </h3>
                         
                         <div class="grid grid-cols-2 gap-3 mb-3">
-                            <button type="button" onclick="setBoardPos('left')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500 touch-manipulation">
+                            <button type="button" onclick="setBoardPos('left')" id="pos-btn-left" class="bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 touch-manipulation">
                                 左下に配置
                             </button>
-                            <button type="button" onclick="setBoardPos('right')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500 touch-manipulation">
+                            <button type="button" onclick="setBoardPos('right')" id="pos-btn-right" class="bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 touch-manipulation pos-btn-active">
                                 右下に配置
                             </button>
                         </div>
@@ -258,11 +263,10 @@
                                 </button>
                             </div>
                             
-                            <!-- 土砂・台数入力支援 (更新) -->
+                            <!-- 土砂・台数入力支援 -->
                             <div class="bg-blue-50 p-3 rounded-lg mb-2 border border-blue-100">
                                 <div class="text-xs font-bold text-blue-700 mb-2">土砂・車両・台数 (即時反映)</div>
                                 
-                                <!-- 土種 -->
                                 <div class="flex flex-wrap gap-3 mb-2">
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="radio" name="soilType" value="残土搬出" class="text-blue-600 focus:ring-blue-500" checked onchange="updateSoilDirectly()">
@@ -278,7 +282,6 @@
                                     </label>
                                 </div>
 
-                                <!-- 積載量 -->
                                 <div class="flex flex-wrap gap-2 mb-2 items-center">
                                     <span class="text-xs font-bold text-gray-600">積載:</span>
                                     <label class="inline-flex items-center cursor-pointer bg-white px-2 py-1 rounded border border-blue-100"><input type="radio" name="truckCap" value="2t" class="text-blue-600 focus:ring-blue-500" onchange="updateSoilDirectly()"><span class="ml-1 text-xs">2t</span></label>
@@ -288,7 +291,6 @@
                                     <label class="inline-flex items-center cursor-pointer"><input type="radio" name="truckCap" value="" class="text-blue-600 focus:ring-blue-500" onchange="updateSoilDirectly()"><span class="ml-1 text-xs">なし</span></label>
                                 </div>
 
-                                <!-- カウンター -->
                                 <div class="flex items-center gap-2">
                                     <div class="flex items-center border border-gray-300 rounded-md bg-white overflow-hidden flex-1">
                                         <button type="button" onclick="changeCounter(-1)" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 active:bg-gray-300 border-r border-gray-200 touch-manipulation">
@@ -406,401 +408,401 @@
         </div>
     </div>
 
-    <!-- Core Application Logic -->
+    <!-- Core Logic -->
     <script>
-        (function() {
-            // 初期状態
-            const initialState = {
-                image: null,
-                boardPos: 'right', 
-                boardSize: 'large',
-                boardColor: 'green',
-                showBoard: true,
-                showTime: true,
-                datePos: 'right',
-                showConstructor: false,
-                text: {
-                    project: '',
-                    workType: '',
-                    memo: '',
-                    date: '',
-                    time: '',
-                    constructorName: 'ヒューマンヤード(株)'
-                },
-                style: {
-                    fontFamily: "'M PLUS Rounded 1c', sans-serif",
-                    fontSizeBase: 24, 
-                    fontScaleProject: 1.0,
-                    fontScaleWorkType: 1.0,
-                    fontScaleMemo: 1.0,
-                    lineHeight: 1.2,
-                    yOffset: 0
-                }
-            };
+        // グローバル変数を確実に確保
+        window.state = {
+            image: null,
+            boardPos: 'right', 
+            boardSize: 'large',
+            boardColor: 'green',
+            showBoard: true,
+            showTime: true,
+            datePos: 'right',
+            showConstructor: false,
+            text: {
+                project: '',
+                workType: '',
+                memo: '',
+                date: '',
+                time: '',
+                constructorName: 'ヒューマンヤード(株)'
+            },
+            style: {
+                fontFamily: "'M PLUS Rounded 1c', sans-serif",
+                fontSizeBase: 24, 
+                fontScaleProject: 1.0,
+                fontScaleWorkType: 1.0,
+                fontScaleMemo: 1.0,
+                lineHeight: 1.2,
+                yOffset: 0
+            }
+        };
+        window.requestSave = function() {}; 
 
-            window.state = JSON.parse(JSON.stringify(initialState));
-            window.requestSave = function() {}; 
+        let counterValue = 1;
+        let canvas, ctx, loading;
 
-            let counterValue = 1;
-            let canvas, ctx, loading;
+        document.addEventListener('DOMContentLoaded', () => {
+            canvas = document.getElementById('mainCanvas');
+            ctx = canvas.getContext('2d');
+            loading = document.getElementById('loading');
 
-            document.addEventListener('DOMContentLoaded', () => {
-                canvas = document.getElementById('mainCanvas');
-                ctx = canvas.getContext('2d');
-                loading = document.getElementById('loading');
+            setToday();
+            loadPlaceholder();
+            setupEventListeners();
+        });
 
-                setToday();
-                loadPlaceholder();
-                setupEventListeners();
+        function setupEventListeners() {
+            // カメラ・ファイル入力はHTML側のlabelタグで直接発火するため、JSでのclickバインドは不要
+            // changeイベントのみ監視
+            document.getElementById('cameraInput').addEventListener('change', handleImageUpload);
+            document.getElementById('fileInput').addEventListener('change', handleImageUpload);
+
+            ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime', 'inputConstructor'].forEach(id => {
+                document.getElementById(id).addEventListener('input', (e) => {
+                    const map = {
+                        'inputProject': 'project',
+                        'inputWorkType': 'workType',
+                        'inputMemo': 'memo',
+                        'inputDate': 'date',
+                        'inputTime': 'time',
+                        'inputConstructor': 'constructorName'
+                    };
+                    if(map[e.target.id]) {
+                        window.state.text[map[e.target.id]] = e.target.value;
+                        draw();
+                        window.requestSave();
+                    }
+                });
             });
 
-            function setupEventListeners() {
-                document.getElementById('cameraInput').addEventListener('change', handleImageUpload);
-                document.getElementById('fileInput').addEventListener('change', handleImageUpload);
+            document.getElementById('boardColor').addEventListener('change', (e) => { window.state.boardColor = e.target.value; draw(); window.requestSave(); });
+            document.getElementById('boardSize').addEventListener('change', (e) => { window.state.boardSize = e.target.value; draw(); window.requestSave(); });
+            document.getElementById('toggleBoard').addEventListener('change', (e) => { window.state.showBoard = e.target.checked; draw(); window.requestSave(); });
+            document.getElementById('toggleTime').addEventListener('change', (e) => { window.state.showTime = e.target.checked; draw(); window.requestSave(); });
+            document.getElementById('showConstructor').addEventListener('change', (e) => { window.state.showConstructor = e.target.checked; draw(); window.requestSave(); });
+            document.getElementById('fontFamily').addEventListener('change', (e) => { window.state.style.fontFamily = e.target.value; draw(); window.requestSave(); });
 
-                ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime', 'inputConstructor'].forEach(id => {
-                    document.getElementById(id).addEventListener('input', (e) => {
-                        const map = {
-                            'inputProject': 'project',
-                            'inputWorkType': 'workType',
-                            'inputMemo': 'memo',
-                            'inputDate': 'date',
-                            'inputTime': 'time',
-                            'inputConstructor': 'constructorName'
-                        };
-                        if(map[e.target.id]) {
-                            window.state.text[map[e.target.id]] = e.target.value;
-                            draw();
-                            window.requestSave();
-                        }
-                    });
+            setupSlider('scaleProject', 'fontScaleProject', 'valScaleProject');
+            setupSlider('scaleWorkType', 'fontScaleWorkType', 'valScaleWorkType');
+            setupSlider('scaleMemo', 'fontScaleMemo', 'valScaleMemo');
+            setupSlider('lineHeight', 'lineHeight', 'dispLineHeight');
+
+            document.querySelectorAll('input[name="datePos"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    window.state.datePos = e.target.value;
+                    draw();
+                    window.requestSave();
                 });
+            });
+        }
 
-                document.getElementById('boardColor').addEventListener('change', (e) => { window.state.boardColor = e.target.value; draw(); window.requestSave(); });
-                document.getElementById('boardSize').addEventListener('change', (e) => { window.state.boardSize = e.target.value; draw(); window.requestSave(); });
-                document.getElementById('toggleBoard').addEventListener('change', (e) => { window.state.showBoard = e.target.checked; draw(); window.requestSave(); });
-                document.getElementById('toggleTime').addEventListener('change', (e) => { window.state.showTime = e.target.checked; draw(); window.requestSave(); });
-                document.getElementById('showConstructor').addEventListener('change', (e) => { window.state.showConstructor = e.target.checked; draw(); window.requestSave(); });
-                document.getElementById('fontFamily').addEventListener('change', (e) => { window.state.style.fontFamily = e.target.value; draw(); window.requestSave(); });
-
-                setupSlider('scaleProject', 'fontScaleProject', 'valScaleProject');
-                setupSlider('scaleWorkType', 'fontScaleWorkType', 'valScaleWorkType');
-                setupSlider('scaleMemo', 'fontScaleMemo', 'valScaleMemo');
-                setupSlider('lineHeight', 'lineHeight', 'dispLineHeight');
-
-                document.querySelectorAll('input[name="datePos"]').forEach(radio => {
-                    radio.addEventListener('change', (e) => {
-                        window.state.datePos = e.target.value;
-                        draw();
-                        window.requestSave();
-                    });
+        function setupSlider(id, stateKey, displayId) {
+            const el = document.getElementById(id);
+            if(el) {
+                el.addEventListener('input', (e) => {
+                    window.state.style[stateKey] = parseFloat(e.target.value);
+                    document.getElementById(displayId).innerText = window.state.style[stateKey];
+                    draw();
+                    window.requestSave();
                 });
             }
+        }
 
-            function setupSlider(id, stateKey, displayId) {
-                const el = document.getElementById(id);
-                if(el) {
-                    el.addEventListener('input', (e) => {
-                        window.state.style[stateKey] = parseFloat(e.target.value);
-                        document.getElementById(displayId).innerText = window.state.style[stateKey];
-                        draw();
-                        window.requestSave();
-                    });
+        // --- Window Exposed Functions ---
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`btn-tab-${tabName}`).classList.add('tab-active');
+        };
+
+        window.setBoardPos = function(pos) {
+            window.state.boardPos = pos;
+            
+            // ボタンのアクティブ表示更新
+            document.querySelectorAll('.pos-btn-active').forEach(el => el.classList.remove('pos-btn-active'));
+            if(pos === 'left') document.getElementById('pos-btn-left').classList.add('pos-btn-active');
+            if(pos === 'right') document.getElementById('pos-btn-right').classList.add('pos-btn-active');
+
+            draw();
+            window.requestSave();
+        };
+
+        window.adjustOffset = function(delta) {
+            window.state.style.yOffset += delta;
+            draw();
+            window.requestSave();
+        };
+
+        window.resetAll = function() {
+            if(confirm('設定を初期状態に戻しますか？')) {
+                location.reload();
+            }
+        };
+
+        window.changeCounter = function(change) {
+            counterValue += change;
+            if (counterValue < 1) counterValue = 1;
+            document.getElementById('counterValue').innerText = counterValue;
+            window.updateSoilDirectly(); 
+        };
+
+        window.updateSoilDirectly = function(forceInsert = false) {
+            const soilTypeRadio = document.querySelector('input[name="soilType"]:checked');
+            let soilType = soilTypeRadio ? soilTypeRadio.value : '';
+            
+            const truckCapRadio = document.querySelector('input[name="truckCap"]:checked');
+            let truckCap = truckCapRadio ? truckCapRadio.value : '';
+
+            let parts = [];
+            if(soilType) parts.push(soilType);
+            if(truckCap) parts.push(truckCap);
+            parts.push(`${counterValue}台目`);
+
+            const newText = parts.join(' '); 
+            
+            const pattern = /(?:残土搬出|客土搬入|残土|客土)?[\s　]*(?:\d+t)?[\s　]*\d+台目/g;
+            const memoInput = document.getElementById('inputMemo');
+            let currentText = memoInput.value;
+
+            if (pattern.test(currentText)) {
+                currentText = currentText.replace(pattern, newText);
+            } else {
+                if (currentText && !currentText.endsWith('\n')) {
+                    currentText += '\n';
                 }
+                currentText += newText;
             }
 
-            // Window Exposed Functions
-            window.switchTab = function(tabName) {
-                document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-                document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
-                document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-                document.getElementById(`btn-tab-${tabName}`).classList.add('tab-active');
-            };
+            memoInput.value = currentText;
+            window.state.text.memo = currentText;
+            draw();
+            window.requestSave(); 
+        };
 
-            window.setBoardPos = function(pos) {
-                window.state.boardPos = pos;
-                draw();
-                window.requestSave();
-            };
-
-            window.adjustOffset = function(delta) {
-                window.state.style.yOffset += delta;
-                draw();
-                window.requestSave();
-            };
-
-            window.resetAll = function() {
-                if(confirm('設定を初期状態に戻しますか？')) {
-                    location.reload();
-                }
-            };
-
-            window.changeCounter = function(change) {
-                counterValue += change;
-                if (counterValue < 1) counterValue = 1;
-                document.getElementById('counterValue').innerText = counterValue;
-                window.updateSoilDirectly(); 
-            };
-
-            window.updateSoilDirectly = function(forceInsert = false) {
-                const soilTypeRadio = document.querySelector('input[name="soilType"]:checked');
-                let soilType = soilTypeRadio ? soilTypeRadio.value : '';
-                
-                const truckCapRadio = document.querySelector('input[name="truckCap"]:checked');
-                let truckCap = truckCapRadio ? truckCapRadio.value : '';
-
-                let parts = [];
-                if(soilType) parts.push(soilType);
-                if(truckCap) parts.push(truckCap);
-                parts.push(`${counterValue}台目`);
-
-                const newText = parts.join(' '); 
-                
-                // Regex: (SoilType)? (Capacity)? (Counter)台目
-                // Handling potential existing variations
-                const pattern = /(?:残土搬出|客土搬入|残土|客土)?[\s　]*(?:\d+t)?[\s　]*\d+台目/g;
-                
-                const memoInput = document.getElementById('inputMemo');
-                let currentText = memoInput.value;
-
-                if (pattern.test(currentText)) {
-                    currentText = currentText.replace(pattern, newText);
-                } else {
-                    if (currentText && !currentText.endsWith('\n')) {
-                        currentText += '\n';
-                    }
-                    currentText += newText;
-                }
-
-                memoInput.value = currentText;
-                window.state.text.memo = currentText;
+        window.clearMemo = function() {
+            if(confirm("備考・内容をクリアしますか？")) {
+                document.getElementById('inputMemo').value = "";
+                window.state.text.memo = "";
                 draw();
                 window.requestSave(); 
-            };
+            }
+        };
 
-            window.clearMemo = function() {
-                if(confirm("備考・内容をクリアしますか？")) {
-                    document.getElementById('inputMemo').value = "";
-                    window.state.text.memo = "";
+        window.setToday = setToday;
+        function setToday() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const hh = String(today.getHours()).padStart(2, '0');
+            const min = String(today.getMinutes()).padStart(2, '0');
+            
+            const dStr = `${yyyy}-${mm}-${dd}`;
+            const tStr = `${hh}:${min}`;
+            document.getElementById('inputDate').value = dStr;
+            document.getElementById('inputTime').value = tStr;
+            window.state.text.date = dStr;
+            window.state.text.time = tStr;
+            draw();
+            window.requestSave();
+        }
+
+        window.downloadImage = function() {
+            if (!window.state.image) {
+                alert("画像が選択されていません。");
+                return;
+            }
+            const link = document.createElement('a');
+            const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
+            link.download = `board_${safeProject}_${window.state.text.date}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        };
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            loading.classList.remove('hidden');
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    window.state.image = img;
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    window.state.style.fontSizeBase = Math.max(16, Math.floor(img.width * 0.015));
+                    loading.classList.add('hidden');
                     draw();
-                    window.requestSave(); 
-                }
-            };
-
-            window.setToday = setToday;
-            function setToday() {
-                const today = new Date();
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                const hh = String(today.getHours()).padStart(2, '0');
-                const min = String(today.getMinutes()).padStart(2, '0');
-                
-                const dStr = `${yyyy}-${mm}-${dd}`;
-                const tStr = `${hh}:${min}`;
-                document.getElementById('inputDate').value = dStr;
-                document.getElementById('inputTime').value = tStr;
-                window.state.text.date = dStr;
-                window.state.text.time = tStr;
-                draw();
-                window.requestSave();
-            }
-
-            window.downloadImage = function() {
-                if (!window.state.image) {
-                    alert("画像が選択されていません。");
-                    return;
-                }
-                const link = document.createElement('a');
-                const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
-                link.download = `board_${safeProject}_${window.state.text.date}.jpg`;
-                link.href = canvas.toDataURL('image/jpeg', 0.95);
-                link.click();
-            };
-
-            function handleImageUpload(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                loading.classList.remove('hidden');
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        window.state.image = img;
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        window.state.style.fontSizeBase = Math.max(16, Math.floor(img.width * 0.015));
-                        loading.classList.add('hidden');
-                        draw();
-                    };
-                    img.src = event.target.result;
                 };
-                reader.readAsDataURL(file);
-            }
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
 
-            function loadPlaceholder() {
-                canvas.width = 800;
-                canvas.height = 600;
-                window.state.style.fontSizeBase = 16;
+        function loadPlaceholder() {
+            canvas.width = 800;
+            canvas.height = 600;
+            window.state.style.fontSizeBase = 16;
+            ctx.fillStyle = "#e2e8f0";
+            ctx.fillRect(0,0,800,600);
+            ctx.fillStyle = "#94a3b8";
+            ctx.font = "bold 30px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("ここに写真をドロップ", 400, 300);
+        }
+
+        function draw() {
+            if (!window.state.image && canvas.width === 800) {} 
+            if (window.state.image) ctx.drawImage(window.state.image, 0, 0);
+            else {
                 ctx.fillStyle = "#e2e8f0";
-                ctx.fillRect(0,0,800,600);
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
                 ctx.fillStyle = "#94a3b8";
                 ctx.font = "bold 30px sans-serif";
                 ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("ここに写真をドロップ", 400, 300);
+                ctx.fillText("写真を選択してください", canvas.width/2, canvas.height/2);
             }
 
-            function draw() {
-                if (!window.state.image && canvas.width === 800) {} 
-                if (window.state.image) ctx.drawImage(window.state.image, 0, 0);
-                else {
-                    ctx.fillStyle = "#e2e8f0";
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = "#94a3b8";
-                    ctx.font = "bold 30px sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.fillText("写真を選択してください", canvas.width/2, canvas.height/2);
-                }
+            if (!window.state.showBoard) return;
 
-                if (!window.state.showBoard) return;
+            let boardW, boardH;
+            const ASPECT_RATIO = 0.75;
 
-                let boardW, boardH;
-                const ASPECT_RATIO = 0.75;
+            switch (window.state.boardSize) {
+                case 'extraLarge': boardW = canvas.width * 0.6; break;
+                case 'large': boardW = canvas.width * 0.5; break;
+                case 'medium': boardW = canvas.width * 0.4; break;
+                case 'small': boardW = canvas.width * 0.3; break;
+                default: boardW = canvas.width * 0.5;
+            }
+            boardH = boardW * ASPECT_RATIO;
 
-                switch (window.state.boardSize) {
-                    case 'extraLarge': boardW = canvas.width * 0.6; break;
-                    case 'large': boardW = canvas.width * 0.5; break;
-                    case 'medium': boardW = canvas.width * 0.4; break;
-                    case 'small': boardW = canvas.width * 0.3; break;
-                    default: boardW = canvas.width * 0.5;
-                }
-                boardH = boardW * ASPECT_RATIO;
+            const margin = 0;
+            let boardX = margin;
+            let boardY = canvas.height - boardH - margin;
+            if (window.state.boardPos === 'right') boardX = canvas.width - boardW - margin;
 
-                const margin = 0;
-                let boardX = margin;
-                let boardY = canvas.height - boardH - margin;
-                if (window.state.boardPos === 'right') boardX = canvas.width - boardW - margin;
+            const colors = getBoardColors();
+            drawBlackboard(ctx, boardX, boardY, boardW, boardH, colors);
+            drawTextOnBoard(ctx, boardX, boardY, boardW, boardH, colors);
+        }
 
-                const colors = getBoardColors();
-                drawBlackboard(ctx, boardX, boardY, boardW, boardH, colors);
-                drawTextOnBoard(ctx, boardX, boardY, boardW, boardH, colors);
+        function getBoardColors() {
+            switch(window.state.boardColor) {
+                case 'black': return { bg: "#1a1a1a", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+                case 'white': return { bg: "#ffffff", line: "#333333", text: "#111111", shadow: "rgba(0,0,0,0.3)" };
+                case 'blue': return { bg: "#0d47a1", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+                case 'green': default: return { bg: "#004d40", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+            }
+        }
+
+        function drawBlackboard(ctx, x, y, w, h, colors) {
+            ctx.save();
+            ctx.shadowColor = colors.shadow;
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+            ctx.fillStyle = colors.bg; 
+            ctx.fillRect(x, y, w, h);
+
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = "#e0e0e0"; 
+            if(window.state.boardColor === 'white') ctx.strokeStyle = "#999999"; 
+            ctx.lineWidth = Math.max(2, w * 0.005);
+            const halfLine = ctx.lineWidth / 2;
+            ctx.strokeRect(x + halfLine, y + halfLine, w - ctx.lineWidth, h - ctx.lineWidth);
+
+            ctx.strokeStyle = colors.line;
+            ctx.lineWidth = Math.max(1, w * 0.003);
+            ctx.beginPath();
+            ctx.moveTo(x, y + h * 0.15); ctx.lineTo(x + w, y + h * 0.15);
+            ctx.moveTo(x, y + h * 0.30); ctx.lineTo(x + w, y + h * 0.30);
+            ctx.moveTo(x + w * 0.25, y); ctx.lineTo(x + w * 0.25, y + h * 0.30); 
+
+            if(window.state.showConstructor) {
+                const constH = h * 0.12; 
+                const constY = y + h - constH;
+                ctx.moveTo(x, constY);
+                ctx.lineTo(x + w, constY);
+                ctx.moveTo(x + w * 0.25, constY);
+                ctx.lineTo(x + w * 0.25, y + h);
             }
 
-            function getBoardColors() {
-                switch(window.state.boardColor) {
-                    case 'black': return { bg: "#1a1a1a", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                    case 'white': return { bg: "#ffffff", line: "#333333", text: "#111111", shadow: "rgba(0,0,0,0.3)" };
-                    case 'blue': return { bg: "#0d47a1", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                    case 'green': default: return { bg: "#004d40", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                }
-            }
+            ctx.stroke();
+            ctx.restore();
+        }
 
-            function drawBlackboard(ctx, x, y, w, h, colors) {
-                ctx.save();
-                ctx.shadowColor = colors.shadow;
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetX = 5;
-                ctx.shadowOffsetY = 5;
-                ctx.fillStyle = colors.bg; 
-                ctx.fillRect(x, y, w, h);
+        function drawTextOnBoard(ctx, bx, by, bw, bh, colors) {
+            ctx.save();
+            ctx.fillStyle = colors.text;
+            
+            const responsiveBaseSize = bw * 0.055; 
+            const pad = bw * 0.05; 
+            const globalOffsetY = window.state.style.yOffset;
 
-                ctx.shadowColor = "transparent";
-                ctx.strokeStyle = "#e0e0e0"; 
-                if(window.state.boardColor === 'white') ctx.strokeStyle = "#999999"; 
-                ctx.lineWidth = Math.max(2, w * 0.005);
-                const halfLine = ctx.lineWidth / 2;
-                ctx.strokeRect(x + halfLine, y + halfLine, w - ctx.lineWidth, h - ctx.lineWidth);
+            ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
 
-                ctx.strokeStyle = colors.line;
-                ctx.lineWidth = Math.max(1, w * 0.003);
-                ctx.beginPath();
-                ctx.moveTo(x, y + h * 0.15); ctx.lineTo(x + w, y + h * 0.15);
-                ctx.moveTo(x, y + h * 0.30); ctx.lineTo(x + w, y + h * 0.30);
-                ctx.moveTo(x + w * 0.25, y); ctx.lineTo(x + w * 0.25, y + h * 0.30); 
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.font = `${0.7 * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            ctx.fillText("工事件名", bx + bw * 0.125, by + bh * 0.075);
+            ctx.fillText("工事場所", bx + bw * 0.125, by + bh * 0.225);
 
-                if(window.state.showConstructor) {
-                    const constH = h * 0.12; 
-                    const constY = y + h - constH;
-                    ctx.moveTo(x, constY);
-                    ctx.lineTo(x + w, constY);
-                    ctx.moveTo(x + w * 0.25, constY);
-                    ctx.lineTo(x + w * 0.25, y + h);
-                }
-
-                ctx.stroke();
-                ctx.restore();
-            }
-
-            function drawTextOnBoard(ctx, bx, by, bw, bh, colors) {
-                ctx.save();
-                ctx.fillStyle = colors.text;
-                
-                const responsiveBaseSize = bw * 0.055; 
-                const pad = bw * 0.05; 
-                const globalOffsetY = window.state.style.yOffset;
-
-                ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
-
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.font = `${0.7 * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                ctx.fillText("工事件名", bx + bw * 0.125, by + bh * 0.075);
-                ctx.fillText("工事場所", bx + bw * 0.125, by + bh * 0.225);
-
-                if(window.state.showConstructor) {
-                    const constH = bh * 0.12;
-                    const constCenterY = by + bh - (constH / 2);
-                    ctx.fillText("施工者", bx + bw * 0.125, constCenterY);
-                    ctx.textAlign = "left";
-                    ctx.font = `${0.8 * responsiveBaseSize}px ${window.state.style.fontFamily}`; 
-                    ctx.fillText(window.state.text.constructorName, bx + bw * 0.27, constCenterY);
-                }
-
+            if(window.state.showConstructor) {
+                const constH = bh * 0.12;
+                const constCenterY = by + bh - (constH / 2);
+                ctx.fillText("施工者", bx + bw * 0.125, constCenterY);
                 ctx.textAlign = "left";
-
-                ctx.font = `${window.state.style.fontScaleProject * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                drawMultilineText(ctx, window.state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, window.state.style.fontScaleProject * responsiveBaseSize * window.state.style.lineHeight);
-                
-                ctx.font = `${window.state.style.fontScaleWorkType * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                drawMultilineText(ctx, window.state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, window.state.style.fontScaleWorkType * responsiveBaseSize * window.state.style.lineHeight);
-                
-                ctx.font = `${window.state.style.fontScaleMemo * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                drawMultilineText(ctx, window.state.text.memo, bx + pad, by + bh * 0.55 + globalOffsetY, window.state.style.fontScaleMemo * responsiveBaseSize * window.state.style.lineHeight);
-                
-                let dateString = window.state.text.date;
-                if (window.state.showTime && window.state.text.time) {
-                    dateString += " " + window.state.text.time;
-                }
-                
-                ctx.font = `${0.8 * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                
-                let dateY = by + bh - pad;
-                if(window.state.showConstructor) {
-                    const constH = bh * 0.12;
-                    dateY = by + bh - constH - (pad * 0.5);
-                }
-
-                if(window.state.datePos === 'left') {
-                    ctx.textAlign = "left";
-                    ctx.fillText(dateString, bx + pad, dateY);
-                } else {
-                    ctx.textAlign = "right";
-                    ctx.fillText(dateString, bx + bw - pad, dateY);
-                }
-
-                ctx.restore();
+                ctx.font = `${0.8 * responsiveBaseSize}px ${window.state.style.fontFamily}`; 
+                ctx.fillText(window.state.text.constructorName, bx + bw * 0.27, constCenterY);
             }
 
-            function drawMultilineText(ctx, text, x, y, lineHeight) {
-                if(!text) return;
-                const lines = text.split('\n'); 
-                const offset = ((lines.length - 1) * lineHeight) / 2;
-                lines.forEach((line, index) => {
-                    ctx.fillText(line, x, y - offset + (index * lineHeight));
-                });
+            ctx.textAlign = "left";
+
+            ctx.font = `${window.state.style.fontScaleProject * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            drawMultilineText(ctx, window.state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, window.state.style.fontScaleProject * responsiveBaseSize * window.state.style.lineHeight);
+            
+            ctx.font = `${window.state.style.fontScaleWorkType * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            drawMultilineText(ctx, window.state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, window.state.style.fontScaleWorkType * responsiveBaseSize * window.state.style.lineHeight);
+            
+            ctx.font = `${window.state.style.fontScaleMemo * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            drawMultilineText(ctx, window.state.text.memo, bx + pad, by + bh * 0.55 + globalOffsetY, window.state.style.fontScaleMemo * responsiveBaseSize * window.state.style.lineHeight);
+            
+            let dateString = window.state.text.date;
+            if (window.state.showTime && window.state.text.time) {
+                dateString += " " + window.state.text.time;
             }
-        })();
+            
+            ctx.font = `${0.8 * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            
+            let dateY = by + bh - pad;
+            if(window.state.showConstructor) {
+                const constH = bh * 0.12;
+                dateY = by + bh - constH - (pad * 0.5);
+            }
+
+            if(window.state.datePos === 'left') {
+                ctx.textAlign = "left";
+                ctx.fillText(dateString, bx + pad, dateY);
+            } else {
+                ctx.textAlign = "right";
+                ctx.fillText(dateString, bx + bw - pad, dateY);
+            }
+
+            ctx.restore();
+        }
+
+        function drawMultilineText(ctx, text, x, y, lineHeight) {
+            if(!text) return;
+            const lines = text.split('\n'); 
+            lines.forEach((line, index) => {
+                ctx.fillText(line, x, y + (index * lineHeight));
+            });
+        }
     </script>
 
     <!-- Firebase Logic -->
@@ -927,6 +929,9 @@
 
                 const dateRadio = document.querySelector(`input[name="datePos"][value="${window.state.datePos}"]`);
                 if(dateRadio) dateRadio.checked = true;
+                
+                // ボタンの見た目更新
+                window.setBoardPos(window.state.boardPos);
             }
         }
     </script>
