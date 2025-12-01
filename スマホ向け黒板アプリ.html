@@ -30,10 +30,11 @@
             box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
         }
 
+        /* スライダー共通スタイル */
         input[type=range] {
             height: 24px;
             -webkit-appearance: none;
-            margin: 10px 0;
+            margin: 5px 0;
             width: 100%;
             background: transparent;
         }
@@ -42,39 +43,39 @@
         }
         input[type=range]::-webkit-slider-runnable-track {
             width: 100%;
-            height: 8px;
+            height: 6px;
             cursor: pointer;
             background: #cbd5e1;
             border-radius: 4px;
         }
         input[type=range]::-webkit-slider-thumb {
-            height: 24px;
-            width: 24px;
+            height: 20px;
+            width: 20px;
             border-radius: 50%;
             background: #3b82f6;
             cursor: pointer;
             -webkit-appearance: none;
-            margin-top: -8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            margin-top: -7px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
         }
 
-        details > summary {
-            list-style: none;
-            cursor: pointer;
-        }
-        details > summary::-webkit-details-marker {
-            display: none;
+        .tab-active {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
         }
     </style>
 </head>
 <body class="text-gray-800 pb-10">
 
-    <header class="bg-slate-800 text-white p-4 shadow-md sticky top-0 z-50">
-        <div class="max-w-6xl mx-auto flex justify-between items-center">
-            <h1 class="text-lg font-bold flex items-center gap-2">
-                <span class="material-icons">construction</span>
-                工事用黒板ツール
-            </h1>
+    <header class="bg-slate-800 text-white p-4 shadow-md sticky top-0 z-50 flex justify-between items-center">
+        <h1 class="text-lg font-bold flex items-center gap-2">
+            <span class="material-icons">construction</span>
+            工事用黒板ツール
+        </h1>
+        <!-- 保存ステータス表示 -->
+        <div id="saveStatus" class="text-xs font-bold bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1 opacity-0 transition-opacity duration-500">
+            <span class="material-icons text-xs">cloud_done</span> 保存済み
         </div>
     </header>
 
@@ -85,21 +86,39 @@
             <!-- 左側: キャンバスエリア -->
             <div class="editor-area w-full md:w-2/3 flex flex-col gap-4">
                 
-                <!-- 画像入力エリア（分離版） -->
+                <!-- 撮影ルール表示エリア (追加) -->
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm">
+                    <div class="flex items-center mb-2">
+                        <span class="material-icons text-yellow-600 mr-2">campaign</span>
+                        <h3 class="font-bold text-gray-800 text-lg">撮影時のルール</h3>
+                    </div>
+                    <ul class="list-none space-y-2 text-sm md:text-base font-bold text-gray-700">
+                        <li class="flex items-start">
+                            <span class="material-icons text-blue-500 mr-2 text-base md:text-lg">screen_rotation</span>
+                            <span>撮影カメラの向きは<span class="text-red-600 underline decoration-2 decoration-red-400">横向き</span>で</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="material-icons text-green-600 mr-2 text-base md:text-lg">local_shipping</span>
+                            <span><span class="text-red-600">積載量・ナンバー</span>が映るように</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="material-icons text-red-500 mr-2 text-base md:text-lg">do_not_disturb_on</span>
+                            <span>アップすぎる写真は×（全体を入れてください）</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- 画像入力エリア -->
                 <div class="grid grid-cols-2 gap-4">
-                    <!-- カメラ入力（隠し） -->
                     <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
-                    <!-- ファイル入力（隠し） -->
                     <input type="file" id="fileInput" accept="image/*" class="hidden">
 
-                    <!-- カメラボタン -->
-                    <button onclick="document.getElementById('cameraInput').click()" class="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm">
+                    <button onclick="triggerCamera()" class="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none">
                         <span class="material-icons text-3xl text-blue-500 mb-2">photo_camera</span>
                         <span class="text-sm font-bold text-blue-700">カメラ起動</span>
                     </button>
 
-                    <!-- アルバムボタン -->
-                    <button onclick="document.getElementById('fileInput').click()" class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm">
+                    <button onclick="triggerFile()" class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none">
                         <span class="material-icons text-3xl text-gray-400 mb-2">photo_library</span>
                         <span class="text-sm font-bold text-gray-600">アルバム選択</span>
                     </button>
@@ -121,43 +140,81 @@
 
             <!-- 右側: 操作パネル -->
             <div class="controls w-full md:w-1/3 flex flex-col gap-4">
+
+                <!-- タブボタン -->
+                <div class="flex rounded-lg shadow-sm overflow-hidden border border-blue-600 bg-white">
+                    <button onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 border-r border-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-center gap-1 tab-active">
+                        <span class="material-icons text-base">dashboard</span>設定
+                    </button>
+                    <button onclick="switchTab('content')" id="btn-tab-content" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 border-r border-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-center gap-1">
+                        <span class="material-icons text-base">edit</span>編集
+                    </button>
+                    <button onclick="switchTab('adjust')" id="btn-tab-adjust" class="tab-btn flex-1 py-3 text-sm font-bold text-blue-600 hover:bg-blue-50 active:bg-blue-100 transition-colors flex items-center justify-center gap-1">
+                        <span class="material-icons text-base">tune</span>調整
+                    </button>
+                </div>
                 
-                <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
-                    <h3 class="font-bold text-gray-700 mb-3 flex items-center gap-2 border-b pb-2">
-                        <span class="material-icons text-green-700">dashboard</span> 黒板設定
-                    </h3>
-                    
-                    <div class="grid grid-cols-2 gap-3 mb-3">
-                        <button onclick="setBoardPos('left')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500">
-                            左下に配置
-                        </button>
-                        <button onclick="setBoardPos('right')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500">
-                            右下に配置
-                        </button>
-                    </div>
+                <!-- タブコンテンツ: 設定 -->
+                <div id="tab-settings" class="tab-content bg-white p-4 rounded-lg shadow-sm border border-gray-200 space-y-4">
+                    <div>
+                        <h3 class="font-bold text-gray-700 mb-3 flex items-center gap-2 border-b pb-2">
+                            <span class="material-icons text-green-700">dashboard</span> 黒板設定
+                        </h3>
+                        
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <button onclick="setBoardPos('left')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500">
+                                左下に配置
+                            </button>
+                            <button onclick="setBoardPos('right')" class="btn-pos bg-gray-100 hover:bg-gray-200 py-2 rounded text-sm font-bold border border-gray-300 active:bg-blue-100 active:border-blue-500">
+                                右下に配置
+                            </button>
+                        </div>
 
-                    <div class="grid grid-cols-2 gap-3 mb-3">
-                         <div class="flex flex-col">
-                            <label class="text-xs text-gray-500 mb-1">黒板の色</label>
-                            <select id="boardColor" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-                                <option value="green">緑 (標準)</option>
-                                <option value="black">黒板 (黒)</option>
-                                <option value="white">ホワイトボード</option>
-                                <option value="blue">青 (現場用)</option>
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                             <div class="flex flex-col">
+                                <label class="text-xs text-gray-500 mb-1">黒板の色</label>
+                                <select id="boardColor" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                                    <option value="green">緑 (標準)</option>
+                                    <option value="black">黒板 (黒)</option>
+                                    <option value="white">ホワイトボード</option>
+                                    <option value="blue">青 (現場用)</option>
+                                </select>
+                            </div>
+                            <div class="flex flex-col">
+                                <label class="text-xs text-gray-500 mb-1">サイズ</label>
+                                <select id="boardSize" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                                    <option value="small">小 (Small)</option>
+                                    <option value="medium">中 (Medium)</option>
+                                    <option value="large" selected>大 (Large)</option>
+                                    <option value="extraLarge">特大 (Ex-Large)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="text-xs text-gray-500 mb-1">フォント</label>
+                            <select id="fontFamily" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                                <option value="'M PLUS Rounded 1c', sans-serif">M PLUS Rounded 1c (丸ゴシック)</option>
+                                <option value="'Kosugi Maru', monospace">Kosugi Maru (等幅風)</option>
+                                <option value="sans-serif">標準ゴシック</option>
+                                <option value="serif">標準明朝</option>
                             </select>
                         </div>
-                        <div class="flex flex-col">
-                            <label class="text-xs text-gray-500 mb-1">サイズ</label>
-                            <select id="boardSize" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-                                <option value="small">小 (Small)</option>
-                                <option value="medium">中 (Medium)</option>
-                                <option value="large" selected>大 (Large)</option>
-                                <option value="extraLarge">特大 (Ex-Large)</option>
-                            </select>
+
+                        <!-- 施工者枠設定 -->
+                        <div class="border-t pt-3 mb-3">
+                            <label class="text-sm font-bold text-gray-600 flex justify-between items-center mb-2">
+                                <span>施工者枠を表示</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="showConstructor" class="sr-only peer">
+                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+                                </label>
+                            </label>
+                            <input type="text" id="inputConstructor" placeholder="ヒューマンヤード(株)" class="w-full p-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-200 outline-none">
                         </div>
                     </div>
 
-                     <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center justify-between border-t pt-3">
                         <label class="text-sm font-bold text-gray-600">黒板表示</label>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="toggleBoard" class="sr-only peer" checked>
@@ -166,34 +223,67 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <!-- タブコンテンツ: 編集 -->
+                <div id="tab-content" class="tab-content hidden bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     <div class="bg-gray-50 p-3 border-b border-gray-200 font-bold text-gray-700 flex items-center gap-2">
                         <span class="material-icons text-blue-600">edit</span> 内容編集
                     </div>
                     
                     <div class="p-4 flex flex-col gap-4">
-                        <div>
-                            <label class="text-xs text-gray-500">フォント</label>
-                            <select id="fontFamily" class="w-full mt-1 p-2 bg-white border border-gray-300 rounded text-sm">
-                                <option value="'M PLUS Rounded 1c', sans-serif">M PLUS Rounded 1c (丸ゴシック)</option>
-                                <option value="'Kosugi Maru', monospace">Kosugi Maru (等幅風)</option>
-                                <option value="sans-serif">標準ゴシック</option>
-                                <option value="serif">標準明朝</option>
-                            </select>
-                        </div>
 
                         <div class="border-b pb-3 border-dashed border-gray-300">
-                            <label id="labelProject" class="block text-sm font-bold text-gray-700 mb-1">工事件名</label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">工事件名</label>
                             <input type="text" id="inputProject" placeholder="◯◯改修工事" class="w-full p-2 border border-gray-300 rounded mb-2 focus:ring-2 focus:ring-blue-200 outline-none">
                         </div>
 
                         <div class="border-b pb-3 border-dashed border-gray-300">
-                            <label id="labelWorkType" class="block text-sm font-bold text-gray-700 mb-1">工事場所</label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">工事場所</label>
                             <input type="text" id="inputWorkType" placeholder="東京都〇〇区..." class="w-full p-2 border border-gray-300 rounded mb-2 focus:ring-2 focus:ring-blue-200 outline-none">
                         </div>
                         
                         <div id="containerMemo" class="border-b pb-3 border-dashed border-gray-300">
-                            <label id="labelMemo" class="block text-sm font-bold text-gray-700 mb-1">備考・内容</label>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-bold text-gray-700">備考・内容</label>
+                                <!-- 備考クリアボタン -->
+                                <button onclick="clearMemo()" class="text-xs text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-1 rounded flex items-center gap-1">
+                                    <span class="material-icons text-xs">delete_outline</span>クリア
+                                </button>
+                            </div>
+                            
+                            <!-- 土砂・台数入力支援 -->
+                            <div class="bg-blue-50 p-3 rounded-lg mb-2 border border-blue-100">
+                                <div class="text-xs font-bold text-blue-700 mb-2">土砂・台数入力 (即時反映)</div>
+                                <div class="flex flex-wrap gap-3 mb-3">
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="soilType" value="残土" class="text-blue-600 focus:ring-blue-500" checked onchange="updateSoilDirectly()">
+                                        <span class="ml-1 text-sm text-gray-700">残土</span>
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="soilType" value="客土" class="text-blue-600 focus:ring-blue-500" onchange="updateSoilDirectly()">
+                                        <span class="ml-1 text-sm text-gray-700">客土</span>
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="soilType" value="" class="text-blue-600 focus:ring-blue-500" onchange="updateSoilDirectly()">
+                                        <span class="ml-1 text-sm text-gray-700">（なし）</span>
+                                    </label>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex items-center border border-gray-300 rounded-md bg-white overflow-hidden flex-1">
+                                        <button onclick="changeCounter(-1)" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 active:bg-gray-300 border-r border-gray-200">
+                                            <span class="material-icons text-sm">remove</span>
+                                        </button>
+                                        <span id="counterValue" class="flex-1 px-2 py-2 font-bold text-center">1</span>
+                                        <button onclick="changeCounter(1)" class="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 active:bg-gray-300 border-l border-gray-200">
+                                            <span class="material-icons text-sm">add</span>
+                                        </button>
+                                    </div>
+                                    <span class="text-sm text-gray-600 font-bold whitespace-nowrap">台目</span>
+                                    <button onclick="updateSoilDirectly(true)" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 py-2 rounded-md shadow-sm active:scale-95 transition-transform">
+                                        挿入/更新
+                                    </button>
+                                </div>
+                            </div>
+
                             <textarea id="inputMemo" rows="3" placeholder="状況写真&#13;&#10;配筋D13&#13;&#10;@200" class="w-full p-2 border border-gray-300 rounded mb-2 focus:ring-2 focus:ring-blue-200 outline-none resize-none"></textarea>
                         </div>
 
@@ -203,10 +293,10 @@
                                 <div class="flex items-center gap-3">
                                     <label class="text-xs flex items-center gap-1 cursor-pointer font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
                                         <input type="checkbox" id="toggleTime" class="rounded text-blue-600 focus:ring-blue-500" checked>
-                                        時間も表示
+                                        時間も
                                     </label>
                                     <button onclick="setToday()" class="bg-gray-200 px-2 py-1 rounded text-xs hover:bg-gray-300 font-bold text-gray-600 flex items-center gap-1">
-                                        <span class="material-icons text-xs">update</span>現在日時
+                                        <span class="material-icons text-xs">update</span>現在
                                     </button>
                                 </div>
                             </div>
@@ -218,38 +308,74 @@
                     </div>
                 </div>
 
-                <details class="bg-white rounded-lg shadow-sm border border-gray-200 group">
-                    <summary class="p-4 font-bold text-gray-700 flex justify-between items-center bg-gray-50 cursor-pointer hover:bg-gray-100">
-                        <span class="flex items-center gap-2"><span class="material-icons text-gray-500">tune</span> 文字サイズ・位置調整</span>
-                        <span class="material-icons transition-transform group-open:rotate-180 text-gray-400">expand_more</span>
-                    </summary>
+                <!-- タブコンテンツ: 調整 -->
+                <div id="tab-adjust" class="tab-content hidden bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="bg-gray-50 p-3 border-b border-gray-200 font-bold text-gray-700 flex items-center gap-2">
+                        <span class="material-icons text-gray-500">tune</span> サイズ・位置調整
+                    </div>
                     <div class="p-4 border-t border-gray-200 space-y-4">
                         
+                        <!-- 個別サイズ調整 -->
                         <div>
-                            <div class="flex justify-between text-sm mb-1">
-                                <span class="text-gray-600">文字サイズ</span>
-                                <span id="dispFontSize" class="font-mono bg-gray-100 px-2 rounded">1.0</span>
+                            <div class="flex justify-between text-xs font-bold text-gray-700 mb-1">
+                                <span>工事件名 サイズ</span>
+                                <span id="valScaleProject" class="bg-gray-100 px-1 rounded text-gray-500">1.0</span>
                             </div>
-                            <input type="range" id="fontSizeRatio" min="0.5" max="2.0" step="0.1" value="1.0">
+                            <input type="range" id="scaleProject" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
 
                         <div>
-                            <div class="flex justify-between text-sm mb-1">
-                                <span class="text-gray-600">行間 / 余白</span>
-                                <span id="dispLineHeight" class="font-mono bg-gray-100 px-2 rounded">1.2</span>
+                            <div class="flex justify-between text-xs font-bold text-gray-700 mb-1">
+                                <span>工事場所 サイズ</span>
+                                <span id="valScaleWorkType" class="bg-gray-100 px-1 rounded text-gray-500">1.0</span>
+                            </div>
+                            <input type="range" id="scaleWorkType" min="0.5" max="2.0" step="0.1" value="1.0">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-gray-700 mb-1">
+                                <span>備考・内容 サイズ</span>
+                                <span id="valScaleMemo" class="bg-gray-100 px-1 rounded text-gray-500">1.0</span>
+                            </div>
+                            <input type="range" id="scaleMemo" min="0.5" max="2.0" step="0.1" value="1.0">
+                        </div>
+
+                        <hr class="border-gray-200 my-2">
+
+                        <!-- 日付位置 -->
+                        <div>
+                            <label class="text-xs font-bold text-gray-700 mb-1 block">日付・時間の位置</label>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <label class="flex items-center gap-2 cursor-pointer bg-gray-50 p-2 rounded border border-gray-200">
+                                    <input type="radio" name="datePos" value="left" class="text-blue-600 focus:ring-blue-500">
+                                    <span>左下</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer bg-gray-50 p-2 rounded border border-gray-200">
+                                    <input type="radio" name="datePos" value="right" class="text-blue-600 focus:ring-blue-500" checked>
+                                    <span>右下</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <hr class="border-gray-200 my-2">
+
+                        <div>
+                            <div class="flex justify-between text-xs font-bold text-gray-700 mb-1">
+                                <span>行間 / 余白</span>
+                                <span id="dispLineHeight" class="bg-gray-100 px-1 rounded text-gray-500">1.2</span>
                             </div>
                             <input type="range" id="lineHeight" min="0.8" max="2.0" step="0.1" value="1.2">
                         </div>
 
                         <div>
-                            <label class="text-sm font-bold text-gray-600 block mb-2">黒板内 微調整 (Y軸)</label>
+                            <label class="text-xs font-bold text-gray-700 block mb-2">黒板内 微調整 (Y軸)</label>
                             <div class="grid grid-cols-2 gap-2">
-                                <button onclick="adjustOffset(-5)" class="bg-gray-100 p-2 rounded hover:bg-gray-200"><span class="material-icons text-sm">arrow_upward</span> 上へ</button>
-                                <button onclick="adjustOffset(5)" class="bg-gray-100 p-2 rounded hover:bg-gray-200"><span class="material-icons text-sm">arrow_downward</span> 下へ</button>
+                                <button onclick="adjustOffset(-5)" class="bg-gray-100 p-2 rounded hover:bg-gray-200 text-sm"><span class="material-icons text-sm align-middle">arrow_upward</span> 上へ</button>
+                                <button onclick="adjustOffset(5)" class="bg-gray-100 p-2 rounded hover:bg-gray-200 text-sm"><span class="material-icons text-sm align-middle">arrow_downward</span> 下へ</button>
                             </div>
                         </div>
                     </div>
-                </details>
+                </div>
 
                 <div class="text-center mt-2">
                     <button onclick="resetAll()" class="text-sm text-red-500 underline hover:text-red-700">全てリセット</button>
@@ -259,7 +385,260 @@
         </div>
     </div>
 
-    <script>
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Init
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'construction-board';
+
+        let currentUser = null;
+        let saveTimeout = null;
+
+        // Auth Flow
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
+        initAuth();
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUser = user;
+                // Load data immediately upon login
+                await loadData();
+            }
+        });
+
+        // Data Persistence Logic
+        async function loadData() {
+            if (!currentUser) return;
+            // 修正: 'default' ドキュメントIDを追加してセグメント数を偶数にする
+            const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
+            
+            try {
+                const docSnap = await getDoc(userDocRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    
+                    // Restore state
+                    if(data.text) state.text = { ...state.text, ...data.text };
+                    if(data.style) state.style = { ...state.style, ...data.style };
+                    if(data.boardPos) state.boardPos = data.boardPos;
+                    if(data.boardSize) state.boardSize = data.boardSize;
+                    if(data.boardColor) state.boardColor = data.boardColor;
+                    if(data.showBoard !== undefined) state.showBoard = data.showBoard;
+                    if(data.showTime !== undefined) state.showTime = data.showTime;
+                    if(data.datePos) state.datePos = data.datePos;
+                    if(data.showConstructor !== undefined) state.showConstructor = data.showConstructor;
+
+                    // Update UI Controls
+                    updateUIFromState();
+                    draw();
+                    showSaveStatus("データ復元完了");
+                }
+            } catch (e) {
+                console.error("Error loading document: ", e);
+            }
+        }
+
+        // Debounced Save function to be called on state changes
+        window.requestSave = function() {
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                saveData();
+            }, 1000); // Wait 1 sec after last change
+        };
+
+        async function saveData() {
+            if (!currentUser) return;
+            // 修正: 'default' ドキュメントIDを追加してセグメント数を偶数にする
+            const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
+            
+            // Prepare data to save
+            const dataToSave = {
+                text: state.text,
+                style: state.style,
+                boardPos: state.boardPos,
+                boardSize: state.boardSize,
+                boardColor: state.boardColor,
+                showBoard: state.showBoard,
+                showTime: state.showTime,
+                datePos: state.datePos,
+                showConstructor: state.showConstructor,
+                lastUpdated: new Date()
+            };
+
+            try {
+                await setDoc(userDocRef, dataToSave);
+                showSaveStatus("保存済み");
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                showSaveStatus("保存失敗");
+            }
+        }
+
+        function showSaveStatus(msg) {
+            const el = document.getElementById('saveStatus');
+            el.innerText = msg;
+            el.classList.remove('opacity-0');
+            if(msg === "保存済み" || msg === "データ復元完了") {
+                el.innerHTML = '<span class="material-icons text-xs">cloud_done</span> ' + msg;
+                setTimeout(() => el.classList.add('opacity-0'), 2000);
+            } else {
+                el.innerHTML = '<span class="material-icons text-xs">error</span> ' + msg;
+            }
+        }
+
+        function updateUIFromState() {
+            // Text Inputs
+            document.getElementById('inputProject').value = state.text.project || "";
+            document.getElementById('inputWorkType').value = state.text.workType || "";
+            document.getElementById('inputMemo').value = state.text.memo || "";
+            document.getElementById('inputDate').value = state.text.date || "";
+            document.getElementById('inputTime').value = state.text.time || "";
+            document.getElementById('inputConstructor').value = state.text.constructorName || "ヒューマンヤード(株)";
+
+            // Settings
+            document.getElementById('boardColor').value = state.boardColor;
+            document.getElementById('boardSize').value = state.boardSize;
+            document.getElementById('toggleBoard').checked = state.showBoard;
+            document.getElementById('toggleTime').checked = state.showTime;
+            document.getElementById('showConstructor').checked = state.showConstructor;
+            document.getElementById('fontFamily').value = state.style.fontFamily;
+
+            // Sliders
+            document.getElementById('scaleProject').value = state.style.fontScaleProject;
+            document.getElementById('valScaleProject').innerText = state.style.fontScaleProject;
+            document.getElementById('scaleWorkType').value = state.style.fontScaleWorkType;
+            document.getElementById('valScaleWorkType').innerText = state.style.fontScaleWorkType;
+            document.getElementById('scaleMemo').value = state.style.fontScaleMemo;
+            document.getElementById('valScaleMemo').innerText = state.style.fontScaleMemo;
+            document.getElementById('lineHeight').value = state.style.lineHeight;
+            document.getElementById('dispLineHeight').innerText = state.style.lineHeight;
+
+            // Radios
+            const dateRadio = document.querySelector(`input[name="datePos"][value="${state.datePos}"]`);
+            if(dateRadio) dateRadio.checked = true;
+        }
+
+        // --- Expose functions to window for HTML inline calls ---
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`btn-tab-${tabName}`).classList.add('tab-active');
+        };
+
+        let counterValue = 1;
+        window.changeCounter = function(change) {
+            counterValue += change;
+            if (counterValue < 1) counterValue = 1;
+            document.getElementById('counterValue').innerText = counterValue;
+            updateSoilDirectly(); 
+        };
+
+        window.updateSoilDirectly = function(forceInsert = false) {
+            const soilTypeRadio = document.querySelector('input[name="soilType"]:checked');
+            let soilType = soilTypeRadio ? soilTypeRadio.value : '';
+            
+            const pattern = /(?:残土|客土)?\s*\d+台目/g;
+            const newText = soilType ? `${soilType} ${counterValue}台目` : `${counterValue}台目`;
+            
+            const memoInput = document.getElementById('inputMemo');
+            let currentText = memoInput.value;
+
+            if (pattern.test(currentText)) {
+                currentText = currentText.replace(pattern, newText);
+            } else {
+                if (currentText && !currentText.endsWith('\n')) {
+                    currentText += '\n';
+                }
+                currentText += newText;
+            }
+
+            memoInput.value = currentText;
+            state.text.memo = currentText;
+            draw();
+            window.requestSave(); // Trigger Save
+        };
+
+        window.clearMemo = function() {
+            if(confirm("備考・内容をクリアしますか？")) {
+                document.getElementById('inputMemo').value = "";
+                state.text.memo = "";
+                draw();
+                window.requestSave(); // Trigger Save
+            }
+        };
+
+        window.setToday = function() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const hh = String(today.getHours()).padStart(2, '0');
+            const min = String(today.getMinutes()).padStart(2, '0');
+            
+            const dStr = `${yyyy}-${mm}-${dd}`;
+            const tStr = `${hh}:${min}`;
+            document.getElementById('inputDate').value = dStr;
+            document.getElementById('inputTime').value = tStr;
+            state.text.date = dStr;
+            state.text.time = tStr;
+            draw();
+            window.requestSave();
+        };
+
+        window.setBoardPos = function(pos) {
+            state.boardPos = pos;
+            draw();
+            window.requestSave();
+        };
+
+        window.adjustOffset = function(delta) {
+            state.style.yOffset += delta;
+            draw();
+            window.requestSave();
+        };
+
+        window.resetAll = function() {
+            if(confirm('設定を初期状態に戻しますか？')) {
+                location.reload();
+            }
+        };
+
+        window.triggerCamera = function() {
+            document.getElementById('cameraInput').click();
+        };
+
+        window.triggerFile = function() {
+            document.getElementById('fileInput').click();
+        };
+
+        window.downloadImage = function() {
+            if (!state.image) {
+                alert("画像が選択されていません。");
+                return;
+            }
+            const link = document.createElement('a');
+            const safeProject = state.text.project.replace(/[\/\s]/g, '_') || 'photo';
+            link.download = `board_${safeProject}_${state.text.date}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        };
+
+        // --- Main Logic ---
         const state = {
             image: null,
             boardPos: 'right', 
@@ -267,17 +646,22 @@
             boardColor: 'green',
             showBoard: true,
             showTime: true,
+            datePos: 'right',
+            showConstructor: false,
             text: {
                 project: '',
                 workType: '',
                 memo: '',
                 date: '',
-                time: '' 
+                time: '',
+                constructorName: 'ヒューマンヤード(株)'
             },
             style: {
                 fontFamily: "'M PLUS Rounded 1c', sans-serif",
                 fontSizeBase: 24, 
-                fontScale: 1.0,
+                fontScaleProject: 1.0,
+                fontScaleWorkType: 1.0,
+                fontScaleMemo: 1.0,
                 lineHeight: 1.2,
                 yOffset: 0
             }
@@ -287,74 +671,70 @@
         const ctx = canvas.getContext('2d');
         const loading = document.getElementById('loading');
 
-        window.addEventListener('DOMContentLoaded', () => {
-            // イベントリスナーを2つのインプットに設定
-            document.getElementById('cameraInput').addEventListener('change', handleImageUpload);
-            document.getElementById('fileInput').addEventListener('change', handleImageUpload);
-            
-            ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime'].forEach(id => {
-                document.getElementById(id).addEventListener('input', updateTextState);
+        // Init Listeners
+        document.getElementById('cameraInput').addEventListener('change', handleImageUpload);
+        document.getElementById('fileInput').addEventListener('change', handleImageUpload);
+        
+        ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime', 'inputConstructor'].forEach(id => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                updateTextState(e);
+                window.requestSave(); // Trigger Save on text input
             });
-
-            document.getElementById('boardColor').addEventListener('change', (e) => { 
-                state.boardColor = e.target.value; 
-                draw(); 
-            });
-            document.getElementById('boardSize').addEventListener('change', (e) => { 
-                state.boardSize = e.target.value; 
-                draw(); 
-            });
-            document.getElementById('toggleBoard').addEventListener('change', (e) => { state.showBoard = e.target.checked; draw(); });
-            document.getElementById('toggleTime').addEventListener('change', (e) => { state.showTime = e.target.checked; draw(); });
-
-            document.getElementById('fontFamily').addEventListener('change', (e) => { state.style.fontFamily = e.target.value; draw(); });
-            
-            const fsSlider = document.getElementById('fontSizeRatio');
-            fsSlider.addEventListener('input', (e) => { 
-                state.style.fontScale = parseFloat(e.target.value); 
-                document.getElementById('dispFontSize').innerText = state.style.fontScale;
-                draw(); 
-            });
-
-            const lhSlider = document.getElementById('lineHeight');
-            lhSlider.addEventListener('input', (e) => { 
-                state.style.lineHeight = parseFloat(e.target.value); 
-                document.getElementById('dispLineHeight').innerText = state.style.lineHeight;
-                draw(); 
-            });
-
-            document.getElementById('downloadBtn').addEventListener('click', downloadImage);
-
-            setToday();
-            loadPlaceholder();
         });
 
-        function setToday() {
-            const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            const hh = String(today.getHours()).padStart(2, '0');
-            const min = String(today.getMinutes()).padStart(2, '0');
-            
-            const dateStr = `${yyyy}-${mm}-${dd}`;
-            const timeStr = `${hh}:${min}`;
-            
-            document.getElementById('inputDate').value = dateStr;
-            document.getElementById('inputTime').value = timeStr;
-            
-            state.text.date = dateStr;
-            state.text.time = timeStr;
-            draw();
-        }
+        document.getElementById('boardColor').addEventListener('change', (e) => { state.boardColor = e.target.value; draw(); window.requestSave(); });
+        document.getElementById('boardSize').addEventListener('change', (e) => { state.boardSize = e.target.value; draw(); window.requestSave(); });
+        document.getElementById('toggleBoard').addEventListener('change', (e) => { state.showBoard = e.target.checked; draw(); window.requestSave(); });
+        document.getElementById('toggleTime').addEventListener('change', (e) => { state.showTime = e.target.checked; draw(); window.requestSave(); });
+        document.getElementById('showConstructor').addEventListener('change', (e) => { state.showConstructor = e.target.checked; draw(); window.requestSave(); });
+        document.getElementById('fontFamily').addEventListener('change', (e) => { state.style.fontFamily = e.target.value; draw(); window.requestSave(); });
+        
+        document.getElementById('scaleProject').addEventListener('input', (e) => { 
+            state.style.fontScaleProject = parseFloat(e.target.value); 
+            document.getElementById('valScaleProject').innerText = state.style.fontScaleProject;
+            draw(); window.requestSave();
+        });
+        document.getElementById('scaleWorkType').addEventListener('input', (e) => { 
+            state.style.fontScaleWorkType = parseFloat(e.target.value); 
+            document.getElementById('valScaleWorkType').innerText = state.style.fontScaleWorkType;
+            draw(); window.requestSave();
+        });
+        document.getElementById('scaleMemo').addEventListener('input', (e) => { 
+            state.style.fontScaleMemo = parseFloat(e.target.value); 
+            document.getElementById('valScaleMemo').innerText = state.style.fontScaleMemo;
+            draw(); window.requestSave();
+        });
 
+        document.querySelectorAll('input[name="datePos"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                state.datePos = e.target.value;
+                draw(); window.requestSave();
+            });
+        });
+
+        document.getElementById('lineHeight').addEventListener('input', (e) => { 
+            state.style.lineHeight = parseFloat(e.target.value); 
+            document.getElementById('dispLineHeight').innerText = state.style.lineHeight;
+            draw(); window.requestSave();
+        });
+
+        // Set default date (UI only, state will be loaded or set)
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        document.getElementById('inputDate').value = `${yyyy}-${mm}-${dd}`;
+        loadPlaceholder(); // Initial Placeholder
+
+        // --- Helper Functions ---
         function updateTextState(e) {
             const map = {
                 'inputProject': 'project',
                 'inputWorkType': 'workType',
                 'inputMemo': 'memo',
                 'inputDate': 'date',
-                'inputTime': 'time'
+                'inputTime': 'time',
+                'inputConstructor': 'constructorName'
             };
             if(map[e.target.id]) {
                 state.text[map[e.target.id]] = e.target.value;
@@ -362,28 +742,10 @@
             }
         }
 
-        function setBoardPos(pos) {
-            state.boardPos = pos;
-            draw();
-        }
-
-        function adjustOffset(delta) {
-            state.style.yOffset += delta;
-            draw();
-        }
-
-        function resetAll() {
-            if(confirm('設定を初期状態に戻しますか？')) {
-                location.reload();
-            }
-        }
-
         function handleImageUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             loading.classList.remove('hidden');
-            
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
@@ -391,9 +753,7 @@
                     state.image = img;
                     canvas.width = img.width;
                     canvas.height = img.height;
-                    
                     state.style.fontSizeBase = Math.max(16, Math.floor(img.width * 0.015));
-
                     loading.classList.add('hidden');
                     draw();
                 };
@@ -406,7 +766,6 @@
             canvas.width = 800;
             canvas.height = 600;
             state.style.fontSizeBase = 16;
-            
             ctx.fillStyle = "#e2e8f0";
             ctx.fillRect(0,0,800,600);
             ctx.fillStyle = "#94a3b8";
@@ -417,13 +776,9 @@
         }
 
         function draw() {
-            if (!state.image && canvas.width === 800) {
-                 // return; 
-            }
-
-            if (state.image) {
-                ctx.drawImage(state.image, 0, 0);
-            } else {
+            if (!state.image && canvas.width === 800) {} 
+            if (state.image) ctx.drawImage(state.image, 0, 0);
+            else {
                  ctx.fillStyle = "#e2e8f0";
                  ctx.fillRect(0, 0, canvas.width, canvas.height);
                  ctx.fillStyle = "#94a3b8";
@@ -435,55 +790,33 @@
             if (!state.showBoard) return;
 
             let boardW, boardH;
+            const ASPECT_RATIO = 0.75;
 
             switch (state.boardSize) {
-                case 'extraLarge':
-                    boardW = canvas.width / 2;
-                    boardH = canvas.height / 2;
-                    break;
-                case 'large':
-                    boardW = canvas.width / 2.2;
-                    boardH = canvas.height / 2.2;
-                    break;
-                case 'medium':
-                    boardW = canvas.width / 2.5;
-                    boardH = canvas.height / 2.6; 
-                    break;
-                case 'small':
-                    boardW = canvas.width / 3;
-                    boardH = canvas.height / 3;
-                    break;
-                default: 
-                    boardW = canvas.width / 2.2;
-                    boardH = canvas.height / 2.2;
+                case 'extraLarge': boardW = canvas.width * 0.6; break;
+                case 'large': boardW = canvas.width * 0.5; break;
+                case 'medium': boardW = canvas.width * 0.4; break;
+                case 'small': boardW = canvas.width * 0.3; break;
+                default: boardW = canvas.width * 0.5;
             }
+            boardH = boardW * ASPECT_RATIO;
 
-            const margin = 0; 
-            
+            const margin = 0;
             let boardX = margin;
             let boardY = canvas.height - boardH - margin;
-
-            if (state.boardPos === 'right') {
-                boardX = canvas.width - boardW - margin;
-            }
+            if (state.boardPos === 'right') boardX = canvas.width - boardW - margin;
 
             const colors = getBoardColors();
-
             drawBlackboard(boardX, boardY, boardW, boardH, colors);
             drawTextOnBoard(boardX, boardY, boardW, boardH, colors);
         }
 
         function getBoardColors() {
             switch(state.boardColor) {
-                case 'black':
-                    return { bg: "#1a1a1a", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                case 'white':
-                    return { bg: "#ffffff", line: "#333333", text: "#111111", shadow: "rgba(0,0,0,0.3)" };
-                case 'blue':
-                    return { bg: "#0d47a1", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                case 'green':
-                default:
-                    return { bg: "#004d40", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+                case 'black': return { bg: "#1a1a1a", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+                case 'white': return { bg: "#ffffff", line: "#333333", text: "#111111", shadow: "rgba(0,0,0,0.3)" };
+                case 'blue': return { bg: "#0d47a1", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
+                case 'green': default: return { bg: "#004d40", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
             }
         }
 
@@ -493,31 +826,34 @@
             ctx.shadowBlur = 10;
             ctx.shadowOffsetX = 5;
             ctx.shadowOffsetY = 5;
-
             ctx.fillStyle = colors.bg; 
             ctx.fillRect(x, y, w, h);
 
             ctx.shadowColor = "transparent";
             ctx.strokeStyle = "#e0e0e0"; 
             if(state.boardColor === 'white') ctx.strokeStyle = "#999999"; 
-
             ctx.lineWidth = Math.max(2, w * 0.005);
-            
             const halfLine = ctx.lineWidth / 2;
             ctx.strokeRect(x + halfLine, y + halfLine, w - ctx.lineWidth, h - ctx.lineWidth);
 
             ctx.strokeStyle = colors.line;
             ctx.lineWidth = Math.max(1, w * 0.003);
             ctx.beginPath();
+            ctx.moveTo(x, y + h * 0.15); ctx.lineTo(x + w, y + h * 0.15);
+            ctx.moveTo(x, y + h * 0.30); ctx.lineTo(x + w, y + h * 0.30);
+            ctx.moveTo(x + w * 0.25, y); ctx.lineTo(x + w * 0.25, y + h * 0.30); // ラベル縦線
 
-            ctx.moveTo(x, y + h * 0.15);
-            ctx.lineTo(x + w, y + h * 0.15);
-            
-            ctx.moveTo(x, y + h * 0.30);
-            ctx.lineTo(x + w, y + h * 0.30);
-            
-            ctx.moveTo(x + w * 0.25, y);
-            ctx.lineTo(x + w * 0.25, y + h * 0.30);
+            // 施工者枠がONの場合
+            if(state.showConstructor) {
+                const constH = h * 0.12; // 枠の高さ割合
+                const constY = y + h - constH;
+                // 下部横線
+                ctx.moveTo(x, constY);
+                ctx.lineTo(x + w, constY);
+                // 施工者枠内の縦線 (上と同じ25%位置)
+                ctx.moveTo(x + w * 0.25, constY);
+                ctx.lineTo(x + w * 0.25, y + h);
+            }
 
             ctx.stroke();
             ctx.restore();
@@ -528,43 +864,68 @@
             ctx.fillStyle = colors.text;
             
             const responsiveBaseSize = bw * 0.055; 
-            const fontSize = state.style.fontScale * responsiveBaseSize;
-            
-            ctx.font = `${fontSize}px ${state.style.fontFamily}`;
-            ctx.textBaseline = "middle";
-            
             const pad = bw * 0.05; 
-            const lineHeight = fontSize * state.style.lineHeight;
-
-            ctx.beginPath();
-            ctx.rect(bx, by, bw, bh);
-            ctx.clip();
-
             const globalOffsetY = state.style.yOffset;
 
+            ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
+
+            // ラベル
             ctx.textAlign = "center";
-            const labelSize = fontSize * 0.7; 
-            ctx.font = `${labelSize}px ${state.style.fontFamily}`;
-            
+            ctx.textBaseline = "middle";
+            ctx.font = `${0.7 * responsiveBaseSize}px ${state.style.fontFamily}`;
             ctx.fillText("工事件名", bx + bw * 0.125, by + bh * 0.075);
             ctx.fillText("工事場所", bx + bw * 0.125, by + bh * 0.225);
 
-            ctx.textAlign = "left";
-            ctx.font = `${fontSize}px ${state.style.fontFamily}`;
+            // 施工者ラベルと内容
+            if(state.showConstructor) {
+                const constH = bh * 0.12;
+                const constCenterY = by + bh - (constH / 2);
+                
+                // ラベル
+                ctx.fillText("施工者", bx + bw * 0.125, constCenterY);
+                
+                // 会社名
+                ctx.textAlign = "left";
+                ctx.font = `${0.8 * responsiveBaseSize}px ${state.style.fontFamily}`; // 少し大きめ
+                ctx.fillText(state.text.constructorName, bx + bw * 0.27, constCenterY);
+            }
 
-            drawMultilineText(state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, lineHeight);
-            drawMultilineText(state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, lineHeight);
-            drawMultilineText(state.text.memo, bx + pad, by + bh * 0.55 + globalOffsetY, lineHeight);
+            ctx.textAlign = "left";
+
+            // 工事件名
+            ctx.font = `${state.style.fontScaleProject * responsiveBaseSize}px ${state.style.fontFamily}`;
+            drawMultilineText(state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, state.style.fontScaleProject * responsiveBaseSize * state.style.lineHeight);
             
-            ctx.textAlign = "right";
-            ctx.font = `${fontSize * 0.8}px ${state.style.fontFamily}`;
+            // 工事場所
+            ctx.font = `${state.style.fontScaleWorkType * responsiveBaseSize}px ${state.style.fontFamily}`;
+            drawMultilineText(state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, state.style.fontScaleWorkType * responsiveBaseSize * state.style.lineHeight);
             
+            // 備考
+            ctx.font = `${state.style.fontScaleMemo * responsiveBaseSize}px ${state.style.fontFamily}`;
+            drawMultilineText(state.text.memo, bx + pad, by + bh * 0.55 + globalOffsetY, state.style.fontScaleMemo * responsiveBaseSize * state.style.lineHeight);
+            
+            // 日付と時間
             let dateString = state.text.date;
             if (state.showTime && state.text.time) {
                 dateString += " " + state.text.time;
             }
             
-            ctx.fillText(dateString, bx + bw - pad, by + bh - pad);
+            ctx.font = `${0.8 * responsiveBaseSize}px ${state.style.fontFamily}`;
+            
+            // 施工者枠がある場合は、日付の位置を上にずらす
+            let dateY = by + bh - pad;
+            if(state.showConstructor) {
+                const constH = bh * 0.12;
+                dateY = by + bh - constH - (pad * 0.5); // 枠の上、少し余白狭め
+            }
+
+            if(state.datePos === 'left') {
+                ctx.textAlign = "left";
+                ctx.fillText(dateString, bx + pad, dateY);
+            } else {
+                ctx.textAlign = "right";
+                ctx.fillText(dateString, bx + bw - pad, dateY);
+            }
 
             ctx.restore();
         }
@@ -573,25 +934,10 @@
             if(!text) return;
             const lines = text.split('\n'); 
             const offset = ((lines.length - 1) * lineHeight) / 2;
-            
             lines.forEach((line, index) => {
                 ctx.fillText(line, x, y - offset + (index * lineHeight));
             });
         }
-
-        function downloadImage() {
-            if (!state.image) {
-                alert("画像が選択されていません。");
-                return;
-            }
-
-            const link = document.createElement('a');
-            const safeProject = state.text.project.replace(/[\/\s]/g, '_') || 'photo';
-            link.download = `board_${safeProject}_${state.text.date}.jpg`;
-            link.href = canvas.toDataURL('image/jpeg', 0.95);
-            link.click();
-        }
-
     </script>
 </body>
 </html>
