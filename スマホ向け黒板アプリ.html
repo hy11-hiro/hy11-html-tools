@@ -30,7 +30,6 @@
             box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
         }
 
-        /* スライダー共通スタイル */
         input[type=range] {
             height: 24px;
             -webkit-appearance: none;
@@ -73,7 +72,6 @@
             <span class="material-icons">construction</span>
             工事用黒板ツール
         </h1>
-        <!-- 保存ステータス表示 -->
         <div id="saveStatus" class="text-xs font-bold bg-white/20 px-2 py-1 rounded text-white flex items-center gap-1 opacity-0 transition-opacity duration-500">
             <span class="material-icons text-xs">cloud_done</span> 保存済み
         </div>
@@ -86,7 +84,7 @@
             <!-- 左側: キャンバスエリア -->
             <div class="editor-area w-full md:w-2/3 flex flex-col gap-4">
                 
-                <!-- 撮影ルール表示エリア (追加) -->
+                <!-- 撮影ルール -->
                 <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r shadow-sm">
                     <div class="flex items-center mb-2">
                         <span class="material-icons text-yellow-600 mr-2">campaign</span>
@@ -110,15 +108,16 @@
 
                 <!-- 画像入力エリア -->
                 <div class="grid grid-cols-2 gap-4">
-                    <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden">
-                    <input type="file" id="fileInput" accept="image/*" class="hidden">
+                    <!-- inputは非表示だが確実に存在する状態にする -->
+                    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+                    <input type="file" id="fileInput" accept="image/*" style="display:none">
 
-                    <button onclick="triggerCamera()" class="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none">
+                    <button id="btnCamera" class="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none">
                         <span class="material-icons text-3xl text-blue-500 mb-2">photo_camera</span>
                         <span class="text-sm font-bold text-blue-700">カメラ起動</span>
                     </button>
 
-                    <button onclick="triggerFile()" class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none">
+                    <button id="btnFile" class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 active:scale-95 shadow-sm select-none">
                         <span class="material-icons text-3xl text-gray-400 mb-2">photo_library</span>
                         <span class="text-sm font-bold text-gray-600">アルバム選択</span>
                     </button>
@@ -201,7 +200,6 @@
                             </select>
                         </div>
 
-                        <!-- 施工者枠設定 -->
                         <div class="border-t pt-3 mb-3">
                             <label class="text-sm font-bold text-gray-600 flex justify-between items-center mb-2">
                                 <span>施工者枠を表示</span>
@@ -244,13 +242,11 @@
                         <div id="containerMemo" class="border-b pb-3 border-dashed border-gray-300">
                             <div class="flex justify-between items-center mb-2">
                                 <label class="block text-sm font-bold text-gray-700">備考・内容</label>
-                                <!-- 備考クリアボタン -->
                                 <button onclick="clearMemo()" class="text-xs text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 px-2 py-1 rounded flex items-center gap-1">
                                     <span class="material-icons text-xs">delete_outline</span>クリア
                                 </button>
                             </div>
                             
-                            <!-- 土砂・台数入力支援 -->
                             <div class="bg-blue-50 p-3 rounded-lg mb-2 border border-blue-100">
                                 <div class="text-xs font-bold text-blue-700 mb-2">土砂・台数入力 (即時反映)</div>
                                 <div class="flex flex-wrap gap-3 mb-3">
@@ -315,7 +311,6 @@
                     </div>
                     <div class="p-4 border-t border-gray-200 space-y-4">
                         
-                        <!-- 個別サイズ調整 -->
                         <div>
                             <div class="flex justify-between text-xs font-bold text-gray-700 mb-1">
                                 <span>工事件名 サイズ</span>
@@ -342,7 +337,6 @@
 
                         <hr class="border-gray-200 my-2">
 
-                        <!-- 日付位置 -->
                         <div>
                             <label class="text-xs font-bold text-gray-700 mb-1 block">日付・時間の位置</label>
                             <div class="grid grid-cols-2 gap-2 text-sm">
@@ -385,261 +379,10 @@
         </div>
     </div>
 
-    <!-- Firebase SDK Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Firebase Init
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'construction-board';
-
-        let currentUser = null;
-        let saveTimeout = null;
-
-        // Auth Flow
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        };
-
-        initAuth();
-
-        onAuthStateChanged(auth, async (user) => {
-            if (user) {
-                currentUser = user;
-                // Load data immediately upon login
-                await loadData();
-            }
-        });
-
-        // Data Persistence Logic
-        async function loadData() {
-            if (!currentUser) return;
-            // 修正: 'default' ドキュメントIDを追加してセグメント数を偶数にする
-            const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
-            
-            try {
-                const docSnap = await getDoc(userDocRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    
-                    // Restore state
-                    if(data.text) state.text = { ...state.text, ...data.text };
-                    if(data.style) state.style = { ...state.style, ...data.style };
-                    if(data.boardPos) state.boardPos = data.boardPos;
-                    if(data.boardSize) state.boardSize = data.boardSize;
-                    if(data.boardColor) state.boardColor = data.boardColor;
-                    if(data.showBoard !== undefined) state.showBoard = data.showBoard;
-                    if(data.showTime !== undefined) state.showTime = data.showTime;
-                    if(data.datePos) state.datePos = data.datePos;
-                    if(data.showConstructor !== undefined) state.showConstructor = data.showConstructor;
-
-                    // Update UI Controls
-                    updateUIFromState();
-                    draw();
-                    showSaveStatus("データ復元完了");
-                }
-            } catch (e) {
-                console.error("Error loading document: ", e);
-            }
-        }
-
-        // Debounced Save function to be called on state changes
-        window.requestSave = function() {
-            if (saveTimeout) clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                saveData();
-            }, 1000); // Wait 1 sec after last change
-        };
-
-        async function saveData() {
-            if (!currentUser) return;
-            // 修正: 'default' ドキュメントIDを追加してセグメント数を偶数にする
-            const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
-            
-            // Prepare data to save
-            const dataToSave = {
-                text: state.text,
-                style: state.style,
-                boardPos: state.boardPos,
-                boardSize: state.boardSize,
-                boardColor: state.boardColor,
-                showBoard: state.showBoard,
-                showTime: state.showTime,
-                datePos: state.datePos,
-                showConstructor: state.showConstructor,
-                lastUpdated: new Date()
-            };
-
-            try {
-                await setDoc(userDocRef, dataToSave);
-                showSaveStatus("保存済み");
-            } catch (e) {
-                console.error("Error adding document: ", e);
-                showSaveStatus("保存失敗");
-            }
-        }
-
-        function showSaveStatus(msg) {
-            const el = document.getElementById('saveStatus');
-            el.innerText = msg;
-            el.classList.remove('opacity-0');
-            if(msg === "保存済み" || msg === "データ復元完了") {
-                el.innerHTML = '<span class="material-icons text-xs">cloud_done</span> ' + msg;
-                setTimeout(() => el.classList.add('opacity-0'), 2000);
-            } else {
-                el.innerHTML = '<span class="material-icons text-xs">error</span> ' + msg;
-            }
-        }
-
-        function updateUIFromState() {
-            // Text Inputs
-            document.getElementById('inputProject').value = state.text.project || "";
-            document.getElementById('inputWorkType').value = state.text.workType || "";
-            document.getElementById('inputMemo').value = state.text.memo || "";
-            document.getElementById('inputDate').value = state.text.date || "";
-            document.getElementById('inputTime').value = state.text.time || "";
-            document.getElementById('inputConstructor').value = state.text.constructorName || "ヒューマンヤード(株)";
-
-            // Settings
-            document.getElementById('boardColor').value = state.boardColor;
-            document.getElementById('boardSize').value = state.boardSize;
-            document.getElementById('toggleBoard').checked = state.showBoard;
-            document.getElementById('toggleTime').checked = state.showTime;
-            document.getElementById('showConstructor').checked = state.showConstructor;
-            document.getElementById('fontFamily').value = state.style.fontFamily;
-
-            // Sliders
-            document.getElementById('scaleProject').value = state.style.fontScaleProject;
-            document.getElementById('valScaleProject').innerText = state.style.fontScaleProject;
-            document.getElementById('scaleWorkType').value = state.style.fontScaleWorkType;
-            document.getElementById('valScaleWorkType').innerText = state.style.fontScaleWorkType;
-            document.getElementById('scaleMemo').value = state.style.fontScaleMemo;
-            document.getElementById('valScaleMemo').innerText = state.style.fontScaleMemo;
-            document.getElementById('lineHeight').value = state.style.lineHeight;
-            document.getElementById('dispLineHeight').innerText = state.style.lineHeight;
-
-            // Radios
-            const dateRadio = document.querySelector(`input[name="datePos"][value="${state.datePos}"]`);
-            if(dateRadio) dateRadio.checked = true;
-        }
-
-        // --- Expose functions to window for HTML inline calls ---
-        window.switchTab = function(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
-            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-            document.getElementById(`btn-tab-${tabName}`).classList.add('tab-active');
-        };
-
-        let counterValue = 1;
-        window.changeCounter = function(change) {
-            counterValue += change;
-            if (counterValue < 1) counterValue = 1;
-            document.getElementById('counterValue').innerText = counterValue;
-            updateSoilDirectly(); 
-        };
-
-        window.updateSoilDirectly = function(forceInsert = false) {
-            const soilTypeRadio = document.querySelector('input[name="soilType"]:checked');
-            let soilType = soilTypeRadio ? soilTypeRadio.value : '';
-            
-            const pattern = /(?:残土|客土)?\s*\d+台目/g;
-            const newText = soilType ? `${soilType} ${counterValue}台目` : `${counterValue}台目`;
-            
-            const memoInput = document.getElementById('inputMemo');
-            let currentText = memoInput.value;
-
-            if (pattern.test(currentText)) {
-                currentText = currentText.replace(pattern, newText);
-            } else {
-                if (currentText && !currentText.endsWith('\n')) {
-                    currentText += '\n';
-                }
-                currentText += newText;
-            }
-
-            memoInput.value = currentText;
-            state.text.memo = currentText;
-            draw();
-            window.requestSave(); // Trigger Save
-        };
-
-        window.clearMemo = function() {
-            if(confirm("備考・内容をクリアしますか？")) {
-                document.getElementById('inputMemo').value = "";
-                state.text.memo = "";
-                draw();
-                window.requestSave(); // Trigger Save
-            }
-        };
-
-        window.setToday = function() {
-            const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
-            const hh = String(today.getHours()).padStart(2, '0');
-            const min = String(today.getMinutes()).padStart(2, '0');
-            
-            const dStr = `${yyyy}-${mm}-${dd}`;
-            const tStr = `${hh}:${min}`;
-            document.getElementById('inputDate').value = dStr;
-            document.getElementById('inputTime').value = tStr;
-            state.text.date = dStr;
-            state.text.time = tStr;
-            draw();
-            window.requestSave();
-        };
-
-        window.setBoardPos = function(pos) {
-            state.boardPos = pos;
-            draw();
-            window.requestSave();
-        };
-
-        window.adjustOffset = function(delta) {
-            state.style.yOffset += delta;
-            draw();
-            window.requestSave();
-        };
-
-        window.resetAll = function() {
-            if(confirm('設定を初期状態に戻しますか？')) {
-                location.reload();
-            }
-        };
-
-        window.triggerCamera = function() {
-            document.getElementById('cameraInput').click();
-        };
-
-        window.triggerFile = function() {
-            document.getElementById('fileInput').click();
-        };
-
-        window.downloadImage = function() {
-            if (!state.image) {
-                alert("画像が選択されていません。");
-                return;
-            }
-            const link = document.createElement('a');
-            const safeProject = state.text.project.replace(/[\/\s]/g, '_') || 'photo';
-            link.download = `board_${safeProject}_${state.text.date}.jpg`;
-            link.href = canvas.toDataURL('image/jpeg', 0.95);
-            link.click();
-        };
-
-        // --- Main Logic ---
-        const state = {
+    <!-- Main Logic Script (Standard Script to ensure basic functionality) -->
+    <script>
+        // グローバル変数として定義（モジュール外で確実に動作させるため）
+        window.state = {
             image: null,
             boardPos: 'right', 
             boardSize: 'large',
@@ -667,66 +410,164 @@
             }
         };
 
-        const canvas = document.getElementById('mainCanvas');
-        const ctx = canvas.getContext('2d');
-        const loading = document.getElementById('loading');
+        // ダミー関数（Firebase未ロード時のフォールバック）
+        window.requestSave = function() {}; 
 
-        // Init Listeners
-        document.getElementById('cameraInput').addEventListener('change', handleImageUpload);
-        document.getElementById('fileInput').addEventListener('change', handleImageUpload);
-        
-        ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime', 'inputConstructor'].forEach(id => {
-            document.getElementById(id).addEventListener('input', (e) => {
-                updateTextState(e);
-                window.requestSave(); // Trigger Save on text input
+        // DOMContentLoaded後に初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+            const loading = document.getElementById('loading');
+
+            // リスナー設定
+            document.getElementById('btnCamera').addEventListener('click', () => document.getElementById('cameraInput').click());
+            document.getElementById('btnFile').addEventListener('click', () => document.getElementById('fileInput').click());
+            
+            document.getElementById('cameraInput').addEventListener('change', handleImageUpload);
+            document.getElementById('fileInput').addEventListener('change', handleImageUpload);
+            
+            ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime', 'inputConstructor'].forEach(id => {
+                document.getElementById(id).addEventListener('input', (e) => {
+                    updateTextState(e);
+                    window.requestSave(); 
+                });
             });
-        });
 
-        document.getElementById('boardColor').addEventListener('change', (e) => { state.boardColor = e.target.value; draw(); window.requestSave(); });
-        document.getElementById('boardSize').addEventListener('change', (e) => { state.boardSize = e.target.value; draw(); window.requestSave(); });
-        document.getElementById('toggleBoard').addEventListener('change', (e) => { state.showBoard = e.target.checked; draw(); window.requestSave(); });
-        document.getElementById('toggleTime').addEventListener('change', (e) => { state.showTime = e.target.checked; draw(); window.requestSave(); });
-        document.getElementById('showConstructor').addEventListener('change', (e) => { state.showConstructor = e.target.checked; draw(); window.requestSave(); });
-        document.getElementById('fontFamily').addEventListener('change', (e) => { state.style.fontFamily = e.target.value; draw(); window.requestSave(); });
-        
-        document.getElementById('scaleProject').addEventListener('input', (e) => { 
-            state.style.fontScaleProject = parseFloat(e.target.value); 
-            document.getElementById('valScaleProject').innerText = state.style.fontScaleProject;
-            draw(); window.requestSave();
-        });
-        document.getElementById('scaleWorkType').addEventListener('input', (e) => { 
-            state.style.fontScaleWorkType = parseFloat(e.target.value); 
-            document.getElementById('valScaleWorkType').innerText = state.style.fontScaleWorkType;
-            draw(); window.requestSave();
-        });
-        document.getElementById('scaleMemo').addEventListener('input', (e) => { 
-            state.style.fontScaleMemo = parseFloat(e.target.value); 
-            document.getElementById('valScaleMemo').innerText = state.style.fontScaleMemo;
-            draw(); window.requestSave();
-        });
-
-        document.querySelectorAll('input[name="datePos"]').forEach(radio => {
-            radio.addEventListener('change', (e) => {
-                state.datePos = e.target.value;
+            document.getElementById('boardColor').addEventListener('change', (e) => { window.state.boardColor = e.target.value; draw(); window.requestSave(); });
+            document.getElementById('boardSize').addEventListener('change', (e) => { window.state.boardSize = e.target.value; draw(); window.requestSave(); });
+            document.getElementById('toggleBoard').addEventListener('change', (e) => { window.state.showBoard = e.target.checked; draw(); window.requestSave(); });
+            document.getElementById('toggleTime').addEventListener('change', (e) => { window.state.showTime = e.target.checked; draw(); window.requestSave(); });
+            document.getElementById('showConstructor').addEventListener('change', (e) => { window.state.showConstructor = e.target.checked; draw(); window.requestSave(); });
+            document.getElementById('fontFamily').addEventListener('change', (e) => { window.state.style.fontFamily = e.target.value; draw(); window.requestSave(); });
+            
+            document.getElementById('scaleProject').addEventListener('input', (e) => { 
+                window.state.style.fontScaleProject = parseFloat(e.target.value); 
+                document.getElementById('valScaleProject').innerText = window.state.style.fontScaleProject;
                 draw(); window.requestSave();
             });
+            document.getElementById('scaleWorkType').addEventListener('input', (e) => { 
+                window.state.style.fontScaleWorkType = parseFloat(e.target.value); 
+                document.getElementById('valScaleWorkType').innerText = window.state.style.fontScaleWorkType;
+                draw(); window.requestSave();
+            });
+            document.getElementById('scaleMemo').addEventListener('input', (e) => { 
+                window.state.style.fontScaleMemo = parseFloat(e.target.value); 
+                document.getElementById('valScaleMemo').innerText = window.state.style.fontScaleMemo;
+                draw(); window.requestSave();
+            });
+
+            document.querySelectorAll('input[name="datePos"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    window.state.datePos = e.target.value;
+                    draw(); window.requestSave();
+                });
+            });
+
+            document.getElementById('lineHeight').addEventListener('input', (e) => { 
+                window.state.style.lineHeight = parseFloat(e.target.value); 
+                document.getElementById('dispLineHeight').innerText = window.state.style.lineHeight;
+                draw(); window.requestSave();
+            });
+
+            document.getElementById('downloadBtn').addEventListener('click', downloadImage);
+
+            setToday();
+            loadPlaceholder();
         });
 
-        document.getElementById('lineHeight').addEventListener('input', (e) => { 
-            state.style.lineHeight = parseFloat(e.target.value); 
-            document.getElementById('dispLineHeight').innerText = state.style.lineHeight;
-            draw(); window.requestSave();
-        });
+        // --- Global Functions ---
+        function setToday() {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const hh = String(today.getHours()).padStart(2, '0');
+            const min = String(today.getMinutes()).padStart(2, '0');
+            
+            const dStr = `${yyyy}-${mm}-${dd}`;
+            const tStr = `${hh}:${min}`;
+            document.getElementById('inputDate').value = dStr;
+            document.getElementById('inputTime').value = tStr;
+            window.state.text.date = dStr;
+            window.state.text.time = tStr;
+            draw();
+            window.requestSave();
+        }
 
-        // Set default date (UI only, state will be loaded or set)
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        document.getElementById('inputDate').value = `${yyyy}-${mm}-${dd}`;
-        loadPlaceholder(); // Initial Placeholder
+        window.setToday = setToday; // HTML onclick用
 
-        // --- Helper Functions ---
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`btn-tab-${tabName}`).classList.add('tab-active');
+        };
+
+        window.setBoardPos = function(pos) {
+            window.state.boardPos = pos;
+            draw();
+            window.requestSave();
+        };
+
+        window.adjustOffset = function(delta) {
+            window.state.style.yOffset += delta;
+            draw();
+            window.requestSave();
+        };
+
+        window.resetAll = function() {
+            if(confirm('設定を初期状態に戻しますか？')) {
+                location.reload();
+            }
+        };
+
+        window.triggerCamera = function() { document.getElementById('cameraInput').click(); };
+        window.triggerFile = function() { document.getElementById('fileInput').click(); };
+
+        // 入力支援系
+        let counterValue = 1;
+        window.changeCounter = function(change) {
+            counterValue += change;
+            if (counterValue < 1) counterValue = 1;
+            document.getElementById('counterValue').innerText = counterValue;
+            window.updateSoilDirectly(); 
+        };
+
+        window.updateSoilDirectly = function(forceInsert = false) {
+            const soilTypeRadio = document.querySelector('input[name="soilType"]:checked');
+            let soilType = soilTypeRadio ? soilTypeRadio.value : '';
+            
+            const pattern = /(?:残土|客土)?\s*\d+台目/g;
+            const newText = soilType ? `${soilType} ${counterValue}台目` : `${counterValue}台目`;
+            
+            const memoInput = document.getElementById('inputMemo');
+            let currentText = memoInput.value;
+
+            if (pattern.test(currentText)) {
+                currentText = currentText.replace(pattern, newText);
+            } else {
+                if (currentText && !currentText.endsWith('\n')) {
+                    currentText += '\n';
+                }
+                currentText += newText;
+            }
+
+            memoInput.value = currentText;
+            window.state.text.memo = currentText;
+            draw();
+            window.requestSave(); 
+        };
+
+        window.clearMemo = function() {
+            if(confirm("備考・内容をクリアしますか？")) {
+                document.getElementById('inputMemo').value = "";
+                window.state.text.memo = "";
+                draw();
+                window.requestSave(); 
+            }
+        };
+
+        // --- Core Logic ---
         function updateTextState(e) {
             const map = {
                 'inputProject': 'project',
@@ -737,7 +578,7 @@
                 'inputConstructor': 'constructorName'
             };
             if(map[e.target.id]) {
-                state.text[map[e.target.id]] = e.target.value;
+                window.state.text[map[e.target.id]] = e.target.value;
                 draw();
             }
         }
@@ -745,15 +586,19 @@
         function handleImageUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
+            const loading = document.getElementById('loading');
             loading.classList.remove('hidden');
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
-                    state.image = img;
+                    window.state.image = img;
+                    // キャンバスリサイズ
+                    const canvas = document.getElementById('mainCanvas');
                     canvas.width = img.width;
                     canvas.height = img.height;
-                    state.style.fontSizeBase = Math.max(16, Math.floor(img.width * 0.015));
+                    // フォント基準サイズ計算
+                    window.state.style.fontSizeBase = Math.max(16, Math.floor(img.width * 0.015));
                     loading.classList.add('hidden');
                     draw();
                 };
@@ -763,9 +608,11 @@
         }
 
         function loadPlaceholder() {
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
             canvas.width = 800;
             canvas.height = 600;
-            state.style.fontSizeBase = 16;
+            window.state.style.fontSizeBase = 16;
             ctx.fillStyle = "#e2e8f0";
             ctx.fillRect(0,0,800,600);
             ctx.fillStyle = "#94a3b8";
@@ -776,8 +623,11 @@
         }
 
         function draw() {
-            if (!state.image && canvas.width === 800) {} 
-            if (state.image) ctx.drawImage(state.image, 0, 0);
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!window.state.image && canvas.width === 800) {} 
+            if (window.state.image) ctx.drawImage(window.state.image, 0, 0);
             else {
                  ctx.fillStyle = "#e2e8f0";
                  ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -787,12 +637,13 @@
                  ctx.fillText("写真を選択してください", canvas.width/2, canvas.height/2);
             }
 
-            if (!state.showBoard) return;
+            if (!window.state.showBoard) return;
 
             let boardW, boardH;
             const ASPECT_RATIO = 0.75;
 
-            switch (state.boardSize) {
+            // 黒板幅計算
+            switch (window.state.boardSize) {
                 case 'extraLarge': boardW = canvas.width * 0.6; break;
                 case 'large': boardW = canvas.width * 0.5; break;
                 case 'medium': boardW = canvas.width * 0.4; break;
@@ -804,15 +655,15 @@
             const margin = 0;
             let boardX = margin;
             let boardY = canvas.height - boardH - margin;
-            if (state.boardPos === 'right') boardX = canvas.width - boardW - margin;
+            if (window.state.boardPos === 'right') boardX = canvas.width - boardW - margin;
 
             const colors = getBoardColors();
-            drawBlackboard(boardX, boardY, boardW, boardH, colors);
-            drawTextOnBoard(boardX, boardY, boardW, boardH, colors);
+            drawBlackboard(ctx, boardX, boardY, boardW, boardH, colors);
+            drawTextOnBoard(ctx, boardX, boardY, boardW, boardH, colors);
         }
 
         function getBoardColors() {
-            switch(state.boardColor) {
+            switch(window.state.boardColor) {
                 case 'black': return { bg: "#1a1a1a", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
                 case 'white': return { bg: "#ffffff", line: "#333333", text: "#111111", shadow: "rgba(0,0,0,0.3)" };
                 case 'blue': return { bg: "#0d47a1", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
@@ -820,7 +671,7 @@
             }
         }
 
-        function drawBlackboard(x, y, w, h, colors) {
+        function drawBlackboard(ctx, x, y, w, h, colors) {
             ctx.save();
             ctx.shadowColor = colors.shadow;
             ctx.shadowBlur = 10;
@@ -831,7 +682,7 @@
 
             ctx.shadowColor = "transparent";
             ctx.strokeStyle = "#e0e0e0"; 
-            if(state.boardColor === 'white') ctx.strokeStyle = "#999999"; 
+            if(window.state.boardColor === 'white') ctx.strokeStyle = "#999999"; 
             ctx.lineWidth = Math.max(2, w * 0.005);
             const halfLine = ctx.lineWidth / 2;
             ctx.strokeRect(x + halfLine, y + halfLine, w - ctx.lineWidth, h - ctx.lineWidth);
@@ -841,16 +692,13 @@
             ctx.beginPath();
             ctx.moveTo(x, y + h * 0.15); ctx.lineTo(x + w, y + h * 0.15);
             ctx.moveTo(x, y + h * 0.30); ctx.lineTo(x + w, y + h * 0.30);
-            ctx.moveTo(x + w * 0.25, y); ctx.lineTo(x + w * 0.25, y + h * 0.30); // ラベル縦線
+            ctx.moveTo(x + w * 0.25, y); ctx.lineTo(x + w * 0.25, y + h * 0.30); 
 
-            // 施工者枠がONの場合
-            if(state.showConstructor) {
-                const constH = h * 0.12; // 枠の高さ割合
+            if(window.state.showConstructor) {
+                const constH = h * 0.12; 
                 const constY = y + h - constH;
-                // 下部横線
                 ctx.moveTo(x, constY);
                 ctx.lineTo(x + w, constY);
-                // 施工者枠内の縦線 (上と同じ25%位置)
                 ctx.moveTo(x + w * 0.25, constY);
                 ctx.lineTo(x + w * 0.25, y + h);
             }
@@ -859,67 +707,61 @@
             ctx.restore();
         }
 
-        function drawTextOnBoard(bx, by, bw, bh, colors) {
+        function drawTextOnBoard(ctx, bx, by, bw, bh, colors) {
             ctx.save();
             ctx.fillStyle = colors.text;
             
             const responsiveBaseSize = bw * 0.055; 
             const pad = bw * 0.05; 
-            const globalOffsetY = state.style.yOffset;
+            const globalOffsetY = window.state.style.yOffset;
 
             ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
 
             // ラベル
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.font = `${0.7 * responsiveBaseSize}px ${state.style.fontFamily}`;
+            ctx.font = `${0.7 * responsiveBaseSize}px ${window.state.style.fontFamily}`;
             ctx.fillText("工事件名", bx + bw * 0.125, by + bh * 0.075);
             ctx.fillText("工事場所", bx + bw * 0.125, by + bh * 0.225);
 
-            // 施工者ラベルと内容
-            if(state.showConstructor) {
+            if(window.state.showConstructor) {
                 const constH = bh * 0.12;
                 const constCenterY = by + bh - (constH / 2);
-                
-                // ラベル
                 ctx.fillText("施工者", bx + bw * 0.125, constCenterY);
-                
-                // 会社名
                 ctx.textAlign = "left";
-                ctx.font = `${0.8 * responsiveBaseSize}px ${state.style.fontFamily}`; // 少し大きめ
-                ctx.fillText(state.text.constructorName, bx + bw * 0.27, constCenterY);
+                ctx.font = `${0.8 * responsiveBaseSize}px ${window.state.style.fontFamily}`; 
+                ctx.fillText(window.state.text.constructorName, bx + bw * 0.27, constCenterY);
             }
 
             ctx.textAlign = "left";
 
             // 工事件名
-            ctx.font = `${state.style.fontScaleProject * responsiveBaseSize}px ${state.style.fontFamily}`;
-            drawMultilineText(state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, state.style.fontScaleProject * responsiveBaseSize * state.style.lineHeight);
+            ctx.font = `${window.state.style.fontScaleProject * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            drawMultilineText(ctx, window.state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, window.state.style.fontScaleProject * responsiveBaseSize * window.state.style.lineHeight);
             
             // 工事場所
-            ctx.font = `${state.style.fontScaleWorkType * responsiveBaseSize}px ${state.style.fontFamily}`;
-            drawMultilineText(state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, state.style.fontScaleWorkType * responsiveBaseSize * state.style.lineHeight);
+            ctx.font = `${window.state.style.fontScaleWorkType * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            drawMultilineText(ctx, window.state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, window.state.style.fontScaleWorkType * responsiveBaseSize * window.state.style.lineHeight);
             
             // 備考
-            ctx.font = `${state.style.fontScaleMemo * responsiveBaseSize}px ${state.style.fontFamily}`;
-            drawMultilineText(state.text.memo, bx + pad, by + bh * 0.55 + globalOffsetY, state.style.fontScaleMemo * responsiveBaseSize * state.style.lineHeight);
+            ctx.font = `${window.state.style.fontScaleMemo * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+            drawMultilineText(ctx, window.state.text.memo, bx + pad, by + bh * 0.55 + globalOffsetY, window.state.style.fontScaleMemo * responsiveBaseSize * window.state.style.lineHeight);
             
-            // 日付と時間
-            let dateString = state.text.date;
-            if (state.showTime && state.text.time) {
-                dateString += " " + state.text.time;
+            // 日付
+            let dateString = window.state.text.date;
+            if (window.state.showTime && window.state.text.time) {
+                dateString += " " + window.state.text.time;
             }
             
-            ctx.font = `${0.8 * responsiveBaseSize}px ${state.style.fontFamily}`;
+            ctx.font = `${0.8 * responsiveBaseSize}px ${window.state.style.fontFamily}`;
             
-            // 施工者枠がある場合は、日付の位置を上にずらす
             let dateY = by + bh - pad;
-            if(state.showConstructor) {
+            if(window.state.showConstructor) {
                 const constH = bh * 0.12;
-                dateY = by + bh - constH - (pad * 0.5); // 枠の上、少し余白狭め
+                dateY = by + bh - constH - (pad * 0.5);
             }
 
-            if(state.datePos === 'left') {
+            if(window.state.datePos === 'left') {
                 ctx.textAlign = "left";
                 ctx.fillText(dateString, bx + pad, dateY);
             } else {
@@ -930,13 +772,170 @@
             ctx.restore();
         }
 
-        function drawMultilineText(text, x, y, lineHeight) {
+        function drawMultilineText(ctx, text, x, y, lineHeight) {
             if(!text) return;
             const lines = text.split('\n'); 
             const offset = ((lines.length - 1) * lineHeight) / 2;
             lines.forEach((line, index) => {
                 ctx.fillText(line, x, y - offset + (index * lineHeight));
             });
+        }
+
+        function downloadImage() {
+            if (!window.state.image) {
+                alert("画像が選択されていません。");
+                return;
+            }
+            const link = document.createElement('a');
+            const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
+            link.download = `board_${safeProject}_${window.state.text.date}.jpg`;
+            const canvas = document.getElementById('mainCanvas');
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        }
+    </script>
+
+    <!-- Firebase SDK (Optional Module) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebaseが設定されているか確認 (ダウンロード時などの対策)
+        let hasFirebase = false;
+        try {
+            if(typeof __firebase_config !== 'undefined') {
+                hasFirebase = true;
+            }
+        } catch(e) {}
+
+        if (hasFirebase) {
+            const firebaseConfig = JSON.parse(__firebase_config);
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'construction-board';
+
+            let currentUser = null;
+            let saveTimeout = null;
+
+            const initAuth = async () => {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            };
+
+            initAuth();
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    currentUser = user;
+                    await loadData();
+                }
+            });
+
+            async function loadData() {
+                if (!currentUser) return;
+                const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
+                try {
+                    const docSnap = await getDoc(userDocRef);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        
+                        // グローバルのstateを更新
+                        if(data.text) window.state.text = { ...window.state.text, ...data.text };
+                        if(data.style) window.state.style = { ...window.state.style, ...data.style };
+                        if(data.boardPos) window.state.boardPos = data.boardPos;
+                        if(data.boardSize) window.state.boardSize = data.boardSize;
+                        if(data.boardColor) window.state.boardColor = data.boardColor;
+                        if(data.showBoard !== undefined) window.state.showBoard = data.showBoard;
+                        if(data.showTime !== undefined) window.state.showTime = data.showTime;
+                        if(data.datePos) window.state.datePos = data.datePos;
+                        if(data.showConstructor !== undefined) window.state.showConstructor = data.showConstructor;
+
+                        updateUIFromState();
+                        window.setToday(); // 画面更新
+                        showSaveStatus("データ復元完了");
+                    }
+                } catch (e) {
+                    console.error("Load error:", e);
+                }
+            }
+
+            // グローバル関数をオーバーライド
+            window.requestSave = function() {
+                if (saveTimeout) clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => {
+                    saveData();
+                }, 1000);
+            };
+
+            async function saveData() {
+                if (!currentUser) return;
+                const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
+                
+                const dataToSave = {
+                    text: window.state.text,
+                    style: window.state.style,
+                    boardPos: window.state.boardPos,
+                    boardSize: window.state.boardSize,
+                    boardColor: window.state.boardColor,
+                    showBoard: window.state.showBoard,
+                    showTime: window.state.showTime,
+                    datePos: window.state.datePos,
+                    showConstructor: window.state.showConstructor,
+                    lastUpdated: new Date()
+                };
+
+                try {
+                    await setDoc(userDocRef, dataToSave);
+                    showSaveStatus("保存済み");
+                } catch (e) {
+                    showSaveStatus("保存失敗");
+                }
+            }
+
+            function showSaveStatus(msg) {
+                const el = document.getElementById('saveStatus');
+                el.innerText = msg;
+                el.classList.remove('opacity-0');
+                if(msg === "保存済み" || msg === "データ復元完了") {
+                    el.innerHTML = '<span class="material-icons text-xs">cloud_done</span> ' + msg;
+                    setTimeout(() => el.classList.add('opacity-0'), 2000);
+                } else {
+                    el.innerHTML = '<span class="material-icons text-xs">error</span> ' + msg;
+                }
+            }
+
+            function updateUIFromState() {
+                document.getElementById('inputProject').value = window.state.text.project || "";
+                document.getElementById('inputWorkType').value = window.state.text.workType || "";
+                document.getElementById('inputMemo').value = window.state.text.memo || "";
+                document.getElementById('inputDate').value = window.state.text.date || "";
+                document.getElementById('inputTime').value = window.state.text.time || "";
+                document.getElementById('inputConstructor').value = window.state.text.constructorName || "ヒューマンヤード(株)";
+
+                document.getElementById('boardColor').value = window.state.boardColor;
+                document.getElementById('boardSize').value = window.state.boardSize;
+                document.getElementById('toggleBoard').checked = window.state.showBoard;
+                document.getElementById('toggleTime').checked = window.state.showTime;
+                document.getElementById('showConstructor').checked = window.state.showConstructor;
+                document.getElementById('fontFamily').value = window.state.style.fontFamily;
+
+                document.getElementById('scaleProject').value = window.state.style.fontScaleProject;
+                document.getElementById('valScaleProject').innerText = window.state.style.fontScaleProject;
+                document.getElementById('scaleWorkType').value = window.state.style.fontScaleWorkType;
+                document.getElementById('valScaleWorkType').innerText = window.state.style.fontScaleWorkType;
+                document.getElementById('scaleMemo').value = window.state.style.fontScaleMemo;
+                document.getElementById('valScaleMemo').innerText = window.state.style.fontScaleMemo;
+                document.getElementById('lineHeight').value = window.state.style.lineHeight;
+                document.getElementById('dispLineHeight').innerText = window.state.style.lineHeight;
+
+                const dateRadio = document.querySelector(`input[name="datePos"][value="${window.state.datePos}"]`);
+                if(dateRadio) dateRadio.checked = true;
+            }
         }
     </script>
 </body>
