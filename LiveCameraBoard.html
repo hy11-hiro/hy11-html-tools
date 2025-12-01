@@ -16,6 +16,8 @@
             color: white;
             overflow: hidden; 
             touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
         }
         #cameraVideo {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
@@ -23,131 +25,418 @@
         #overlayCanvas {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none;
         }
+        /* UIレイヤー: 縦横でレイアウトを変える */
         #uiLayer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 10; pointer-events: none;
-            display: flex; flex-direction: column; justify-content: space-between;
+            display: flex;
         }
+        
+        /* 縦画面用レイアウト (デフォルト) */
+        .layout-container {
+            width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .control-bar-top {
+            padding: 16px; display: flex; justify-content: space-between; align-items: flex-start;
+        }
+        .control-bar-bottom {
+            padding: 24px; display: flex; justify-content: space-around; align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.5), transparent);
+        }
+
+        /* 横画面用レイアウト (Landscape) */
+        @media (orientation: landscape) {
+            .layout-container {
+                flex-direction: row;
+            }
+            .control-bar-top {
+                /* 横持ち時は左側に配置 */
+                flex-direction: column; width: 80px; height: 100%; padding: 16px;
+                background: linear-gradient(to right, rgba(0,0,0,0.3), transparent);
+            }
+            .control-bar-bottom {
+                /* 横持ち時は右側に配置 (シャッター側) */
+                flex-direction: column; width: 120px; height: 100%; padding: 16px;
+                background: linear-gradient(to left, rgba(0,0,0,0.5), transparent);
+                justify-content: center; gap: 20px;
+            }
+            /* 横画面の設定パネル位置調整 */
+            #settingsPanel {
+                top: 10px; left: 80px; width: 300px; max-height: 90vh; overflow-y: auto;
+            }
+        }
+
         .interactive { pointer-events: auto; }
-        .panel-bg { background-color: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px); }
+        
+        /* 半透明パネル */
+        .glass-panel {
+            background-color: rgba(30, 30, 30, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        /* シャッターボタン */
+        .shutter-btn {
+            width: 72px; height: 72px;
+            border-radius: 50%;
+            border: 4px solid white;
+            background-color: rgba(255,255,255,0.2);
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.1s;
+        }
+        .shutter-btn:active { transform: scale(0.9); background-color: rgba(255,255,255,0.5); }
+        .shutter-inner { width: 56px; height: 56px; background-color: white; border-radius: 50%; }
+
+        /* アイコンボタン */
+        .icon-btn {
+            width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            background-color: rgba(0,0,0,0.4);
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+        }
+        .icon-btn:active { background-color: rgba(255,255,255,0.2); }
+
+        /* 設定パネル */
+        #settingsPanel {
+            pointer-events: auto;
+            padding: 16px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <video id="cameraVideo" autoplay playsinline muted></video>
     <canvas id="overlayCanvas"></canvas>
+    
     <div id="uiLayer">
-        <div class="p-4 panel-bg interactive flex justify-between items-start" id="topBar">
-            <div class="flex flex-col gap-2 w-full">
-                <div class="flex justify-between items-center">
-                    <h1 class="font-bold text-lg flex items-center gap-2"><span class="material-icons text-green-400">view_in_ar</span> 現場カメラ</h1>
-                    <button onclick="toggleSettings()" class="p-2 bg-gray-700 rounded-full border border-gray-500"><span class="material-icons text-white">settings</span></button>
-                </div>
-                <div id="settingsPanel" class="hidden mt-2 space-y-3 text-sm">
-                    <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="inpProject" placeholder="工事件名" class="bg-gray-800 border border-gray-600 rounded p-2 text-white placeholder-gray-400">
-                        <input type="text" id="inpPlace" placeholder="工事場所" class="bg-gray-800 border border-gray-600 rounded p-2 text-white placeholder-gray-400">
+        <div class="layout-container">
+            <!-- 設定・戻る側 (縦:上 / 横:左) -->
+            <div class="control-bar-top">
+                <!-- 戻るボタン -->
+                <button onclick="history.back()" class="icon-btn interactive mb-4">
+                    <span class="material-icons">arrow_back</span>
+                </button>
+                
+                <!-- 設定ボタン -->
+                <button onclick="toggleSettings()" class="icon-btn interactive relative">
+                    <span class="material-icons">tune</span>
+                    <!-- 設定パネル (絶対配置で表示) -->
+                    <div id="settingsPanel" class="hidden absolute top-0 left-12 w-64 glass-panel text-left text-sm z-50">
+                        <div class="flex justify-between items-center mb-3 border-b border-gray-600 pb-2">
+                            <span class="font-bold text-gray-200">黒板設定</span>
+                            <span class="material-icons text-gray-400 text-sm" onclick="event.stopPropagation(); toggleSettings();">close</span>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div>
+                                <input type="text" id="inpProject" placeholder="工事件名" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <input type="text" id="inpPlace" placeholder="工事場所" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none">
+                            </div>
+                            <div>
+                                <textarea id="inpMemo" rows="2" placeholder="備考・内容" class="w-full bg-gray-700 border border-gray-600 rounded p-2 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none resize-none"></textarea>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                                <select id="selSize" class="bg-gray-700 border border-gray-600 rounded p-2 text-white">
+                                    <option value="medium">サイズ: 中</option>
+                                    <option value="large">サイズ: 大</option>
+                                    <option value="small">サイズ: 小</option>
+                                </select>
+                                <select id="selPos" class="bg-gray-700 border border-gray-600 rounded p-2 text-white">
+                                    <option value="right">位置: 右下</option>
+                                    <option value="left">位置: 左下</option>
+                                </select>
+                            </div>
+                            
+                            <button onclick="updateBoard()" class="w-full bg-blue-600 hover:bg-blue-500 py-2 rounded font-bold mt-2 shadow-md active:scale-95 transition-transform">更新する</button>
+                        </div>
                     </div>
-                    <textarea id="inpMemo" rows="2" placeholder="備考・内容" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-white placeholder-gray-400"></textarea>
-                    <div class="flex gap-2">
-                        <select id="selSize" class="bg-gray-800 border border-gray-600 rounded p-2 text-white flex-1">
-                            <option value="medium">サイズ: 中</option>
-                            <option value="large">サイズ: 大</option>
-                            <option value="small">サイズ: 小</option>
-                        </select>
-                        <select id="selPos" class="bg-gray-800 border border-gray-600 rounded p-2 text-white flex-1">
-                            <option value="right">位置: 右下</option>
-                            <option value="left">位置: 左下</option>
-                        </select>
-                    </div>
-                    <button onclick="updateBoard()" class="w-full bg-blue-600 py-2 rounded font-bold mt-2">黒板を更新</button>
+                </button>
+            </div>
+
+            <!-- シャッター側 (縦:下 / 横:右) -->
+            <div class="control-bar-bottom interactive">
+                <!-- カメラ切り替え -->
+                <button onclick="switchCamera()" class="icon-btn">
+                    <span class="material-icons">flip_camera_ios</span>
+                </button>
+
+                <!-- シャッター -->
+                <button onclick="takePhoto()" class="shutter-btn">
+                    <div class="shutter-inner"></div>
+                </button>
+
+                <!-- プレビュー/ダミー -->
+                <div id="previewThumb" class="w-11 h-11 bg-gray-800 rounded overflow-hidden border border-gray-500 flex items-center justify-center opacity-0 pointer-events-none">
+                    <!-- 撮影後にサムネイルを表示可能 -->
                 </div>
             </div>
         </div>
-        <div class="flex-1"></div>
-        <div class="p-6 pb-10 panel-bg interactive flex justify-around items-center">
-            <button onclick="switchCamera()" class="p-3 bg-gray-700 rounded-full border border-gray-500 active:bg-gray-600"><span class="material-icons text-2xl">flip_camera_ios</span></button>
-            <button onclick="takePhoto()" class="w-20 h-20 rounded-full border-4 border-white bg-transparent flex items-center justify-center active:scale-95 transition-transform"><div class="w-16 h-16 rounded-full bg-white"></div></button>
-            <div id="previewThumb" class="w-12 h-12 bg-gray-800 rounded overflow-hidden border border-gray-500 relative"><span class="material-icons text-gray-500 absolute inset-0 m-auto text-xl">image</span></div>
-        </div>
     </div>
-    <div id="startOverlay" class="fixed inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center p-6 text-center interactive">
+
+    <!-- 開始前のオーバーレイ -->
+    <div id="startOverlay" class="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-6 text-center interactive">
         <span class="material-icons text-6xl text-green-500 mb-4">camera_enhance</span>
-        <h2 class="text-2xl font-bold mb-2">現場用ARカメラ</h2>
-        <p class="text-gray-300 mb-8">画面を見ながら黒板の位置を確認して<br>そのまま撮影できます。</p>
-        <div class="bg-yellow-900/50 border border-yellow-600 p-4 rounded-lg mb-8 text-left text-sm text-yellow-200">
-            <p class="font-bold mb-1"><span class="material-icons text-sm align-middle">warning</span> 注意</p>
-            <p>・必ず「カメラの許可」をしてください。</p>
-            <p>・ブラウザ版のため、標準カメラより画質が落ちる場合があります。</p>
-        </div>
-        <button onclick="startCamera()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-10 rounded-full text-xl shadow-lg flex items-center gap-2"><span class="material-icons">camera_alt</span> カメラを開始する</button>
+        <h2 class="text-2xl font-bold mb-2 text-white">現場用ARカメラ</h2>
+        <p class="text-gray-400 mb-8 text-sm">スマホを横にして撮影してください。<br>黒板が画面に合成されます。</p>
+        <button onclick="startCamera()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-10 rounded-full text-xl shadow-lg flex items-center gap-2 transition-transform active:scale-95">
+            <span class="material-icons">camera_alt</span> カメラを起動
+        </button>
     </div>
+
+    <!-- 撮影後の確認モーダル -->
     <div id="resultModal" class="hidden fixed inset-0 z-50 bg-black flex flex-col interactive">
-        <div class="flex-1 relative bg-black flex items-center justify-center"><img id="resultImage" src="" alt="Result" class="max-w-full max-h-full object-contain"></div>
-        <div class="p-4 bg-gray-900 flex justify-between gap-4">
-            <button onclick="closeResult()" class="flex-1 py-3 bg-gray-700 rounded text-white font-bold">撮り直す</button>
-            <button onclick="saveResult()" class="flex-1 py-3 bg-blue-600 rounded text-white font-bold flex items-center justify-center gap-2"><span class="material-icons">save_alt</span> 保存する</button>
+        <div class="flex-1 relative bg-black flex items-center justify-center p-4">
+            <img id="resultImage" src="" alt="Result" class="max-w-full max-h-full object-contain shadow-2xl border border-gray-800">
+        </div>
+        <div class="p-6 bg-gray-900 flex justify-center gap-6 safe-area-pb">
+            <button onclick="closeResult()" class="py-3 px-8 bg-gray-700 rounded-full text-white font-bold border border-gray-600 active:bg-gray-600">撮り直す</button>
+            <button onclick="saveResult()" class="py-3 px-8 bg-blue-600 rounded-full text-white font-bold flex items-center justify-center gap-2 shadow-lg active:bg-blue-500 border-b-4 border-blue-800 active:border-0 active:translate-y-1">
+                <span class="material-icons">save_alt</span> 保存する
+            </button>
         </div>
     </div>
+
     <script>
         const video = document.getElementById('cameraVideo');
         const canvas = document.getElementById('overlayCanvas');
         const ctx = canvas.getContext('2d');
         let stream = null;
         let isSettingsOpen = false;
-        const boardState = { pos: 'right', size: 'medium', text: { project: '', place: '', memo: '', date: '' } };
-        window.addEventListener('load', () => { resizeCanvas(); const now = new Date(); boardState.text.date = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`; document.getElementById('selPos').value = boardState.pos; document.getElementById('selSize').value = boardState.size; });
+        // 初期設定
+        const boardState = { 
+            pos: 'right', 
+            size: 'medium', 
+            text: { project: '', place: '', memo: '', date: '' } 
+        };
+
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            const now = new Date();
+            // 日付フォーマット YYYY/MM/DD
+            boardState.text.date = `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')}`;
+            
+            // UI初期値
+            document.getElementById('selPos').value = boardState.pos;
+            document.getElementById('selSize').value = boardState.size;
+        });
+
         window.addEventListener('resize', resizeCanvas);
-        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; drawBoardLoop(); }
-        async function startCamera() { try { const constraints = { audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } }; stream = await navigator.mediaDevices.getUserMedia(constraints); video.srcObject = stream; video.onloadedmetadata = () => { video.play(); document.getElementById('startOverlay').classList.add('hidden'); drawBoardLoop(); }; } catch (err) { console.error(err); alert('カメラの起動に失敗しました。'); } }
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            drawBoardLoop();
+        }
+
+        async function startCamera() {
+            try {
+                // 高解像度・背面カメラ優先
+                const constraints = {
+                    audio: false,
+                    video: {
+                        facingMode: { ideal: "environment" },
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                };
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    document.getElementById('startOverlay').classList.add('hidden');
+                    drawBoardLoop();
+                };
+            } catch (err) {
+                console.error(err);
+                alert('カメラの起動に失敗しました。\nブラウザの権限設定をご確認ください。');
+            }
+        }
+
         function drawBoardLoop() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 画面サイズ取得
             const screenW = canvas.width;
             const screenH = canvas.height;
-            let boardW;
-            if(boardState.size === 'large') boardW = screenW * 0.5;
-            else if(boardState.size === 'small') boardW = screenW * 0.3;
-            else boardW = screenW * 0.4;
-            const boardH = boardW * 0.75;
-            // 修正箇所: 実際のツールに合わせてマージンを0にし、UI回避用のオフセットを削除
-            const margin = 0;
-            let x = margin;
-            let y = screenH - boardH - margin; // 画面下端ピッタリに配置
-            if(boardState.pos === 'right') x = screenW - boardW - margin;
             
-            // 描画
-            ctx.fillStyle = "#004d40"; ctx.fillRect(x, y, boardW, boardH);
-            ctx.strokeStyle = "#e0e0e0"; ctx.lineWidth = 2; ctx.strokeRect(x, y, boardW, boardH);
-            ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 1; ctx.beginPath();
+            // 黒板サイズ計算 (画面幅に対する割合)
+            let boardW;
+            // 横画面かどうか判定
+            const isLandscape = screenW > screenH;
+            
+            // 横画面なら少し控えめなサイズ感にする
+            const scaleFactor = isLandscape ? 0.35 : 0.5;
+
+            if(boardState.size === 'large') boardW = screenW * (isLandscape ? 0.45 : 0.6);
+            else if(boardState.size === 'small') boardW = screenW * (isLandscape ? 0.25 : 0.4);
+            else boardW = screenW * (isLandscape ? 0.35 : 0.5); // medium
+
+            const boardH = boardW * 0.75; // アスペクト比 4:3
+            
+            // 位置計算 (四隅に配置)
+            const margin = 0; // 隅ピッタリ
+            let x = margin;
+            let y = screenH - boardH - margin;
+
+            if(boardState.pos === 'right') {
+                x = screenW - boardW - margin;
+            }
+
+            // --- 黒板描画 ---
+            ctx.save();
+            
+            // 影
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+
+            // 本体
+            ctx.fillStyle = "#004d40"; 
+            ctx.fillRect(x, y, boardW, boardH);
+
+            // 枠線
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = "#e0e0e0";
+            ctx.lineWidth = Math.max(2, boardW * 0.005);
+            ctx.strokeRect(x, y, boardW, boardH);
+
+            // 罫線 (現場用 TypeC準拠)
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = Math.max(1, boardW * 0.003);
+            ctx.beginPath();
+            // 横線
             ctx.moveTo(x, y + boardH * 0.15); ctx.lineTo(x + boardW, y + boardH * 0.15);
             ctx.moveTo(x, y + boardH * 0.30); ctx.lineTo(x + boardW, y + boardH * 0.30);
+            // 縦線
             ctx.moveTo(x + boardW * 0.25, y); ctx.lineTo(x + boardW * 0.25, y + boardH * 0.30);
             ctx.stroke();
-            ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            const baseSize = boardW * 0.055;
+
+            // 文字
+            ctx.fillStyle = "#ffffff";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            
+            const baseSize = boardW * 0.055; 
+
+            // ラベル
             ctx.font = `${baseSize * 0.7}px sans-serif`;
             ctx.fillText("工事件名", x + boardW * 0.125, y + boardH * 0.075);
             ctx.fillText("工事場所", x + boardW * 0.125, y + boardH * 0.225);
-            ctx.textAlign = "left"; ctx.font = `bold ${baseSize}px sans-serif`;
+
+            // 内容
+            ctx.textAlign = "left";
+            ctx.font = `bold ${baseSize}px sans-serif`;
+            
             ctx.fillText(boardState.text.project || '', x + boardW * 0.27, y + boardH * 0.075);
             ctx.fillText(boardState.text.place || '', x + boardW * 0.27, y + boardH * 0.225);
+            
+            // 備考 (複数行対応)
             const memoLines = (boardState.text.memo || '').split('\n');
-            ctx.textBaseline = "top"; let memoY = y + boardH * 0.35;
-            memoLines.forEach(line => { ctx.fillText(line, x + 10, memoY); memoY += baseSize * 1.2; });
-            ctx.textAlign = "right"; ctx.textBaseline = "bottom"; ctx.font = `${baseSize * 0.8}px sans-serif`;
+            ctx.textBaseline = "top";
+            let memoY = y + boardH * 0.35;
+            memoLines.forEach(line => {
+                ctx.fillText(line, x + 10, memoY);
+                memoY += baseSize * 1.2;
+            });
+
+            // 日付
+            ctx.textAlign = "right";
+            ctx.textBaseline = "bottom";
+            ctx.font = `${baseSize * 0.8}px sans-serif`;
             ctx.fillText(boardState.text.date, x + boardW - 5, y + boardH - 5);
+            
+            ctx.restore();
+
+            // ループ継続
+            requestAnimationFrame(drawBoardLoop);
         }
-        function updateBoard() { boardState.text.project = document.getElementById('inpProject').value; boardState.text.place = document.getElementById('inpPlace').value; boardState.text.memo = document.getElementById('inpMemo').value; boardState.pos = document.getElementById('selPos').value; boardState.size = document.getElementById('selSize').value; drawBoardLoop(); toggleSettings(); }
-        function toggleSettings() { const panel = document.getElementById('settingsPanel'); isSettingsOpen = !isSettingsOpen; if(isSettingsOpen) { panel.classList.remove('hidden'); } else { panel.classList.add('hidden'); } }
+
+        function updateBoard() {
+            boardState.text.project = document.getElementById('inpProject').value;
+            boardState.text.place = document.getElementById('inpPlace').value;
+            boardState.text.memo = document.getElementById('inpMemo').value;
+            boardState.pos = document.getElementById('selPos').value;
+            boardState.size = document.getElementById('selSize').value;
+            toggleSettings(); // 閉じる
+        }
+
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            isSettingsOpen = !isSettingsOpen;
+            if(isSettingsOpen) {
+                panel.classList.remove('hidden');
+            } else {
+                panel.classList.add('hidden');
+            }
+        }
+
+        // 撮影
         function takePhoto() {
-            const captureCanvas = document.createElement('canvas'); captureCanvas.width = video.videoWidth; captureCanvas.height = video.videoHeight; const capCtx = captureCanvas.getContext('2d');
+            // ビデオ解像度に合わせたキャンバスを作成
+            const captureCanvas = document.createElement('canvas');
+            captureCanvas.width = video.videoWidth;
+            captureCanvas.height = video.videoHeight;
+            const capCtx = captureCanvas.getContext('2d');
+
+            // 1. 映像を描画
             capCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+
+            // 2. 黒板を合成 (現在の画面上の比率を維持してビデオサイズにスケーリング)
+            // overlayCanvasの内容をそのまま描画すると解像度不一致でずれる可能性があるため
+            // 再度描画ロジックを通すのが理想だが、ここでは簡易的にoverlayCanvasをストレッチして合成
             capCtx.drawImage(canvas, 0, 0, captureCanvas.width, captureCanvas.height);
-            document.getElementById('resultImage').src = captureCanvas.toDataURL('image/jpeg');
+
+            // 3. 表示
+            const dataUrl = captureCanvas.toDataURL('image/jpeg');
+            document.getElementById('resultImage').src = dataUrl;
             document.getElementById('resultModal').classList.remove('hidden');
         }
-        function closeResult() { document.getElementById('resultModal').classList.add('hidden'); }
-        function saveResult() { const dataUrl = document.getElementById('resultImage').src; const link = document.createElement('a'); const now = new Date(); const timestamp = `${now.getFullYear()}${now.getMonth()+1}${now.getDate()}_${now.getHours()}${now.getMinutes()}`; link.download = `site_photo_${timestamp}.jpg`; link.href = dataUrl; link.click(); closeResult(); }
+
+        function closeResult() {
+            document.getElementById('resultModal').classList.add('hidden');
+        }
+
+        function saveResult() {
+            const dataUrl = document.getElementById('resultImage').src;
+            const link = document.createElement('a');
+            const now = new Date();
+            const timestamp = `${now.getFullYear()}${now.getMonth()+1}${now.getDate()}_${now.getHours()}${now.getMinutes()}`;
+            link.download = `site_photo_${timestamp}.jpg`;
+            link.href = dataUrl;
+            link.click();
+            closeResult();
+        }
+
+        // カメラ切り替え
         let currentFacingMode = "environment";
-        async function switchCamera() { if(stream) { stream.getTracks().forEach(t => t.stop()); } currentFacingMode = currentFacingMode === "environment" ? "user" : "environment"; const constraints = { audio: false, video: { facingMode: { ideal: currentFacingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } } }; try { stream = await navigator.mediaDevices.getUserMedia(constraints); video.srcObject = stream; video.play(); } catch(e) { console.error(e); } }
+        async function switchCamera() {
+            if(stream) {
+                stream.getTracks().forEach(t => t.stop());
+            }
+            currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+            const constraints = {
+                audio: false,
+                video: {
+                    facingMode: { ideal: currentFacingMode },
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                }
+            };
+            try {
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                video.play();
+            } catch(e) {
+                console.error(e);
+            }
+        }
     </script>
 </body>
 </html>
