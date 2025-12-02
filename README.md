@@ -7,6 +7,8 @@ GitHub Pagesを通じて公開され、黒板作成・原価管理・画像編�
 
 ## 📱 公開ツール一覧
 
+## 📱 公開ツール一覧
+
 - [黒板編集 ver.3](https://hy11-hiro.github.io/hy11-html-tools/blackboard_editor_v3.html)  
   画像に黒板を合成するツール。工事名・工種・日付などを自由に配置可能。
 
@@ -37,6 +39,9 @@ GitHub Pagesを通じて公開され、黒板作成・原価管理・画像編�
   - Shift/Ctrlキーで複数選択、Enterキーで次の画像へ移動  
   - サイズ表示（小／中／大）切替  
   - 一括ダウンロード機能あり  
+
+- [図面積算ツール](https://hy11-hiro.github.io/hy11-html-tools/drawing_estimator.html)  
+  図面から面積や数量を計算するツール。座標入力や画像クリックによる面積測定に対応予定。  
 
 ---
 
