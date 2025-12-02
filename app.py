@@ -7,7 +7,6 @@ import tempfile
 import os
 import math
 import glob
-import shutil
 from io import BytesIO
 from streamlit_image_coordinates import streamlit_image_coordinates
 import streamlit.components.v1 as components
@@ -20,49 +19,20 @@ st.set_page_config(page_title="Gaikou-Sekisan Pro", layout="wide", page_icon="�
 
 st.markdown("""
 <style>
-    /* --- レイアウト調整 --- */
+    /* --- 1. レイアウト: 極限まで余白を削除 --- */
     .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 10rem !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
         max-width: 100% !important;
     }
+    
+    /* ヘッダー・フッター完全削除 */
     header { display: none !important; }
+    footer { display: none !important; }
     
-    h1 {
-        font-size: 1.5rem !important;
-        border-bottom: 2px solid #ddd;
-        margin-bottom: 1rem;
-        padding-bottom: 0.5rem;
-        font-family: "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
-    }
-
-    .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
-    .stNumberInput, .stSelectbox, .stTextInput { margin-bottom: 0px !important; }
-    .stDataEditor { font-size: 0.9rem; }
-    
-    /* サイドバー強調 */
-    .sidebar-highlight {
-        padding: 10px;
-        border-radius: 5px;
-        margin-bottom: 10px;
-        font-weight: bold;
-        text-align: center;
-        border: 2px solid;
-    }
-
-    /* --- 画像エリアのスタイル --- */
-    /* iframe自体にスタイルを当てる */
-    iframe {
-        display: block !important;
-        margin: 0 auto !important;
-    }
-    
-    /* カーソル強制 */
-    .element-container:has(iframe), iframe {
-        cursor: crosshair !important;
-    }
-
-    /* ヘッダーオーバーレイ */
+    /* --- 2. ヘッダーのオーバーレイ化 (図と被る固定表示) --- */
     .floating-header {
         position: fixed;
         top: 10px;
@@ -83,6 +53,58 @@ st.markdown("""
         gap: 10px;
         pointer-events: none;
     }
+    
+    /* --- 3. サイドバーのデザイン (インテリア風) --- */
+    section[data-testid="stSidebar"] {
+        background-color: #f9f7f2;
+        border-right: 1px solid #e0e0e0;
+        padding-top: 20px;
+    }
+    
+    /* ボタンデザイン */
+    .stButton button {
+        border-radius: 8px;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: 0.2s;
+    }
+    .stButton button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    /* --- 4. 図面エリア --- */
+    iframe {
+        display: block !important;
+        margin: 0 auto !important;
+        box-shadow: 0 0 20px rgba(0,0,0,0.05);
+    }
+    
+    /* カーソル設定 */
+    .element-container:has(iframe), iframe {
+        cursor: crosshair !important;
+    }
+    
+    /* 集計表 */
+    .stDataEditor { font-size: 0.9rem; }
+
+    /* リンクボタン */
+    .link-btn {
+        display: inline-block;
+        padding: 4px 10px;
+        margin: 2px;
+        background-color: #f0f0f0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        text-decoration: none;
+        color: #333;
+        font-size: 0.8rem;
+    }
+    .link-btn:hover {
+        background-color: #e0e0e0;
+        color: #000;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -90,11 +112,8 @@ st.markdown("""
 # 1. 関数群
 # ==========================================
 
-def get_poppler_config():
-    """Popplerのパスを自動判定"""
-    if shutil.which("pdftoppm"):
-        return None # Linux/Cloud環境
-    
+def find_poppler_path():
+    import glob
     patterns = [
         r"C:\Program Files\poppler-*\Library\bin", 
         r"C:\Program Files\poppler-*\bin",
@@ -115,12 +134,9 @@ def load_image(uploaded_file, poppler_path):
     image = None
     try:
         if file_ext == ".pdf":
-            if poppler_path is None:
-                images = convert_from_path(tmp_path, dpi=200)
-            elif poppler_path:
-                images = convert_from_path(tmp_path, poppler_path=poppler_path, dpi=200)
-            else:
-                raise ValueError("Poppler Path Error")
+            if not poppler_path or not os.path.exists(poppler_path):
+                return None, "Popplerパスエラー"
+            images = convert_from_path(tmp_path, poppler_path=poppler_path, dpi=200)
             if images: image = images[0].convert("RGB")
         elif file_ext == ".dxf":
             import ezdxf
@@ -155,9 +171,7 @@ def calc_poly_area(coords):
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
 def get_font(size=20):
-    # サーバー上の日本語フォント対応
     font_paths = [
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", # Streamlit Cloud
         "C:/Windows/Fonts/meiryo.ttc",
         "C:/Windows/Fonts/msgothic.ttc",
         "C:/Windows/Fonts/arial.ttf",
@@ -191,21 +205,26 @@ def hex_to_rgb(hex_code, alpha=255):
 def draw_overlay(base_image, history, current_points, current_mode, zoom, is_subtraction=False, show_labels=True, current_color="#FF0000", stroke_width=3):
     img = get_resized_base_image(base_image, zoom)
     draw = ImageDraw.Draw(img, "RGBA")
+    
     font_size = max(14, int(16 * zoom)) 
     font = get_font(font_size)
-    def to_zoom(pt): return (pt[0] * zoom, pt[1] * zoom)
 
+    def to_zoom(pt):
+        return (pt[0] * zoom, pt[1] * zoom)
+
+    # 1. 履歴描画
     for i, item in enumerate(history):
         pts = [to_zoom(p) for p in item['points']]
         label = item.get('label', '')
         is_sub = item.get('is_subtraction', False)
         item_color_hex = item.get('color', '#FF0000')
         item_width = item.get('width', stroke_width)
+        
         base_rgb = hex_to_rgb(item_color_hex)
         
         if item['type'] == 'area':
             if is_sub:
-                fill_col = (0, 0, 255, 60)
+                fill_col = (0, 0, 255, 60) # 青（抜き）
                 outline_col = (0, 0, 180, 200)
                 label_prefix = "[-]"
                 text_color_hex = "#0000B4"
@@ -226,26 +245,34 @@ def draw_overlay(base_image, history, current_points, current_mode, zoom, is_sub
             else:
                 draw.line(pts, fill=outline_col, width=item_width)
         
+        # ラベル表示
         if show_labels and pts:
             start_p = pts[0]
             display_label = f"No.{i+1} {label_prefix}{label}"
             x, y = start_p[0], start_p[1] - font_size - 5
-            stroke_w = 2
-            for off_x in range(-stroke_w, stroke_w+1):
-                for off_y in range(-stroke_w, stroke_w+1):
-                    draw.text((x+off_x, y+off_y), display_label, font=font, fill="white")
+            
+            stroke_width_txt = 3
+            for off_x in range(-stroke_width_txt, stroke_width_txt+1):
+                for off_y in range(-stroke_width_txt, stroke_width_txt+1):
+                    if off_x**2 + off_y**2 <= stroke_width_txt**2:
+                        draw.text((x+off_x, y+off_y), display_label, font=font, fill="white")
+            
             draw.text((x, y), display_label, font=font, fill=text_color_hex)
             draw.ellipse((start_p[0]-4, start_p[1]-4, start_p[0]+4, start_p[1]+4), fill="white", outline="black")
 
+    # 2. 現在作成中の点
     if current_points:
         z_curr = [to_zoom(p) for p in current_points]
         curr_hex = "#0000FF" if is_subtraction else current_color
         curr_rgb = hex_to_rgb(curr_hex)
         curr_outline = (curr_rgb[0], curr_rgb[1], curr_rgb[2], 255)
+        
         for p in z_curr:
             draw.ellipse((p[0]-5, p[1]-5, p[0]+5, p[1]+5), fill=curr_outline, outline="white")
+        
         if len(z_curr) > 1:
             draw.line(z_curr, fill=curr_outline, width=stroke_width)
+        
         if current_mode == "area" and len(z_curr) > 1:
             draw.line([z_curr[-1], z_curr[0]], fill=(50, 50, 50, 100), width=1)
 
@@ -256,41 +283,46 @@ def draw_overlay(base_image, history, current_points, current_mode, zoom, is_sub
 # ==========================================
 def main():
     if "bg_image" not in st.session_state: st.session_state.bg_image = None
-    if "poppler_path" not in st.session_state: st.session_state.poppler_path = get_poppler_config()
+    if "poppler_path" not in st.session_state: st.session_state.poppler_path = find_poppler_path()
     
     if "history" not in st.session_state: st.session_state.history = []
     if "current_points" not in st.session_state: st.session_state.current_points = []
     if "scale_val" not in st.session_state: st.session_state.scale_val = None
     if "last_click" not in st.session_state: st.session_state.last_click = None
     if "zoom_rate" not in st.session_state: st.session_state.zoom_rate = 0.5
+    
     if "custom_items" not in st.session_state: st.session_state.custom_items = []
+    
+    # 太さの初期値
     if "stroke_width" not in st.session_state: st.session_state.stroke_width = 3
 
     # ---------------------------
-    # 左サイドバー
+    # 左サイドバー：操作パネル
     # ---------------------------
     with st.sidebar:
         st.markdown("### 🏡 外構積算 Pro")
         
-        # 1. ファイル
+        # 1. ファイル読込
         with st.expander("📂 ファイル", expanded=True):
-            if st.session_state.poppler_path is not None:
-                st.session_state.poppler_path = st.text_input("Popplerパス", value=st.session_state.poppler_path)
+            if not st.session_state.poppler_path:
+                st.session_state.poppler_path = st.text_input("Popplerパス", r"C:\Program Files\poppler-25.11.0\Library\bin")
             
             uploaded = st.file_uploader("PDF / DXF", type=["pdf", "dxf"], label_visibility="collapsed")
-            if uploaded and st.button("読込", type="primary", use_container_width=True):
-                img, err = load_image(uploaded, st.session_state.poppler_path)
-                if img:
-                    st.session_state.bg_image = img
-                    st.session_state.history = []
-                    st.session_state.current_points = []
-                    st.session_state.scale_val = None
-                    st.session_state.zoom_rate = 0.5
-                    if "cached_resized_img" in st.session_state: del st.session_state.cached_resized_img
-                    st.success("完了")
-                else:
-                    st.error(err)
-        
+            if uploaded:
+                if st.button("読込", type="primary", use_container_width=True):
+                    img, err = load_image(uploaded, st.session_state.poppler_path)
+                    if img:
+                        st.session_state.bg_image = img
+                        st.session_state.history = []
+                        st.session_state.current_points = []
+                        st.session_state.scale_val = None
+                        st.session_state.zoom_rate = 0.5
+                        if "cached_resized_img" in st.session_state:
+                            del st.session_state.cached_resized_img
+                        st.success("完了")
+                    else:
+                        st.error(err)
+
         st.divider()
 
         # 2. 表示設定
@@ -305,6 +337,7 @@ def main():
             if new_zoom != st.session_state.zoom_rate:
                 st.session_state.zoom_rate = new_zoom
                 st.rerun()
+            
             show_labels = st.checkbox("ラベル", value=True)
 
         # 3. ツール
@@ -326,14 +359,13 @@ def main():
                 default_area = ["土間コンクリート", "砂利敷き", "人工芝", "防草シート", "タイル"]
                 opts = (default_dist if mode_key == "dist" else default_area) + st.session_state.custom_items + ["その他"]
                 sel = st.selectbox("選択", opts, label_visibility="collapsed")
-                
-                # 新規追加エリア (Expanderを使わず直接配置してエラー回避)
-                st.caption("➕ 新規項目を入力")
-                c_add1, c_add2 = st.columns([3, 1])
-                with c_add1:
-                    new_item_val = st.text_input("新規追加", placeholder="リストに追加", label_visibility="collapsed", key="new_item_input")
-                with c_add2:
-                    if st.button("追加"):
+
+                # 新規項目追加
+                c_new1, c_new2 = st.columns([3, 1])
+                with c_new1:
+                    new_item_val = st.text_input("新規追加", placeholder="リストに追加...", label_visibility="collapsed")
+                with c_new2:
+                    if st.button("追加", use_container_width=True):
                         if new_item_val and new_item_val not in st.session_state.custom_items:
                             st.session_state.custom_items.append(new_item_val)
                             st.toast(f"「{new_item_val}」を追加しました")
@@ -352,6 +384,7 @@ def main():
                 with c_in2:
                     current_color_hex = st.color_picker("色", def_col, label_visibility="collapsed")
                 
+                # ★線の太さスライダー
                 st.session_state.stroke_width = st.slider("線の太さ", 1, 10, 3)
 
                 btn_col = "primary" if not is_subtraction else "secondary"
@@ -367,10 +400,11 @@ def main():
                             "color": current_color_hex,
                             "width": st.session_state.stroke_width,
                             "remarks": "",
-                            "link": ""
+                            "link": "" # リンク保存用
                         })
                         st.session_state.current_points = []
                         st.rerun()
+
             else:
                 st.info("2点クリックして距離を入力")
                 real_m = st.number_input("距離(m)", 0.0001, 1000.0, 1.0, 0.0001, format="%.4f")
@@ -414,11 +448,13 @@ def main():
                         st.success("追加しました")
                         st.rerun()
 
+
     # ---------------------------
     # メインエリア
     # ---------------------------
+    
     if st.session_state.bg_image:
-        # ヘッダー
+        # ヘッダーオーバーレイ
         mode_name = "📏 スケール" if mode_key == "scale" else ("📐 距離" if mode_key == "dist" else "🟥 面積")
         st.markdown(f"""
             <div class="floating-header">
@@ -444,54 +480,7 @@ def main():
                 st.session_state.stroke_width
             )
             
-            # ★重要: エラーの原因だった「生のHTML枠」を廃止し、
-            # Streamlit純正のコンテナでラップしてスクロール可能にする
-            with st.container(height=650, border=True):
-                value = streamlit_image_coordinates(display_img, key="main_click")
-                
-                # スクロール維持JS (純正コンテナ対応)
-                # st.container(height=...) はCSSクラス .st-key-[key] ではなく
-                # 特定の構造を持つため、JSでそのスクロール位置を制御する
-                scroll_js = """
-                <script>
-                    (function() {
-                        // スクロール可能なコンテナを探す (height指定されたstVerticalBlock)
-                        const containers = document.querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlock"]');
-                        // 図面が入っているコンテナはおそらく一番大きい、または特定の場所にあるもの
-                        // ここではすべてのスクロール可能要素の位置を保存・復元する「総当たり作戦」でいく
-                        
-                        const key = 'st_scroll_positions';
-
-                        function saveScroll() {
-                            const positions = [];
-                            document.querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"] > div').forEach((el, idx) => {
-                                positions.push(el.scrollTop + ',' + el.scrollLeft);
-                            });
-                            sessionStorage.setItem(key, JSON.stringify(positions));
-                        }
-
-                        function restoreScroll() {
-                            const saved = sessionStorage.getItem(key);
-                            if (saved) {
-                                const positions = JSON.parse(saved);
-                                document.querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"] > div').forEach((el, idx) => {
-                                    if (positions[idx]) {
-                                        const [top, left] = positions[idx].split(',');
-                                        el.scrollTop = parseInt(top);
-                                        el.scrollLeft = parseInt(left);
-                                    }
-                                    el.addEventListener('scroll', saveScroll);
-                                });
-                            }
-                        }
-                        
-                        // 実行
-                        setTimeout(restoreScroll, 100);
-                        setTimeout(restoreScroll, 500);
-                    })();
-                </script>
-                """
-                components.html(scroll_js, height=0)
+            value = streamlit_image_coordinates(display_img, key="main_click")
 
             if value and value != st.session_state.last_click:
                 st.session_state.last_click = value
@@ -518,22 +507,19 @@ def main():
                     is_sub = item.get('is_subtraction', False)
                     val_str = f"▲ {val:.2f}" if is_sub else f"{val:.2f}"
                     
-                    search_url = f"https://www.google.com/search?q={urllib.parse.quote(item.get('label', ''))}"
-                    
                     editor_data.append({
                         "No": i+1,
                         "項目": item.get('label', ''),
                         "値": val_str,
                         "単位": "m" if item['type']=='dist' else "㎡",
                         "抜": is_sub,
-                        "🔍": search_url, 
-                        "🔗 リンク": item.get('link', ''),
                         "備考": item.get('remarks', ''),
                         "idx": i
                     })
                 
                 st.markdown('<div class="ui-card">', unsafe_allow_html=True)
-                st.markdown("##### 📊 集計リスト")
+                st.markdown("##### 📊 集計")
+                
                 if editor_data:
                     df = pd.DataFrame(editor_data)
                     edited = st.data_editor(
@@ -544,13 +530,12 @@ def main():
                             "値": st.column_config.TextColumn(width="small", disabled=True),
                             "単位": st.column_config.TextColumn(width="small", disabled=True),
                             "抜": st.column_config.CheckboxColumn(width="small"),
-                            "🔍": st.column_config.LinkColumn(width="small", display_text="検索"),
-                            "🔗 リンク": st.column_config.LinkColumn(width="medium", help="URL"),
                             "備考": st.column_config.TextColumn(width="large"),
                             "idx": None
                         },
                         hide_index=True,
-                        key="data_editor"
+                        key="data_editor",
+                        height=300
                     )
                     
                     if not df.equals(edited):
@@ -559,9 +544,9 @@ def main():
                             st.session_state.history[idx]['label'] = row["項目"]
                             st.session_state.history[idx]['is_subtraction'] = row["抜"]
                             st.session_state.history[idx]['remarks'] = row["備考"]
-                            st.session_state.history[idx]['link'] = row["🔗 リンク"]
                         st.rerun()
 
+                    # 合計
                     summary = {}
                     for i, item in enumerate(st.session_state.history):
                         val = 0
@@ -584,10 +569,48 @@ def main():
                         v_str = f"▲ {abs(v):.2f}" if v < 0 else f"{v:.2f}"
                         st.markdown(f"**{k}**: <span style='color:{c}; font-size:1.1em;'>{v_str}</span>", unsafe_allow_html=True)
                     
-                    csv = edited.drop(columns=["idx", "🔍"]).to_csv(index=False).encode('utf-8-sig')
+                    csv = edited.drop(columns=["idx"]).to_csv(index=False).encode('utf-8-sig')
                     st.download_button("CSV保存", csv, "sekisan.csv", "text/csv", use_container_width=True)
                 else:
                     st.caption("データなし")
+                
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # ★部材リスト & リンク機能 (右下に追加)
+                st.markdown('<div class="ui-card" style="margin-top:15px;">', unsafe_allow_html=True)
+                st.markdown("##### 🔗 部材リスト & 検索")
+                
+                if st.session_state.history:
+                    # 重複を除いた項目リスト
+                    unique_items = sorted(list(set([h['label'] for h in st.session_state.history if h['label']])))
+                    
+                    for item_name in unique_items:
+                        # 各項目の行
+                        st.markdown(f"**{item_name}**")
+                        
+                        # 検索ボタン群
+                        keyword = urllib.parse.quote(item_name)
+                        google_url = f"https://www.google.com/search?q={keyword}"
+                        lixil_url = f"https://www.google.com/search?q=LIXIL+{keyword}"
+                        ykk_url = f"https://www.google.com/search?q=YKKAP+{keyword}"
+                        
+                        st.markdown(f"""
+                        <a href="{google_url}" target="_blank" class="link-btn">🔍 Google</a>
+                        <a href="{lixil_url}" target="_blank" class="link-btn">LIXIL</a>
+                        <a href="{ykk_url}" target="_blank" class="link-btn">YKK AP</a>
+                        """, unsafe_allow_html=True)
+                        
+                        # リンクメモ欄 (各項目に1つ)
+                        # 簡易実装：保存はセッションのみ
+                        key_link = f"link_memo_{item_name}"
+                        val_link = st.text_input("URLメモ", key=key_link, placeholder="https://...", label_visibility="collapsed")
+                        if val_link:
+                            st.caption(f"保存: {val_link}")
+                            
+                        st.divider()
+                else:
+                    st.caption("計測データがありません")
+                    
                 st.markdown('</div>', unsafe_allow_html=True)
 
             else:
