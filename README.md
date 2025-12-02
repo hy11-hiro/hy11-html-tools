@@ -54,7 +54,7 @@ GitHub Pagesを通じて公開され、黒板作成・原価管理・画像編�
   - **出力機能**：PNG画像保存、PDF出力、CSVエクスポート対応  
   - **積算リスト**：計測結果を一覧化し、合計概算金額を自動計算  
 
-- [計算ツール Exterior Estimator](https://hy11-hiro.github.io/hy11-html-tools/tools/estimator/exterior-estimator.html)  
+- [計算ツール Exterior Estimator](https://hy11-hiro.github.io/hy11-html-tools/exterior-estimator.html)  
   画像やPDFを読み込み、縮尺設定後に距離・面積・体積・材料数量を算出する実務向け計算ツール。部材マスタ（Excel/CSV）連携で概算金額を出力でき、結果はCSV/PDF/PNGで保存可能。現場での迅速な積算・見積作業に最適です。 
 - 縮尺設定：2点指定でピクセル→実寸変換  
 - 距離計測：連続線で長さ算出  
