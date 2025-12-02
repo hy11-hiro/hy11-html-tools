@@ -74,7 +74,14 @@ export default function App() {
             reader.onload = async function() {
                 const typedarray = new Uint8Array(this.result);
                 try {
-                    const pdf = await window.pdfjsLib.getDocument(typedarray).promise;
+                    // 修正: cMapUrlとcMapPackedを指定して日本語フォント等に対応
+                    const loadingTask = window.pdfjsLib.getDocument({
+                        data: typedarray,
+                        cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+                        cMapPacked: true,
+                    });
+                    
+                    const pdf = await loadingTask.promise;
                     const page = await pdf.getPage(1);
                     const viewport = page.getViewport({ scale: 2.0 }); // 高解像度でレンダリング
                     const hiddenCanvas = document.createElement('canvas');
@@ -88,6 +95,7 @@ export default function App() {
                     img.src = hiddenCanvas.toDataURL();
                     img.onload = () => initImage(img);
                 } catch (err) {
+                    console.error(err);
                     alert("PDF読み込みエラー: " + err.message);
                 }
             };
