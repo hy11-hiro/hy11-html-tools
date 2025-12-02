@@ -54,7 +54,7 @@
         .accordion-content.open { max-height: 500px; overflow-y: auto; }
 
         /* Table Styles */
-        .master-table th { background-color: #333; color: #fff; padding: 8px; text-align: left; font-size: 0.85rem; }
+        .master-table th { background-color: #333; color: #fff; padding: 8px; text-align: left; font-size: 0.85rem; white-space: nowrap; }
         .master-table td { border-bottom: 1px solid #3e3e42; padding: 8px; font-size: 0.85rem; vertical-align: middle; }
         .master-table tr:hover { background-color: #2a2d2e; }
     </style>
@@ -273,15 +273,15 @@
                 </div>
 
                 <div class="overflow-y-auto custom-scroll flex-1">
-                    <table class="w-full master-table text-left border-collapse">
+                    <table class="w-full master-table text-left border-collapse table-fixed">
                         <thead class="sticky top-0 z-10">
                             <tr>
                                 <th class="w-16 text-center">色</th>
                                 <th>部材名称</th>
                                 <th class="w-32">タイプ判定</th>
-                                <th class="w-32 text-right">単位</th>
+                                <th class="w-24 text-right">単位</th>
                                 <th class="w-32 text-right">単価</th>
-                                <th class="w-24 text-center">参考画像</th>
+                                <th class="w-24 text-center">画像</th>
                                 <th class="w-24 text-center">操作</th>
                             </tr>
                         </thead>
@@ -303,7 +303,7 @@
          * Database & Defaults
          */
         let db;
-        // Default fallbacks if no DB data
+        // Default fallbacks 
         const DEFAULT_PRESETS = [
             { name: 'CB積み', unit: 'm', price: 8000, type: 'line', color: '#ff5555' },
             { name: 'フェンス', unit: 'm', price: 12000, type: 'line', color: '#55aaff' },
@@ -358,10 +358,11 @@
             App.ctx = App.canvas.getContext('2d');
             resizeCanvas();
             initEvents();
-            await initDB();
+            await initDB(); // This now handles saving defaults if empty
             setTool('select');
             render();
-            updateMasterTable(); 
+            // Wait slightly for data load
+            setTimeout(() => updateMasterTable(), 100);
         });
 
         window.addEventListener('resize', resizeCanvas);
@@ -392,7 +393,10 @@
 
                 request.onsuccess = (e) => {
                     db = e.target.result;
-                    loadMaterialsFromDB().then(() => resolve());
+                    // Check if empty, if so, save defaults
+                    checkAndInitDefaults().then(() => {
+                        loadMaterialsFromDB().then(() => resolve());
+                    });
                 };
 
                 request.onerror = (e) => {
@@ -400,6 +404,31 @@
                     loadedMaterials = [...DEFAULT_PRESETS];
                     resolve();
                 };
+            });
+        }
+
+        function checkAndInitDefaults() {
+            return new Promise((resolve) => {
+                const transaction = db.transaction(["materials"], "readwrite");
+                const store = transaction.objectStore("materials");
+                const countReq = store.count();
+
+                countReq.onsuccess = () => {
+                    if (countReq.result === 0) {
+                        // Empty DB, insert defaults
+                        console.log("Initializing DB with defaults...");
+                        let completed = 0;
+                        DEFAULT_PRESETS.forEach(item => {
+                            store.add(item);
+                        });
+                        // Simple wait for transaction complete
+                        transaction.oncomplete = () => resolve();
+                    } else {
+                        resolve();
+                    }
+                };
+                
+                countReq.onerror = () => resolve(); // Ignore error
             });
         }
 
@@ -411,16 +440,12 @@
 
                 request.onsuccess = (e) => {
                     const res = e.target.result;
-                    if (res && res.length > 0) {
-                        loadedMaterials = res;
-                    } else {
-                        loadedMaterials = [...DEFAULT_PRESETS];
-                    }
+                    loadedMaterials = res || [];
                     resolve();
                 };
                 
                 request.onerror = () => {
-                    loadedMaterials = [...DEFAULT_PRESETS];
+                    loadedMaterials = []; // Fail safe
                     resolve();
                 }
             });
@@ -461,6 +486,7 @@
             return new Promise((resolve, reject) => {
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
+                // Append logic
                 materials.forEach(mat => {
                     store.add(mat);
                 });
@@ -523,7 +549,7 @@
                     <td class="text-center">
                         <span class="inline-block w-6 h-6 rounded border border-gray-600" style="background-color: ${mat.color || '#fff'}"></span>
                     </td>
-                    <td class="font-bold text-white">${mat.name}</td>
+                    <td class="font-bold text-white truncate" title="${mat.name}">${mat.name}</td>
                     <td>
                         <span class="px-2 py-1 rounded text-xs ${getTypeBadgeColor(mat.type)}">
                             ${getTypeLabel(mat.type)}
@@ -532,7 +558,7 @@
                     <td class="text-right text-mono text-gray-400">${mat.unit}</td>
                     <td class="text-right text-mono font-bold">¥${mat.price.toLocaleString()}</td>
                     <td class="text-center">
-                        <button class="text-blue-400 hover:text-blue-200 transition" onclick="searchMaterialImage('${mat.name}')" title="Google画像検索">
+                        <button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${mat.name}')" title="「${mat.name}」を画像検索">
                             <i class="fas fa-images"></i>
                         </button>
                     </td>
