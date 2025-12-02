@@ -1,0 +1,611 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Home, FolderOpen, Ruler, Move, BoxSelect, Trash2, Download, Plus, Minus, X, MousePointer2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+
+// --- ユーティリティ関数 ---
+const calcDist = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+
+// 多角形の面積 (Shoelace formula)
+const calcPolyArea = (points) => {
+    if (points.length < 3) return 0;
+    let area = 0;
+    for (let i = 0; i < points.length; i++) {
+        const j = (i + 1) % points.length;
+        area += points[i].x * points[j].y;
+        area -= points[j].x * points[i].y;
+    }
+    return Math.abs(area / 2);
+};
+
+const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+export default function App() {
+    // State: Canvas & Image
+    const [image, setImage] = useState(null);
+    const [scale, setScale] = useState(null); // pixels per meter
+    const [zoom, setZoom] = useState(1);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    
+    // State: Tools & Data
+    const [mode, setMode] = useState('scale'); // 'scale', 'dist', 'area'
+    const [history, setHistory] = useState([]);
+    const [currentPoints, setCurrentPoints] = useState([]);
+    const [mousePos, setMousePos] = useState({ x: 0, y: 0 }); // World coordinates
+    
+    // UI Inputs
+    const [label, setLabel] = useState("");
+    const [color, setColor] = useState("#FF0000");
+    const [isSubtraction, setIsSubtraction] = useState(false);
+    const [realDistInput, setRealDistInput] = useState(1.0);
+    const [customItems, setCustomItems] = useState([]);
+    
+    // Refs
+    const canvasRef = useRef(null);
+    const containerRef = useRef(null);
+    const fileInputRef = useRef(null);
+
+    // PDF.jsのロード
+    useEffect(() => {
+        if (!window.pdfjsLib) {
+            const script = document.createElement('script');
+            script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+            script.onload = () => {
+                window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            };
+            document.head.appendChild(script);
+        }
+    }, []);
+
+    // --- 画像読み込み処理 ---
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.type === "application/pdf") {
+            if (!window.pdfjsLib) {
+                alert("PDF読み込みライブラリを準備中です。数秒待ってから再試行してください。");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                try {
+                    const pdf = await window.pdfjsLib.getDocument(typedarray).promise;
+                    const page = await pdf.getPage(1);
+                    const viewport = page.getViewport({ scale: 2.0 }); // 高解像度でレンダリング
+                    const hiddenCanvas = document.createElement('canvas');
+                    const context = hiddenCanvas.getContext('2d');
+                    hiddenCanvas.height = viewport.height;
+                    hiddenCanvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    
+                    const img = new Image();
+                    img.src = hiddenCanvas.toDataURL();
+                    img.onload = () => initImage(img);
+                } catch (err) {
+                    alert("PDF読み込みエラー: " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (file.type.startsWith("image/")) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => initImage(img);
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            alert("PDFまたは画像ファイルを選択してください");
+        }
+    };
+
+    const initImage = (img) => {
+        setImage(img);
+        // 初期表示位置を中心に
+        if (containerRef.current) {
+            const cw = containerRef.current.clientWidth;
+            const ch = containerRef.current.clientHeight;
+            const fitScale = Math.min(cw / img.width, ch / img.height) * 0.9;
+            setZoom(fitScale);
+            setPan({
+                x: (cw - img.width * fitScale) / 2,
+                y: (ch - img.height * fitScale) / 2
+            });
+        }
+        setHistory([]);
+        setCurrentPoints([]);
+        setScale(null);
+    };
+
+    // --- 座標変換 ---
+    const screenToWorld = (sx, sy) => ({
+        x: (sx - pan.x) / zoom,
+        y: (sy - pan.y) / zoom
+    });
+
+    // --- Canvas描画ループ ---
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas || !image) return;
+        const ctx = canvas.getContext('2d');
+        
+        // キャンバスサイズをコンテナに合わせる
+        canvas.width = containerRef.current.clientWidth;
+        canvas.height = containerRef.current.clientHeight;
+
+        // 背景クリア
+        ctx.fillStyle = "#f0f0f0";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 画像描画
+        ctx.save();
+        ctx.translate(pan.x, pan.y);
+        ctx.scale(zoom, zoom);
+        ctx.drawImage(image, 0, 0);
+        
+        // --- 描画関数 ---
+        const drawPath = (pts, color, width, filled, sub) => {
+            if (pts.length === 0) return;
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+            if (filled) ctx.closePath();
+
+            ctx.lineWidth = width / zoom;
+            
+            if (filled) {
+                ctx.fillStyle = sub ? "rgba(0, 0, 255, 0.3)" : hexToRgba(color, 0.3);
+                ctx.strokeStyle = sub ? "rgba(0, 0, 180, 0.8)" : color;
+                ctx.fill();
+                ctx.stroke();
+            } else {
+                ctx.strokeStyle = color;
+                ctx.stroke();
+            }
+        };
+
+        // 確定済み図形
+        history.forEach((item, idx) => {
+            const isArea = item.type === 'area';
+            drawPath(item.points, item.color, 3, isArea, item.isSubtraction);
+
+            // ラベル描画
+            if (item.points.length > 0) {
+                const p = item.points[0];
+                ctx.font = `bold ${16/zoom}px Arial`;
+                ctx.fillStyle = isArea && item.isSubtraction ? "blue" : item.color;
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 3 / zoom;
+                const txt = `No.${idx + 1} ${item.isSubtraction ? '[-]' : ''}${item.label}`;
+                ctx.strokeText(txt, p.x, p.y - (10/zoom));
+                ctx.fillText(txt, p.x, p.y - (10/zoom));
+            }
+        });
+
+        // --- 現在描画中 ---
+        if (currentPoints.length > 0) {
+            const activeColor = isSubtraction ? "#0000FF" : color;
+            
+            // 点と線
+            ctx.beginPath();
+            currentPoints.forEach((p, i) => {
+                // 点
+                ctx.moveTo(p.x + 5/zoom, p.y);
+                ctx.arc(p.x, p.y, 5/zoom, 0, Math.PI * 2);
+                // 線
+                if (i > 0) {
+                    ctx.moveTo(currentPoints[i-1].x, currentPoints[i-1].y);
+                    ctx.lineTo(p.x, p.y);
+                }
+            });
+            
+            // マウスカーソルへのラバーバンド線
+            const lastP = currentPoints[currentPoints.length - 1];
+            ctx.moveTo(lastP.x, lastP.y);
+            ctx.lineTo(mousePos.x, mousePos.y);
+            
+            // エリアモードなら閉じる線も薄く表示
+            if (mode === 'area' && currentPoints.length > 1) {
+                 ctx.moveTo(mousePos.x, mousePos.y);
+                 ctx.lineTo(currentPoints[0].x, currentPoints[0].y);
+            }
+
+            ctx.strokeStyle = activeColor;
+            ctx.lineWidth = 2 / zoom;
+            ctx.stroke();
+        }
+
+        ctx.restore();
+
+    }, [image, zoom, pan, history, currentPoints, mousePos, mode, color, isSubtraction]);
+
+
+    // --- イベントハンドラ ---
+    const handleMouseDown = (e) => {
+        if (!image) return;
+        // 右クリックやホイールクリックはパン移動用
+        if (e.button !== 0) return;
+
+        const rect = canvasRef.current.getBoundingClientRect();
+        const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+
+        setCurrentPoints([...currentPoints, worldPos]);
+    };
+
+    const handleMouseMove = (e) => {
+        // パン移動（スペースキー押下 or ホイール押下）
+        if (e.buttons === 4 || (e.buttons === 1 && e.shiftKey)) {
+            setPan({
+                x: pan.x + e.movementX,
+                y: pan.y + e.movementY
+            });
+            return;
+        }
+        
+        if (!image) return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+        setMousePos(worldPos);
+    };
+
+    const handleWheel = (e) => {
+        if (!image) return;
+        e.preventDefault();
+        const scaleAmount = -e.deltaY * 0.001;
+        const newZoom = Math.min(Math.max(0.1, zoom * (1 + scaleAmount)), 10);
+        
+        // マウス位置を中心にズーム
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        const worldX = (mouseX - pan.x) / zoom;
+        const worldY = (mouseY - pan.y) / zoom;
+
+        const newPanX = mouseX - worldX * newZoom;
+        const newPanY = mouseY - worldY * newZoom;
+
+        setZoom(newZoom);
+        setPan({ x: newPanX, y: newPanY });
+    };
+
+    // --- 確定・リセットロジック ---
+    const finishDrawing = () => {
+        if (mode === 'scale') {
+            if (currentPoints.length !== 2) {
+                alert("2点を選択してください");
+                setCurrentPoints([]);
+                return;
+            }
+            const pxDist = calcDist(currentPoints[0], currentPoints[1]);
+            const newScale = pxDist / realDistInput; // px / meter
+            setScale(newScale);
+            setCurrentPoints([]);
+            alert(`スケール設定完了: 1m = ${newScale.toFixed(2)}px`);
+            setMode('dist'); // 自動で距離モードへ
+        } else {
+            if (currentPoints.length < 2) return;
+            
+            const newItem = {
+                type: mode,
+                points: currentPoints,
+                label: label || (mode === 'dist' ? "距離" : "面積"),
+                color: isSubtraction ? "#0000FF" : color,
+                isSubtraction: isSubtraction && mode === 'area',
+                width: 3,
+                link: "",
+                remarks: ""
+            };
+            setHistory([...history, newItem]);
+            setCurrentPoints([]);
+        }
+    };
+
+    // デフォルト項目の設定
+    useEffect(() => {
+        if (mode === 'dist') {
+            setLabel(isSubtraction ? "" : "ブロック積");
+            setColor("#8d6e63");
+        } else if (mode === 'area') {
+            setLabel(isSubtraction ? "砂利敷き" : "土間コンクリート");
+            setColor("#bdbdbd");
+        }
+    }, [mode, isSubtraction]);
+
+    // --- 集計データ作成 ---
+    const calculateValue = (item) => {
+        if (!scale) return 0;
+        let val = 0;
+        if (item.type === 'dist') {
+            let d = 0;
+            for (let i=0; i<item.points.length-1; i++) {
+                d += calcDist(item.points[i], item.points[i+1]);
+            }
+            val = d / scale;
+        } else if (item.type === 'area') {
+            val = calcPolyArea(item.points) / (scale * scale);
+        }
+        return item.isSubtraction ? -val : val;
+    };
+
+    const exportCSV = () => {
+        const header = "No,項目,値,単位,タイプ,備考\n";
+        const rows = history.map((h, i) => {
+            const val = calculateValue(h);
+            const unit = h.type === 'dist' ? 'm' : 'm2';
+            return `${i+1},${h.label},${val.toFixed(2)},${unit},${h.isSubtraction?'抜き':'通常'},${h.remarks}`;
+        }).join("\n");
+        
+        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), header + rows], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = "sekisan.csv";
+        a.click();
+    };
+    
+    // --- 集計合計 ---
+    const summary = useMemo(() => {
+        const sums = {};
+        history.forEach(h => {
+            const val = calculateValue(h);
+            const unit = h.type === 'dist' ? '(m)' : '(㎡)';
+            const key = `${h.label} ${unit}`;
+            sums[key] = (sums[key] || 0) + val;
+        });
+        return sums;
+    }, [history, scale]);
+
+
+    return (
+        <div className="flex h-screen w-full bg-[#fdfcf5] text-[#5d4037] font-sans overflow-hidden">
+            {/* Sidebar */}
+            <div className="w-80 bg-[#f4f1ea] border-r border-gray-300 flex flex-col p-4 shadow-lg overflow-y-auto z-10 shrink-0">
+                <h1 className="text-xl font-bold mb-4 flex items-center gap-2 text-[#5d4037]">
+                    <Home size={24} /> Gaikou Pro Web
+                </h1>
+
+                {/* File Section */}
+                <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 mb-4">
+                    <h2 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-1">
+                        <FolderOpen size={16} /> ファイル
+                    </h2>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileChange}
+                        accept=".pdf,image/*"
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#d87c56] file:text-white hover:file:bg-[#c06040]"
+                    />
+                    {!scale && image && (
+                        <div className="mt-2 text-xs text-red-500 font-bold bg-red-50 p-2 rounded">
+                            ⚠️ まず「📏 スケール」で1mの距離を設定してください
+                        </div>
+                    )}
+                </div>
+
+                {/* Tools Section */}
+                <div className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 mb-4">
+                    <h2 className="text-sm font-bold text-gray-600 mb-2 flex items-center gap-1">
+                        <MousePointer2 size={16} /> ツール
+                    </h2>
+                    
+                    <div className="flex bg-gray-100 rounded p-1 mb-3">
+                        {['scale', 'dist', 'area'].map(m => (
+                            <button 
+                                key={m}
+                                onClick={() => { setMode(m); setCurrentPoints([]); }}
+                                className={`flex-1 py-1 text-sm rounded transition flex justify-center items-center gap-1 ${mode === m ? 'bg-white shadow text-[#d87c56] font-bold' : 'text-gray-500'}`}
+                            >
+                                {m === 'scale' && <Ruler size={14} />}
+                                {m === 'dist' && <Move size={14} />}
+                                {m === 'area' && <BoxSelect size={14} />}
+                                {m === 'scale' ? 'スケール' : m === 'dist' ? '距離' : '面積'}
+                            </button>
+                        ))}
+                    </div>
+
+                    {mode === 'scale' ? (
+                        <div className="space-y-2">
+                            <p className="text-xs text-gray-600">図面上の既知の2点をクリックし、実際の距離を入力してください。</p>
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="number" 
+                                    value={realDistInput}
+                                    onChange={(e) => setRealDistInput(parseFloat(e.target.value))}
+                                    className="w-20 border rounded px-2 py-1 text-right"
+                                />
+                                <span className="text-sm">m</span>
+                            </div>
+                            <button 
+                                onClick={finishDrawing}
+                                disabled={currentPoints.length !== 2}
+                                className="w-full bg-[#d87c56] text-white py-2 rounded-lg font-bold shadow hover:bg-[#c06040] disabled:opacity-50 mt-2 transition"
+                            >
+                                スケール適用
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {/* 項目選択 */}
+                            <div className="space-y-1">
+                                <label className="text-xs text-gray-500 font-bold">項目名</label>
+                                <select 
+                                    value={label} 
+                                    onChange={(e) => setLabel(e.target.value)}
+                                    className="w-full border rounded px-2 py-1 text-sm"
+                                >
+                                    {(mode === 'dist' 
+                                        ? ["ブロック積", "フェンス", "ブロック＋フェンス", "境界ブロック", "縁石", "土留め"] 
+                                        : ["土間コンクリート", "砂利敷き", "人工芝", "防草シート", "タイル"]
+                                    ).concat(customItems).map(opt => (
+                                        <option key={opt} value={opt}>{opt}</option>
+                                    ))}
+                                    <option value="その他">その他</option>
+                                </select>
+                            </div>
+                            
+                            {label === "その他" && (
+                                <input 
+                                    type="text" 
+                                    placeholder="名称入力..." 
+                                    className="w-full border rounded px-2 py-1 text-sm"
+                                    onChange={(e) => setLabel(e.target.value)}
+                                />
+                            )}
+
+                            {mode === 'area' && (
+                                <label className="flex items-center gap-2 text-sm cursor-pointer select-none bg-gray-50 p-2 rounded hover:bg-gray-100">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={isSubtraction} 
+                                        onChange={(e) => setIsSubtraction(e.target.checked)}
+                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                    />
+                                    <span>➖ 抜き (減算)</span>
+                                </label>
+                            )}
+
+                            <div className="flex gap-2 items-center">
+                                <input 
+                                    type="color" 
+                                    value={color}
+                                    onChange={(e) => setColor(e.target.value)}
+                                    className="h-10 w-12 cursor-pointer border rounded shadow-sm"
+                                    disabled={isSubtraction}
+                                />
+                                <button 
+                                    onClick={finishDrawing}
+                                    disabled={currentPoints.length < 2}
+                                    className={`flex-1 py-2 rounded-lg font-bold shadow text-white transition disabled:opacity-50 flex items-center justify-center gap-1 ${isSubtraction ? 'bg-blue-600 hover:bg-blue-700' : 'bg-[#d87c56] hover:bg-[#c06040]'}`}
+                                >
+                                    {isSubtraction ? <Minus size={16} /> : <Plus size={16} />}
+                                    {isSubtraction ? "抜き確定" : "確定"}
+                                </button>
+                            </div>
+                            <button 
+                                onClick={() => setCurrentPoints([])}
+                                disabled={currentPoints.length === 0}
+                                className="w-full py-1 text-sm text-gray-500 bg-gray-100 rounded hover:bg-gray-200 transition"
+                            >
+                                キャンセル
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* List Section */}
+                <div className="flex-1 overflow-auto min-h-0">
+                    <h2 className="text-sm font-bold text-gray-600 mb-2 flex justify-between items-center sticky top-0 bg-[#f4f1ea] py-1">
+                        <span>📊 リスト</span>
+                        {history.length > 0 && (
+                            <button onClick={() => {if(confirm('全てのデータを削除しますか？')) setHistory([])}} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
+                                <Trash2 size={12} /> 全クリア
+                            </button>
+                        )}
+                    </h2>
+                    <div className="space-y-2 pb-2">
+                        {history.map((item, idx) => (
+                            <div key={idx} className="bg-white p-2 rounded border border-gray-200 text-sm shadow-sm relative group hover:shadow-md transition">
+                                <div className="flex justify-between font-bold items-center">
+                                    <span className={item.isSubtraction ? "text-blue-600" : "text-[#5d4037]"}>
+                                        {item.isSubtraction ? "▲ " : ""}{item.label}
+                                    </span>
+                                    <button 
+                                        onClick={() => setHistory(history.filter((_, i) => i !== idx))}
+                                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition p-1"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                                <div className="flex justify-between text-gray-500 mt-1">
+                                    <span className="text-xs bg-gray-100 px-1 rounded">No.{idx+1}</span>
+                                    <span className="font-mono">
+                                        {Math.abs(calculateValue(item)).toFixed(2)} 
+                                        <span className="text-xs ml-1">{item.type === 'dist' ? 'm' : '㎡'}</span>
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                        {history.length === 0 && <div className="text-center text-xs text-gray-400 py-4">データがありません</div>}
+                    </div>
+                </div>
+
+                {/* Total Section */}
+                <div className="mt-4 pt-4 border-t border-gray-300">
+                     <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+                        {Object.entries(summary).map(([key, val]) => (
+                            <div key={key} className="bg-white p-2 rounded border border-gray-200 text-center shadow-sm">
+                                <div className="text-xs text-gray-500 truncate" title={key}>{key}</div>
+                                <div className={`font-bold text-lg ${val < 0 ? 'text-red-600' : 'text-[#5d4037]'}`}>
+                                    {val < 0 ? '▲ ' : ''}{Math.abs(val).toFixed(2)}
+                                </div>
+                            </div>
+                        ))}
+                     </div>
+                     <button 
+                        onClick={exportCSV}
+                        disabled={history.length === 0}
+                        className="w-full bg-[#5d4037] text-white py-2 rounded-lg shadow hover:bg-[#4e362e] disabled:opacity-50 flex justify-center items-center gap-2 transition"
+                    >
+                        <Download size={16} /> CSV保存
+                    </button>
+                </div>
+            </div>
+
+            {/* Main Canvas Area */}
+            <div className="flex-1 relative bg-gray-100 overflow-hidden" ref={containerRef}>
+                {/* Floating Header */}
+                <div className="absolute top-4 left-4 z-10 bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-lg border border-white/50 pointer-events-none flex gap-3 items-center">
+                    <span className="font-bold text-lg text-[#5d4037]">Gaikou Pro</span>
+                    <span className="bg-gray-200 text-gray-600 text-xs px-2 py-1 rounded-full font-bold">
+                        {mode === 'scale' ? "📏 スケール設定" : mode === 'dist' ? "📐 距離計測" : "🟥 面積計測"}
+                    </span>
+                    <span className="text-sm text-gray-500 font-mono">x{zoom.toFixed(2)}</span>
+                </div>
+                
+                {!image && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 select-none">
+                        <FolderOpen size={64} className="mb-4 opacity-50" />
+                        <div className="text-xl font-bold">左のパネルから図面を開いてください</div>
+                        <div className="text-sm mt-2">PDF または 画像ファイルに対応</div>
+                    </div>
+                )}
+
+                <canvas 
+                    ref={canvasRef}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={() => {}} 
+                    onWheel={handleWheel}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className="cursor-crosshair w-full h-full block"
+                />
+                
+                {/* ズームコントローラー */}
+                <div className="absolute bottom-6 right-6 flex flex-col gap-2 bg-white rounded-lg shadow-lg p-1 border border-gray-100">
+                    <button onClick={() => setZoom(z => Math.min(z * 1.2, 10))} className="p-2 hover:bg-gray-100 rounded text-gray-600" title="拡大">
+                        <ZoomIn size={20} />
+                    </button>
+                    <button onClick={() => setZoom(1)} className="p-2 hover:bg-gray-100 rounded text-gray-600" title="リセット">
+                        <RotateCcw size={18} />
+                    </button>
+                    <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.1))} className="p-2 hover:bg-gray-100 rounded text-gray-600" title="縮小">
+                        <ZoomOut size={20} />
+                    </button>
+                </div>
+
+                {/* ヒント */}
+                <div className="absolute bottom-6 left-6 bg-black/70 text-white px-4 py-2 rounded-full text-xs backdrop-blur pointer-events-none shadow-lg">
+                    左クリック: 点を追加 | ホイール: ズーム | 右ドラッグ or Shift+ドラッグ: 移動
+                </div>
+            </div>
+        </div>
+    );
+}
