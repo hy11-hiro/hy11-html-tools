@@ -11,6 +11,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- Excel Reading Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- PDF Generation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -84,11 +86,19 @@
         </div>
 
         <!-- Planner Actions (Visible only in Planner View) -->
-        <div id="plannerActions" class="flex gap-3">
+        <div id="plannerActions" class="flex gap-2">
             <label class="cursor-pointer bg-cad-border hover:bg-gray-600 px-3 py-1 rounded text-sm transition">
                 <i class="fas fa-folder-open mr-1"></i> 図面読込 (PDF/IMG)
                 <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
             </label>
+            <div class="h-6 w-px bg-gray-600 mx-1"></div>
+            <button id="saveImgBtn" class="bg-blue-800 hover:bg-blue-700 px-3 py-1 rounded text-sm text-white transition" title="画像として保存">
+                <i class="fas fa-image mr-1"></i> PNG
+            </button>
+            <button id="savePdfBtn" class="bg-red-800 hover:bg-red-700 px-3 py-1 rounded text-sm text-white transition" title="PDFとして保存">
+                <i class="fas fa-file-pdf mr-1"></i> PDF
+            </button>
+            <div class="h-6 w-px bg-gray-600 mx-1"></div>
             <button id="exportBtn" class="bg-green-700 hover:bg-green-600 px-3 py-1 rounded text-sm text-white transition">
                 <i class="fas fa-file-csv mr-1"></i> CSV出力
             </button>
@@ -150,18 +160,22 @@
 
                     <!-- Unit Price Hidden from UI as requested, kept in logic -->
                     <input type="hidden" id="itemPrice"> 
-
-                    <div class="flex gap-4 mb-3">
+                    
+                    <div class="flex gap-2 mb-3">
                         <div class="flex-1">
-                            <label class="block text-xs mb-1 text-gray-400">描画色</label>
-                            <div class="flex gap-2">
-                                <input type="color" id="itemColor" class="h-8 w-12 bg-transparent border-none cursor-pointer">
-                            </div>
+                            <label class="block text-xs mb-1 text-gray-400">段数・倍率</label>
+                            <input type="number" id="itemMultiplier" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm text-white" value="1" min="0.1" step="0.1">
+                            <p class="text-[10px] text-gray-500">※ブロック段数など</p>
                         </div>
-                        <div class="flex-1">
+                         <div class="flex-1">
                              <label class="block text-xs mb-1 text-gray-400">線の太さ</label>
-                             <input type="range" id="lineWidth" min="1" max="10" value="2" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                             <input type="range" id="lineWidth" min="1" max="10" value="2" class="w-full h-8 bg-gray-700 rounded-lg appearance-none cursor-pointer">
                         </div>
+                    </div>
+
+                    <label class="block text-xs mb-1 text-gray-400">描画色</label>
+                    <div class="flex gap-2 mb-3">
+                        <input type="color" id="itemColor" class="h-8 w-12 bg-transparent border-none cursor-pointer">
                     </div>
 
                     <div id="subtractiveOption" class="hidden mb-3 pt-2 border-t border-cad-border">
@@ -232,29 +246,43 @@
             <div class="flex justify-between items-end mb-6">
                 <div>
                     <h2 class="text-2xl font-bold text-white mb-2">部材・単価マスタ管理</h2>
-                    <p class="text-gray-400 text-sm">図面作成で使用する部材の名称、単位、単価を管理します。</p>
+                    <p class="text-gray-400 text-sm">図面作成で使用する部材の名称、参照商品名、単位、単価を管理します。<br>
+                    <span class="text-yellow-500">※Excel取込形式：A列=部材名, B列=参照商品名(画像検索用), C列=単位(m/m2/基), D列=単価</span>
+                    </p>
                 </div>
-                <label class="cursor-pointer bg-green-700 hover:bg-green-600 px-4 py-2 rounded text-white transition flex items-center gap-2 shadow-lg">
-                    <i class="fas fa-file-excel"></i> 単価表一括取込 (Excel/CSV)
-                    <input type="file" id="priceListInput" accept=".csv, .xlsx, .xls" class="hidden">
-                </label>
+                <div class="flex gap-2">
+                    <button id="deleteAllBtn" class="bg-red-700 hover:bg-red-600 px-4 py-2 rounded text-white transition flex items-center gap-2 shadow-lg text-sm border border-red-500">
+                        <i class="fas fa-trash-alt"></i> 全データ削除
+                    </button>
+                    <button id="restoreDefaultsBtn" class="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded text-white transition flex items-center gap-2 shadow-lg text-sm">
+                        <i class="fas fa-undo"></i> 初期データ復元
+                    </button>
+                    <label class="cursor-pointer bg-green-700 hover:bg-green-600 px-4 py-2 rounded text-white transition flex items-center gap-2 shadow-lg text-sm">
+                        <i class="fas fa-file-excel"></i> 単価表一括取込
+                        <input type="file" id="priceListInput" accept=".csv, .xlsx, .xls" class="hidden">
+                    </label>
+                </div>
             </div>
 
             <!-- Add New Form -->
             <div class="bg-cad-panel p-4 rounded border border-cad-border mb-6 flex gap-4 items-end flex-wrap">
                 <div class="flex-1 min-w-[200px]">
                     <label class="block text-xs text-gray-400 mb-1">部材名称</label>
-                    <input type="text" id="newMatName" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" placeholder="例: 御影石ピンコロ">
+                    <input type="text" id="newMatName" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" placeholder="例: メッシュフェンス T-8">
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs text-gray-400 mb-1">参照商品名 (画像検索用)</label>
+                    <input type="text" id="newMatRef" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" placeholder="例: ハイグリッドフェンスN8型">
+                </div>
+                <div class="w-24">
+                    <label class="block text-xs text-gray-400 mb-1">単位</label>
+                    <input type="text" id="newMatUnit" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" placeholder="m / m2">
                 </div>
                 <div class="w-32">
-                    <label class="block text-xs text-gray-400 mb-1">単位</label>
-                    <input type="text" id="newMatUnit" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" placeholder="m / m2 / 個">
-                </div>
-                <div class="w-40">
                     <label class="block text-xs text-gray-400 mb-1">単価 (円)</label>
                     <input type="number" id="newMatPrice" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white" placeholder="0">
                 </div>
-                <div class="w-20">
+                <div class="w-16">
                     <label class="block text-xs text-gray-400 mb-1">色</label>
                     <input type="color" id="newMatColor" class="w-full h-[38px] bg-transparent cursor-pointer" value="#cccccc">
                 </div>
@@ -268,7 +296,7 @@
                 <div class="p-3 border-b border-cad-border bg-gray-800 flex items-center">
                     <div class="relative w-full max-w-sm">
                         <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                        <input type="text" id="masterSearchInput" class="w-full bg-gray-700 border border-gray-600 rounded pl-9 pr-3 py-1 text-sm text-white focus:outline-none focus:border-cad-accent" placeholder="部材名を検索...">
+                        <input type="text" id="masterSearchInput" class="w-full bg-gray-700 border border-gray-600 rounded pl-9 pr-3 py-1 text-sm text-white focus:outline-none focus:border-cad-accent" placeholder="部材名・商品名で検索...">
                     </div>
                 </div>
 
@@ -276,13 +304,14 @@
                     <table class="w-full master-table text-left border-collapse table-fixed">
                         <thead class="sticky top-0 z-10">
                             <tr>
-                                <th class="w-16 text-center">色</th>
-                                <th>部材名称</th>
-                                <th class="w-32">タイプ判定</th>
-                                <th class="w-24 text-right">単位</th>
-                                <th class="w-32 text-right">単価</th>
-                                <th class="w-24 text-center">画像</th>
-                                <th class="w-24 text-center">操作</th>
+                                <th class="w-12 text-center">色</th>
+                                <th class="w-1/4">部材名称</th>
+                                <th class="w-1/4 text-gray-400">参照商品名</th>
+                                <th class="w-24">タイプ判定</th>
+                                <th class="w-20 text-right">単位</th>
+                                <th class="w-28 text-right">単価</th>
+                                <th class="w-20 text-center">画像</th>
+                                <th class="w-20 text-center">操作</th>
                             </tr>
                         </thead>
                         <tbody id="masterTableBody">
@@ -303,13 +332,31 @@
          * Database & Defaults
          */
         let db;
-        // Default fallbacks 
+        // Expanded Default Presets (Cleaned with Reference Names)
         const DEFAULT_PRESETS = [
-            { name: 'CB積み', unit: 'm', price: 8000, type: 'line', color: '#ff5555' },
-            { name: 'フェンス', unit: 'm', price: 12000, type: 'line', color: '#55aaff' },
-            { name: '土間コンクリート', unit: 'm2', price: 11000, type: 'area', color: '#cccccc' },
-            { name: '人工芝', unit: 'm2', price: 8500, type: 'area', color: '#55ff55' },
-            { name: 'ポールライト', unit: '個', price: 25000, type: 'count', color: '#ffff55' }
+            // ブロック・組積 (単位: m)
+            { name: 'CB100 (1段m単価)', refName: '重量ブロック 100', unit: 'm', price: 1800, type: 'line', color: '#A9A9A9' },
+            { name: 'CB120 (1段m単価)', refName: '重量ブロック 120', unit: 'm', price: 2200, type: 'line', color: '#808080' },
+            { name: 'CB150 (1段m単価)', refName: '重量ブロック 150', unit: 'm', price: 2800, type: 'line', color: '#696969' },
+            { name: '化粧ブロックA (1段m単価)', refName: 'ユニソン シャモティ', unit: 'm', price: 4500, type: 'line', color: '#CD853F' },
+            { name: 'ブロック基礎', refName: 'ブロック 基礎断面', unit: 'm', price: 3500, type: 'line', color: '#778899' },
+            
+            // コンクリート・舗装 (単位: m2)
+            { name: '土間コンクリート(金鏝)', refName: '土間コンクリート 金鏝仕上げ', unit: 'm2', price: 11000, type: 'area', color: '#D3D3D3' },
+            { name: '土間コンクリート(刷毛)', refName: '土間コンクリート 刷毛引き', unit: 'm2', price: 11000, type: 'area', color: '#C0C0C0' },
+            { name: '砕石路盤 (RC40)', refName: '砕石 RC40', unit: 'm2', price: 1500, type: 'area', color: '#708090' },
+            { name: '防草シート+砂利', refName: '防草シート 砂利敷き', unit: 'm2', price: 3500, type: 'area', color: '#F0E68C' },
+            { name: 'インターロッキング', refName: 'インターロッキング 舗装', unit: 'm2', price: 12000, type: 'area', color: '#CD5C5C' },
+            
+            // 金物・フェンス (単位: m / 基)
+            { name: 'メッシュフェンス T-8', refName: 'LIXIL ハイグリッドフェンスN8型', unit: 'm', price: 5000, type: 'line', color: '#4682B4' },
+            { name: '目隠しフェンス T-8', refName: 'LIXIL フェンスAB YL2型', unit: 'm', price: 12000, type: 'line', color: '#5F9EA0' },
+            { name: '機能門柱', refName: 'LIXIL 機能門柱FW', unit: '基', price: 80000, type: 'count', color: '#2F4F4F' },
+            { name: 'カーポート (1台用)', refName: 'YKKAP アリュース 1台用', unit: '基', price: 150000, type: 'count', color: '#191970' },
+            
+            // 植栽 (単位: 本 / m2)
+            { name: '高木 (H2.5)', refName: 'シマトネリコ 株立ち', unit: '本', price: 25000, type: 'count', color: '#228B22' },
+            { name: '人工芝', refName: 'リアリーターフ', unit: 'm2', price: 8500, type: 'area', color: '#32CD32' }
         ];
 
         let loadedMaterials = [];
@@ -347,6 +394,7 @@
                 price: 0,
                 color: '#ffffff',
                 lineWidth: 2,
+                multiplier: 1, // 段数や倍率
                 isSubtractive: false
             }
         };
@@ -358,10 +406,9 @@
             App.ctx = App.canvas.getContext('2d');
             resizeCanvas();
             initEvents();
-            await initDB(); // This now handles saving defaults if empty
+            await initDB(); 
             setTool('select');
             render();
-            // Wait slightly for data load
             setTimeout(() => updateMasterTable(), 100);
         });
 
@@ -382,7 +429,7 @@
          */
         function initDB() {
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open("ExteriorPlannerDB", 1);
+                const request = indexedDB.open("ExteriorPlannerDB", 2); 
                 
                 request.onupgradeneeded = (e) => {
                     db = e.target.result;
@@ -393,7 +440,6 @@
 
                 request.onsuccess = (e) => {
                     db = e.target.result;
-                    // Check if empty, if so, save defaults
                     checkAndInitDefaults().then(() => {
                         loadMaterialsFromDB().then(() => resolve());
                     });
@@ -415,21 +461,46 @@
 
                 countReq.onsuccess = () => {
                     if (countReq.result === 0) {
-                        // Empty DB, insert defaults
-                        console.log("Initializing DB with defaults...");
-                        let completed = 0;
-                        DEFAULT_PRESETS.forEach(item => {
-                            store.add(item);
-                        });
-                        // Simple wait for transaction complete
+                        DEFAULT_PRESETS.forEach(item => store.add(item));
                         transaction.oncomplete = () => resolve();
                     } else {
                         resolve();
                     }
                 };
-                
-                countReq.onerror = () => resolve(); // Ignore error
+                countReq.onerror = () => resolve();
             });
+        }
+
+        function deleteAllMaterials() {
+            if(!confirm("【警告】マスタデータを全て削除します。\n本当によろしいですか？")) return;
+            
+            const transaction = db.transaction(["materials"], "readwrite");
+            const store = transaction.objectStore("materials");
+            store.clear();
+            
+            transaction.oncomplete = () => {
+                loadMaterialsFromDB().then(() => {
+                    updateMasterTable();
+                    alert("全てのデータを削除しました。");
+                });
+            };
+        }
+
+        function restoreDefaults() {
+            if(!confirm("現在のマスタデータを全て削除し、初期データに戻しますか？\n（追加したデータは消えます）")) return;
+            
+            const transaction = db.transaction(["materials"], "readwrite");
+            const store = transaction.objectStore("materials");
+            store.clear();
+            
+            DEFAULT_PRESETS.forEach(item => store.add(item));
+            
+            transaction.oncomplete = () => {
+                loadMaterialsFromDB().then(() => {
+                    updateMasterTable();
+                    alert("初期データを復元しました。");
+                });
+            };
         }
 
         function loadMaterialsFromDB() {
@@ -443,11 +514,7 @@
                     loadedMaterials = res || [];
                     resolve();
                 };
-                
-                request.onerror = () => {
-                    loadedMaterials = []; // Fail safe
-                    resolve();
-                }
+                request.onerror = () => { loadedMaterials = []; resolve(); }
             });
         }
 
@@ -455,7 +522,6 @@
             return new Promise((resolve) => {
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
-                // Determine type logic
                 if(!material.type) {
                      const u = material.unit || "";
                      if (u.includes('m2') || u.includes('㎡') || u.includes('平米')) material.type = 'area';
@@ -486,10 +552,7 @@
             return new Promise((resolve, reject) => {
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
-                // Append logic
-                materials.forEach(mat => {
-                    store.add(mat);
-                });
+                materials.forEach(mat => store.add(mat));
 
                 transaction.oncomplete = () => {
                     loadMaterialsFromDB().then(() => {
@@ -540,16 +603,21 @@
             tbody.innerHTML = '';
             
             const filteredMaterials = loadedMaterials.filter(mat => {
-                return !filterTerm || mat.name.toLowerCase().includes(filterTerm);
+                const searchStr = (mat.name + (mat.refName || '')).toLowerCase();
+                return !filterTerm || searchStr.includes(filterTerm);
             });
 
             filteredMaterials.forEach(mat => {
+                const refText = mat.refName || '';
+                const searchTerm = mat.refName || mat.name; // Use refName if available for search button
+                
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="text-center">
                         <span class="inline-block w-6 h-6 rounded border border-gray-600" style="background-color: ${mat.color || '#fff'}"></span>
                     </td>
                     <td class="font-bold text-white truncate" title="${mat.name}">${mat.name}</td>
+                    <td class="text-gray-400 text-sm truncate" title="${refText}">${refText}</td>
                     <td>
                         <span class="px-2 py-1 rounded text-xs ${getTypeBadgeColor(mat.type)}">
                             ${getTypeLabel(mat.type)}
@@ -558,7 +626,7 @@
                     <td class="text-right text-mono text-gray-400">${mat.unit}</td>
                     <td class="text-right text-mono font-bold">¥${mat.price.toLocaleString()}</td>
                     <td class="text-center">
-                        <button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${mat.name}')" title="「${mat.name}」を画像検索">
+                        <button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${searchTerm}')" title="「${searchTerm}」を画像検索">
                             <i class="fas fa-images"></i>
                         </button>
                     </td>
@@ -573,7 +641,6 @@
             document.getElementById('masterCount').textContent = `全 ${filteredMaterials.length} 件`;
         }
         
-        // Window scope functions
         window.deleteMaterialFromDB = deleteMaterialFromDB;
         window.searchMaterialImage = (name) => {
             const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(name)}`;
@@ -609,24 +676,33 @@
                 const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 const newMaterials = [];
                 let startIndex = 0;
-                if(typeof jsonData[0][2] !== 'number') startIndex = 1;
+                if(typeof jsonData[0][3] !== 'number') startIndex = 1; // Check D col for number
 
                 for (let i = startIndex; i < jsonData.length; i++) {
                     const row = jsonData[i];
                     if (!row[0]) continue;
+                    // A=0: Name, B=1: RefName, C=2: Unit, D=3: Price
                     const name = row[0];
-                    const unit = row[1] ? String(row[1]).trim() : '';
-                    const price = parseInt(row[2]) || 0;
+                    const refName = row[1] ? String(row[1]).trim() : '';
+                    const unit = row[2] ? String(row[2]).trim() : '';
+                    const price = parseInt(row[3]) || 0;
                     
                     let type = 'count';
                     if (unit.includes('m2') || unit.includes('㎡') || unit.includes('平米')) type = 'area';
                     else if (unit === 'm' || unit === 'ｍ' || unit.includes('メートル')) type = 'line';
                     
-                    newMaterials.push({ name: name, unit: unit, price: price, type: type, color: getRandomColor() });
+                    newMaterials.push({ 
+                        name: name, 
+                        refName: refName, 
+                        unit: unit, 
+                        price: price, 
+                        type: type, 
+                        color: getRandomColor() 
+                    });
                 }
                 
                 if (newMaterials.length > 0) saveMaterialsToDB(newMaterials);
-                else alert("有効なデータが見つかりませんでした。");
+                else alert("有効なデータが見つかりませんでした。列構成を確認してください。\nA:名称 B:参照名 C:単位 D:単価");
                 
                 e.target.value = '';
             };
@@ -646,34 +722,32 @@
          * Event Listeners
          */
         function initEvents() {
-            // View Navigation
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.addEventListener('click', () => switchView(btn.dataset.view));
             });
 
-            // Master Data Actions
             document.getElementById('addMaterialBtn').addEventListener('click', () => {
                 const name = document.getElementById('newMatName').value;
+                const refName = document.getElementById('newMatRef').value;
                 const unit = document.getElementById('newMatUnit').value;
                 const price = parseInt(document.getElementById('newMatPrice').value) || 0;
                 const color = document.getElementById('newMatColor').value;
                 
                 if(!name) { alert('名称を入力してください'); return; }
                 
-                addMaterialToDB({ name, unit, price, color });
+                addMaterialToDB({ name, refName, unit, price, color });
                 
-                // Reset form
+                // Clear
                 document.getElementById('newMatName').value = '';
+                document.getElementById('newMatRef').value = '';
                 document.getElementById('newMatUnit').value = '';
                 document.getElementById('newMatPrice').value = '';
             });
-            
-            // Search Input Event
-            document.getElementById('masterSearchInput').addEventListener('input', () => {
-                updateMasterTable();
-            });
 
-            // Tools
+            document.getElementById('deleteAllBtn').addEventListener('click', deleteAllMaterials);
+            document.getElementById('restoreDefaultsBtn').addEventListener('click', restoreDefaults);
+            document.getElementById('masterSearchInput').addEventListener('input', () => updateMasterTable());
+
             document.querySelectorAll('.tool-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
@@ -692,18 +766,15 @@
             document.getElementById('priceListInput').addEventListener('change', handlePriceListUpload);
             document.getElementById('showLabels').addEventListener('change', render);
             document.getElementById('exportBtn').addEventListener('click', exportCSV);
+            document.getElementById('saveImgBtn').addEventListener('click', saveCanvasAsImage);
+            document.getElementById('savePdfBtn').addEventListener('click', saveCanvasAsPDF);
             
             document.getElementById('presetSelect').addEventListener('change', applyPreset);
             document.getElementById('itemName').addEventListener('input', (e) => App.currentSettings.name = e.target.value);
-            document.getElementById('itemColor').addEventListener('input', (e) => {
-                App.currentSettings.color = e.target.value;
-            });
-            document.getElementById('lineWidth').addEventListener('input', (e) => {
-                App.currentSettings.lineWidth = parseInt(e.target.value);
-            });
-            document.getElementById('isSubtractive').addEventListener('change', (e) => {
-                App.currentSettings.isSubtractive = e.target.checked;
-            });
+            document.getElementById('itemColor').addEventListener('input', (e) => App.currentSettings.color = e.target.value);
+            document.getElementById('lineWidth').addEventListener('input', (e) => App.currentSettings.lineWidth = parseInt(e.target.value));
+            document.getElementById('itemMultiplier').addEventListener('input', (e) => App.currentSettings.multiplier = parseFloat(e.target.value) || 1);
+            document.getElementById('isSubtractive').addEventListener('change', (e) => App.currentSettings.isSubtractive = e.target.checked);
             
             document.getElementById('pickSubtractBtn').addEventListener('click', () => {
                 App.isPickingForSubtraction = true;
@@ -776,6 +847,9 @@
             }
             App.currentSettings.name = preset.name;
             App.currentSettings.price = preset.price;
+            // multiplier defaults to 1 unless logic added to store default multiplier per item
+            document.getElementById('itemMultiplier').value = 1;
+            App.currentSettings.multiplier = 1;
         }
 
         /**
@@ -784,7 +858,6 @@
         async function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             document.getElementById('loader').style.display = 'flex';
             try {
                 if (file.type === 'application/pdf') {
@@ -829,9 +902,6 @@
             App.offsetY = (App.height - App.bgImage.height * App.scale) / 2;
         }
 
-        /**
-         * Coordinate & Hit Test
-         */
         function screenToWorld(sx, sy) {
             return { x: (sx - App.offsetX) / App.scale, y: (sy - App.offsetY) / App.scale };
         }
@@ -839,9 +909,7 @@
             return { x: wx * App.scale + App.offsetX, y: wy * App.scale + App.offsetY };
         }
         
-        // Simple hit test for shapes
         function findShapeAt(worldX, worldY) {
-            // Reverse iterate to find top-most
             for (let i = App.shapes.length - 1; i >= 0; i--) {
                 const shape = App.shapes[i];
                 if (shape.type === 'area') {
@@ -861,7 +929,6 @@
                 minY = Math.min(q.y, minY); maxY = Math.max(q.y, maxY);
             }
             if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) return false;
-
             for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
                 if (((polygon[i].y > p.y) != (polygon[j].y > p.y)) &&
                         (p.x < (polygon[j].x - polygon[i].x) * (p.y - polygon[i].y) / (polygon[j].y - polygon[i].y) + polygon[i].x)) {
@@ -871,9 +938,6 @@
             return isInside;
         }
 
-        /**
-         * Interaction
-         */
         function onMouseDown(e) {
             if (e.button === 1) { 
                 App.isDragging = true;
@@ -881,28 +945,23 @@
                 App.lastMouseY = e.clientY;
                 return;
             }
-
             const rect = App.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             const worldPos = screenToWorld(mouseX, mouseY);
 
             if (e.button === 0) { 
-                // Special Mode: Picking existing shape for subtraction
                 if (App.isPickingForSubtraction) {
                     const found = findShapeAt(worldPos.x, worldPos.y);
                     if (found) {
-                        // Create a subtractive copy
                         const newShape = {
                             type: 'area',
-                            points: JSON.parse(JSON.stringify(found.points)), // Deep copy points
+                            points: JSON.parse(JSON.stringify(found.points)), 
                             settings: { ...App.currentSettings, isSubtractive: true },
                             id: Date.now()
                         };
                         App.shapes.push(newShape);
                         updateEstimation();
-                        
-                        // Reset Mode
                         App.isPickingForSubtraction = false;
                         document.getElementById('pickStatus').classList.add('hidden');
                         document.body.style.cursor = 'default';
@@ -1011,7 +1070,7 @@
                 type: type,
                 points: points,
                 settings: { ...App.currentSettings },
-                id: Date.now() + Math.random() // Unique ID
+                id: Date.now() + Math.random() 
             };
             App.shapes.push(shape);
             updateEstimation();
@@ -1028,9 +1087,7 @@
          */
         function render(cursorWorldPos = null) {
             const ctx = App.ctx;
-            // Guard clause for when canvas is hidden/zero sized
             if (App.width === 0 || App.height === 0) return;
-            
             ctx.clearRect(0, 0, App.width, App.height);
 
             if (App.bgImage) {
@@ -1038,13 +1095,11 @@
                 ctx.translate(App.offsetX, App.offsetY);
                 ctx.scale(App.scale, App.scale);
                 ctx.drawImage(App.bgImage, 0, 0);
-                // Grid draw call removed
                 ctx.restore();
             }
 
             App.shapes.forEach(shape => drawShape(ctx, shape));
 
-            // Drawing State
             const color = App.currentSettings.color;
             const lw = App.currentSettings.lineWidth;
             
@@ -1062,7 +1117,6 @@
                     drawLine(ctx, App.drawingPoints[i], App.drawingPoints[i+1], color, false, lw);
                 }
                 if (App.currentTool === 'area' && App.drawingPoints.length > 1 && cursorWorldPos) {
-                    // Preview fill
                     ctx.save();
                     ctx.beginPath();
                     const sStart = worldToScreen(App.drawingPoints[0].x, App.drawingPoints[0].y);
@@ -1080,15 +1134,12 @@
             }
         }
 
-        // drawGrid function deleted
-
         function drawShape(ctx, shape) {
             const color = shape.settings.color;
             const isSub = shape.settings.isSubtractive;
             const lw = shape.settings.lineWidth || 2;
             const showLabel = document.getElementById('showLabels').checked;
             
-            // Draw Geometry
             if (shape.type === 'count') {
                 drawMarker(ctx, shape.points[0], color, 6 + lw, true);
             } else if (shape.type === 'line') {
@@ -1123,12 +1174,17 @@
                 ctx.restore();
             }
             
-            // Draw Label
             if (showLabel && shape.points.length > 0) {
                 const val = calculateMetric(shape);
                 let text = `${shape.settings.name}`;
-                if (shape.type === 'line') text += ` ${val.toFixed(1)}m`;
+                const mult = shape.settings.multiplier || 1;
+                
+                if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
                 else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
+                
+                if (mult !== 1) {
+                    text += ` x${mult}`;
+                }
                 
                 let pos = shape.points[0];
                 if (shape.type === 'area') {
@@ -1138,7 +1194,6 @@
                 } else if (shape.type === 'line') {
                     pos = shape.points[Math.floor(shape.points.length/2)];
                 }
-                
                 drawLabel(ctx, pos, text, color);
             }
         }
@@ -1174,10 +1229,10 @@
         
         function drawLabel(ctx, p, text, color) {
             const s = worldToScreen(p.x, p.y);
-            ctx.font = "12px sans-serif";
-            ctx.fillStyle = "white";
+            ctx.font = "bold 12px sans-serif";
+            ctx.fillStyle = color; // User requested: inside color is the same as drawing color
             ctx.strokeStyle = "black";
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 3;
             ctx.strokeText(text, s.x + 8, s.y);
             ctx.fillText(text, s.x + 8, s.y);
         }
@@ -1187,6 +1242,133 @@
             const g = parseInt(hex.slice(3, 5), 16);
             const b = parseInt(hex.slice(5, 7), 16);
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        /**
+         * Image/PDF Export
+         */
+        function createExportCanvas() {
+            if (!App.bgImage) {
+                alert("図面が読み込まれていません");
+                return null;
+            }
+
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = App.bgImage.width;
+            tempCanvas.height = App.bgImage.height;
+            const tCtx = tempCanvas.getContext('2d');
+
+            // 1. Draw Background
+            tCtx.drawImage(App.bgImage, 0, 0);
+
+            // 2. Draw Shapes
+            App.shapes.forEach(shape => {
+                const color = shape.settings.color;
+                const isSub = shape.settings.isSubtractive;
+                const lw = (shape.settings.lineWidth || 2) * 2; // Scale for export
+                
+                if (shape.type === 'count') {
+                    const p = shape.points[0];
+                    tCtx.fillStyle = color;
+                    tCtx.beginPath();
+                    tCtx.arc(p.x, p.y, 10 + lw, 0, Math.PI * 2);
+                    tCtx.fill();
+                    tCtx.strokeStyle = "#fff";
+                    tCtx.lineWidth = 2;
+                    tCtx.stroke();
+                } else if (shape.type === 'line') {
+                    for (let i = 0; i < shape.points.length - 1; i++) {
+                        const p1 = shape.points[i];
+                        const p2 = shape.points[i+1];
+                        tCtx.beginPath();
+                        tCtx.moveTo(p1.x, p1.y);
+                        tCtx.lineTo(p2.x, p2.y);
+                        tCtx.strokeStyle = color;
+                        tCtx.lineWidth = lw;
+                        tCtx.stroke();
+                    }
+                    shape.points.forEach(p => {
+                        tCtx.fillStyle = color;
+                        tCtx.fillRect(p.x - lw, p.y - lw, lw*2, lw*2);
+                    });
+                } else if (shape.type === 'area') {
+                    tCtx.save();
+                    tCtx.beginPath();
+                    tCtx.moveTo(shape.points[0].x, shape.points[0].y);
+                    for (let i = 1; i < shape.points.length; i++) {
+                        tCtx.lineTo(shape.points[i].x, shape.points[i].y);
+                    }
+                    tCtx.closePath();
+                    
+                    if (isSub) {
+                        tCtx.fillStyle = "rgba(255, 0, 0, 0.3)";
+                        tCtx.strokeStyle = "#ff0000";
+                        tCtx.setLineDash([10, 10]);
+                    } else {
+                        tCtx.fillStyle = hexToRgba(color, 0.3);
+                        tCtx.strokeStyle = color;
+                    }
+                    
+                    tCtx.lineWidth = lw;
+                    tCtx.fill();
+                    tCtx.stroke();
+                    tCtx.restore();
+                }
+
+                // 3. Draw Labels
+                if(document.getElementById('showLabels').checked && shape.points.length > 0) {
+                    const val = calculateMetric(shape);
+                    let text = `${shape.settings.name}`;
+                    const mult = shape.settings.multiplier || 1;
+                    if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
+                    else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
+                    if (mult !== 1) text += ` x${mult}`;
+
+                    let pos = shape.points[0];
+                    if (shape.type === 'area') {
+                        let sx=0, sy=0;
+                        shape.points.forEach(p => { sx+=p.x; sy+=p.y; });
+                        pos = {x: sx/shape.points.length, y: sy/shape.points.length};
+                    } else if (shape.type === 'line') {
+                        pos = shape.points[Math.floor(shape.points.length/2)];
+                    }
+
+                    tCtx.font = "bold 24px sans-serif"; 
+                    tCtx.fillStyle = color; 
+                    tCtx.strokeStyle = "black";
+                    tCtx.lineWidth = 4;
+                    tCtx.strokeText(text, pos.x + 10, pos.y);
+                    tCtx.fillText(text, pos.x + 10, pos.y);
+                }
+            });
+            return tempCanvas;
+        }
+
+        function saveCanvasAsImage() {
+            const canvas = createExportCanvas();
+            if(!canvas) return;
+            const link = document.createElement('a');
+            link.download = 'exterior_plan.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+
+        function saveCanvasAsPDF() {
+            const canvas = createExportCanvas();
+            if(!canvas) return;
+            
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            const { jsPDF } = window.jspdf;
+            const orientation = canvas.width > canvas.height ? 'l' : 'p';
+            
+            const pdf = new jsPDF({
+                orientation: orientation,
+                unit: 'px',
+                format: [canvas.width, canvas.height]
+            });
+            
+            pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+            pdf.save('exterior_plan.pdf');
         }
 
         /**
@@ -1237,9 +1419,13 @@
                     };
                 }
                 
-                const val = calculateMetric(shape);
+                const rawVal = calculateMetric(shape);
+                const mult = shape.settings.multiplier || 1;
+                // Apply Multiplier for final quantity
+                const val = rawVal * mult;
+                
                 groups[name].quantity += val;
-                groups[name].items.push({ id: shape.id, val: val });
+                groups[name].items.push({ id: shape.id, val: val, mult: mult });
 
                 if (shape.type === 'line') groups[name].unit = 'm';
                 else if (shape.type === 'area') groups[name].unit = '㎡';
@@ -1274,7 +1460,7 @@
                     content.classList.toggle('open');
                 };
 
-                // Details (Accordion Content)
+                // Details
                 const details = document.createElement('div');
                 details.id = `acc-${groupIndex}`;
                 details.className = 'accordion-content bg-gray-800 rounded-b';
@@ -1282,10 +1468,14 @@
                 let detailsHtml = '<div class="p-2 space-y-1">';
                 item.items.forEach((subItem, idx) => {
                     const isMinus = subItem.val < 0;
+                    // Detail string
+                    let desc = isMinus ? '中抜き' : `No.${idx+1}`;
+                    if(subItem.mult !== 1) desc += ` (x${subItem.mult})`;
+                    
                     detailsHtml += `
                         <div class="flex justify-between items-center text-xs text-gray-400 border-b border-gray-700 pb-1">
                             <span class="${isMinus ? 'text-red-400' : ''}">
-                                ${isMinus ? '中抜き' : `No.${idx+1}`}: ${subItem.val.toFixed(2)}${item.unit}
+                                ${desc}: ${subItem.val.toFixed(2)}${item.unit}
                             </span>
                             <button onclick="deleteShape(${subItem.id})" class="text-red-500 hover:text-red-300 px-2">
                                 <i class="fas fa-trash"></i>
@@ -1304,7 +1494,6 @@
             document.getElementById('totalAmount').textContent = `¥${grandTotal.toLocaleString()}`;
         }
         
-        // Expose delete function to window for onclick in HTML string
         window.deleteShape = deleteShape;
 
         function exportCSV() {
@@ -1317,7 +1506,10 @@
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
                 if (!groups[name]) groups[name] = { price: shape.settings.price, quantity: 0, unit: '' };
-                const val = calculateMetric(shape);
+                const rawVal = calculateMetric(shape);
+                const mult = shape.settings.multiplier || 1;
+                const val = rawVal * mult;
+                
                 groups[name].quantity += val;
                 if (shape.type === 'line') groups[name].unit = 'm';
                 else if (shape.type === 'area') groups[name].unit = 'm2';
