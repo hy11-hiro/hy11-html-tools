@@ -10,6 +10,7 @@ import glob
 import shutil
 from io import BytesIO
 from streamlit_image_coordinates import streamlit_image_coordinates
+import streamlit.components.v1 as components
 import urllib.parse
 
 # ==========================================
@@ -19,20 +20,49 @@ st.set_page_config(page_title="Gaikou-Sekisan Pro", layout="wide", page_icon="�
 
 st.markdown("""
 <style>
-    /* --- 1. レイアウト: 極限まで余白を削除 --- */
+    /* --- レイアウト調整 --- */
     .block-container {
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
+        padding-top: 1rem !important;
+        padding-bottom: 10rem !important;
         max-width: 100% !important;
     }
-    
-    /* ヘッダー・フッター完全削除 */
     header { display: none !important; }
-    footer { display: none !important; }
     
-    /* --- 2. ヘッダーのオーバーレイ化 (図と被る固定表示) --- */
+    h1 {
+        font-size: 1.5rem !important;
+        border-bottom: 2px solid #ddd;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        font-family: "Meiryo", "Hiragino Kaku Gothic ProN", sans-serif;
+    }
+
+    .stButton button { width: 100%; border-radius: 5px; font-weight: bold; }
+    .stNumberInput, .stSelectbox, .stTextInput { margin-bottom: 0px !important; }
+    .stDataEditor { font-size: 0.9rem; }
+    
+    /* サイドバー強調 */
+    .sidebar-highlight {
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        font-weight: bold;
+        text-align: center;
+        border: 2px solid;
+    }
+
+    /* --- 画像エリアのスタイル --- */
+    /* iframe自体にスタイルを当てる */
+    iframe {
+        display: block !important;
+        margin: 0 auto !important;
+    }
+    
+    /* カーソル強制 */
+    .element-container:has(iframe), iframe {
+        cursor: crosshair !important;
+    }
+
+    /* ヘッダーオーバーレイ */
     .floating-header {
         position: fixed;
         top: 10px;
@@ -53,41 +83,6 @@ st.markdown("""
         gap: 10px;
         pointer-events: none;
     }
-    
-    /* --- 3. サイドバーのデザイン (インテリア風) --- */
-    section[data-testid="stSidebar"] {
-        background-color: #f9f7f2;
-        border-right: 1px solid #e0e0e0;
-        padding-top: 20px;
-    }
-    
-    /* ボタンデザイン */
-    .stButton button {
-        border-radius: 8px;
-        font-weight: bold;
-        border: none;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        transition: 0.2s;
-    }
-    .stButton button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-    }
-    
-    /* --- 4. 図面エリア --- */
-    iframe {
-        display: block !important;
-        margin: 0 auto !important;
-        box-shadow: 0 0 20px rgba(0,0,0,0.05);
-    }
-    
-    /* カーソル設定 */
-    .element-container:has(iframe), iframe {
-        cursor: crosshair !important;
-    }
-    
-    /* 集計表 */
-    .stDataEditor { font-size: 0.9rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -96,15 +91,10 @@ st.markdown("""
 # ==========================================
 
 def get_poppler_config():
-    """
-    Popplerのパスを判定する。
-    Linux(Streamlit Cloud)ならNoneを返し、Windowsなら検索してパスを返す。
-    """
-    # 1. システムパス(Linux/Cloud)にあるか確認
+    """Popplerのパスを自動判定"""
     if shutil.which("pdftoppm"):
-        return None # パス指定不要
+        return None # Linux/Cloud環境
     
-    # 2. Windowsローカルのパス検索
     patterns = [
         r"C:\Program Files\poppler-*\Library\bin", 
         r"C:\Program Files\poppler-*\bin",
@@ -114,7 +104,6 @@ def get_poppler_config():
     for p in patterns:
         found = glob.glob(p)
         if found: return sorted(found, reverse=True)[0]
-    
     return ""
 
 def load_image(uploaded_file, poppler_path):
@@ -126,16 +115,13 @@ def load_image(uploaded_file, poppler_path):
     image = None
     try:
         if file_ext == ".pdf":
-            # パスがNoneならシステムデフォルトを使用
             if poppler_path is None:
                 images = convert_from_path(tmp_path, dpi=200)
             elif poppler_path:
                 images = convert_from_path(tmp_path, poppler_path=poppler_path, dpi=200)
             else:
-                raise ValueError("Popplerが見つかりません")
-                
+                raise ValueError("Poppler Path Error")
             if images: image = images[0].convert("RGB")
-            
         elif file_ext == ".dxf":
             import ezdxf
             from ezdxf.addons.drawing import RenderContext, Frontend
@@ -168,6 +154,22 @@ def calc_poly_area(coords):
     y = [c[1] for c in coords]
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
+def get_font(size=20):
+    # サーバー上の日本語フォント対応
+    font_paths = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", # Streamlit Cloud
+        "C:/Windows/Fonts/meiryo.ttc",
+        "C:/Windows/Fonts/msgothic.ttc",
+        "C:/Windows/Fonts/arial.ttf",
+    ]
+    for path in font_paths:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except:
+                continue
+    return ImageFont.load_default()
+
 def get_resized_base_image(base_image, zoom):
     if "cached_resized_img" in st.session_state:
         cached_zoom, cached_img, cached_id = st.session_state.cached_resized_img
@@ -189,36 +191,21 @@ def hex_to_rgb(hex_code, alpha=255):
 def draw_overlay(base_image, history, current_points, current_mode, zoom, is_subtraction=False, show_labels=True, current_color="#FF0000", stroke_width=3):
     img = get_resized_base_image(base_image, zoom)
     draw = ImageDraw.Draw(img, "RGBA")
-    
-    # サーバー上でのフォント対応 (日本語フォントがない場合の対策)
-    try:
-        # サーバー上の代表的な日本語フォントパス
-        font_path = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-        font_size = max(14, int(16 * zoom))
-        if os.path.exists(font_path):
-             font = ImageFont.truetype(font_path, font_size)
-        else:
-             # Windowsローカル用
-             font = ImageFont.truetype("C:/Windows/Fonts/meiryo.ttc", font_size)
-    except:
-        font = ImageFont.load_default()
+    font_size = max(14, int(16 * zoom)) 
+    font = get_font(font_size)
+    def to_zoom(pt): return (pt[0] * zoom, pt[1] * zoom)
 
-    def to_zoom(pt):
-        return (pt[0] * zoom, pt[1] * zoom)
-
-    # 1. 履歴描画
     for i, item in enumerate(history):
         pts = [to_zoom(p) for p in item['points']]
         label = item.get('label', '')
         is_sub = item.get('is_subtraction', False)
         item_color_hex = item.get('color', '#FF0000')
-        item_width = item.get('width', stroke_width) 
-        
+        item_width = item.get('width', stroke_width)
         base_rgb = hex_to_rgb(item_color_hex)
         
         if item['type'] == 'area':
             if is_sub:
-                fill_col = (0, 0, 255, 60) # 青（抜き）
+                fill_col = (0, 0, 255, 60)
                 outline_col = (0, 0, 180, 200)
                 label_prefix = "[-]"
                 text_color_hex = "#0000B4"
@@ -239,35 +226,26 @@ def draw_overlay(base_image, history, current_points, current_mode, zoom, is_sub
             else:
                 draw.line(pts, fill=outline_col, width=item_width)
         
-        # ラベル表示
         if show_labels and pts:
             start_p = pts[0]
             display_label = f"No.{i+1} {label_prefix}{label}"
             x, y = start_p[0], start_p[1] - font_size - 5
-            
-            # フチ取り
-            outline_w = 3
-            for off_x in range(-outline_w, outline_w+1):
-                for off_y in range(-outline_w, outline_w+1):
-                    if off_x**2 + off_y**2 <= outline_w**2:
-                        draw.text((x+off_x, y+off_y), display_label, font=font, fill="white")
-            
+            stroke_w = 2
+            for off_x in range(-stroke_w, stroke_w+1):
+                for off_y in range(-stroke_w, stroke_w+1):
+                    draw.text((x+off_x, y+off_y), display_label, font=font, fill="white")
             draw.text((x, y), display_label, font=font, fill=text_color_hex)
             draw.ellipse((start_p[0]-4, start_p[1]-4, start_p[0]+4, start_p[1]+4), fill="white", outline="black")
 
-    # 2. 現在作成中の点
     if current_points:
         z_curr = [to_zoom(p) for p in current_points]
         curr_hex = "#0000FF" if is_subtraction else current_color
         curr_rgb = hex_to_rgb(curr_hex)
         curr_outline = (curr_rgb[0], curr_rgb[1], curr_rgb[2], 255)
-        
         for p in z_curr:
             draw.ellipse((p[0]-5, p[1]-5, p[0]+5, p[1]+5), fill=curr_outline, outline="white")
-        
         if len(z_curr) > 1:
             draw.line(z_curr, fill=curr_outline, width=stroke_width)
-        
         if current_mode == "area" and len(z_curr) > 1:
             draw.line([z_curr[-1], z_curr[0]], fill=(50, 50, 50, 100), width=1)
 
@@ -278,52 +256,41 @@ def draw_overlay(base_image, history, current_points, current_mode, zoom, is_sub
 # ==========================================
 def main():
     if "bg_image" not in st.session_state: st.session_state.bg_image = None
-    
-    # Popplerパス判定 (Windows/Linux両対応)
-    if "poppler_path" not in st.session_state:
-        st.session_state.poppler_path = get_poppler_config()
+    if "poppler_path" not in st.session_state: st.session_state.poppler_path = get_poppler_config()
     
     if "history" not in st.session_state: st.session_state.history = []
     if "current_points" not in st.session_state: st.session_state.current_points = []
     if "scale_val" not in st.session_state: st.session_state.scale_val = None
     if "last_click" not in st.session_state: st.session_state.last_click = None
     if "zoom_rate" not in st.session_state: st.session_state.zoom_rate = 0.5
-    
     if "custom_items" not in st.session_state: st.session_state.custom_items = []
-    
-    # 太さの初期値
     if "stroke_width" not in st.session_state: st.session_state.stroke_width = 3
 
     # ---------------------------
-    # 左サイドバー：操作パネル
+    # 左サイドバー
     # ---------------------------
     with st.sidebar:
         st.markdown("### 🏡 外構積算 Pro")
         
-        # 1. ファイル読込
+        # 1. ファイル
         with st.expander("📂 ファイル", expanded=True):
-            # PopplerパスがNone(=Linux/Cloud)なら入力欄を出さない、または情報のみ表示
             if st.session_state.poppler_path is not None:
-                st.session_state.poppler_path = st.text_input("Popplerパス (Windows用)", value=st.session_state.poppler_path)
-            else:
-                st.caption("✅ Server Environment Detected (Poppler ready)")
+                st.session_state.poppler_path = st.text_input("Popplerパス", value=st.session_state.poppler_path)
             
             uploaded = st.file_uploader("PDF / DXF", type=["pdf", "dxf"], label_visibility="collapsed")
-            if uploaded:
-                if st.button("読込", type="primary", use_container_width=True):
-                    img, err = load_image(uploaded, st.session_state.poppler_path)
-                    if img:
-                        st.session_state.bg_image = img
-                        st.session_state.history = []
-                        st.session_state.current_points = []
-                        st.session_state.scale_val = None
-                        st.session_state.zoom_rate = 0.5
-                        if "cached_resized_img" in st.session_state:
-                            del st.session_state.cached_resized_img
-                        st.success("完了")
-                    else:
-                        st.error(err)
-
+            if uploaded and st.button("読込", type="primary", use_container_width=True):
+                img, err = load_image(uploaded, st.session_state.poppler_path)
+                if img:
+                    st.session_state.bg_image = img
+                    st.session_state.history = []
+                    st.session_state.current_points = []
+                    st.session_state.scale_val = None
+                    st.session_state.zoom_rate = 0.5
+                    if "cached_resized_img" in st.session_state: del st.session_state.cached_resized_img
+                    st.success("完了")
+                else:
+                    st.error(err)
+        
         st.divider()
 
         # 2. 表示設定
@@ -338,7 +305,6 @@ def main():
             if new_zoom != st.session_state.zoom_rate:
                 st.session_state.zoom_rate = new_zoom
                 st.rerun()
-            
             show_labels = st.checkbox("ラベル", value=True)
 
         # 3. ツール
@@ -346,13 +312,11 @@ def main():
             mode = st.radio("モード", ["📏 スケール", "📐 距離", "🟥 面積"], label_visibility="collapsed")
             mode_key = "scale" if "スケール" in mode else ("dist" if "距離" in mode else "area")
             
-            # 項目選択
             current_label = ""
             current_color_hex = "#FF0000"
             is_subtraction = False
 
             if mode_key != "scale":
-                # 抜き設定 (面積のみ)
                 if mode_key == "area":
                     sub_check = st.checkbox("➖ 抜き (減算)", value=False)
                     if sub_check: is_subtraction = True
@@ -362,19 +326,19 @@ def main():
                 default_area = ["土間コンクリート", "砂利敷き", "人工芝", "防草シート", "タイル"]
                 opts = (default_dist if mode_key == "dist" else default_area) + st.session_state.custom_items + ["その他"]
                 sel = st.selectbox("選択", opts, label_visibility="collapsed")
-
-                # ★新規項目の追加
-                c_new1, c_new2 = st.columns([3, 1])
-                with c_new1:
-                    new_item_val = st.text_input("新規項目追加", placeholder="リストに追加...", label_visibility="collapsed")
-                with c_new2:
-                    if st.button("追加", use_container_width=True):
+                
+                # 新規追加エリア (Expanderを使わず直接配置してエラー回避)
+                st.caption("➕ 新規項目を入力")
+                c_add1, c_add2 = st.columns([3, 1])
+                with c_add1:
+                    new_item_val = st.text_input("新規追加", placeholder="リストに追加", label_visibility="collapsed", key="new_item_input")
+                with c_add2:
+                    if st.button("追加"):
                         if new_item_val and new_item_val not in st.session_state.custom_items:
                             st.session_state.custom_items.append(new_item_val)
                             st.toast(f"「{new_item_val}」を追加しました")
                             st.rerun()
 
-                # 色定義
                 color_map = {
                     "ブロック積": "#8d6e63", "フェンス": "#a1887f", "ブロック＋フェンス": "#558b2f",
                     "土間コンクリート": "#bdbdbd", "砂利敷き": "#ffcc80", "人工芝": "#66bb6a",
@@ -382,17 +346,14 @@ def main():
                 }
                 def_col = color_map.get(sel, "#ef5350")
                 
-                # 確定用ラベル設定
                 c_in1, c_in2 = st.columns([3, 1])
                 with c_in1:
                     current_label = st.text_input("名称", "追加" if sel=="その他" else sel, label_visibility="collapsed")
                 with c_in2:
                     current_color_hex = st.color_picker("色", def_col, label_visibility="collapsed")
                 
-                # 線の太さ
                 st.session_state.stroke_width = st.slider("線の太さ", 1, 10, 3)
 
-                # 確定ボタン
                 btn_col = "primary" if not is_subtraction else "secondary"
                 btn_txt = f"➖ 抜き確定" if is_subtraction else "✅ 確定"
                 
@@ -410,9 +371,7 @@ def main():
                         })
                         st.session_state.current_points = []
                         st.rerun()
-
             else:
-                # スケールモード
                 st.info("2点クリックして距離を入力")
                 real_m = st.number_input("距離(m)", 0.0001, 1000.0, 1.0, 0.0001, format="%.4f")
                 if len(st.session_state.current_points) == 2:
@@ -426,7 +385,6 @@ def main():
                             st.toast("スケール設定完了")
                             st.rerun()
             
-            # 操作ボタン
             c_act1, c_act2 = st.columns(2)
             with c_act1:
                 if st.button("戻る", use_container_width=True):
@@ -443,7 +401,6 @@ def main():
         if mode_key == "area" and st.session_state.history:
             st.divider()
             with st.expander("🛠️ 抜きコピー", expanded=False):
-                st.caption("既存の形をコピーして別の項目から抜く")
                 area_opts = [f"No.{i+1} {h['label']}" for i, h in enumerate(st.session_state.history) if h['type']=='area' and not h.get('is_subtraction')]
                 if area_opts:
                     target = st.selectbox("元の形", area_opts)
@@ -457,13 +414,11 @@ def main():
                         st.success("追加しました")
                         st.rerun()
 
-
     # ---------------------------
     # メインエリア
     # ---------------------------
-    
     if st.session_state.bg_image:
-        # ヘッダーオーバーレイ
+        # ヘッダー
         mode_name = "📏 スケール" if mode_key == "scale" else ("📐 距離" if mode_key == "dist" else "🟥 面積")
         st.markdown(f"""
             <div class="floating-header">
@@ -472,9 +427,9 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
-        # 図面と集計を横並び
         col_draw, col_list = st.columns([7, 3])
         
+        # 図面エリア
         with col_draw:
             zoom = st.session_state.zoom_rate
             display_img = draw_overlay(
@@ -489,8 +444,54 @@ def main():
                 st.session_state.stroke_width
             )
             
-            # 画像コンポーネント
-            value = streamlit_image_coordinates(display_img, key="main_click")
+            # ★重要: エラーの原因だった「生のHTML枠」を廃止し、
+            # Streamlit純正のコンテナでラップしてスクロール可能にする
+            with st.container(height=650, border=True):
+                value = streamlit_image_coordinates(display_img, key="main_click")
+                
+                # スクロール維持JS (純正コンテナ対応)
+                # st.container(height=...) はCSSクラス .st-key-[key] ではなく
+                # 特定の構造を持つため、JSでそのスクロール位置を制御する
+                scroll_js = """
+                <script>
+                    (function() {
+                        // スクロール可能なコンテナを探す (height指定されたstVerticalBlock)
+                        const containers = document.querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stVerticalBlock"]');
+                        // 図面が入っているコンテナはおそらく一番大きい、または特定の場所にあるもの
+                        // ここではすべてのスクロール可能要素の位置を保存・復元する「総当たり作戦」でいく
+                        
+                        const key = 'st_scroll_positions';
+
+                        function saveScroll() {
+                            const positions = [];
+                            document.querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"] > div').forEach((el, idx) => {
+                                positions.push(el.scrollTop + ',' + el.scrollLeft);
+                            });
+                            sessionStorage.setItem(key, JSON.stringify(positions));
+                        }
+
+                        function restoreScroll() {
+                            const saved = sessionStorage.getItem(key);
+                            if (saved) {
+                                const positions = JSON.parse(saved);
+                                document.querySelectorAll('[data-testid="stVerticalBlockBorderWrapper"] > div').forEach((el, idx) => {
+                                    if (positions[idx]) {
+                                        const [top, left] = positions[idx].split(',');
+                                        el.scrollTop = parseInt(top);
+                                        el.scrollLeft = parseInt(left);
+                                    }
+                                    el.addEventListener('scroll', saveScroll);
+                                });
+                            }
+                        }
+                        
+                        // 実行
+                        setTimeout(restoreScroll, 100);
+                        setTimeout(restoreScroll, 500);
+                    })();
+                </script>
+                """
+                components.html(scroll_js, height=0)
 
             if value and value != st.session_state.last_click:
                 st.session_state.last_click = value
@@ -499,7 +500,7 @@ def main():
                 st.session_state.current_points.append((raw_x, raw_y))
                 st.rerun()
 
-        # 集計
+        # 集計エリア
         with col_list:
             if st.session_state.scale_val:
                 scale = st.session_state.scale_val
@@ -517,7 +518,6 @@ def main():
                     is_sub = item.get('is_subtraction', False)
                     val_str = f"▲ {val:.2f}" if is_sub else f"{val:.2f}"
                     
-                    # Google検索リンク
                     search_url = f"https://www.google.com/search?q={urllib.parse.quote(item.get('label', ''))}"
                     
                     editor_data.append({
@@ -545,7 +545,7 @@ def main():
                             "単位": st.column_config.TextColumn(width="small", disabled=True),
                             "抜": st.column_config.CheckboxColumn(width="small"),
                             "🔍": st.column_config.LinkColumn(width="small", display_text="検索"),
-                            "🔗 リンク": st.column_config.LinkColumn(width="medium", help="URLを入力"),
+                            "🔗 リンク": st.column_config.LinkColumn(width="medium", help="URL"),
                             "備考": st.column_config.TextColumn(width="large"),
                             "idx": None
                         },
@@ -553,7 +553,6 @@ def main():
                         key="data_editor"
                     )
                     
-                    # 編集反映
                     if not df.equals(edited):
                         for i, row in edited.iterrows():
                             idx = row["idx"]
@@ -563,7 +562,6 @@ def main():
                             st.session_state.history[idx]['link'] = row["🔗 リンク"]
                         st.rerun()
 
-                    # 合計
                     summary = {}
                     for i, item in enumerate(st.session_state.history):
                         val = 0
@@ -590,7 +588,6 @@ def main():
                     st.download_button("CSV保存", csv, "sekisan.csv", "text/csv", use_container_width=True)
                 else:
                     st.caption("データなし")
-                
                 st.markdown('</div>', unsafe_allow_html=True)
 
             else:
