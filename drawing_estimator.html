@@ -86,12 +86,22 @@
         </div>
 
         <!-- Planner Actions (Visible only in Planner View) -->
-        <div id="plannerActions" class="flex gap-2">
-            <label class="cursor-pointer bg-cad-border hover:bg-gray-600 px-3 py-1 rounded text-sm transition">
-                <i class="fas fa-folder-open mr-1"></i> 図面読込 (PDF/IMG)
-                <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
-            </label>
+        <div id="plannerActions" class="flex gap-2 items-center">
+            <div class="flex bg-gray-700 rounded mr-2">
+                <label class="cursor-pointer hover:bg-gray-600 px-3 py-1 rounded-l text-sm transition text-white border-r border-gray-600" title="図面読込">
+                    <i class="fas fa-folder-open mr-1"></i> 読込
+                    <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+                </label>
+                <button id="rotateLeftBtn" class="hover:bg-gray-600 px-2 py-1 text-white border-r border-gray-600" title="左90度回転">
+                    <i class="fas fa-undo"></i>
+                </button>
+                <button id="rotateRightBtn" class="hover:bg-gray-600 px-2 py-1 rounded-r text-white" title="右90度回転">
+                    <i class="fas fa-redo"></i>
+                </button>
+            </div>
+
             <div class="h-6 w-px bg-gray-600 mx-1"></div>
+            
             <button id="saveImgBtn" class="bg-blue-800 hover:bg-blue-700 px-3 py-1 rounded text-sm text-white transition" title="画像として保存">
                 <i class="fas fa-image mr-1"></i> PNG
             </button>
@@ -150,7 +160,7 @@
 
                 <!-- Material Settings (Hidden for Select/Scale) -->
                 <div id="materialSettings">
-                    <label class="block text-xs mb-1 text-gray-400">部材選択 (マスタ参照)</label>
+                    <label class="block text-xs mb-1 text-gray-400">メイン部材選択 (マスタ参照)</label>
                     <select id="presetSelect" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm mb-3 text-white">
                         <!-- Populated by JS -->
                     </select>
@@ -168,7 +178,7 @@
                             <p class="text-[10px] text-gray-500">※寸法でなく単価に反映</p>
                         </div>
                          <div class="flex-1">
-                             <label class="block text-xs mb-1 text-gray-400">線の太さ</label>
+                             <label class="block text-xs mb-1 text-gray-400">サイズ/太さ</label>
                              <input type="range" id="lineWidth" min="1" max="10" value="2" class="w-full h-8 bg-gray-700 rounded-lg appearance-none cursor-pointer">
                         </div>
                     </div>
@@ -176,6 +186,17 @@
                     <label class="block text-xs mb-1 text-gray-400">描画色</label>
                     <div class="flex gap-2 mb-3">
                         <input type="color" id="itemColor" class="h-8 w-12 bg-transparent border-none cursor-pointer">
+                    </div>
+
+                    <!-- Additional Items (Combo) -->
+                    <div class="mb-3 pt-2 border-t border-cad-border">
+                        <label class="block text-xs mb-1 text-blue-300"><i class="fas fa-plus-circle"></i> 同時計測する部材</label>
+                        <select id="additionalItemSelect" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs mb-2 text-white">
+                            <option value="">+ 追加する部材を選択...</option>
+                        </select>
+                        <div id="additionalItemsList" class="space-y-1">
+                            <!-- Added items appear here -->
+                        </div>
                     </div>
 
                     <div id="subtractiveOption" class="hidden mb-3 pt-2 border-t border-cad-border">
@@ -247,7 +268,8 @@
                 <div>
                     <h2 class="text-2xl font-bold text-white mb-2">部材・単価マスタ管理</h2>
                     <p class="text-gray-400 text-sm">図面作成で使用する部材の名称、参照商品名、単位、単価を管理します。<br>
-                    <span class="text-yellow-500">※Excel取込形式：A列=部材名, B列=参照商品名(画像検索用), C列=単位(m/m2/基), D列=単価</span>
+                    <span class="text-yellow-500">※Excel取込形式：A列=部材名, B列=参照商品名(画像検索用), C列=単位(m/m2/基), D列=単価</span><br>
+                    <span class="text-blue-300">※ブロック等で段数指定する場合は、部材名に「(1段m単価)」と記載しておくと分かりやすくなります。</span>
                     </p>
                 </div>
                 <div class="flex gap-2">
@@ -394,8 +416,9 @@
                 price: 0,
                 color: '#ffffff',
                 lineWidth: 2,
-                multiplier: 1, // 段数や倍率
-                isSubtractive: false
+                multiplier: 1, 
+                isSubtractive: false,
+                additionalItems: [] // For combo measurement
             }
         };
 
@@ -474,11 +497,9 @@
         function deleteAllMaterials() {
             if(!db) return;
             if(!confirm("【警告】マスタデータを全て削除します。\n本当によろしいですか？")) return;
-            
             const transaction = db.transaction(["materials"], "readwrite");
             const store = transaction.objectStore("materials");
             store.clear();
-            
             transaction.oncomplete = () => {
                 loadMaterialsFromDB().then(() => {
                     updateMasterTable();
@@ -493,35 +514,24 @@
                 return;
             }
             if(!confirm("現在のマスタデータを全て削除し、初期データに戻しますか？\n（追加したデータは消えます）")) return;
-            
             try {
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
-                
-                // Clear request first
                 const clearReq = store.clear();
-                
                 clearReq.onsuccess = () => {
-                    // Only add after clear succeeds
                     DEFAULT_PRESETS.forEach(item => {
                         const { id, ...cleanItem } = item;
                         store.add(cleanItem);
                     });
                 };
-
                 transaction.oncomplete = () => {
                     loadMaterialsFromDB().then(() => {
                         updateMasterTable();
                         alert("初期データを復元しました。");
                     });
                 };
-                
-                transaction.onerror = (e) => {
-                    console.error("Restore Transaction Error", e);
-                    alert("復元に失敗しました。");
-                };
+                transaction.onerror = (e) => alert("復元に失敗しました。");
             } catch (err) {
-                console.error("Restore Logic Error", err);
                 alert("エラーが発生しました: " + err.message);
             }
         }
@@ -531,7 +541,6 @@
                 const transaction = db.transaction(["materials"], "readonly");
                 const store = transaction.objectStore("materials");
                 const request = store.getAll();
-
                 request.onsuccess = (e) => {
                     const res = e.target.result;
                     loadedMaterials = res || [];
@@ -545,10 +554,7 @@
             return new Promise((resolve) => {
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
-                // Import logic helper
-                if(!material.type) {
-                     material.type = determineTypeByUnit(material.unit);
-                }
+                if(!material.type) material.type = determineTypeByUnit(material.unit);
                 store.add(material);
                 transaction.oncomplete = () => {
                     loadMaterialsFromDB().then(() => {
@@ -559,20 +565,11 @@
             });
         }
 
-        // Modified to be more aggressive for Line/Area types to avoid cluttering Count
         function determineTypeByUnit(unitStr) {
             if (!unitStr) return 'count';
             const u = String(unitStr).toLowerCase().trim();
-            
-            // Area check
             if (u.includes('m2') || u.includes('㎡') || u.includes('平米') || u.includes('sq')) return 'area';
-            
-            // Line check (Look for 'm', 'L', 'W', 'H', '段', or common linear symbols)
-            // Be strict: if it has 'm' (but not m2 above), it's a line. 
-            // Also check for 'linear', '段' (steps/layers often linear in this context), 'l='
             if (u.includes('m') || u.includes('ｍ') || u.includes('メートル') || u.includes('linear') || u.includes('段') || u.includes('l=')) return 'line';
-            
-            // Default to count
             return 'count';
         }
 
@@ -581,9 +578,7 @@
             const transaction = db.transaction(["materials"], "readwrite");
             const store = transaction.objectStore("materials");
             store.delete(id);
-            transaction.oncomplete = () => {
-                loadMaterialsFromDB().then(() => updateMasterTable());
-            };
+            transaction.oncomplete = () => loadMaterialsFromDB().then(() => updateMasterTable());
         }
 
         function saveMaterialsToDB(materials) {
@@ -591,7 +586,6 @@
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
                 materials.forEach(mat => store.add(mat));
-
                 transaction.oncomplete = () => {
                     loadMaterialsFromDB().then(() => {
                         updateMasterTable();
@@ -637,7 +631,6 @@
             const tbody = document.getElementById('masterTableBody');
             const searchInput = document.getElementById('masterSearchInput');
             const filterTerm = searchInput ? searchInput.value.toLowerCase() : '';
-            
             tbody.innerHTML = '';
             
             const filteredMaterials = loadedMaterials.filter(mat => {
@@ -648,7 +641,6 @@
             filteredMaterials.forEach(mat => {
                 const refText = mat.refName || '';
                 const searchTerm = mat.refName || mat.name; 
-                
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td class="text-center">
@@ -657,21 +649,17 @@
                     <td class="font-bold text-white truncate" title="${mat.name}">${mat.name}</td>
                     <td class="text-gray-400 text-sm truncate" title="${refText}">${refText}</td>
                     <td>
-                        <span class="px-2 py-1 rounded text-xs ${getTypeBadgeColor(mat.type)}">
-                            ${getTypeLabel(mat.type)}
-                        </span>
+                        <span class="px-2 py-1 rounded text-xs ${getTypeBadgeColor(mat.type)}">${getTypeLabel(mat.type)}</span>
                     </td>
                     <td class="text-right text-mono text-gray-400">${mat.unit}</td>
                     <td class="text-right text-mono font-bold">¥${mat.price.toLocaleString()}</td>
                     <td class="text-center">
-                        <button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${searchTerm}')" title="「${searchTerm}」を画像検索">
+                        <button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${searchTerm}')" title="画像検索">
                             <i class="fas fa-images"></i>
                         </button>
                     </td>
                     <td class="text-center">
-                        <button class="text-red-500 hover:text-red-300 p-1" onclick="deleteMaterialFromDB(${mat.id})">
-                            <i class="fas fa-trash"></i>
-                        </button>
+                        <button class="text-red-500 hover:text-red-300 p-1" onclick="deleteMaterialFromDB(${mat.id})"><i class="fas fa-trash"></i></button>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -704,7 +692,6 @@
         function handlePriceListUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = (evt) => {
                 const data = new Uint8Array(evt.target.result);
@@ -719,27 +706,16 @@
                 for (let i = startIndex; i < jsonData.length; i++) {
                     const row = jsonData[i];
                     if (!row[0]) continue;
-                    // A=0: Name, B=1: RefName, C=2: Unit, D=3: Price
                     const name = row[0];
                     const refName = row[1] ? String(row[1]).trim() : '';
                     const unit = row[2] ? String(row[2]).trim() : '';
                     const price = parseInt(row[3]) || 0;
-                    
                     const type = determineTypeByUnit(unit);
-                    
-                    newMaterials.push({ 
-                        name: name, 
-                        refName: refName, 
-                        unit: unit, 
-                        price: price, 
-                        type: type, 
-                        color: getRandomColor() 
-                    });
+                    newMaterials.push({ name, refName, unit, price, type, color: getRandomColor() });
                 }
                 
                 if (newMaterials.length > 0) saveMaterialsToDB(newMaterials);
                 else alert("有効なデータが見つかりませんでした。列構成を確認してください。\nA:名称 B:参照名 C:単位 D:単価");
-                
                 e.target.value = '';
             };
             reader.readAsArrayBuffer(file);
@@ -768,12 +744,8 @@
                 const unit = document.getElementById('newMatUnit').value;
                 const price = parseInt(document.getElementById('newMatPrice').value) || 0;
                 const color = document.getElementById('newMatColor').value;
-                
                 if(!name) { alert('名称を入力してください'); return; }
-                
                 addMaterialToDB({ name, refName, unit, price, color });
-                
-                // Clear
                 document.getElementById('newMatName').value = '';
                 document.getElementById('newMatRef').value = '';
                 document.getElementById('newMatUnit').value = '';
@@ -812,11 +784,50 @@
             document.getElementById('itemMultiplier').addEventListener('input', (e) => App.currentSettings.multiplier = parseFloat(e.target.value) || 1);
             document.getElementById('isSubtractive').addEventListener('change', (e) => App.currentSettings.isSubtractive = e.target.checked);
             
+            // Rotation Buttons
+            document.getElementById('rotateLeftBtn').addEventListener('click', () => rotateImage(-90));
+            document.getElementById('rotateRightBtn').addEventListener('click', () => rotateImage(90));
+
             document.getElementById('pickSubtractBtn').addEventListener('click', () => {
                 App.isPickingForSubtraction = true;
                 document.getElementById('pickStatus').classList.remove('hidden');
                 document.body.style.cursor = 'crosshair';
             });
+
+            // Combo Item Select Logic
+            document.getElementById('additionalItemSelect').addEventListener('change', addAdditionalItem);
+        }
+
+        /**
+         * Image Rotation
+         */
+        function rotateImage(deg) {
+            if (!App.bgImage) {
+                alert("図面が読み込まれていません");
+                return;
+            }
+            if (App.shapes.length > 0) {
+                if(!confirm("図面を回転させると、計測済みの図形と位置がずれてしまいます。\nそれでも回転しますか？")) return;
+            }
+
+            const canvas = document.createElement('canvas');
+            // Swap width/height for 90deg rotation
+            canvas.width = App.bgImage.height;
+            canvas.height = App.bgImage.width;
+            const ctx = canvas.getContext('2d');
+
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(deg * Math.PI / 180);
+            ctx.drawImage(App.bgImage, -App.bgImage.width / 2, -App.bgImage.height / 2);
+
+            // Replace image
+            const newImg = new Image();
+            newImg.onload = () => {
+                App.bgImage = newImg;
+                fitToScreen();
+                render();
+            };
+            newImg.src = canvas.toDataURL();
         }
 
         /**
@@ -836,7 +847,9 @@
             
             subtractiveOption.classList.add('hidden');
             App.currentSettings.isSubtractive = false;
+            App.currentSettings.additionalItems = []; // reset combos
             document.getElementById('isSubtractive').checked = false;
+            updateAdditionalItemsList();
 
             if (toolName === 'select' || toolName === 'scale') {
                 materialSettings.classList.add('hidden');
@@ -853,19 +866,25 @@
 
         function populatePresets(toolType) {
             const select = document.getElementById('presetSelect');
+            const addSelect = document.getElementById('additionalItemSelect');
             select.innerHTML = '<option value="">-- 部材を選択 --</option>';
+            addSelect.innerHTML = '<option value="">+ 追加する部材を選択...</option>';
             
             const filtered = loadedMaterials.filter(m => {
                 if (toolType === 'line') return m.type === 'line' || m.unit === 'm' || m.unit === 'ｍ';
                 if (toolType === 'area') return m.type === 'area' || m.unit.includes('m2') || m.unit.includes('㎡');
-                
-                // Count tool filtering - now STRICTLY excluding anything with 'm', 'L', 'W', 'H', etc.
-                if (toolType === 'count') {
-                    // It must be type 'count', and unit must NOT contain typical dimension chars
-                    // This regex checks for m, M, L, H, W (often used for Length, Width, Height)
-                    return m.type === 'count' && !String(m.unit).match(/[mｍＭＬLHW]/i);
-                }
+                if (toolType === 'count') return m.type === 'count' && !String(m.unit).match(/[mｍＭＬLHW]/i);
                 return true;
+            });
+
+            // For combo, we allow any item type really, but let's stick to valid ones for now or all
+            // Ideally "Line" drawing can add "Count" items (e.g. posts along fence) but logic is complex.
+            // For now, let's allow adding same-type items (e.g. Block + Fence)
+            loadedMaterials.forEach(m => {
+                 const opt = document.createElement('option');
+                 opt.value = JSON.stringify(m);
+                 opt.textContent = `${m.name} (${m.unit})`;
+                 addSelect.appendChild(opt);
             });
 
             filtered.forEach((p, idx) => {
@@ -892,6 +911,44 @@
             document.getElementById('itemMultiplier').value = 1;
             App.currentSettings.multiplier = 1;
         }
+
+        // Combo Items Logic
+        function addAdditionalItem() {
+            const val = document.getElementById('additionalItemSelect').value;
+            if (!val) return;
+            const item = JSON.parse(val);
+            
+            // Avoid duplicates? allow for now
+            App.currentSettings.additionalItems.push({
+                name: item.name,
+                price: item.price,
+                unit: item.unit
+            });
+            
+            document.getElementById('additionalItemSelect').value = ""; // reset
+            updateAdditionalItemsList();
+        }
+
+        function removeAdditionalItem(index) {
+            App.currentSettings.additionalItems.splice(index, 1);
+            updateAdditionalItemsList();
+        }
+
+        function updateAdditionalItemsList() {
+            const container = document.getElementById('additionalItemsList');
+            container.innerHTML = '';
+            
+            App.currentSettings.additionalItems.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-gray-700 px-2 py-1 rounded text-xs text-blue-200 border border-blue-900';
+                div.innerHTML = `
+                    <span>+ ${item.name}</span>
+                    <button onclick="removeAdditionalItem(${idx})" class="text-red-400 hover:text-white ml-2">×</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+        window.removeAdditionalItem = removeAdditionalItem;
 
         /**
          * File Handling
@@ -998,7 +1055,7 @@
                         const newShape = {
                             type: 'area',
                             points: JSON.parse(JSON.stringify(found.points)), 
-                            settings: { ...App.currentSettings, isSubtractive: true },
+                            settings: { ...App.currentSettings, isSubtractive: true }, // copy curr settings but force subtract
                             id: Date.now()
                         };
                         App.shapes.push(newShape);
@@ -1107,10 +1164,13 @@
         }
 
         function addShape(type, points) {
+            // Clone current settings including deep copy of additional items
+            const settings = JSON.parse(JSON.stringify(App.currentSettings));
+            
             const shape = {
                 type: type,
                 points: points,
-                settings: { ...App.currentSettings },
+                settings: settings,
                 id: Date.now() + Math.random() 
             };
             App.shapes.push(shape);
@@ -1182,7 +1242,8 @@
             const showLabel = document.getElementById('showLabels').checked;
             
             if (shape.type === 'count') {
-                drawMarker(ctx, shape.points[0], color, 6 + lw, true);
+                // Reduced size logic: 4px base + lw
+                drawMarker(ctx, shape.points[0], color, 4 + lw, true);
             } else if (shape.type === 'line') {
                 for (let i = 0; i < shape.points.length - 1; i++) {
                     drawLine(ctx, shape.points[i], shape.points[i+1], color, false, lw);
@@ -1223,8 +1284,11 @@
                 if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
                 else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
                 
-                if (mult > 1) {
-                    text += ` x${mult}`;
+                if (mult > 1) text += ` x${mult}`;
+                
+                // Show info about additional items
+                if (shape.settings.additionalItems && shape.settings.additionalItems.length > 0) {
+                    text += ` (+${shape.settings.additionalItems.length})`;
                 }
                 
                 let pos = shape.points[0];
@@ -1312,7 +1376,7 @@
                     const p = shape.points[0];
                     tCtx.fillStyle = color;
                     tCtx.beginPath();
-                    tCtx.arc(p.x, p.y, 10 + lw, 0, Math.PI * 2);
+                    tCtx.arc(p.x, p.y, (4 + (shape.settings.lineWidth||2))*2, 0, Math.PI * 2);
                     tCtx.fill();
                     tCtx.strokeStyle = "#fff";
                     tCtx.lineWidth = 2;
@@ -1448,22 +1512,20 @@
             let grandTotal = 0;
             const groups = {};
 
-            // Grouping Logic: Name + Multiplier 
-            // Because unit price changes based on multiplier
+            // Grouping Logic
             App.shapes.forEach(shape => {
-                const name = shape.settings.name;
+                const rawVal = calculateMetric(shape);
                 const mult = Math.round(shape.settings.multiplier || 1);
                 
-                // Construct a unique key for grouping. E.g. "CB120_2" for 2 steps.
+                // 1. Process Main Item
+                const name = shape.settings.name;
                 const groupKey = `${name}_${mult}`;
                 
                 if (!groups[groupKey]) {
                     let displayName = name;
                     if(mult > 1) displayName += ` (x${mult})`;
-                    
                     groups[groupKey] = { 
                         name: displayName, 
-                        basePrice: shape.settings.price, 
                         effectivePrice: shape.settings.price * mult,
                         color: shape.settings.color,
                         quantity: 0,
@@ -1472,17 +1534,36 @@
                     };
                 }
                 
-                const rawVal = calculateMetric(shape);
-                
                 // Quantity is just the raw dimension (length or area)
-                // Multiplier affects PRICE, not quantity dimension.
                 groups[groupKey].quantity += rawVal;
-                
                 groups[groupKey].items.push({ id: shape.id, val: rawVal, mult: mult });
 
                 if (shape.type === 'line') groups[groupKey].unit = 'm';
                 else if (shape.type === 'area') groups[groupKey].unit = '㎡';
                 else groups[groupKey].unit = '個';
+
+                // 2. Process Additional Items (Combo)
+                if (shape.settings.additionalItems) {
+                    shape.settings.additionalItems.forEach(addItem => {
+                        const addKey = `_ADD_${addItem.name}`;
+                        if (!groups[addKey]) {
+                            groups[addKey] = {
+                                name: `${addItem.name} (同時計測)`,
+                                effectivePrice: addItem.price, // Multiplier usually doesn't apply to attached items or does it? let's assume 1:1 with length
+                                color: '#aaaaff', // generic color for sub items
+                                quantity: 0,
+                                unit: addItem.unit,
+                                items: []
+                            };
+                        }
+                        // For line/area, usage is same as parent shape. 
+                        // If parent is Line(m) and child is Count(piece), this logic is tricky.
+                        // Assuming simple case: Length -> Length, Area -> Area.
+                        // If Unit mismatch, naive copy of value.
+                        groups[addKey].quantity += rawVal;
+                        groups[addKey].items.push({ id: shape.id, val: rawVal, mult: 1, isChild: true });
+                    });
+                }
             });
 
             // Render List
@@ -1494,7 +1575,6 @@
                 const wrapper = document.createElement('div');
                 wrapper.className = 'mb-2';
                 
-                // Header
                 const header = document.createElement('div');
                 header.className = 'bg-gray-700 p-2 rounded cursor-pointer border-l-4 hover:bg-gray-600 transition';
                 header.style.borderLeftColor = item.color;
@@ -1513,15 +1593,17 @@
                     content.classList.toggle('open');
                 };
 
-                // Details
                 const details = document.createElement('div');
                 details.id = `acc-${groupIndex}`;
                 details.className = 'accordion-content bg-gray-800 rounded-b';
                 
                 let detailsHtml = '<div class="p-2 space-y-1">';
                 item.items.forEach((subItem, idx) => {
+                    if(subItem.isChild) {
+                        detailsHtml += `<div class="text-xs text-gray-500 pl-2">親ID:${subItem.id} に連動</div>`;
+                        return; 
+                    }
                     const isMinus = subItem.val < 0;
-                    // Detail string
                     let desc = isMinus ? '中抜き' : `No.${idx+1}`;
                     
                     detailsHtml += `
@@ -1554,29 +1636,36 @@
                 return;
             }
             
+            // Re-calc groups for CSV (similar logic to updateEstimation)
             const groups = {};
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
                 const mult = Math.round(shape.settings.multiplier || 1);
+                const rawVal = calculateMetric(shape);
+                
+                // Main Item
                 const groupKey = `${name}_${mult}`;
-
                 if (!groups[groupKey]) {
                     let displayName = name;
                     if(mult > 1) displayName += ` (x${mult})`;
-                    
-                    groups[groupKey] = { 
-                        name: displayName, 
-                        effectivePrice: shape.settings.price * mult, 
-                        quantity: 0, 
-                        unit: '' 
-                    };
+                    groups[groupKey] = { name: displayName, price: shape.settings.price * mult, quantity: 0, unit: '' };
                 }
-                const rawVal = calculateMetric(shape);
                 groups[groupKey].quantity += rawVal;
-                
+                // Determine unit
                 if (shape.type === 'line') groups[groupKey].unit = 'm';
                 else if (shape.type === 'area') groups[groupKey].unit = 'm2';
                 else groups[groupKey].unit = '個';
+
+                // Additional Items
+                if (shape.settings.additionalItems) {
+                    shape.settings.additionalItems.forEach(addItem => {
+                        const addKey = `_ADD_${addItem.name}`;
+                        if (!groups[addKey]) {
+                            groups[addKey] = { name: `${addItem.name} (同時計測)`, price: addItem.price, quantity: 0, unit: addItem.unit };
+                        }
+                        groups[addKey].quantity += rawVal;
+                    });
+                }
             });
 
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
@@ -1584,8 +1673,8 @@
 
             Object.keys(groups).forEach(key => {
                 const item = groups[key];
-                const total = Math.round(item.quantity * item.effectivePrice);
-                csvContent += `${item.name},${item.effectivePrice},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
+                const total = Math.round(item.quantity * item.price);
+                csvContent += `${item.name},${item.price},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
