@@ -48,7 +48,7 @@
         #loader {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.7); color: white; display: none;
-            justify-content: center; align-items: center; z-index: 9999;
+            justify-content: center; align-items: center; z-index: 9999; flex-direction: column;
         }
         
         /* Accordion transition */
@@ -64,7 +64,10 @@
 <body class="bg-cad-bg text-cad-text h-screen flex flex-col">
 
     <!-- Loading Overlay -->
-    <div id="loader"><div class="text-xl"><i class="fas fa-spinner fa-spin mr-2"></i>処理中...</div></div>
+    <div id="loader">
+        <div class="text-xl mb-2"><i class="fas fa-spinner fa-spin mr-2"></i>処理中...</div>
+        <div id="loaderStatus" class="text-sm text-gray-300"></div>
+    </div>
 
     <!-- Header -->
     <header class="bg-cad-panel border-b border-cad-border h-12 flex items-center justify-between px-4 shrink-0 z-10">
@@ -262,14 +265,12 @@
 
     <!-- VIEW: MASTER DATA (Management) -->
     <div id="view-master" class="flex-1 hidden bg-[#111] overflow-hidden flex-col p-6">
-        
         <div class="max-w-6xl mx-auto w-full h-full flex flex-col">
             <div class="flex justify-between items-end mb-6">
                 <div>
                     <h2 class="text-2xl font-bold text-white mb-2">部材・単価マスタ管理</h2>
                     <p class="text-gray-400 text-sm">図面作成で使用する部材の名称、参照商品名、単位、単価を管理します。<br>
-                    <span class="text-yellow-500">※Excel取込形式：A列=部材名, B列=参照商品名(画像検索用), C列=単位(m/m2/基), D列=単価</span><br>
-                    <span class="text-blue-300">※ブロック等で段数指定する場合は、部材名に「(1段m単価)」と記載しておくと分かりやすくなります。</span>
+                    <span class="text-yellow-500">※Excel取込形式：A列=部材名, B列=参照商品名(画像検索用), C列=単位(m/m2/基), D列=単価</span>
                     </p>
                 </div>
                 <div class="flex gap-2">
@@ -354,29 +355,24 @@
          * Database & Defaults
          */
         let db;
-        // Expanded Default Presets
         const DEFAULT_PRESETS = [
-            // ブロック・組積 (単位: m)
             { name: 'CB100 (1段m単価)', refName: '重量ブロック 100', unit: 'm', price: 1800, type: 'line', color: '#A9A9A9' },
             { name: 'CB120 (1段m単価)', refName: '重量ブロック 120', unit: 'm', price: 2200, type: 'line', color: '#808080' },
             { name: 'CB150 (1段m単価)', refName: '重量ブロック 150', unit: 'm', price: 2800, type: 'line', color: '#696969' },
             { name: '化粧ブロックA (1段m単価)', refName: 'ユニソン シャモティ', unit: 'm', price: 4500, type: 'line', color: '#CD853F' },
             { name: 'ブロック基礎', refName: 'ブロック 基礎断面', unit: 'm', price: 3500, type: 'line', color: '#778899' },
             
-            // コンクリート・舗装 (単位: m2)
             { name: '土間コンクリート(金鏝)', refName: '土間コンクリート 金鏝仕上げ', unit: 'm2', price: 11000, type: 'area', color: '#D3D3D3' },
             { name: '土間コンクリート(刷毛)', refName: '土間コンクリート 刷毛引き', unit: 'm2', price: 11000, type: 'area', color: '#C0C0C0' },
             { name: '砕石路盤 (RC40)', refName: '砕石 RC40', unit: 'm2', price: 1500, type: 'area', color: '#708090' },
             { name: '防草シート+砂利', refName: '防草シート 砂利敷き', unit: 'm2', price: 3500, type: 'area', color: '#F0E68C' },
             { name: 'インターロッキング', refName: 'インターロッキング 舗装', unit: 'm2', price: 12000, type: 'area', color: '#CD5C5C' },
             
-            // 金物・フェンス (単位: m / 基)
             { name: 'メッシュフェンス T-8', refName: 'LIXIL ハイグリッドフェンスN8型', unit: 'm', price: 5000, type: 'line', color: '#4682B4' },
             { name: '目隠しフェンス T-8', refName: 'LIXIL フェンスAB YL2型', unit: 'm', price: 12000, type: 'line', color: '#5F9EA0' },
             { name: '機能門柱', refName: 'LIXIL 機能門柱FW', unit: '基', price: 80000, type: 'count', color: '#2F4F4F' },
             { name: 'カーポート (1台用)', refName: 'YKKAP アリュース 1台用', unit: '基', price: 150000, type: 'count', color: '#191970' },
             
-            // 植栽 (単位: 本 / m2)
             { name: '高木 (H2.5)', refName: 'シマトネリコ 株立ち', unit: '本', price: 25000, type: 'count', color: '#228B22' },
             { name: '人工芝', refName: 'リアリーターフ', unit: 'm2', price: 8500, type: 'area', color: '#32CD32' }
         ];
@@ -388,29 +384,19 @@
             ctx: null,
             width: 0,
             height: 0,
-            
-            // View State
             scale: 1,      
             offsetX: 0,    
             offsetY: 0,    
             isDragging: false,
             lastMouseX: 0,
             lastMouseY: 0,
-
-            // Tool State
             currentTool: 'select', 
             drawingPoints: [],
             isPickingForSubtraction: false,
-            
-            // Calibration
             pixelsPerMeter: 0, 
             calibrationPoints: [],
-            
-            // Data
             bgImage: null, 
             shapes: [],    
-            
-            // Settings
             currentSettings: {
                 name: '未設定',
                 price: 0,
@@ -418,13 +404,10 @@
                 lineWidth: 2,
                 multiplier: 1, 
                 isSubtractive: false,
-                additionalItems: [] // For combo measurement
+                additionalItems: [] 
             }
         };
 
-        /**
-         * Initialization
-         */
         window.addEventListener('load', async () => {
             App.ctx = App.canvas.getContext('2d');
             resizeCanvas();
@@ -439,35 +422,47 @@
 
         function resizeCanvas() {
             const container = document.getElementById('canvasContainer');
-            if(container.offsetParent === null) return; // Hidden
+            if(container.offsetParent === null) return; 
+            const dpr = window.devicePixelRatio || 1;
             App.width = container.clientWidth;
             App.height = container.clientHeight;
-            App.canvas.width = App.width;
-            App.canvas.height = App.height;
+            App.canvas.width = App.width * dpr;
+            App.canvas.height = App.height * dpr;
+            App.canvas.style.width = `${App.width}px`;
+            App.canvas.style.height = `${App.height}px`;
             render();
         }
 
-        /**
-         * IndexedDB Handling
-         */
+        // --- Helper Functions for Master Table ---
+        function getTypeLabel(type) {
+            if(type === 'line') return '線 (長さ)';
+            if(type === 'area') return '面 (面積)';
+            if(type === 'count') return '点 (個数)';
+            return '不明';
+        }
+        function getTypeBadgeColor(type) {
+            if(type === 'line') return 'bg-blue-900 text-blue-200';
+            if(type === 'area') return 'bg-green-900 text-green-200';
+            if(type === 'count') return 'bg-yellow-900 text-yellow-200';
+            return 'bg-gray-700';
+        }
+
+        // --- IndexedDB ---
         function initDB() {
             return new Promise((resolve, reject) => {
                 const request = indexedDB.open("ExteriorPlannerDB", 2); 
-                
                 request.onupgradeneeded = (e) => {
                     db = e.target.result;
                     if (!db.objectStoreNames.contains("materials")) {
                         db.createObjectStore("materials", { keyPath: "id", autoIncrement: true });
                     }
                 };
-
                 request.onsuccess = (e) => {
                     db = e.target.result;
                     checkAndInitDefaults().then(() => {
                         loadMaterialsFromDB().then(() => resolve());
                     });
                 };
-
                 request.onerror = (e) => {
                     console.error("DB Error", e);
                     loadedMaterials = [...DEFAULT_PRESETS];
@@ -481,7 +476,6 @@
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
                 const countReq = store.count();
-
                 countReq.onsuccess = () => {
                     if (countReq.result === 0) {
                         DEFAULT_PRESETS.forEach(item => store.add(item));
@@ -492,48 +486,6 @@
                 };
                 countReq.onerror = () => resolve();
             });
-        }
-
-        function deleteAllMaterials() {
-            if(!db) return;
-            if(!confirm("【警告】マスタデータを全て削除します。\n本当によろしいですか？")) return;
-            const transaction = db.transaction(["materials"], "readwrite");
-            const store = transaction.objectStore("materials");
-            store.clear();
-            transaction.oncomplete = () => {
-                loadMaterialsFromDB().then(() => {
-                    updateMasterTable();
-                    alert("全てのデータを削除しました。");
-                });
-            };
-        }
-
-        function restoreDefaults() {
-            if(!db) {
-                alert("データベース接続エラー。ページをリロードしてください。");
-                return;
-            }
-            if(!confirm("現在のマスタデータを全て削除し、初期データに戻しますか？\n（追加したデータは消えます）")) return;
-            try {
-                const transaction = db.transaction(["materials"], "readwrite");
-                const store = transaction.objectStore("materials");
-                const clearReq = store.clear();
-                clearReq.onsuccess = () => {
-                    DEFAULT_PRESETS.forEach(item => {
-                        const { id, ...cleanItem } = item;
-                        store.add(cleanItem);
-                    });
-                };
-                transaction.oncomplete = () => {
-                    loadMaterialsFromDB().then(() => {
-                        updateMasterTable();
-                        alert("初期データを復元しました。");
-                    });
-                };
-                transaction.onerror = (e) => alert("復元に失敗しました。");
-            } catch (err) {
-                alert("エラーが発生しました: " + err.message);
-            }
         }
 
         function loadMaterialsFromDB() {
@@ -581,6 +533,44 @@
             transaction.oncomplete = () => loadMaterialsFromDB().then(() => updateMasterTable());
         }
 
+        function deleteAllMaterials() {
+            if(!db) return;
+            if(!confirm("【警告】マスタデータを全て削除します。\n本当によろしいですか？")) return;
+            const transaction = db.transaction(["materials"], "readwrite");
+            const store = transaction.objectStore("materials");
+            store.clear();
+            transaction.oncomplete = () => {
+                loadMaterialsFromDB().then(() => {
+                    updateMasterTable();
+                    alert("全てのデータを削除しました。");
+                });
+            };
+        }
+
+        function restoreDefaults() {
+            if(!db) {
+                alert("データベース接続エラー。");
+                return;
+            }
+            if(!confirm("初期データに戻しますか？（追加データは消えます）")) return;
+            try {
+                const transaction = db.transaction(["materials"], "readwrite");
+                const store = transaction.objectStore("materials");
+                store.clear().onsuccess = () => {
+                    DEFAULT_PRESETS.forEach(item => {
+                        const { id, ...cleanItem } = item;
+                        store.add(cleanItem);
+                    });
+                };
+                transaction.oncomplete = () => {
+                    loadMaterialsFromDB().then(() => {
+                        updateMasterTable();
+                        alert("初期データを復元しました。");
+                    });
+                };
+            } catch (err) { alert("エラー: " + err.message); }
+        }
+
         function saveMaterialsToDB(materials) {
             return new Promise((resolve, reject) => {
                 const transaction = db.transaction(["materials"], "readwrite");
@@ -597,142 +587,7 @@
             });
         }
 
-        /**
-         * View Switching
-         */
-        function switchView(viewName) {
-            const plannerView = document.getElementById('view-planner');
-            const masterView = document.getElementById('view-master');
-            const plannerActions = document.getElementById('plannerActions');
-            const navs = document.querySelectorAll('.nav-btn');
-
-            navs.forEach(btn => {
-                if(btn.dataset.view === viewName) btn.classList.add('active');
-                else btn.classList.remove('active');
-            });
-
-            if (viewName === 'planner') {
-                plannerView.classList.remove('hidden');
-                masterView.classList.add('hidden');
-                masterView.classList.remove('flex');
-                plannerActions.classList.remove('hidden');
-                resizeCanvas();
-                if(['line','area','count'].includes(App.currentTool)) populatePresets(App.currentTool);
-            } else {
-                plannerView.classList.add('hidden');
-                masterView.classList.remove('hidden');
-                masterView.classList.add('flex');
-                plannerActions.classList.add('hidden');
-                updateMasterTable();
-            }
-        }
-
-        function updateMasterTable() {
-            const tbody = document.getElementById('masterTableBody');
-            const searchInput = document.getElementById('masterSearchInput');
-            const filterTerm = searchInput ? searchInput.value.toLowerCase() : '';
-            tbody.innerHTML = '';
-            
-            const filteredMaterials = loadedMaterials.filter(mat => {
-                const searchStr = (mat.name + (mat.refName || '')).toLowerCase();
-                return !filterTerm || searchStr.includes(filterTerm);
-            });
-
-            filteredMaterials.forEach(mat => {
-                const refText = mat.refName || '';
-                const searchTerm = mat.refName || mat.name; 
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="text-center">
-                        <span class="inline-block w-6 h-6 rounded border border-gray-600" style="background-color: ${mat.color || '#fff'}"></span>
-                    </td>
-                    <td class="font-bold text-white truncate" title="${mat.name}">${mat.name}</td>
-                    <td class="text-gray-400 text-sm truncate" title="${refText}">${refText}</td>
-                    <td>
-                        <span class="px-2 py-1 rounded text-xs ${getTypeBadgeColor(mat.type)}">${getTypeLabel(mat.type)}</span>
-                    </td>
-                    <td class="text-right text-mono text-gray-400">${mat.unit}</td>
-                    <td class="text-right text-mono font-bold">¥${mat.price.toLocaleString()}</td>
-                    <td class="text-center">
-                        <button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${searchTerm}')" title="画像検索">
-                            <i class="fas fa-images"></i>
-                        </button>
-                    </td>
-                    <td class="text-center">
-                        <button class="text-red-500 hover:text-red-300 p-1" onclick="deleteMaterialFromDB(${mat.id})"><i class="fas fa-trash"></i></button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-            document.getElementById('masterCount').textContent = `全 ${filteredMaterials.length} 件`;
-        }
-        
-        window.deleteMaterialFromDB = deleteMaterialFromDB;
-        window.searchMaterialImage = (name) => {
-            const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(name)}`;
-            window.open(url, '_blank');
-        };
-
-        function getTypeLabel(type) {
-            if(type === 'line') return '線 (長さ)';
-            if(type === 'area') return '面 (面積)';
-            if(type === 'count') return '点 (個数)';
-            return '不明';
-        }
-        function getTypeBadgeColor(type) {
-            if(type === 'line') return 'bg-blue-900 text-blue-200';
-            if(type === 'area') return 'bg-green-900 text-green-200';
-            if(type === 'count') return 'bg-yellow-900 text-yellow-200';
-            return 'bg-gray-700';
-        }
-
-        /**
-         * Excel/CSV Import
-         */
-        function handlePriceListUpload(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                const data = new Uint8Array(evt.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                const newMaterials = [];
-                let startIndex = 0;
-                if(typeof jsonData[0][3] !== 'number') startIndex = 1; 
-
-                for (let i = startIndex; i < jsonData.length; i++) {
-                    const row = jsonData[i];
-                    if (!row[0]) continue;
-                    const name = row[0];
-                    const refName = row[1] ? String(row[1]).trim() : '';
-                    const unit = row[2] ? String(row[2]).trim() : '';
-                    const price = parseInt(row[3]) || 0;
-                    const type = determineTypeByUnit(unit);
-                    newMaterials.push({ name, refName, unit, price, type, color: getRandomColor() });
-                }
-                
-                if (newMaterials.length > 0) saveMaterialsToDB(newMaterials);
-                else alert("有効なデータが見つかりませんでした。列構成を確認してください。\nA:名称 B:参照名 C:単位 D:単価");
-                e.target.value = '';
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        function getRandomColor() {
-            const letters = '456789ABC';
-            let color = '#';
-            for (let i = 0; i < 6; i++) {
-                color += letters[Math.floor(Math.random() * letters.length)];
-            }
-            return color;
-        }
-
-        /**
-         * Event Listeners
-         */
+        // --- Event Init ---
         function initEvents() {
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.addEventListener('click', () => switchView(btn.dataset.view));
@@ -784,55 +639,69 @@
             document.getElementById('itemMultiplier').addEventListener('input', (e) => App.currentSettings.multiplier = parseFloat(e.target.value) || 1);
             document.getElementById('isSubtractive').addEventListener('change', (e) => App.currentSettings.isSubtractive = e.target.checked);
             
-            // Rotation Buttons
             document.getElementById('rotateLeftBtn').addEventListener('click', () => rotateImage(-90));
             document.getElementById('rotateRightBtn').addEventListener('click', () => rotateImage(90));
-
             document.getElementById('pickSubtractBtn').addEventListener('click', () => {
                 App.isPickingForSubtraction = true;
                 document.getElementById('pickStatus').classList.remove('hidden');
                 document.body.style.cursor = 'crosshair';
             });
-
-            // Combo Item Select Logic
             document.getElementById('additionalItemSelect').addEventListener('change', addAdditionalItem);
         }
 
-        /**
-         * Image Rotation
-         */
-        function rotateImage(deg) {
-            if (!App.bgImage) {
-                alert("図面が読み込まれていません");
-                return;
+        // --- Core Functions ---
+        function switchView(viewName) {
+            const plannerView = document.getElementById('view-planner');
+            const masterView = document.getElementById('view-master');
+            const plannerActions = document.getElementById('plannerActions');
+            const navs = document.querySelectorAll('.nav-btn');
+            navs.forEach(btn => {
+                if(btn.dataset.view === viewName) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+            if (viewName === 'planner') {
+                plannerView.classList.remove('hidden');
+                masterView.classList.add('hidden');
+                masterView.classList.remove('flex');
+                plannerActions.classList.remove('hidden');
+                resizeCanvas();
+                if(['line','area','count'].includes(App.currentTool)) populatePresets(App.currentTool);
+            } else {
+                plannerView.classList.add('hidden');
+                masterView.classList.remove('hidden');
+                masterView.classList.add('flex');
+                plannerActions.classList.add('hidden');
+                updateMasterTable();
             }
-            if (App.shapes.length > 0) {
-                if(!confirm("図面を回転させると、計測済みの図形と位置がずれてしまいます。\nそれでも回転しますか？")) return;
-            }
-
-            const canvas = document.createElement('canvas');
-            // Swap width/height for 90deg rotation
-            canvas.width = App.bgImage.height;
-            canvas.height = App.bgImage.width;
-            const ctx = canvas.getContext('2d');
-
-            ctx.translate(canvas.width / 2, canvas.height / 2);
-            ctx.rotate(deg * Math.PI / 180);
-            ctx.drawImage(App.bgImage, -App.bgImage.width / 2, -App.bgImage.height / 2);
-
-            // Replace image
-            const newImg = new Image();
-            newImg.onload = () => {
-                App.bgImage = newImg;
-                fitToScreen();
-                render();
-            };
-            newImg.src = canvas.toDataURL();
         }
 
-        /**
-         * Core Logic
-         */
+        function updateMasterTable() {
+            const tbody = document.getElementById('masterTableBody');
+            const searchInput = document.getElementById('masterSearchInput');
+            const filterTerm = searchInput ? searchInput.value.toLowerCase() : '';
+            tbody.innerHTML = '';
+            const filteredMaterials = loadedMaterials.filter(mat => {
+                const searchStr = (mat.name + (mat.refName || '')).toLowerCase();
+                return !filterTerm || searchStr.includes(filterTerm);
+            });
+            filteredMaterials.forEach(mat => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-center"><span class="inline-block w-6 h-6 rounded border border-gray-600" style="background-color: ${mat.color || '#fff'}"></span></td>
+                    <td class="font-bold text-white truncate" title="${mat.name}">${mat.name}</td>
+                    <td class="text-gray-400 text-sm truncate" title="${mat.refName || ''}">${mat.refName || ''}</td>
+                    <td><span class="px-2 py-1 rounded text-xs ${getTypeBadgeColor(mat.type)}">${getTypeLabel(mat.type)}</span></td>
+                    <td class="text-right text-mono text-gray-400">${mat.unit}</td>
+                    <td class="text-right text-mono font-bold">¥${mat.price.toLocaleString()}</td>
+                    <td class="text-center"><button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${mat.refName || mat.name}')"><i class="fas fa-images"></i></button></td>
+                    <td class="text-center"><button class="text-red-500 hover:text-red-300 p-1" onclick="deleteMaterialFromDB(${mat.id})"><i class="fas fa-trash"></i></button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('masterCount').textContent = `全 ${filteredMaterials.length} 件`;
+        }
+
+        // --- Canvas/Tools Logic ---
         function setTool(toolName) {
             App.currentTool = toolName;
             App.drawingPoints = [];
@@ -840,14 +709,12 @@
             App.isPickingForSubtraction = false;
             document.getElementById('pickStatus').classList.add('hidden');
             document.body.style.cursor = 'default';
-            
             const materialSettings = document.getElementById('materialSettings');
             const toolMessage = document.getElementById('toolMessage');
             const subtractiveOption = document.getElementById('subtractiveOption');
-            
             subtractiveOption.classList.add('hidden');
             App.currentSettings.isSubtractive = false;
-            App.currentSettings.additionalItems = []; // reset combos
+            App.currentSettings.additionalItems = [];
             document.getElementById('isSubtractive').checked = false;
             updateAdditionalItemsList();
 
@@ -869,24 +736,18 @@
             const addSelect = document.getElementById('additionalItemSelect');
             select.innerHTML = '<option value="">-- 部材を選択 --</option>';
             addSelect.innerHTML = '<option value="">+ 追加する部材を選択...</option>';
-            
             const filtered = loadedMaterials.filter(m => {
                 if (toolType === 'line') return m.type === 'line' || m.unit === 'm' || m.unit === 'ｍ';
                 if (toolType === 'area') return m.type === 'area' || m.unit.includes('m2') || m.unit.includes('㎡');
                 if (toolType === 'count') return m.type === 'count' && !String(m.unit).match(/[mｍＭＬLHW]/i);
                 return true;
             });
-
-            // For combo, we allow any item type really, but let's stick to valid ones for now or all
-            // Ideally "Line" drawing can add "Count" items (e.g. posts along fence) but logic is complex.
-            // For now, let's allow adding same-type items (e.g. Block + Fence)
             loadedMaterials.forEach(m => {
                  const opt = document.createElement('option');
                  opt.value = JSON.stringify(m);
                  opt.textContent = `${m.name} (${m.unit})`;
                  addSelect.appendChild(opt);
             });
-
             filtered.forEach((p, idx) => {
                 const opt = document.createElement('option');
                 opt.value = JSON.stringify(p);
@@ -901,7 +762,6 @@
             const preset = JSON.parse(val);
             document.getElementById('itemName').value = preset.name;
             document.getElementById('itemPrice').value = preset.price;
-            
             if (preset.color) {
                 document.getElementById('itemColor').value = preset.color;
                 App.currentSettings.color = preset.color;
@@ -912,20 +772,12 @@
             App.currentSettings.multiplier = 1;
         }
 
-        // Combo Items Logic
         function addAdditionalItem() {
             const val = document.getElementById('additionalItemSelect').value;
             if (!val) return;
             const item = JSON.parse(val);
-            
-            // Avoid duplicates? allow for now
-            App.currentSettings.additionalItems.push({
-                name: item.name,
-                price: item.price,
-                unit: item.unit
-            });
-            
-            document.getElementById('additionalItemSelect').value = ""; // reset
+            App.currentSettings.additionalItems.push({ name: item.name, price: item.price, unit: item.unit });
+            document.getElementById('additionalItemSelect').value = "";
             updateAdditionalItemsList();
         }
 
@@ -937,22 +789,15 @@
         function updateAdditionalItemsList() {
             const container = document.getElementById('additionalItemsList');
             container.innerHTML = '';
-            
             App.currentSettings.additionalItems.forEach((item, idx) => {
                 const div = document.createElement('div');
                 div.className = 'flex justify-between items-center bg-gray-700 px-2 py-1 rounded text-xs text-blue-200 border border-blue-900';
-                div.innerHTML = `
-                    <span>+ ${item.name}</span>
-                    <button onclick="removeAdditionalItem(${idx})" class="text-red-400 hover:text-white ml-2">×</button>
-                `;
+                div.innerHTML = `<span>+ ${item.name}</span><button onclick="removeAdditionalItem(${idx})" class="text-red-400 hover:text-white ml-2">×</button>`;
                 container.appendChild(div);
             });
         }
-        window.removeAdditionalItem = removeAdditionalItem;
 
-        /**
-         * File Handling
-         */
+        // --- File/Image ---
         async function handleFileUpload(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -962,7 +807,8 @@
                     const arrayBuffer = await file.arrayBuffer();
                     const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
                     const page = await pdf.getPage(1);
-                    const viewport = page.getViewport({ scale: 3.0 }); 
+                    // Increased scale to 5.0 for better resolution
+                    const viewport = page.getViewport({ scale: 5.0 }); 
                     const cvs = document.createElement('canvas');
                     cvs.width = viewport.width;
                     cvs.height = viewport.height;
@@ -990,6 +836,52 @@
             }
         }
 
+        function handlePriceListUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                const newMaterials = [];
+                let startIndex = 0;
+                if(typeof jsonData[0][3] !== 'number') startIndex = 1; 
+                for (let i = startIndex; i < jsonData.length; i++) {
+                    const row = jsonData[i];
+                    if (!row[0]) continue;
+                    const name = row[0];
+                    const refName = row[1] ? String(row[1]).trim() : '';
+                    const unit = row[2] ? String(row[2]).trim() : '';
+                    const price = parseInt(row[3]) || 0;
+                    const type = determineTypeByUnit(unit);
+                    newMaterials.push({ name, refName, unit, price, type, color: getRandomColor() });
+                }
+                if (newMaterials.length > 0) saveMaterialsToDB(newMaterials);
+                else alert("有効なデータが見つかりませんでした。");
+                e.target.value = '';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function rotateImage(deg) {
+            if (!App.bgImage) { alert("図面が読み込まれていません"); return; }
+            if (App.shapes.length > 0 && !confirm("図面を回転させると位置がずれます。続行しますか？")) return;
+            const canvas = document.createElement('canvas');
+            canvas.width = App.bgImage.height;
+            canvas.height = App.bgImage.width;
+            const ctx = canvas.getContext('2d');
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.rotate(deg * Math.PI / 180);
+            ctx.drawImage(App.bgImage, -App.bgImage.width / 2, -App.bgImage.height / 2);
+            const newImg = new Image();
+            newImg.onload = () => { App.bgImage = newImg; fitToScreen(); render(); };
+            newImg.src = canvas.toDataURL();
+        }
+
+        // --- Interaction ---
         function fitToScreen() {
             if (!App.bgImage) return;
             const aspectCanvas = App.width / App.height;
@@ -1055,7 +947,7 @@
                         const newShape = {
                             type: 'area',
                             points: JSON.parse(JSON.stringify(found.points)), 
-                            settings: { ...App.currentSettings, isSubtractive: true }, // copy curr settings but force subtract
+                            settings: { ...App.currentSettings, isSubtractive: true }, 
                             id: Date.now()
                         };
                         App.shapes.push(newShape);
@@ -1064,25 +956,19 @@
                         document.getElementById('pickStatus').classList.add('hidden');
                         document.body.style.cursor = 'default';
                         render();
-                    } else {
-                        alert("図形が見つかりません。面積（多角形）をクリックしてください。");
-                    }
+                    } else { alert("図形が見つかりません。"); }
                     return;
                 }
-
                 if (App.currentTool === 'select') {
                     App.isDragging = true;
                     App.lastMouseX = e.clientX;
                     App.lastMouseY = e.clientY;
-                } 
-                else if (App.currentTool === 'scale') {
+                } else if (App.currentTool === 'scale') {
                     App.calibrationPoints.push(worldPos);
                     if (App.calibrationPoints.length === 2) finalizeCalibration();
-                }
-                else if (App.currentTool === 'count') {
+                } else if (App.currentTool === 'count') {
                     addShape('count', [worldPos]);
-                }
-                else if (App.currentTool === 'line' || App.currentTool === 'area') {
+                } else if (App.currentTool === 'line' || App.currentTool === 'area') {
                     App.drawingPoints.push(worldPos);
                 }
             }
@@ -1109,7 +995,9 @@
             }
         }
 
-        function onMouseUp(e) { App.isDragging = false; }
+        function onMouseUp(e) {
+            App.isDragging = false;
+        }
 
         function onWheel(e) {
             e.preventDefault();
@@ -1164,15 +1052,8 @@
         }
 
         function addShape(type, points) {
-            // Clone current settings including deep copy of additional items
             const settings = JSON.parse(JSON.stringify(App.currentSettings));
-            
-            const shape = {
-                type: type,
-                points: points,
-                settings: settings,
-                id: Date.now() + Math.random() 
-            };
+            const shape = { type, points, settings, id: Date.now() + Math.random() };
             App.shapes.push(shape);
             updateEstimation();
         }
@@ -1183,14 +1064,15 @@
             render();
         }
 
-        /**
-         * Drawing
-         */
+        // --- Render ---
         function render(cursorWorldPos = null) {
             const ctx = App.ctx;
             if (App.width === 0 || App.height === 0) return;
+            // Clear handling dpr
+            const dpr = window.devicePixelRatio || 1;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Scale the context
             ctx.clearRect(0, 0, App.width, App.height);
-
+            
             if (App.bgImage) {
                 ctx.save();
                 ctx.translate(App.offsetX, App.offsetY);
@@ -1198,12 +1080,9 @@
                 ctx.drawImage(App.bgImage, 0, 0);
                 ctx.restore();
             }
-
             App.shapes.forEach(shape => drawShape(ctx, shape));
-
             const color = App.currentSettings.color;
             const lw = App.currentSettings.lineWidth;
-            
             if (App.currentTool === 'scale') {
                 App.calibrationPoints.forEach(p => drawMarker(ctx, p, '#ff00ff'));
                 if (App.calibrationPoints.length === 1 && cursorWorldPos) {
@@ -1242,7 +1121,6 @@
             const showLabel = document.getElementById('showLabels').checked;
             
             if (shape.type === 'count') {
-                // Reduced size logic: 4px base + lw
                 drawMarker(ctx, shape.points[0], color, 4 + lw, true);
             } else if (shape.type === 'line') {
                 for (let i = 0; i < shape.points.length - 1; i++) {
@@ -1259,7 +1137,6 @@
                     ctx.lineTo(p.x, p.y);
                 }
                 ctx.closePath();
-                
                 if (isSub) {
                     ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
                     ctx.strokeStyle = "#ff0000";
@@ -1269,28 +1146,21 @@
                     ctx.strokeStyle = color;
                     ctx.setLineDash([]);
                 }
-                
                 ctx.lineWidth = lw;
                 ctx.fill();
                 ctx.stroke();
                 ctx.restore();
             }
-            
             if (showLabel && shape.points.length > 0) {
                 const val = calculateMetric(shape);
                 let text = `${shape.settings.name}`;
                 const mult = shape.settings.multiplier || 1;
-                
                 if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
                 else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
-                
                 if (mult > 1) text += ` x${mult}`;
-                
-                // Show info about additional items
                 if (shape.settings.additionalItems && shape.settings.additionalItems.length > 0) {
                     text += ` (+${shape.settings.additionalItems.length})`;
                 }
-                
                 let pos = shape.points[0];
                 if (shape.type === 'area') {
                     let sx=0, sy=0;
@@ -1349,24 +1219,16 @@
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
 
-        /**
-         * Image/PDF Export
-         */
         function createExportCanvas() {
             if (!App.bgImage) {
                 alert("図面が読み込まれていません");
                 return null;
             }
-
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = App.bgImage.width;
             tempCanvas.height = App.bgImage.height;
             const tCtx = tempCanvas.getContext('2d');
-
-            // 1. Draw Background
             tCtx.drawImage(App.bgImage, 0, 0);
-
-            // 2. Draw Shapes
             App.shapes.forEach(shape => {
                 const color = shape.settings.color;
                 const isSub = shape.settings.isSubtractive;
@@ -1404,7 +1266,6 @@
                         tCtx.lineTo(shape.points[i].x, shape.points[i].y);
                     }
                     tCtx.closePath();
-                    
                     if (isSub) {
                         tCtx.fillStyle = "rgba(255, 0, 0, 0.3)";
                         tCtx.strokeStyle = "#ff0000";
@@ -1413,14 +1274,11 @@
                         tCtx.fillStyle = hexToRgba(color, 0.3);
                         tCtx.strokeStyle = color;
                     }
-                    
                     tCtx.lineWidth = lw;
                     tCtx.fill();
                     tCtx.stroke();
                     tCtx.restore();
                 }
-
-                // 3. Draw Labels
                 if(document.getElementById('showLabels').checked && shape.points.length > 0) {
                     const val = calculateMetric(shape);
                     let text = `${shape.settings.name}`;
@@ -1428,7 +1286,6 @@
                     if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
                     else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
                     if (mult > 1) text += ` x${mult}`;
-
                     let pos = shape.points[0];
                     if (shape.type === 'area') {
                         let sx=0, sy=0;
@@ -1437,7 +1294,6 @@
                     } else if (shape.type === 'line') {
                         pos = shape.points[Math.floor(shape.points.length/2)];
                     }
-
                     tCtx.font = "bold 24px sans-serif"; 
                     tCtx.fillStyle = color; 
                     tCtx.strokeStyle = "black";
@@ -1461,27 +1317,20 @@
         function saveCanvasAsPDF() {
             const canvas = createExportCanvas();
             if(!canvas) return;
-            
             const imgData = canvas.toDataURL('image/jpeg', 0.95);
             const { jsPDF } = window.jspdf;
             const orientation = canvas.width > canvas.height ? 'l' : 'p';
-            
             const pdf = new jsPDF({
                 orientation: orientation,
                 unit: 'px',
                 format: [canvas.width, canvas.height]
             });
-            
             pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
             pdf.save('exterior_plan.pdf');
         }
 
-        /**
-         * Calculation & Estimation
-         */
         function calculateMetric(shape) {
             if (App.pixelsPerMeter === 0) return 0;
-            // Metric should be purely dimension based
             if (shape.type === 'line') {
                 let distPx = 0;
                 for (let i = 0; i < shape.points.length - 1; i++) {
@@ -1512,13 +1361,9 @@
             let grandTotal = 0;
             const groups = {};
 
-            // Grouping Logic
             App.shapes.forEach(shape => {
-                const rawVal = calculateMetric(shape);
-                const mult = Math.round(shape.settings.multiplier || 1);
-                
-                // 1. Process Main Item
                 const name = shape.settings.name;
+                const mult = Math.round(shape.settings.multiplier || 1);
                 const groupKey = `${name}_${mult}`;
                 
                 if (!groups[groupKey]) {
@@ -1534,7 +1379,7 @@
                     };
                 }
                 
-                // Quantity is just the raw dimension (length or area)
+                const rawVal = calculateMetric(shape);
                 groups[groupKey].quantity += rawVal;
                 groups[groupKey].items.push({ id: shape.id, val: rawVal, mult: mult });
 
@@ -1542,31 +1387,25 @@
                 else if (shape.type === 'area') groups[groupKey].unit = '㎡';
                 else groups[groupKey].unit = '個';
 
-                // 2. Process Additional Items (Combo)
                 if (shape.settings.additionalItems) {
                     shape.settings.additionalItems.forEach(addItem => {
                         const addKey = `_ADD_${addItem.name}`;
                         if (!groups[addKey]) {
                             groups[addKey] = {
                                 name: `${addItem.name} (同時計測)`,
-                                effectivePrice: addItem.price, // Multiplier usually doesn't apply to attached items or does it? let's assume 1:1 with length
-                                color: '#aaaaff', // generic color for sub items
+                                effectivePrice: addItem.price, 
+                                color: '#aaaaff', 
                                 quantity: 0,
                                 unit: addItem.unit,
                                 items: []
                             };
                         }
-                        // For line/area, usage is same as parent shape. 
-                        // If parent is Line(m) and child is Count(piece), this logic is tricky.
-                        // Assuming simple case: Length -> Length, Area -> Area.
-                        // If Unit mismatch, naive copy of value.
                         groups[addKey].quantity += rawVal;
                         groups[addKey].items.push({ id: shape.id, val: rawVal, mult: 1, isChild: true });
                     });
                 }
             });
 
-            // Render List
             Object.keys(groups).forEach((key, groupIndex) => {
                 const item = groups[key];
                 const subtotal = Math.round(item.quantity * item.effectivePrice);
@@ -1605,7 +1444,6 @@
                     }
                     const isMinus = subItem.val < 0;
                     let desc = isMinus ? '中抜き' : `No.${idx+1}`;
-                    
                     detailsHtml += `
                         <div class="flex justify-between items-center text-xs text-gray-400 border-b border-gray-700 pb-1">
                             <span class="${isMinus ? 'text-red-400' : ''}">
@@ -1619,49 +1457,42 @@
                 });
                 detailsHtml += '</div>';
                 details.innerHTML = detailsHtml;
-
                 wrapper.appendChild(header);
                 wrapper.appendChild(details);
                 list.appendChild(wrapper);
             });
-
             document.getElementById('totalAmount').textContent = `¥${grandTotal.toLocaleString()}`;
         }
         
         window.deleteShape = deleteShape;
+        window.removeAdditionalItem = removeAdditionalItem;
 
         function exportCSV() {
             if (App.shapes.length === 0) {
                 alert("出力するデータがありません");
                 return;
             }
-            
-            // Re-calc groups for CSV (similar logic to updateEstimation)
             const groups = {};
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
                 const mult = Math.round(shape.settings.multiplier || 1);
                 const rawVal = calculateMetric(shape);
-                
-                // Main Item
                 const groupKey = `${name}_${mult}`;
                 if (!groups[groupKey]) {
                     let displayName = name;
                     if(mult > 1) displayName += ` (x${mult})`;
-                    groups[groupKey] = { name: displayName, price: shape.settings.price * mult, quantity: 0, unit: '' };
+                    groups[groupKey] = { name: displayName, effectivePrice: shape.settings.price * mult, quantity: 0, unit: '' };
                 }
                 groups[groupKey].quantity += rawVal;
-                // Determine unit
                 if (shape.type === 'line') groups[groupKey].unit = 'm';
                 else if (shape.type === 'area') groups[groupKey].unit = 'm2';
                 else groups[groupKey].unit = '個';
 
-                // Additional Items
                 if (shape.settings.additionalItems) {
                     shape.settings.additionalItems.forEach(addItem => {
                         const addKey = `_ADD_${addItem.name}`;
                         if (!groups[addKey]) {
-                            groups[addKey] = { name: `${addItem.name} (同時計測)`, price: addItem.price, quantity: 0, unit: addItem.unit };
+                            groups[addKey] = { name: `${addItem.name} (同時計測)`, effectivePrice: addItem.price, quantity: 0, unit: addItem.unit };
                         }
                         groups[addKey].quantity += rawVal;
                     });
@@ -1670,13 +1501,11 @@
 
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
             csvContent += "品名,単価,数量,単位,合計金額\n";
-
             Object.keys(groups).forEach(key => {
                 const item = groups[key];
-                const total = Math.round(item.quantity * item.price);
-                csvContent += `${item.name},${item.price},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
+                const total = Math.round(item.quantity * item.effectivePrice);
+                csvContent += `${item.name},${item.effectivePrice},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
             });
-
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
@@ -1684,6 +1513,13 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        function getRandomColor() {
+            const letters = '456789ABC';
+            let color = '#';
+            for (let i = 0; i < 6; i++) color += letters[Math.floor(Math.random() * letters.length)];
+            return color;
         }
     </script>
 </body>
