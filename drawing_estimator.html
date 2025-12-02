@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exterior Planner - 外構積算ツール</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cad: {
+                            bg: '#1e1e1e',
+                            panel: '#252526',
+                            border: '#3e3e42',
+                            accent: '#007fd4',
+                            text: '#cccccc'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        canvas { display: block; }
+        .tool-btn.active { background-color: #007fd4; color: white; }
+        .custom-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #252526; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #3e3e42; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #505050; }
+        
+        /* Loading Overlay */
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); color: white; display: none;
+            justify-content: center; align-items: center; z-index: 9999;
+        }
+    </style>
+</head>
+<body class="bg-cad-bg text-cad-text h-screen flex flex-col">
+
+    <!-- Loading Overlay -->
+    <div id="loader"><div class="text-xl"><i class="fas fa-spinner fa-spin mr-2"></i>処理中...</div></div>
+
+    <!-- Header -->
+    <header class="bg-cad-panel border-b border-cad-border h-12 flex items-center justify-between px-4 shrink-0 z-10">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-drafting-compass text-cad-accent"></i>
+            <span class="font-bold text-white">Exterior Planner</span>
+        </div>
+        <div class="flex gap-3">
+            <label class="cursor-pointer bg-cad-border hover:bg-gray-600 px-3 py-1 rounded text-sm transition">
+                <i class="fas fa-folder-open mr-1"></i> 図面読込 (PDF/IMG)
+                <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+            </label>
+            <button id="exportBtn" class="bg-green-700 hover:bg-green-600 px-3 py-1 rounded text-sm text-white transition">
+                <i class="fas fa-file-csv mr-1"></i> CSV出力
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Left Toolbar -->
+        <div class="w-16 bg-cad-panel border-r border-cad-border flex flex-col items-center py-4 gap-4 shrink-0 z-10">
+            <button class="tool-btn w-10 h-10 rounded flex items-center justify-center hover:bg-gray-700 active" data-tool="select" title="選択・移動">
+                <i class="fas fa-mouse-pointer"></i>
+            </button>
+            <div class="w-8 h-px bg-cad-border"></div>
+            <button class="tool-btn w-10 h-10 rounded flex items-center justify-center hover:bg-gray-700" data-tool="scale" title="スケール設定 (2点間距離)">
+                <i class="fas fa-ruler-horizontal"></i>
+            </button>
+            <div class="w-8 h-px bg-cad-border"></div>
+            <button class="tool-btn w-10 h-10 rounded flex items-center justify-center hover:bg-gray-700" data-tool="line" title="距離計測 (連続線)">
+                <i class="fas fa-pen-nib"></i>
+            </button>
+            <button class="tool-btn w-10 h-10 rounded flex items-center justify-center hover:bg-gray-700" data-tool="area" title="面積計測 (多角形)">
+                <i class="fas fa-draw-polygon"></i>
+            </button>
+            <button class="tool-btn w-10 h-10 rounded flex items-center justify-center hover:bg-gray-700" data-tool="count" title="個数カウント">
+                <i class="fas fa-map-marker-alt"></i>
+            </button>
+        </div>
+
+        <!-- Sub Sidebar (Settings) -->
+        <div class="w-64 bg-cad-panel border-r border-cad-border flex flex-col shrink-0 z-10 custom-scroll overflow-y-auto">
+            <div class="p-4 border-b border-cad-border">
+                <h3 class="text-xs font-bold text-gray-400 uppercase mb-2">設定 & プロパティ</h3>
+                
+                <!-- Status Info -->
+                <div class="mb-4 text-xs bg-gray-800 p-2 rounded">
+                    <div class="flex justify-between mb-1">
+                        <span>スケール:</span>
+                        <span id="scaleStatus" class="text-yellow-500 font-mono">未設定</span>
+                    </div>
+                    <div class="flex items-center gap-2 mt-2">
+                        <input type="checkbox" id="showGrid" class="rounded bg-gray-700 border-gray-600">
+                        <label for="showGrid" class="cursor-pointer">グリッド表示 (1m)</label>
+                    </div>
+                </div>
+
+                <!-- Material Settings -->
+                <div id="materialSettings">
+                    <label class="block text-xs mb-1">部材プリセット</label>
+                    <select id="presetSelect" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm mb-3 text-white">
+                        <!-- Populated by JS -->
+                    </select>
+
+                    <label class="block text-xs mb-1">名称</label>
+                    <input type="text" id="itemName" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm mb-3 text-white">
+
+                    <label class="block text-xs mb-1">単価 (円)</label>
+                    <input type="number" id="itemPrice" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm mb-3 text-white">
+
+                    <label class="block text-xs mb-1">描画色</label>
+                    <div class="flex gap-2 mb-3">
+                        <input type="color" id="itemColor" class="h-8 w-12 bg-transparent border-none cursor-pointer">
+                        <span id="colorHex" class="text-xs leading-8 font-mono">#FFFFFF</span>
+                    </div>
+
+                    <div id="subtractiveOption" class="hidden mb-3">
+                        <label class="flex items-center gap-2 text-red-400 cursor-pointer text-sm font-bold bg-gray-800 p-2 rounded border border-red-900">
+                            <input type="checkbox" id="isSubtractive">
+                            <i class="fas fa-minus-circle"></i> 除外(中抜き)モード
+                        </label>
+                        <p class="text-[10px] text-gray-400 mt-1 pl-1">※合計面積から減算されます</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-4 text-xs text-gray-500">
+                <p class="mb-2"><strong>操作方法:</strong></p>
+                <ul class="list-disc pl-4 space-y-1">
+                    <li>左クリック: 描画 / 点の追加</li>
+                    <li>右クリック: 描画終了 / 閉じる</li>
+                    <li>ホイール: ズーム</li>
+                    <li>ホイール押し込み: パン（移動）</li>
+                    <li>Delキー: 直前の点/選択削除</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Canvas Area -->
+        <div class="flex-1 relative bg-[#111] overflow-hidden cursor-crosshair" id="canvasContainer">
+            <div id="canvasOverlay" class="absolute top-4 left-4 pointer-events-none select-none text-white drop-shadow-md z-20">
+                <h1 class="text-2xl font-bold opacity-50">Exterior Planner</h1>
+                <p id="cursorPos" class="font-mono text-xs opacity-70">X: 0, Y: 0</p>
+            </div>
+            <canvas id="mainCanvas" class="absolute top-0 left-0"></canvas>
+        </div>
+
+        <!-- Right Sidebar (Estimation) -->
+        <div class="w-80 bg-cad-panel border-l border-cad-border flex flex-col shrink-0 z-10">
+            <div class="p-3 border-b border-cad-border bg-gray-800">
+                <h3 class="font-bold text-sm text-white"><i class="fas fa-calculator mr-2"></i>積算リスト</h3>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto custom-scroll p-2" id="estimationList">
+                <!-- Items inserted here -->
+                <div class="text-center text-gray-500 mt-10 text-sm">
+                    計測データがありません
+                </div>
+            </div>
+
+            <div class="p-4 bg-gray-800 border-t border-cad-border">
+                <div class="flex justify-between items-end mb-1">
+                    <span class="text-sm">合計概算金額</span>
+                    <span class="text-2xl font-bold text-green-400" id="totalAmount">¥0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Logic -->
+    <script>
+        /**
+         * Application Constants & State
+         */
+        const PRESETS = {
+            line: [
+                { name: 'CB積み (120mm)', price: 8000, color: '#ff5555' },
+                { name: 'フェンス (LIXIL T-8)', price: 12000, color: '#55aaff' },
+                { name: '見切りレンガ', price: 4500, color: '#ffaa55' }
+            ],
+            area: [
+                { name: '土間コンクリート', price: 11000, color: '#cccccc' },
+                { name: '人工芝', price: 8500, color: '#55ff55' },
+                { name: '防草シート+砂利', price: 3500, color: '#ffffaa' }
+            ],
+            count: [
+                { name: 'ポールライト', price: 25000, color: '#ffff55' },
+                { name: '植栽 (中木)', price: 15000, color: '#55ffaa' },
+                { name: 'カーポート柱', price: 0, color: '#aa55ff' }
+            ]
+        };
+
+        const App = {
+            canvas: document.getElementById('mainCanvas'),
+            ctx: null,
+            width: 0,
+            height: 0,
+            
+            // View State
+            scale: 1,      // View Zoom
+            offsetX: 0,    // View Pan X
+            offsetY: 0,    // View Pan Y
+            isDragging: false,
+            lastMouseX: 0,
+            lastMouseY: 0,
+
+            // Calibration
+            pixelsPerMeter: 0, // 0 means uncalibrated
+            calibrationPoints: [],
+
+            // Tool State
+            currentTool: 'select', // select, scale, line, area, count
+            drawingPoints: [],     // Points for current shape
+            
+            // Data
+            bgImage: null, // Image or Canvas from PDF
+            shapes: [],    // All drawn objects
+            
+            // Settings
+            currentSettings: {
+                name: '未設定',
+                price: 0,
+                color: '#ffffff',
+                isSubtractive: false
+            }
+        };
+
+        /**
+         * Initialization
+         */
+        window.addEventListener('load', () => {
+            App.ctx = App.canvas.getContext('2d');
+            resizeCanvas();
+            initEvents();
+            setTool('select'); // Fixed: Changed from updateToolSettings to setTool
+            render();
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function resizeCanvas() {
+            const container = document.getElementById('canvasContainer');
+            App.width = container.clientWidth;
+            App.height = container.clientHeight;
+            App.canvas.width = App.width;
+            App.canvas.height = App.height;
+            render();
+        }
+
+        /**
+         * Event Listeners
+         */
+        function initEvents() {
+            // Tools
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    setTool(btn.dataset.tool);
+                });
+            });
+
+            // Canvas Interactions
+            App.canvas.addEventListener('mousedown', onMouseDown);
+            App.canvas.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp); // Window to catch drag out
+            App.canvas.addEventListener('wheel', onWheel, { passive: false });
+            App.canvas.addEventListener('contextmenu', onRightClick);
+
+            // Inputs
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+            document.getElementById('showGrid').addEventListener('change', render);
+            document.getElementById('exportBtn').addEventListener('click', exportCSV);
+            
+            // Settings Inputs
+            document.getElementById('presetSelect').addEventListener('change', applyPreset);
+            document.getElementById('itemName').addEventListener('input', (e) => App.currentSettings.name = e.target.value);
+            document.getElementById('itemPrice').addEventListener('input', (e) => {
+                App.currentSettings.price = parseInt(e.target.value) || 0;
+            });
+            document.getElementById('itemColor').addEventListener('input', (e) => {
+                App.currentSettings.color = e.target.value;
+                document.getElementById('colorHex').textContent = e.target.value;
+            });
+            document.getElementById('isSubtractive').addEventListener('change', (e) => {
+                App.currentSettings.isSubtractive = e.target.checked;
+            });
+
+            // Keyboard
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Delete' || e.key === 'Backspace') {
+                    if (App.drawingPoints.length > 0) {
+                        App.drawingPoints.pop();
+                    } else if (App.currentTool === 'select') {
+                        // Simple delete last shape logic for MVP
+                        if(App.shapes.length > 0) {
+                             if(confirm('最新の図形を削除しますか？')) {
+                                 App.shapes.pop();
+                                 updateEstimation();
+                             }
+                        }
+                    }
+                    render();
+                }
+            });
+        }
+
+        /**
+         * Core Logic
+         */
+        function setTool(toolName) {
+            App.currentTool = toolName;
+            App.drawingPoints = [];
+            App.calibrationPoints = [];
+            
+            // UI visibility handling
+            const subtractiveOption = document.getElementById('subtractiveOption');
+            const presets = document.getElementById('presetSelect');
+            
+            // Reset common options
+            subtractiveOption.classList.add('hidden');
+            App.currentSettings.isSubtractive = false;
+            document.getElementById('isSubtractive').checked = false;
+
+            if (toolName === 'line' || toolName === 'area' || toolName === 'count') {
+                populatePresets(toolName);
+                if (toolName === 'area') subtractiveOption.classList.remove('hidden');
+            } else {
+                presets.innerHTML = '<option>ツールを選択してください</option>';
+            }
+        }
+
+        function populatePresets(type) {
+            const select = document.getElementById('presetSelect');
+            select.innerHTML = '<option value="">-- プリセット選択 --</option>';
+            PRESETS[type].forEach((p, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = p.name;
+                select.appendChild(opt);
+            });
+            // Apply first preset if not custom
+            // applyPreset needs logic to read from dropdown
+        }
+
+        function applyPreset() {
+            const idx = document.getElementById('presetSelect').value;
+            if (idx === "") return;
+            
+            const toolType = App.currentTool;
+            if (!PRESETS[toolType]) return;
+
+            const preset = PRESETS[toolType][idx];
+            
+            document.getElementById('itemName').value = preset.name;
+            document.getElementById('itemPrice').value = preset.price;
+            document.getElementById('itemColor').value = preset.color;
+            document.getElementById('colorHex').textContent = preset.color;
+
+            App.currentSettings.name = preset.name;
+            App.currentSettings.price = preset.price;
+            App.currentSettings.color = preset.color;
+        }
+
+        /**
+         * File Handling
+         */
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('loader').style.display = 'flex';
+
+            try {
+                if (file.type === 'application/pdf') {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                    const page = await pdf.getPage(1);
+                    const viewport = page.getViewport({ scale: 2.0 }); // High res render
+                    
+                    const cvs = document.createElement('canvas');
+                    cvs.width = viewport.width;
+                    cvs.height = viewport.height;
+                    const ctx = cvs.getContext('2d');
+                    
+                    await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                    App.bgImage = cvs;
+                } else {
+                    await new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            App.bgImage = img;
+                            resolve();
+                        };
+                        img.src = URL.createObjectURL(file);
+                    });
+                }
+
+                // Fit to screen
+                fitToScreen();
+                
+                // Reset calibration
+                App.pixelsPerMeter = 0;
+                document.getElementById('scaleStatus').textContent = "未設定";
+                document.getElementById('scaleStatus').classList.remove('text-green-500');
+                document.getElementById('scaleStatus').classList.add('text-yellow-500');
+
+            } catch (err) {
+                console.error(err);
+                alert("ファイルの読み込みに失敗しました。");
+            } finally {
+                document.getElementById('loader').style.display = 'none';
+                render();
+            }
+        }
+
+        function fitToScreen() {
+            if (!App.bgImage) return;
+            const aspectCanvas = App.width / App.height;
+            const aspectImg = App.bgImage.width / App.bgImage.height;
+            
+            if (aspectImg > aspectCanvas) {
+                // Fit width
+                App.scale = (App.width * 0.9) / App.bgImage.width;
+            } else {
+                // Fit height
+                App.scale = (App.height * 0.9) / App.bgImage.height;
+            }
+            
+            // Center
+            App.offsetX = (App.width - App.bgImage.width * App.scale) / 2;
+            App.offsetY = (App.height - App.bgImage.height * App.scale) / 2;
+        }
+
+        /**
+         * Coordinate System
+         */
+        function screenToWorld(sx, sy) {
+            return {
+                x: (sx - App.offsetX) / App.scale,
+                y: (sy - App.offsetY) / App.scale
+            };
+        }
+
+        function worldToScreen(wx, wy) {
+            return {
+                x: wx * App.scale + App.offsetX,
+                y: wy * App.scale + App.offsetY
+            };
+        }
+
+        /**
+         * Mouse Interaction
+         */
+        function onMouseDown(e) {
+            if (e.button === 1) { // Middle click
+                App.isDragging = true;
+                App.lastMouseX = e.clientX;
+                App.lastMouseY = e.clientY;
+                return;
+            }
+
+            const rect = App.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldPos = screenToWorld(mouseX, mouseY);
+
+            if (e.button === 0) { // Left click
+                if (App.currentTool === 'select') {
+                    // Logic to select shape? For now just pan start
+                    App.isDragging = true;
+                    App.lastMouseX = e.clientX;
+                    App.lastMouseY = e.clientY;
+                } 
+                else if (App.currentTool === 'scale') {
+                    App.calibrationPoints.push(worldPos);
+                    if (App.calibrationPoints.length === 2) {
+                        finalizeCalibration();
+                    }
+                }
+                else if (App.currentTool === 'count') {
+                    addShape('count', [worldPos]);
+                }
+                else if (App.currentTool === 'line' || App.currentTool === 'area') {
+                    App.drawingPoints.push(worldPos);
+                }
+            }
+            render();
+        }
+
+        function onMouseMove(e) {
+            const rect = App.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldPos = screenToWorld(mouseX, mouseY);
+            
+            // Update Cursor Info
+            document.getElementById('cursorPos').textContent = `X: ${Math.round(worldPos.x)}, Y: ${Math.round(worldPos.y)}`;
+
+            if (App.isDragging) {
+                const dx = e.clientX - App.lastMouseX;
+                const dy = e.clientY - App.lastMouseY;
+                App.offsetX += dx;
+                App.offsetY += dy;
+                App.lastMouseX = e.clientX;
+                App.lastMouseY = e.clientY;
+                render();
+            } else {
+                // Redraw for preview line
+                render(worldPos); 
+            }
+        }
+
+        function onMouseUp(e) {
+            App.isDragging = false;
+        }
+
+        function onWheel(e) {
+            e.preventDefault();
+            const rect = App.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const zoomIntensity = 0.1;
+            const wheel = e.deltaY < 0 ? 1 : -1;
+            const zoom = Math.exp(wheel * zoomIntensity);
+
+            // Zoom towards mouse
+            const worldPosBefore = screenToWorld(mouseX, mouseY);
+            App.scale *= zoom;
+            // Clamp scale
+            App.scale = Math.max(0.01, Math.min(App.scale, 50)); 
+            
+            const worldPosAfter = screenToWorld(mouseX, mouseY);
+            
+            // Adjust offset to keep mouse over same world point
+            App.offsetX += (worldPosAfter.x - worldPosBefore.x) * App.scale;
+            App.offsetY += (worldPosAfter.y - worldPosBefore.y) * App.scale;
+
+            render();
+        }
+
+        function onRightClick(e) {
+            e.preventDefault();
+            if (App.currentTool === 'line' && App.drawingPoints.length > 1) {
+                addShape('line', [...App.drawingPoints]);
+                App.drawingPoints = [];
+            } else if (App.currentTool === 'area' && App.drawingPoints.length > 2) {
+                addShape('area', [...App.drawingPoints]);
+                App.drawingPoints = [];
+            } else {
+                // Cancel drawing
+                App.drawingPoints = [];
+                App.calibrationPoints = [];
+            }
+            render();
+        }
+
+        /**
+         * Operations
+         */
+        function finalizeCalibration() {
+            const p1 = App.calibrationPoints[0];
+            const p2 = App.calibrationPoints[1];
+            const pixelDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            
+            const meterInput = prompt("指定した2点間の距離(メートル)を入力してください", "1.0");
+            const meters = parseFloat(meterInput);
+            
+            if (meters && meters > 0) {
+                App.pixelsPerMeter = pixelDist / meters;
+                document.getElementById('scaleStatus').textContent = `1m = ${Math.round(App.pixelsPerMeter)}px`;
+                document.getElementById('scaleStatus').classList.remove('text-yellow-500');
+                document.getElementById('scaleStatus').classList.add('text-green-500');
+            }
+            App.calibrationPoints = [];
+            render();
+        }
+
+        function addShape(type, points) {
+            const shape = {
+                type: type,
+                points: points,
+                settings: { ...App.currentSettings }
+            };
+            App.shapes.push(shape);
+            updateEstimation();
+        }
+
+        /**
+         * Drawing / Rendering
+         */
+        function render(cursorWorldPos = null) {
+            const ctx = App.ctx;
+            ctx.clearRect(0, 0, App.width, App.height);
+
+            // 1. Draw Background
+            if (App.bgImage) {
+                ctx.save();
+                ctx.translate(App.offsetX, App.offsetY);
+                ctx.scale(App.scale, App.scale);
+                ctx.drawImage(App.bgImage, 0, 0);
+                
+                // 2. Draw Grid (if enabled and calibrated)
+                if (document.getElementById('showGrid').checked && App.pixelsPerMeter > 0) {
+                    drawGrid(ctx, App.bgImage.width, App.bgImage.height);
+                }
+                ctx.restore();
+            }
+
+            // 3. Draw Existing Shapes
+            App.shapes.forEach(shape => drawShape(ctx, shape));
+
+            // 4. Draw Current Drawing State
+            if (App.currentTool === 'scale') {
+                App.calibrationPoints.forEach(p => drawMarker(ctx, p, '#ff00ff'));
+                if (App.calibrationPoints.length === 1 && cursorWorldPos) {
+                    drawLine(ctx, App.calibrationPoints[0], cursorWorldPos, '#ff00ff', true);
+                }
+            } else if (App.drawingPoints.length > 0) {
+                const color = App.currentSettings.color;
+                App.drawingPoints.forEach(p => drawMarker(ctx, p, color, 3));
+                
+                if (App.drawingPoints.length > 0 && cursorWorldPos) {
+                     // Draw preview line to cursor
+                     drawLine(ctx, App.drawingPoints[App.drawingPoints.length-1], cursorWorldPos, color, true);
+                }
+
+                // Draw segments
+                for (let i = 0; i < App.drawingPoints.length - 1; i++) {
+                    drawLine(ctx, App.drawingPoints[i], App.drawingPoints[i+1], color);
+                }
+
+                // Area close loop preview
+                if (App.currentTool === 'area' && App.drawingPoints.length > 1 && cursorWorldPos) {
+                    // Preview fill
+                    ctx.save();
+                    ctx.beginPath();
+                    const sStart = worldToScreen(App.drawingPoints[0].x, App.drawingPoints[0].y);
+                    ctx.moveTo(sStart.x, sStart.y);
+                    for(let i=1; i<App.drawingPoints.length; i++) {
+                        const s = worldToScreen(App.drawingPoints[i].x, App.drawingPoints[i].y);
+                        ctx.lineTo(s.x, s.y);
+                    }
+                    const sCursor = worldToScreen(cursorWorldPos.x, cursorWorldPos.y);
+                    ctx.lineTo(sCursor.x, sCursor.y);
+                    ctx.fillStyle = hexToRgba(color, 0.2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+        }
+
+        function drawGrid(ctx, width, height) {
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.3)";
+            ctx.lineWidth = 1 / App.scale; // Keep 1px regardless of zoom
+            const step = App.pixelsPerMeter;
+            
+            ctx.beginPath();
+            for (let x = 0; x <= width; x += step) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+            }
+            for (let y = 0; y <= height; y += step) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+            }
+            ctx.stroke();
+        }
+
+        function drawShape(ctx, shape) {
+            const color = shape.settings.color;
+            const isSub = shape.settings.isSubtractive;
+            
+            if (shape.type === 'count') {
+                drawMarker(ctx, shape.points[0], color, 6, true);
+            } else if (shape.type === 'line') {
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    drawLine(ctx, shape.points[i], shape.points[i+1], color, false, 3);
+                }
+                // Draw nodes
+                shape.points.forEach(p => drawMarker(ctx, p, color, 2));
+            } else if (shape.type === 'area') {
+                ctx.save();
+                ctx.beginPath();
+                const start = worldToScreen(shape.points[0].x, shape.points[0].y);
+                ctx.moveTo(start.x, start.y);
+                for (let i = 1; i < shape.points.length; i++) {
+                    const p = worldToScreen(shape.points[i].x, shape.points[i].y);
+                    ctx.lineTo(p.x, p.y);
+                }
+                ctx.closePath();
+                
+                // Color logic for subtractive
+                if (isSub) {
+                    ctx.fillStyle = "rgba(255, 50, 50, 0.4)";
+                    ctx.strokeStyle = "#ff0000";
+                    ctx.setLineDash([5, 5]);
+                } else {
+                    ctx.fillStyle = hexToRgba(color, 0.3);
+                    ctx.strokeStyle = color;
+                }
+                
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        function drawLine(ctx, p1, p2, color, dashed = false, width = 2) {
+            const s1 = worldToScreen(p1.x, p1.y);
+            const s2 = worldToScreen(p2.x, p2.y);
+            ctx.beginPath();
+            ctx.moveTo(s1.x, s1.y);
+            ctx.lineTo(s2.x, s2.y);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = width;
+            if (dashed) ctx.setLineDash([5, 5]);
+            else ctx.setLineDash([]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        function drawMarker(ctx, p, color, size = 4, isIcon = false) {
+            const s = worldToScreen(p.x, p.y);
+            ctx.fillStyle = color;
+            if (isIcon) {
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, size * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#fff";
+                ctx.stroke();
+            } else {
+                ctx.fillRect(s.x - size/2, s.y - size/2, size, size);
+            }
+        }
+
+        function hexToRgba(hex, alpha) {
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        /**
+         * Calculation & Estimation
+         */
+        function calculateMetric(shape) {
+            if (App.pixelsPerMeter === 0) return 0;
+
+            if (shape.type === 'line') {
+                let distPx = 0;
+                for (let i = 0; i < shape.points.length - 1; i++) {
+                    const p1 = shape.points[i];
+                    const p2 = shape.points[i+1];
+                    distPx += Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                }
+                return distPx / App.pixelsPerMeter; // meters
+            } 
+            else if (shape.type === 'area') {
+                // Shoelace formula
+                let areaPx = 0;
+                const pts = shape.points;
+                const n = pts.length;
+                for (let i = 0; i < n; i++) {
+                    areaPx += (pts[i].x * pts[(i + 1) % n].y) - (pts[(i + 1) % n].x * pts[i].y);
+                }
+                areaPx = Math.abs(areaPx) / 2;
+                const m2 = areaPx / (App.pixelsPerMeter * App.pixelsPerMeter);
+                return shape.settings.isSubtractive ? -m2 : m2;
+            }
+            else if (shape.type === 'count') {
+                return 1;
+            }
+            return 0;
+        }
+
+        function updateEstimation() {
+            const list = document.getElementById('estimationList');
+            list.innerHTML = '';
+            
+            let grandTotal = 0;
+            const groups = {};
+
+            // Group by item name
+            App.shapes.forEach((shape, idx) => {
+                const name = shape.settings.name;
+                if (!groups[name]) {
+                    groups[name] = { 
+                        name: name, 
+                        price: shape.settings.price, 
+                        color: shape.settings.color,
+                        quantity: 0,
+                        unit: '',
+                        shapes: []
+                    };
+                }
+                
+                const val = calculateMetric(shape);
+                groups[name].quantity += val;
+                groups[name].shapes.push(idx);
+
+                if (shape.type === 'line') groups[name].unit = 'm';
+                else if (shape.type === 'area') groups[name].unit = '㎡';
+                else groups[name].unit = '個';
+            });
+
+            // Render List
+            Object.values(groups).forEach(item => {
+                const subtotal = Math.round(item.quantity * item.price);
+                grandTotal += subtotal;
+
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-2 rounded mb-2 text-sm border-l-4';
+                div.style.borderLeftColor = item.color;
+                
+                div.innerHTML = `
+                    <div class="flex justify-between font-bold text-gray-200">
+                        <span>${item.name}</span>
+                        <span>¥${subtotal.toLocaleString()}</span>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>単価: ¥${item.price.toLocaleString()}</span>
+                        <span>数量: ${item.quantity.toFixed(2)} ${item.unit}</span>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+
+            document.getElementById('totalAmount').textContent = `¥${grandTotal.toLocaleString()}`;
+        }
+
+        /**
+         * Export
+         */
+        function exportCSV() {
+            if (App.shapes.length === 0) {
+                alert("出力するデータがありません");
+                return;
+            }
+            
+            // Re-aggregate for clean CSV
+            const groups = {};
+            App.shapes.forEach(shape => {
+                const name = shape.settings.name;
+                if (!groups[name]) groups[name] = { price: shape.settings.price, quantity: 0, unit: '' };
+                const val = calculateMetric(shape);
+                groups[name].quantity += val;
+                if (shape.type === 'line') groups[name].unit = 'm';
+                else if (shape.type === 'area') groups[name].unit = 'm2';
+                else groups[name].unit = '個';
+            });
+
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "品名,単価,数量,単位,合計金額\n";
+
+            Object.keys(groups).forEach(key => {
+                const item = groups[key];
+                const total = Math.round(item.quantity * item.price);
+                csvContent += `${key},${item.price},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "estimation_data.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+    </script>
+</body>
+</html>
