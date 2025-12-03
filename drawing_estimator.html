@@ -254,6 +254,28 @@
                 </div>
             </div>
 
+            <!-- Manual Input Section -->
+            <div class="bg-cad-panel border-t border-cad-border p-3" id="manualInputSection">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="text-xs font-bold text-yellow-500">付帯工事・その他 (手入力)</h4>
+                </div>
+                
+                <!-- List of manual items -->
+                <div id="manualItemsContainer" class="space-y-1 mb-2">
+                    <!-- JS will populate this -->
+                </div>
+
+                <!-- Input form -->
+                <div class="flex gap-2 items-center">
+                    <input type="text" id="manualName" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="項目名">
+                    <input type="number" id="manualPrice" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="金額">
+                    <button id="addManualBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1 text-xs transition">
+                        追加
+                    </button>
+                </div>
+            </div>
+
+
             <div class="p-4 bg-gray-800 border-t border-cad-border">
                 <div class="flex justify-between items-end mb-1">
                     <span class="text-sm">合計概算金額</span>
@@ -396,7 +418,8 @@
             pixelsPerMeter: 0, 
             calibrationPoints: [],
             bgImage: null, 
-            shapes: [],    
+            shapes: [],
+            manualItems: [],   
             currentSettings: {
                 name: '未設定',
                 price: 0,
@@ -416,6 +439,7 @@
             setTool('select');
             render();
             setTimeout(() => updateMasterTable(), 100);
+            renderManualItems();
         });
 
         window.addEventListener('resize', resizeCanvas);
@@ -610,6 +634,7 @@
             document.getElementById('deleteAllBtn').addEventListener('click', deleteAllMaterials);
             document.getElementById('restoreDefaultsBtn').addEventListener('click', restoreDefaults);
             document.getElementById('masterSearchInput').addEventListener('input', () => updateMasterTable());
+            document.getElementById('addManualBtn').addEventListener('click', () => addManualItem());
 
             document.querySelectorAll('.tool-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -1064,6 +1089,75 @@
             render();
         }
 
+        // --- Manual Item Logic (New) ---
+        function addManualItem() {
+            const nameInput = document.getElementById('manualName');
+            const priceInput = document.getElementById('manualPrice');
+            const name = nameInput.value.trim();
+            const price = parseInt(priceInput.value);
+
+            if (!name) {
+                alert("項目名を入力してください");
+                return;
+            }
+            if (isNaN(price)) {
+                alert("金額を数値で入力してください");
+                return;
+            }
+
+            const item = {
+                id: Date.now(),
+                name: name,
+                price: price
+            };
+            
+            App.manualItems.push(item);
+            
+            // Reset inputs
+            nameInput.value = '';
+            priceInput.value = '';
+            
+            renderManualItems();
+            updateEstimation();
+        }
+
+        function deleteManualItem(id) {
+            App.manualItems = App.manualItems.filter(item => item.id !== id);
+            renderManualItems();
+            updateEstimation();
+        }
+
+        function renderManualItems() {
+            const container = document.getElementById('manualItemsContainer');
+            container.innerHTML = '';
+            
+            App.manualItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center text-xs bg-gray-700 p-1 rounded border border-gray-600';
+                div.innerHTML = `
+                    <div class="flex-1 px-1">
+                        <span class="text-gray-300 block">${item.name}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-white font-mono">¥${item.price.toLocaleString()}</span>
+                        <button onclick="deleteManualItem(${item.id})" class="text-red-500 hover:text-red-300 px-1">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+        
+        // Expose to window for inline onclick handlers
+        window.deleteManualItem = deleteManualItem;
+        window.deleteMaterialFromDB = deleteMaterialFromDB;
+        window.searchMaterialImage = searchMaterialImage;
+        window.deleteShape = deleteShape;
+        window.removeAdditionalItem = removeAdditionalItem;
+
+
+
         // --- Render ---
         function render(cursorWorldPos = null) {
             const ctx = App.ctx;
@@ -1468,7 +1562,7 @@
         window.removeAdditionalItem = removeAdditionalItem;
 
         function exportCSV() {
-            if (App.shapes.length === 0) {
+            if (App.shapes.length === 0 && App.manualItems.length === 0) {
                 alert("出力するデータがありません");
                 return;
             }
@@ -1506,6 +1600,12 @@
                 const total = Math.round(item.quantity * item.effectivePrice);
                 csvContent += `${item.name},${item.effectivePrice},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
             });
+
+            // Manual Items
+            App.manualItems.forEach(item => {
+                csvContent += `${item.name},${item.price},1,式,${item.price}\n`;
+            });
+
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
