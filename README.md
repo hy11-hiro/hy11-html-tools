@@ -55,7 +55,7 @@ GitHub Pagesを通じて公開され、黒板作成・原価管理・画像編�
   - **積算リスト**：計測結果を一覧化し、合計概算金額を自動計算
  
   - 
-- [図面積算ツール ver.2 (Exterior Planner)](https://hy11-hiro.github.io/hy11-html-tools/drawing_estimator_ver2.html)  
+- [図面積算ツール ver.2 (Exterior Planner)](https://hy11-hiro.github.io/hy11-html-tools/drawing_estimator.ver2.html)  
   Chrome環境で部材マスタが動作しない問題に対応した改良版。IndexedDBが利用できない場合でも**一時保存モード**に切り替えて動作するため、Chromeでも部材の追加・編集が可能です。  
   - **改善点**：Chromeのセキュリティ制限によるIndexedDBブロックを回避  
   - **動作仕様**：データベースが使えない場合はメモリ内で一時保存（ブラウザを閉じると消えます）  
