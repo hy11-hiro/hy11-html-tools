@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exterior Planner - 外構積算ツール</title>
+    <title>Exterior Planner - 外構積算ツール (Edge版)</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -254,27 +254,24 @@
                 </div>
             </div>
 
-            <!-- Manual Input Section -->
-            <div class="bg-cad-panel border-t border-cad-border p-3" id="manualInputSection">
-                <div class="flex justify-between items-center mb-2">
-                    <h4 class="text-xs font-bold text-yellow-500">付帯工事・その他 (手入力)</h4>
-                </div>
+            <!-- Manual Entry Section (NEW) -->
+            <div class="p-3 border-t border-cad-border bg-gray-800">
+                <label class="block text-xs font-bold text-yellow-500 mb-2">
+                    <i class="fas fa-pen-to-square mr-1"></i> 付帯工事・その他 (手入力)
+                </label>
                 
-                <!-- List of manual items -->
-                <div id="manualItemsContainer" class="space-y-1 mb-2">
-                    <!-- JS will populate this -->
-                </div>
-
-                <!-- Input form -->
-                <div class="flex gap-2 items-center">
-                    <input type="text" id="manualName" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="項目名">
-                    <input type="number" id="manualPrice" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white" placeholder="金額">
-                    <button id="addManualBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-1 text-xs transition">
+                <div class="flex gap-2 mb-2">
+                    <input type="text" id="manualItemName" placeholder="項目名" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-cad-accent outline-none">
+                    <input type="number" id="manualItemPrice" placeholder="金額" class="w-20 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:border-cad-accent outline-none">
+                    <button id="addManualItemBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs transition font-bold tracking-wider">
                         追加
                     </button>
                 </div>
+                
+                <div id="manualItemList" class="space-y-1 max-h-40 overflow-y-auto custom-scroll mb-1">
+                    <!-- Manual items populated here -->
+                </div>
             </div>
-
 
             <div class="p-4 bg-gray-800 border-t border-cad-border">
                 <div class="flex justify-between items-end mb-1">
@@ -378,25 +375,25 @@
          */
         let db;
         const DEFAULT_PRESETS = [
-            { name: 'CB100 (1段m単価)', refName: '重量ブロック 100', unit: 'm', price: 1800, type: 'line', color: '#A9A9A9' },
-            { name: 'CB120 (1段m単価)', refName: '重量ブロック 120', unit: 'm', price: 2200, type: 'line', color: '#808080' },
-            { name: 'CB150 (1段m単価)', refName: '重量ブロック 150', unit: 'm', price: 2800, type: 'line', color: '#696969' },
-            { name: '化粧ブロックA (1段m単価)', refName: 'ユニソン シャモティ', unit: 'm', price: 4500, type: 'line', color: '#CD853F' },
-            { name: 'ブロック基礎', refName: 'ブロック 基礎断面', unit: 'm', price: 3500, type: 'line', color: '#778899' },
+            { id: 101, name: 'CB100', refName: '重量ブロック 100', unit: 'm', price: 1800, type: 'line', color: '#A9A9A9' },
+            { id: 102, name: 'CB120', refName: '重量ブロック 120', unit: 'm', price: 2200, type: 'line', color: '#808080' },
+            { id: 103, name: 'CB150', refName: '重量ブロック 150', unit: 'm', price: 2800, type: 'line', color: '#696969' },
+            { id: 104, name: '化粧ブロックA', refName: 'ユニソン シャモティ', unit: 'm', price: 4500, type: 'line', color: '#CD853F' },
+            { id: 105, name: 'ブロック基礎', refName: 'ブロック 基礎断面', unit: 'm', price: 3500, type: 'line', color: '#778899' },
             
-            { name: '土間コンクリート(金鏝)', refName: '土間コンクリート 金鏝仕上げ', unit: 'm2', price: 11000, type: 'area', color: '#D3D3D3' },
-            { name: '土間コンクリート(刷毛)', refName: '土間コンクリート 刷毛引き', unit: 'm2', price: 11000, type: 'area', color: '#C0C0C0' },
-            { name: '砕石路盤 (RC40)', refName: '砕石 RC40', unit: 'm2', price: 1500, type: 'area', color: '#708090' },
-            { name: '防草シート+砂利', refName: '防草シート 砂利敷き', unit: 'm2', price: 3500, type: 'area', color: '#F0E68C' },
-            { name: 'インターロッキング', refName: 'インターロッキング 舗装', unit: 'm2', price: 12000, type: 'area', color: '#CD5C5C' },
+            { id: 201, name: '土間コンクリート(金鏝)', refName: '土間コンクリート 金鏝仕上げ', unit: 'm2', price: 11000, type: 'area', color: '#D3D3D3' },
+            { id: 202, name: '土間コンクリート(刷毛)', refName: '土間コンクリート 刷毛引き', unit: 'm2', price: 11000, type: 'area', color: '#C0C0C0' },
+            { id: 203, name: '砕石路盤 (RC40)', refName: '砕石 RC40', unit: 'm2', price: 1500, type: 'area', color: '#708090' },
+            { id: 204, name: '防草シート+砂利', refName: '防草シート 砂利敷き', unit: 'm2', price: 3500, type: 'area', color: '#F0E68C' },
+            { id: 205, name: 'インターロッキング', refName: 'インターロッキング 舗装', unit: 'm2', price: 12000, type: 'area', color: '#CD5C5C' },
             
-            { name: 'メッシュフェンス T-8', refName: 'LIXIL ハイグリッドフェンスN8型', unit: 'm', price: 5000, type: 'line', color: '#4682B4' },
-            { name: '目隠しフェンス T-8', refName: 'LIXIL フェンスAB YL2型', unit: 'm', price: 12000, type: 'line', color: '#5F9EA0' },
-            { name: '機能門柱', refName: 'LIXIL 機能門柱FW', unit: '基', price: 80000, type: 'count', color: '#2F4F4F' },
-            { name: 'カーポート (1台用)', refName: 'YKKAP アリュース 1台用', unit: '基', price: 150000, type: 'count', color: '#191970' },
+            { id: 301, name: 'メッシュフェンス T-8', refName: 'LIXIL ハイグリッドフェンスN8型', unit: 'm', price: 5000, type: 'line', color: '#4682B4' },
+            { id: 302, name: '目隠しフェンス T-8', refName: 'LIXIL フェンスAB YL2型', unit: 'm', price: 12000, type: 'line', color: '#5F9EA0' },
+            { id: 303, name: '機能門柱', refName: 'LIXIL 機能門柱FW', unit: '基', price: 80000, type: 'count', color: '#2F4F4F' },
+            { id: 304, name: 'カーポート (1台用)', refName: 'YKKAP アリュース 1台用', unit: '基', price: 150000, type: 'count', color: '#191970' },
             
-            { name: '高木 (H2.5)', refName: 'シマトネリコ 株立ち', unit: '本', price: 25000, type: 'count', color: '#228B22' },
-            { name: '人工芝', refName: 'リアリーターフ', unit: 'm2', price: 8500, type: 'area', color: '#32CD32' }
+            { id: 401, name: '高木 (H2.5)', refName: 'シマトネリコ 株立ち', unit: '本', price: 25000, type: 'count', color: '#228B22' },
+            { id: 402, name: '人工芝', refName: 'リアリーターフ', unit: 'm2', price: 8500, type: 'area', color: '#32CD32' }
         ];
 
         let loadedMaterials = [];
@@ -419,7 +416,7 @@
             calibrationPoints: [],
             bgImage: null, 
             shapes: [],
-            manualItems: [],   
+            manualItems: [], 
             currentSettings: {
                 name: '未設定',
                 price: 0,
@@ -439,7 +436,6 @@
             setTool('select');
             render();
             setTimeout(() => updateMasterTable(), 100);
-            renderManualItems();
         });
 
         window.addEventListener('resize', resizeCanvas);
@@ -471,58 +467,52 @@
             return 'bg-gray-700';
         }
 
-        // --- IndexedDB ---
+        // --- IndexedDB (Edge Version: Strict) ---
         function initDB() {
             return new Promise((resolve, reject) => {
                 const request = indexedDB.open("ExteriorPlannerDB", 2); 
                 request.onupgradeneeded = (e) => {
                     db = e.target.result;
                     if (!db.objectStoreNames.contains("materials")) {
-                        db.createObjectStore("materials", { keyPath: "id", autoIncrement: true });
+                        const store = db.createObjectStore("materials", { keyPath: "id", autoIncrement: true });
+                         DEFAULT_PRESETS.forEach(item => {
+                            const { id, ...cleanItem } = item;
+                            store.add(cleanItem);
+                        });
                     }
                 };
                 request.onsuccess = (e) => {
                     db = e.target.result;
-                    checkAndInitDefaults().then(() => {
-                        loadMaterialsFromDB().then(() => resolve());
-                    });
+                    loadMaterialsFromDB().then(() => resolve());
                 };
                 request.onerror = (e) => {
                     console.error("DB Error", e);
+                    alert("データベースの読み込みに失敗しました。このブラウザ環境ではデータ保存ができない可能性があります。");
                     loadedMaterials = [...DEFAULT_PRESETS];
                     resolve();
                 };
             });
         }
 
-        function checkAndInitDefaults() {
-            return new Promise((resolve) => {
-                const transaction = db.transaction(["materials"], "readwrite");
-                const store = transaction.objectStore("materials");
-                const countReq = store.count();
-                countReq.onsuccess = () => {
-                    if (countReq.result === 0) {
-                        DEFAULT_PRESETS.forEach(item => store.add(item));
-                        transaction.oncomplete = () => resolve();
-                    } else {
-                        resolve();
-                    }
-                };
-                countReq.onerror = () => resolve();
-            });
-        }
-
         function loadMaterialsFromDB() {
             return new Promise((resolve) => {
+                if(!db) { resolve(); return; }
                 const transaction = db.transaction(["materials"], "readonly");
                 const store = transaction.objectStore("materials");
                 const request = store.getAll();
                 request.onsuccess = (e) => {
                     const res = e.target.result;
-                    loadedMaterials = res || [];
+                    if (!res || res.length === 0) {
+                         loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
+                    } else {
+                        loadedMaterials = res;
+                    }
                     resolve();
                 };
-                request.onerror = () => { loadedMaterials = []; resolve(); }
+                request.onerror = () => { 
+                    loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
+                    resolve(); 
+                }
             });
         }
 
@@ -634,7 +624,6 @@
             document.getElementById('deleteAllBtn').addEventListener('click', deleteAllMaterials);
             document.getElementById('restoreDefaultsBtn').addEventListener('click', restoreDefaults);
             document.getElementById('masterSearchInput').addEventListener('input', () => updateMasterTable());
-            document.getElementById('addManualBtn').addEventListener('click', () => addManualItem());
 
             document.querySelectorAll('.tool-btn').forEach(btn => {
                 btn.addEventListener('click', (e) => {
@@ -672,6 +661,16 @@
                 document.body.style.cursor = 'crosshair';
             });
             document.getElementById('additionalItemSelect').addEventListener('change', addAdditionalItem);
+
+            // --- NEW: Manual Item Event ---
+            document.getElementById('addManualItemBtn').addEventListener('click', addManualItem);
+            
+            // Enter key support for manual items
+            const handleManualEnter = (e) => {
+                if (e.key === 'Enter') addManualItem();
+            };
+            document.getElementById('manualItemName').addEventListener('keypress', handleManualEnter);
+            document.getElementById('manualItemPrice').addEventListener('keypress', handleManualEnter);
         }
 
         // --- Core Functions ---
@@ -1089,75 +1088,6 @@
             render();
         }
 
-        // --- Manual Item Logic (New) ---
-        function addManualItem() {
-            const nameInput = document.getElementById('manualName');
-            const priceInput = document.getElementById('manualPrice');
-            const name = nameInput.value.trim();
-            const price = parseInt(priceInput.value);
-
-            if (!name) {
-                alert("項目名を入力してください");
-                return;
-            }
-            if (isNaN(price)) {
-                alert("金額を数値で入力してください");
-                return;
-            }
-
-            const item = {
-                id: Date.now(),
-                name: name,
-                price: price
-            };
-            
-            App.manualItems.push(item);
-            
-            // Reset inputs
-            nameInput.value = '';
-            priceInput.value = '';
-            
-            renderManualItems();
-            updateEstimation();
-        }
-
-        function deleteManualItem(id) {
-            App.manualItems = App.manualItems.filter(item => item.id !== id);
-            renderManualItems();
-            updateEstimation();
-        }
-
-        function renderManualItems() {
-            const container = document.getElementById('manualItemsContainer');
-            container.innerHTML = '';
-            
-            App.manualItems.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'flex justify-between items-center text-xs bg-gray-700 p-1 rounded border border-gray-600';
-                div.innerHTML = `
-                    <div class="flex-1 px-1">
-                        <span class="text-gray-300 block">${item.name}</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-white font-mono">¥${item.price.toLocaleString()}</span>
-                        <button onclick="deleteManualItem(${item.id})" class="text-red-500 hover:text-red-300 px-1">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        }
-        
-        // Expose to window for inline onclick handlers
-        window.deleteManualItem = deleteManualItem;
-        window.deleteMaterialFromDB = deleteMaterialFromDB;
-        window.searchMaterialImage = searchMaterialImage;
-        window.deleteShape = deleteShape;
-        window.removeAdditionalItem = removeAdditionalItem;
-
-
-
         // --- Render ---
         function render(cursorWorldPos = null) {
             const ctx = App.ctx;
@@ -1448,6 +1378,63 @@
             return 1;
         }
 
+        // --- Manual Item Functions ---
+        function addManualItem() {
+            const nameInput = document.getElementById('manualItemName');
+            const priceInput = document.getElementById('manualItemPrice');
+            const name = nameInput.value.trim();
+            const price = parseInt(priceInput.value);
+
+            if (!name) {
+                alert('項目名を入力してください');
+                return;
+            }
+            if (isNaN(price)) {
+                alert('金額を数値で入力してください');
+                return;
+            }
+
+            App.manualItems.push({
+                id: Date.now(),
+                name: name,
+                price: price
+            });
+
+            nameInput.value = '';
+            priceInput.value = '';
+            updateEstimation(); // 再計算と描画
+            
+            // Focus back on name input for rapid entry
+            nameInput.focus();
+        }
+
+        function deleteManualItem(id) {
+            App.manualItems = App.manualItems.filter(item => item.id !== id);
+            updateEstimation();
+        }
+
+        function renderManualList() {
+            const container = document.getElementById('manualItemList');
+            container.innerHTML = '';
+            
+            App.manualItems.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center bg-gray-700 px-2 py-1 rounded text-xs text-gray-200 border border-gray-600 hover:bg-gray-600 transition';
+                div.innerHTML = `
+                    <div class="flex-1 truncate mr-2">
+                        <span class="font-bold text-yellow-100">${item.name}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-mono">¥${item.price.toLocaleString()}</span>
+                        <button onclick="deleteManualItem(${item.id})" class="text-red-400 hover:text-red-200 transition">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
         function updateEstimation() {
             const list = document.getElementById('estimationList');
             list.innerHTML = '';
@@ -1455,6 +1442,7 @@
             let grandTotal = 0;
             const groups = {};
 
+            // 既存の自動積算ロジック
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
                 const mult = Math.round(shape.settings.multiplier || 1);
@@ -1500,6 +1488,7 @@
                 }
             });
 
+            // 自動積算リストの描画
             Object.keys(groups).forEach((key, groupIndex) => {
                 const item = groups[key];
                 const subtotal = Math.round(item.quantity * item.effectivePrice);
@@ -1555,18 +1544,31 @@
                 wrapper.appendChild(details);
                 list.appendChild(wrapper);
             });
+
+            // 手入力項目の計算とリスト更新
+            renderManualList();
+            let manualTotal = 0;
+            App.manualItems.forEach(item => {
+                manualTotal += item.price;
+            });
+            grandTotal += manualTotal;
+
             document.getElementById('totalAmount').textContent = `¥${grandTotal.toLocaleString()}`;
         }
         
         window.deleteShape = deleteShape;
         window.removeAdditionalItem = removeAdditionalItem;
+        window.deleteManualItem = deleteManualItem; // グローバルスコープへ公開
 
         function exportCSV() {
+            // NOTE: 手入力がなくても図形があれば出力する、あるいは逆も然り
             if (App.shapes.length === 0 && App.manualItems.length === 0) {
                 alert("出力するデータがありません");
                 return;
             }
             const groups = {};
+            
+            // 図形データの集計
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
                 const mult = Math.round(shape.settings.multiplier || 1);
@@ -1595,15 +1597,17 @@
 
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
             csvContent += "品名,単価,数量,単位,合計金額\n";
+            
+            // 図形分出力
             Object.keys(groups).forEach(key => {
                 const item = groups[key];
                 const total = Math.round(item.quantity * item.effectivePrice);
                 csvContent += `${item.name},${item.effectivePrice},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
             });
 
-            // Manual Items
+            // 手入力分出力
             App.manualItems.forEach(item => {
-                csvContent += `${item.name},${item.price},1,式,${item.price}\n`;
+                csvContent += `${item.name} (手入力),${item.price},1,式,${item.price}\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
