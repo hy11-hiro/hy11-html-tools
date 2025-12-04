@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Drafting Canvas - 作図練習ツール</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- jsPDF for PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        body { overflow: hidden; background-color: #2d2d2d; color: #e5e5e5; font-family: 'Noto Sans JP', sans-serif; }
+        canvas { touch-action: none; cursor: crosshair; display: block; }
+        .tool-btn { @apply p-2 rounded hover:bg-gray-700 transition-colors flex items-center justify-center relative; }
+        .tool-btn.active { @apply bg-blue-600 text-white; }
+        
+        /* Panel styling - Force opaque background */
+        .panel { 
+            background-color: #000000 !important; /* Pure Black */
+            border: 1px solid #666;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            color: white;
+            z-index: 50;
+        }
+        
+        input[type=range] { @apply w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer; }
+        input[type=range]::-webkit-slider-thumb { @apply appearance-none w-3 h-3 bg-blue-500 rounded-full cursor-pointer; }
+        
+        select { @apply bg-white text-black text-xs border border-gray-400 rounded p-1 cursor-pointer hover:bg-gray-200 focus:outline-none focus:border-blue-500; }
+        input[type=number] { @apply bg-white text-black text-xs border border-gray-400 rounded p-1 w-16 text-center focus:outline-none focus:border-blue-500; }
+        input[type=color] { @apply w-6 h-6 p-0 border-0 rounded cursor-pointer; }
+        
+        .tooltip { opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        .tool-btn:hover .tooltip { opacity: 1; }
+        input[type=checkbox] { @apply w-4 h-4 text-blue-600 bg-gray-700 border-gray-500 rounded focus:ring-blue-500 focus:ring-2 cursor-pointer; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo, useCallback } = React;
+        const { jsPDF } = window.jspdf;
+
+        const DPI = 96;
+        const MM_TO_PX = DPI / 25.4;
+        
+        const PAPERS = {
+            A4_L: { width: 297, height: 210, name: 'A4 横' },
+            A4_P: { width: 210, height: 297, name: 'A4 縦' },
+            A3_L: { width: 420, height: 297, name: 'A3 横' },
+            A3_P: { width: 297, height: 420, name: 'A3 縦' },
+        };
+
+        const GRID_MODES = { ORTHO: 'ORTHO', ISO: 'ISO', PERSP_1: 'PERSP_1', PERSP_2: 'PERSP_2' };
+        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser' };
+
+        const SCALES = [ { val: 1, label: '1:1' }, { val: 10, label: '1:10' }, { val: 20, label: '1:20' }, { val: 30, label: '1:30' }, { val: 50, label: '1:50' }, { val: 100, label: '1:100' }, { val: 200, label: '1:200' } ];
+        const LINE_WIDTHS = [ { val: 0.1, label: '0.1mm' }, { val: 0.2, label: '0.2mm' }, { val: 0.3, label: '0.3mm' }, { val: 0.5, label: '0.5mm' }, { val: 0.7, label: '0.7mm' }, { val: 1.0, label: '1.0mm' }, { val: 2.0, label: '2.0mm' } ];
+
+        const Geo = {
+            dist: (p1, p2) => Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2),
+            mid: (p1, p2) => ({ x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }),
+            snapToGrid: (val, step) => Math.round(val / step) * step,
+            projectPoint: (x, y, matrix) => ({ x: (x * matrix.scale) + matrix.offsetX, y: (y * matrix.scale) + matrix.offsetY }),
+            unprojectPoint: (screenX, screenY, matrix) => ({ x: (screenX - matrix.offsetX) / matrix.scale, y: (screenY - matrix.offsetY) / matrix.scale }),
+            distToSegment: (p, a, b) => {
+                const l2 = (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+                if (l2 === 0) return Geo.dist(p, a);
+                let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                const proj = { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
+                return Geo.dist(p, proj);
+            }
+        };
+
+        const App = () => {
+            const containerRef = useRef(null); 
+            const canvasRef = useRef(null);    
+            const [size, setSize] = useState({ width: 800, height: 600 });
+            
+            const [paper, setPaper] = useState('A3_L');
+            const [gridMode, setGridMode] = useState(GRID_MODES.ORTHO);
+            const [tool, setTool] = useState(TOOLS.LINE);
+            const [entities, setEntities] = useState([]);
+            const [forceUpdate, setForceUpdate] = useState(0); 
+            
+            const [drawingScale, setDrawingScale] = useState(100);
+            const [unit, setUnit] = useState('mm');
+            const [strokeWidth, setStrokeWidth] = useState(0.3);
+            const [strokeColor, setStrokeColor] = useState('#000000');
+
+            // visible: true を追加してグリッド全体の表示制御を行う
+            const [gridConfig, setGridConfig] = useState({ 
+                color: '#333333', 
+                opacity: 0.5, 
+                isoAngle: 30, 
+                spacing: 10, 
+                showSubGrid: false, 
+                subDivisions: 5,
+                visible: true // Grid visibility toggle
+            });
+            const [showGridPanel, setShowGridPanel] = useState(false);
+
+            const viewRef = useRef({ scale: 1.0, offsetX: 0, offsetY: 0 }); 
+            const isPanning = useRef(false);
+            const isDraggingVP = useRef(null);
+            const lastMouse = useRef({ x: 0, y: 0 });
+            
+            const [tempPoints, setTempPoints] = useState([]); 
+            const currentMousePos = useRef({ x: 0, y: 0 }); 
+            const snapPos = useRef(null); 
+
+            const [vp1, setVp1] = useState({ x: 0, y: 150 });
+            const [vp2, setVp2] = useState({ x: 420, y: 150 });
+
+            const history = useRef([]);
+            const historyIndex = useRef(-1);
+
+            const formatDim = useCallback((valMM) => {
+                if (unit === 'm') {
+                    const mVal = valMM / 1000;
+                    return parseFloat(mVal.toFixed(3)) + 'm';
+                }
+                return valMM.toFixed(0) + 'mm';
+            }, [unit]);
+
+            const fitViewToScreen = useCallback(() => {
+                const p = PAPERS[paper];
+                if (!p) return;
+                const w = size.width;
+                const h = size.height;
+                const margin = 40; 
+                const paperW_px = p.width * MM_TO_PX;
+                const paperH_px = p.height * MM_TO_PX;
+                let fitScale = Math.min((w - margin*2) / paperW_px, (h - margin*2) / paperH_px);
+                if (!isFinite(fitScale) || fitScale <= 0) fitScale = 0.5;
+                const offsetX = (w - paperW_px * fitScale) / 2;
+                const offsetY = (h - paperH_px * fitScale) / 2;
+                viewRef.current = { scale: fitScale, offsetX: offsetX, offsetY: offsetY };
+                setForceUpdate(prev => prev + 1);
+            }, [paper, size]);
+
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+                const ro = new ResizeObserver(entries => {
+                    for (let entry of entries) {
+                        const { width, height } = entry.contentRect;
+                        if (width > 0 && height > 0) setSize({ width, height });
+                    }
+                });
+                if (containerRef.current) ro.observe(containerRef.current);
+                return () => ro.disconnect();
+            }, []);
+
+            useEffect(() => {
+                if (size.width > 50 && size.height > 50) fitViewToScreen();
+            }, [size, paper, fitViewToScreen]);
+
+            const pushHistory = (newEntities) => {
+                const newHistory = history.current.slice(0, historyIndex.current + 1);
+                newHistory.push(JSON.parse(JSON.stringify(newEntities)));
+                history.current = newHistory;
+                historyIndex.current = newHistory.length - 1;
+            };
+
+            const undo = () => {
+                if (historyIndex.current > 0) {
+                    historyIndex.current--;
+                    setEntities(history.current[historyIndex.current]);
+                } else if (historyIndex.current === 0) {
+                    historyIndex.current = -1;
+                    setEntities([]);
+                }
+            };
+
+            const addEntity = (entity) => {
+                const newEnts = [...entities, { ...entity, id: Date.now(), layer: 'drawing', lineWidth: strokeWidth, color: strokeColor }];
+                setEntities(newEnts);
+                pushHistory(newEnts);
+                setTempPoints([]);
+            };
+
+            const eraseEntityAt = (pos) => {
+                const threshold = 5 / viewRef.current.scale;
+                const remaining = entities.filter(ent => {
+                    let hit = false;
+                    if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) {
+                        if (Geo.distToSegment(pos, ent.p1, ent.p2) < threshold) hit = true;
+                    } else if (ent.type === TOOLS.CIRCLE) {
+                        if (Math.abs(Geo.dist(pos, ent.c) - ent.r) < threshold) hit = true;
+                    } else if (ent.type === TOOLS.RECT) {
+                        const p1 = ent.p1;
+                        const p2 = { x: p1.x + ent.w, y: p1.y };
+                        const p3 = { x: p1.x + ent.w, y: p1.y + ent.h };
+                        const p4 = { x: p1.x, y: p1.y + ent.h };
+                        if (Geo.distToSegment(pos, p1, p2) < threshold || Geo.distToSegment(pos, p2, p3) < threshold || Geo.distToSegment(pos, p3, p4) < threshold || Geo.distToSegment(pos, p4, p1) < threshold) hit = true;
+                    }
+                    return !hit; 
+                });
+                if (remaining.length !== entities.length) {
+                    setEntities(remaining);
+                    pushHistory(remaining);
+                }
+            };
+
+            const getPerspGridPoints = (vp, paperW, paperH, step) => {
+                const points = [];
+                const margin = paperW * 0.5;
+                for (let x = -margin; x <= paperW + margin; x += step) {
+                    points.push({type: 'v', x: x});
+                }
+                const horizon = vp.y;
+                let y = paperH;
+                let limit = 200;
+                while (limit-- > 0 && y > horizon + 1) {
+                    points.push({type: 'h', y: y});
+                    y = horizon + (y - horizon) * 0.85; 
+                    if (Math.abs(y - horizon) < 0.5) break;
+                }
+                return points;
+            };
+
+            const drawGrid = (ctx, view, paperW, paperH) => {
+                // グリッド表示OFFなら即リターン
+                if (!gridConfig.visible) return;
+
+                ctx.save();
+                const step = gridConfig.spacing || 10;
+                const showSub = gridConfig.showSubGrid;
+                const subDiv = Math.max(2, gridConfig.subDivisions || 5);
+                const subStep = step / subDiv;
+                const majorLW = Math.max(0.5 / view.scale, 0.1);
+                const minorLW = Math.max(0.2 / view.scale, 0.05);
+
+                const buildPath = (stepSize, isMajorOnly) => {
+                    ctx.beginPath();
+                    if (gridMode === GRID_MODES.ORTHO) {
+                        for (let x = 0; x <= paperW; x += stepSize) {
+                            if (!isMajorOnly && Math.abs(x % step) < 0.001) continue;
+                            ctx.moveTo(x, 0); ctx.lineTo(x, paperH);
+                        }
+                        for (let y = 0; y <= paperH; y += stepSize) {
+                            if (!isMajorOnly && Math.abs(y % step) < 0.001) continue;
+                            ctx.moveTo(0, y); ctx.lineTo(paperW, y);
+                        }
+                    } else if (gridMode === GRID_MODES.ISO) {
+                        const maxDim = Math.max(paperW, paperH) * 2;
+                        const tanAngle = Math.tan((gridConfig.isoAngle * Math.PI) / 180);
+                        for (let k = -maxDim; k < maxDim; k += stepSize) {
+                            if (!isMajorOnly && Math.abs(k % step) < 0.001) continue;
+                            ctx.moveTo(k, 0); ctx.lineTo(k + paperH / tanAngle, paperH);
+                            ctx.moveTo(k, 0); ctx.lineTo(k - paperH / tanAngle, paperH);
+                        }
+                    } else if (gridMode.includes('PERSP')) {
+                        if (gridMode === GRID_MODES.PERSP_1) {
+                            const margin = paperW * 0.5;
+                            const startX = -margin;
+                            const endX = paperW + margin;
+
+                            // Radiating lines (Floor ONLY)
+                            for (let x = startX; x <= endX; x += stepSize) {
+                                if (!isMajorOnly && Math.abs(x % step) < 0.001) continue;
+                                ctx.moveTo(vp1.x, vp1.y); ctx.lineTo(x, paperH); 
+                            }
+                            
+                            if (isMajorOnly) { 
+                                // Floor lines
+                                let y = paperH; 
+                                const horizon = vp1.y; 
+                                let limit = 200;
+                                while (limit-- > 0 && y > horizon + 1) {
+                                    ctx.moveTo(0, y); ctx.lineTo(paperW, y);
+                                    y = horizon + (y - horizon) * 0.85; 
+                                    if (Math.abs(y - horizon) < 0.5) break;
+                                }
+                                
+                                // Ceiling lines (Horizontal only)
+                                y = 0;
+                                limit = 200;
+                                while (limit-- > 0 && y < horizon - 1) {
+                                    ctx.moveTo(0, y); ctx.lineTo(paperW, y);
+                                    y = horizon - (horizon - y) * 0.85;
+                                    if (Math.abs(y - horizon) < 0.5) break;
+                                }
+                            }
+                        } else {
+                            if (isMajorOnly) {
+                                const stepAngle = Math.PI / 36;
+                                for(let a= -Math.PI; a < Math.PI; a+= stepAngle) {
+                                    if (Math.abs(Math.sin(a)) < 0.1) continue; 
+                                    ctx.moveTo(vp1.x, vp1.y); ctx.lineTo(vp1.x + Math.cos(a)*2000, vp1.y + Math.sin(a)*2000);
+                                }
+                                for(let a= -Math.PI; a < Math.PI; a+= stepAngle) {
+                                    if (Math.abs(Math.sin(a)) < 0.1) continue;
+                                    ctx.moveTo(vp2.x, vp2.y); ctx.lineTo(vp2.x + Math.cos(a)*2000, vp2.y + Math.sin(a)*2000);
+                                }
+                            }
+                        }
+                    }
+                };
+
+                if (showSub) {
+                    buildPath(subStep, false);
+                    ctx.lineWidth = minorLW; ctx.strokeStyle = gridConfig.color; ctx.globalAlpha = gridConfig.opacity * 0.5; ctx.stroke();
+                }
+                buildPath(step, true);
+                ctx.lineWidth = majorLW; ctx.strokeStyle = gridConfig.color; ctx.globalAlpha = gridConfig.opacity; ctx.stroke();
+
+                // Draw Horizontal lines for PERSP_1 (Floor and Ceiling) - Cyan Guide Lines
+                if (gridMode === GRID_MODES.PERSP_1) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = '#00cdff'; // Cyan
+                    ctx.lineWidth = Math.max(0.2 / view.scale, 0.05); // Thin
+                    ctx.globalAlpha = 0.4; // Lighter transparency
+
+                    const horizon = vp1.y;
+                    
+                    // Floor (Bottom to Horizon)
+                    let y = paperH;
+                    let limit = 200;
+                    while (limit-- > 0 && y > horizon + 1) {
+                        ctx.moveTo(0, y); ctx.lineTo(paperW, y);
+                        y = horizon + (y - horizon) * 0.85; 
+                        if (Math.abs(y - horizon) < 0.5) break;
+                    }
+
+                    // Ceiling (Top to Horizon)
+                    y = 0;
+                    limit = 200;
+                    while (limit-- > 0 && y < horizon - 1) {
+                        ctx.moveTo(0, y); ctx.lineTo(paperW, y);
+                        y = horizon - (horizon - y) * 0.85;
+                        if (Math.abs(y - horizon) < 0.5) break;
+                    }
+
+                    ctx.stroke();
+                }
+
+                if (gridMode.includes('PERSP')) {
+                    ctx.beginPath(); ctx.strokeStyle = '#00bcd4'; ctx.setLineDash([5/view.scale, 5/view.scale]); ctx.globalAlpha = 0.8; 
+                    ctx.moveTo(-5000, vp1.y); ctx.lineTo(5000, vp1.y); ctx.stroke(); ctx.setLineDash([]);
+                }
+                ctx.restore();
+            };
+
+            const render = useCallback(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return; 
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let v = viewRef.current;
+                if (!v || !isFinite(v.scale)) { viewRef.current = { scale: 1, offsetX: 0, offsetY: 0 }; v = viewRef.current; }
+
+                ctx.save();
+                ctx.translate(v.offsetX, v.offsetY);
+                ctx.scale(v.scale * MM_TO_PX, v.scale * MM_TO_PX);
+
+                const p = PAPERS[paper];
+                ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, p.width, p.height);
+                ctx.strokeStyle = '#999'; ctx.lineWidth = 1 / (v.scale * MM_TO_PX); ctx.strokeRect(0, 0, p.width, p.height);
+
+                ctx.save(); ctx.beginPath(); ctx.rect(0, 0, p.width, p.height); ctx.clip();
+                drawGrid(ctx, v, p.width, p.height);
+
+                entities.forEach(ent => {
+                    ctx.beginPath();
+                    const color = ent.color || (ent.layer === 'dim' ? '#00aaff' : '#000000');
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = ent.layer === 'dim' ? 0.2 : (ent.lineWidth || 0.3); 
+                    if (ent.type === TOOLS.LINE) { ctx.moveTo(ent.p1.x, ent.p1.y); ctx.lineTo(ent.p2.x, ent.p2.y); }
+                    else if (ent.type === TOOLS.RECT) { ctx.rect(ent.p1.x, ent.p1.y, ent.w, ent.h); }
+                    else if (ent.type === TOOLS.CIRCLE) { ctx.arc(ent.c.x, ent.c.y, ent.r, 0, Math.PI * 2); }
+                    else if (ent.type === TOOLS.DIM) {
+                        ctx.moveTo(ent.p1.x, ent.p1.y); ctx.lineTo(ent.p2.x, ent.p2.y);
+                        const ang = Math.atan2(ent.p2.y - ent.p1.y, ent.p2.x - ent.p1.x);
+                        const tx = Math.cos(ang + Math.PI/2) * 2, ty = Math.sin(ang + Math.PI/2) * 2;
+                        ctx.moveTo(ent.p1.x - tx, ent.p1.y - ty); ctx.lineTo(ent.p1.x + tx, ent.p1.y + ty);
+                        ctx.moveTo(ent.p2.x - tx, ent.p2.y - ty); ctx.lineTo(ent.p2.x + tx, ent.p2.y + ty);
+                    }
+                    ctx.stroke();
+                    if (ent.type === TOOLS.DIM) {
+                        ctx.fillStyle = color; ctx.font = '3px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                        const mid = Geo.mid(ent.p1, ent.p2);
+                        const dimText = formatDim(Geo.dist(ent.p1, ent.p2) * drawingScale);
+                        ctx.save(); ctx.translate(mid.x, mid.y);
+                        const ang = Math.atan2(ent.p2.y - ent.p1.y, ent.p2.x - ent.p1.x);
+                        ctx.rotate( (ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang );
+                        ctx.fillText(dimText, 0, -0.5); ctx.restore();
+                    }
+                });
+
+                if (tempPoints.length > 0) {
+                    const start = tempPoints[0];
+                    const curr = snapPos.current || currentMousePos.current;
+                    ctx.beginPath(); ctx.strokeStyle = strokeColor; ctx.lineWidth = (tool===TOOLS.DIM)?0.2:strokeWidth; ctx.setLineDash([2, 2]);
+                    if (tool === TOOLS.LINE || tool === TOOLS.DIM) {
+                        ctx.moveTo(start.x, start.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
+                        const dimText = formatDim(Geo.dist(start, curr) * drawingScale);
+                        ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                        const mid = Geo.mid(start, curr);
+                        const ang = Math.atan2(curr.y - start.y, curr.x - start.x);
+                        ctx.translate(mid.x, mid.y); ctx.rotate((ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang);
+                        ctx.fillText(dimText, 0, -1); ctx.restore();
+                    } else if (tool === TOOLS.RECT) {
+                        const w = curr.x - start.x, h = curr.y - start.y;
+                        ctx.rect(start.x, start.y, w, h); ctx.stroke();
+                        const txtW = formatDim(Math.abs(w)*drawingScale), txtH = formatDim(Math.abs(h)*drawingScale);
+                        ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; ctx.fillText(`${txtW} x ${txtH}`, curr.x+2, curr.y+5); ctx.restore();
+                    } else if (tool === TOOLS.CIRCLE) {
+                        const r = Geo.dist(start, curr);
+                        ctx.arc(start.x, start.y, r, 0, Math.PI * 2); ctx.moveTo(start.x, start.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
+                        const txtR = formatDim(r*drawingScale);
+                        ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; const mid = Geo.mid(start, curr); ctx.fillText(`R${txtR}`, mid.x, mid.y); ctx.restore();
+                    }
+                    ctx.setLineDash([]);
+                }
+
+                if (tool === TOOLS.ERASER) {
+                    const mPos = currentMousePos.current;
+                    ctx.save(); ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 1/v.scale; ctx.beginPath(); ctx.arc(mPos.x, mPos.y, 5/v.scale, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+                }
+
+                ctx.restore(); ctx.restore();
+
+                // Overlay & Snapping (Only if grid is visible)
+                if (gridConfig.visible) {
+                    if (gridMode.includes('PERSP')) {
+                        const toScreen = (pt) => Geo.projectPoint(pt.x, pt.y, { scale: v.scale * MM_TO_PX, offsetX: v.offsetX, offsetY: v.offsetY });
+                        const drawHandle = (vp, label) => {
+                            const s = toScreen(vp); ctx.fillStyle = '#00bcd4'; ctx.strokeStyle = 'white'; ctx.lineWidth = 2;
+                            ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                            ctx.fillStyle = 'white'; ctx.font = '10px sans-serif'; ctx.fillText(label, s.x + 10, s.y - 10);
+                        };
+                        drawHandle(vp1, "VP1");
+                        if (gridMode === GRID_MODES.PERSP_2) drawHandle(vp2, "VP2");
+                    }
+
+                    if (snapPos.current && tool !== TOOLS.ERASER) {
+                        const sp = snapPos.current;
+                        const s = { x: sp.x * v.scale * MM_TO_PX + v.offsetX, y: sp.y * v.scale * MM_TO_PX + v.offsetY };
+                        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 2;
+                        ctx.beginPath(); ctx.rect(s.x - 4, s.y - 4, 8, 8); ctx.stroke();
+                    }
+                }
+            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor]);
+
+            useEffect(() => {
+                let id;
+                const loop = () => { render(); id = requestAnimationFrame(loop); };
+                loop(); return () => cancelAnimationFrame(id);
+            }, [render]);
+
+            const getMouseWorldPos = (e) => {
+                const canvas = canvasRef.current;
+                if(!canvas) return {x:0, y:0};
+                const rect = canvas.getBoundingClientRect();
+                return Geo.unprojectPoint(e.clientX - rect.left, e.clientY - rect.top, {
+                    scale: viewRef.current.scale * MM_TO_PX,
+                    offsetX: viewRef.current.offsetX,
+                    offsetY: viewRef.current.offsetY
+                });
+            };
+
+            const calculateSnap = (rawPos, shiftKey) => {
+                let bestSnap = null;
+                
+                // グリッド非表示ならスナップしない
+                if (!gridConfig.visible) {
+                    // エンティティスナップだけ有効にするならここで分岐するが、
+                    // 要望的に「グリッドを見えなくする」だけならスナップは生きていてもいいかもしれない。
+                    // ここでは「非表示ならグリッドスナップ無効」とする。
+                } else {
+                    let minDist = 10 / viewRef.current.scale;
+                    const majorStep = gridConfig.spacing || 10; 
+                    const step = gridConfig.showSubGrid ? (majorStep / Math.max(2, gridConfig.subDivisions || 5)) : majorStep;
+
+                    if (gridMode === GRID_MODES.ORTHO) {
+                        const gx = Math.round(rawPos.x / step) * step;
+                        const gy = Math.round(rawPos.y / step) * step;
+                        if (Geo.dist(rawPos, {x: gx, y: gy}) < minDist) bestSnap = { x: gx, y: gy };
+                    } else if (gridMode === GRID_MODES.ISO) {
+                        const angle = (gridConfig.isoAngle * Math.PI) / 180;
+                        const tanAngle = Math.tan(angle);
+                        const ku_raw = rawPos.y - tanAngle * rawPos.x;
+                        const kv_raw = rawPos.y + tanAngle * rawPos.x;
+                        
+                        const ku = Math.round(ku_raw / step) * step;
+                        const kv = Math.round(kv_raw / step) * step;
+                        
+                        const snapX = (kv - ku) / (2 * tanAngle);
+                        const snapY = (ku + kv) / 2;
+                        
+                        if (Geo.dist(rawPos, {x: snapX, y: snapY}) < minDist) {
+                            bestSnap = { x: snapX, y: snapY };
+                        }
+                    } else if (gridMode.includes('PERSP')) {
+                        if (gridMode === GRID_MODES.PERSP_1) {
+                            const p = PAPERS[paper];
+                            const paperH = p.height; 
+                            const horizon = vp1.y;
+                            const minDist = 10 / viewRef.current.scale;
+                            
+                            let bestY = -1;
+                            if (rawPos.y > horizon) { // Floor snap
+                                const maxH = paperH - horizon;
+                                const n_float = Math.log((rawPos.y - horizon)/maxH) / Math.log(0.85);
+                                const n = Math.round(n_float);
+                                const y_snap = horizon + maxH * Math.pow(0.85, n);
+                                if (Math.abs(rawPos.y - y_snap) < minDist) bestY = y_snap;
+                            } else { // Ceiling snap
+                                const maxH = horizon; 
+                                const dist_y = horizon - rawPos.y;
+                                if (dist_y > 0) {
+                                    const n_float = Math.log(dist_y / maxH) / Math.log(0.85);
+                                    const n = Math.round(n_float);
+                                    const y_snap = horizon - maxH * Math.pow(0.85, n);
+                                    if (Math.abs(rawPos.y - y_snap) < minDist) bestY = y_snap;
+                                }
+                            }
+                            
+                            if (rawPos.y !== vp1.y) {
+                                const ratio = (paperH - vp1.y) / (rawPos.y - vp1.y);
+                                const x_proj = vp1.x + (rawPos.x - vp1.x) * ratio;
+                                const x_bottom_snap = Math.round(x_proj / step) * step;
+                                
+                                if (bestY !== -1) {
+                                    const t = (bestY - vp1.y) / (paperH - vp1.y);
+                                    const m = (paperH - vp1.y) / (x_bottom_snap - vp1.x);
+                                    const snapX = (bestY - vp1.y)/m + vp1.x;
+                                    
+                                    if (Geo.dist(rawPos, {x: snapX, y: bestY}) < minDist) {
+                                        bestSnap = { x: snapX, y: bestY };
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Entity Snap はグリッド表示に関わらず有効
+                let minDistEnt = 10 / viewRef.current.scale;
+                entities.forEach(ent => {
+                    const checkPts = [];
+                    if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) checkPts.push(ent.p1, ent.p2, Geo.mid(ent.p1, ent.p2));
+                    else if (ent.type === TOOLS.RECT) checkPts.push(ent.p1, {x:ent.p1.x+ent.w, y:ent.p1.y}, {x:ent.p1.x, y:ent.p1.y+ent.h}, {x:ent.p1.x+ent.w, y:ent.p1.y+ent.h});
+                    checkPts.forEach(pt => { 
+                        const d = Geo.dist(rawPos, pt);
+                        if (d < minDistEnt) {
+                            bestSnap = pt;
+                            minDistEnt = d;
+                        }
+                    });
+                });
+
+                if (shiftKey && tempPoints.length > 0) {
+                    const start = tempPoints[0];
+                    let curr = bestSnap || rawPos;
+                    const dx = curr.x - start.x; const dy = curr.y - start.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    let angle = Math.atan2(dy, dx);
+                    angle = Math.round(angle / (Math.PI/12)) * (Math.PI/12); 
+                    curr = { x: start.x + Math.cos(angle) * dist, y: start.y + Math.sin(angle) * dist };
+                    bestSnap = curr;
+                }
+                return bestSnap;
+            };
+
+            const handleMouseDown = (e) => {
+                if (e.button === 1 || (e.button === 0 && tool === 'pan')) { isPanning.current = true; lastMouse.current = { x: e.clientX, y: e.clientY }; return; }
+                if (e.button === 0) {
+                    const wPos = getMouseWorldPos(e);
+                    if (tool === TOOLS.ERASER) { eraseEntityAt(wPos); setTempPoints([wPos]); return; }
+                    if (gridMode.includes('PERSP') && e.altKey) {
+                        const vpDist = 20 / viewRef.current.scale;
+                        if (Geo.dist(wPos, vp1) < vpDist) { isDraggingVP.current = 'vp1'; return; }
+                        if (gridMode === GRID_MODES.PERSP_2 && Geo.dist(wPos, vp2) < vpDist) { isDraggingVP.current = 'vp2'; return; }
+                    }
+                    const pt = snapPos.current || wPos;
+                    if (tool === TOOLS.SELECT) { } 
+                    else {
+                        if (tempPoints.length === 0) { setTempPoints([pt]); } 
+                        else {
+                            const start = tempPoints[0];
+                            let newEnt = null;
+                            if (tool === TOOLS.LINE) newEnt = { type: TOOLS.LINE, p1: start, p2: pt };
+                            else if (tool === TOOLS.RECT) newEnt = { type: TOOLS.RECT, p1: start, w: pt.x - start.x, h: pt.y - start.y };
+                            else if (tool === TOOLS.CIRCLE) newEnt = { type: TOOLS.CIRCLE, c: start, r: Geo.dist(start, pt) };
+                            else if (tool === TOOLS.DIM) newEnt = { type: TOOLS.DIM, p1: start, p2: pt };
+                            if (newEnt) addEntity(newEnt);
+                        }
+                    }
+                }
+            };
+
+            const handleMouseMove = (e) => {
+                if (isPanning.current) {
+                    const dx = e.clientX - lastMouse.current.x; const dy = e.clientY - lastMouse.current.y;
+                    viewRef.current.offsetX += dx; viewRef.current.offsetY += dy; lastMouse.current = { x: e.clientX, y: e.clientY }; return;
+                }
+                const wPos = getMouseWorldPos(e);
+                if (tool === TOOLS.ERASER && e.buttons === 1) eraseEntityAt(wPos);
+                if (isDraggingVP.current) {
+                    if (isDraggingVP.current === 'vp1') setVp1(wPos);
+                    if (isDraggingVP.current === 'vp2') setVp2(wPos);
+                    return;
+                }
+                currentMousePos.current = wPos;
+                snapPos.current = calculateSnap(wPos, e.shiftKey);
+            };
+
+            const handleMouseUp = () => { isPanning.current = false; isDraggingVP.current = null; if(tool===TOOLS.ERASER) setTempPoints([]); };
+            const handleWheel = (e) => {
+                if (e.ctrlKey) return; e.preventDefault();
+                const v = viewRef.current; const factor = 1 + (e.deltaY > 0 ? -0.1 : 0.1);
+                const rect = canvasRef.current.getBoundingClientRect();
+                const mx = (e.clientX - rect.left) * (canvasRef.current.width/rect.width);
+                const my = (e.clientY - rect.top) * (canvasRef.current.height/rect.height);
+                const before = Geo.unprojectPoint(mx, my, { scale: v.scale*MM_TO_PX, offsetX: v.offsetX, offsetY: v.offsetY });
+                v.scale = Math.max(0.1, Math.min(v.scale * factor, 10));
+                const after = Geo.unprojectPoint(mx, my, { scale: v.scale*MM_TO_PX, offsetX: v.offsetX, offsetY: v.offsetY });
+                v.offsetX += (after.x - before.x) * v.scale * MM_TO_PX; v.offsetY += (after.y - before.y) * v.scale * MM_TO_PX;
+            };
+
+            const exportPDF = () => {
+                const p = PAPERS[paper];
+                const doc = new jsPDF({
+                    orientation: p.width > p.height ? 'l' : 'p',
+                    unit: 'mm',
+                    format: [p.width, p.height]
+                });
+                doc.setFillColor(255, 255, 255);
+                doc.rect(0, 0, p.width, p.height, 'F');
+                entities.forEach(ent => {
+                    const lw = ent.layer === 'dim' ? 0.2 : (ent.lineWidth || 0.3);
+                    const color = ent.color || (ent.layer === 'dim' ? '#00aaff' : '#000000');
+                    const rgb = (() => {
+                        const r = parseInt(color.slice(1, 3), 16);
+                        const g = parseInt(color.slice(3, 5), 16);
+                        const b = parseInt(color.slice(5, 7), 16);
+                        return [r, g, b];
+                    })();
+                    doc.setDrawColor(...rgb);
+                    doc.setTextColor(...rgb);
+                    doc.setLineWidth(lw);
+                    if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) doc.line(ent.p1.x, ent.p1.y, ent.p2.x, ent.p2.y);
+                    else if (ent.type === TOOLS.RECT) doc.rect(ent.p1.x, ent.p1.y, ent.w, ent.h);
+                    else if (ent.type === TOOLS.CIRCLE) doc.circle(ent.c.x, ent.c.y, ent.r);
+                    if (ent.type === TOOLS.DIM) {
+                        doc.setFontSize(8); 
+                        const dist = Geo.dist(ent.p1, ent.p2) * drawingScale;
+                        const dimText = formatDim(dist);
+                        const mid = Geo.mid(ent.p1, ent.p2);
+                        doc.text(dimText, mid.x, mid.y, { align: 'center', baseline: 'bottom' });
+                    }
+                });
+                doc.save("drawing.pdf");
+            };
+
+            return (
+                <div className="w-full h-screen flex flex-col bg-[#2d2d2d]">
+                    <div className="h-14 bg-gray-900 border-b border-gray-700 flex items-center px-4 space-x-4 flex-shrink-0">
+                        <div className="text-xl font-bold text-white flex items-center"><i data-lucide="pen-tool" className="mr-2"></i> Drafting</div>
+                        <div className="h-8 w-px bg-gray-700 mx-2"></div>
+                        <select className="bg-white text-black text-sm border border-gray-400 rounded p-1" value={paper} onChange={(e) => setPaper(e.target.value)}>{Object.entries(PAPERS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}</select>
+                        
+                        <div className="flex items-center text-white text-xs space-x-2 bg-gray-800 p-1 rounded border border-gray-600">
+                            <select value={drawingScale} onChange={(e)=>setDrawingScale(Number(e.target.value))} className="border-0 bg-white text-black py-0">{SCALES.map(s => (<option key={s.val} value={s.val}>{s.label}</option>))}</select>
+                            <select value={unit} onChange={(e)=>setUnit(e.target.value)} className="border-0 bg-white text-black py-0"><option value="mm">mm</option><option value="m">m</option></select>
+                            <select value={strokeWidth} onChange={(e)=>setStrokeWidth(Number(e.target.value))} className="border-0 bg-white text-black py-0">{LINE_WIDTHS.map(w => (<option key={w.val} value={w.val}>{w.label}</option>))}</select>
+                            <input type="color" value={strokeColor} onChange={(e)=>setStrokeColor(e.target.value)} className="w-5 h-5 rounded border-0 p-0 bg-transparent"/>
+                        </div>
+
+                        <div className="flex bg-gray-800 rounded overflow-hidden border border-gray-600">
+                            {[ {id:GRID_MODES.ORTHO, l:'直交'}, {id:GRID_MODES.ISO, l:'ISO'}, {id:GRID_MODES.PERSP_1, l:'1点'}, {id:GRID_MODES.PERSP_2, l:'2点'} ].map(m => (<button key={m.id} onClick={() => setGridMode(m.id)} className={`px-3 py-1 text-xs ${gridMode === m.id ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700'}`}>{m.l}</button>))}
+                        </div>
+                        
+                        <button 
+                            onClick={() => setGridConfig(prev => ({...prev, visible: !prev.visible}))} 
+                            className={`ml-2 border border-gray-600 p-1 rounded hover:bg-gray-700 ${gridConfig.visible ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`} 
+                            title="グリッド表示切替"
+                        >
+                            <i data-lucide="grid" className="w-5 h-5"></i>
+                        </button>
+
+                        <div className="relative">
+                            <button onClick={() => setShowGridPanel(!showGridPanel)} className="bg-gray-800 border border-gray-600 p-1 rounded hover:bg-gray-700" title="グリッド設定"><i data-lucide="settings-2" className="w-5 h-5 text-gray-300"></i></button>
+                            {showGridPanel && (
+                                <div className="absolute top-10 left-0 w-64 panel z-50 text-sm">
+                                    <h4 className="font-bold mb-2 border-b border-gray-500 pb-1">グリッド設定</h4>
+                                    <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">カラー</label><input type="color" value={gridConfig.color} onChange={(e) => setGridConfig({...gridConfig, color: e.target.value})} className="w-full h-8"/></div>
+                                    <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">不透明度</label><input type="range" min="0.1" max="1" step="0.1" value={gridConfig.opacity} onChange={(e) => setGridConfig({...gridConfig, opacity: parseFloat(e.target.value)})}/></div>
+                                    <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">間隔: {gridConfig.spacing}mm</label><input type="range" min="5" max="100" step="5" value={gridConfig.spacing} onChange={(e) => setGridConfig({...gridConfig, spacing: parseInt(e.target.value)})}/></div>
+                                    <div className="mb-2 flex items-center"><input type="checkbox" id="subgrid" checked={gridConfig.showSubGrid} onChange={(e)=>setGridConfig({...gridConfig, showSubGrid: e.target.checked})} className="mr-2"/><label htmlFor="subgrid" className="text-xs text-gray-300">補助線</label></div>
+                                    {gridConfig.showSubGrid && <div className="mb-2 flex items-center pl-6"><span className="text-xs text-gray-400 mr-2">分割数:</span><input type="number" min="2" max="20" value={gridConfig.subDivisions} onChange={(e)=>setGridConfig({...gridConfig, subDivisions: Math.max(2, parseInt(e.target.value))})}/></div>}
+                                    {gridMode === GRID_MODES.ISO && <div className="mb-2"><label className="block text-xs text-gray-300">ISO角度</label><input type="range" min="15" max="75" step="5" value={gridConfig.isoAngle} onChange={(e)=>setGridConfig({...gridConfig, isoAngle: parseInt(e.target.value)})}/></div>}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <button onClick={fitViewToScreen} className="bg-gray-800 border border-gray-600 p-1 rounded hover:bg-gray-700 ml-2"><i data-lucide="home" className="w-5 h-5 text-gray-300"></i></button>
+                        <div className="flex-1"></div>
+                        <button onClick={undo} className="tool-btn text-white"><i data-lucide="undo-2"></i></button>
+                        <button onClick={() => setEntities([])} className="tool-btn text-red-400"><i data-lucide="trash-2"></i></button>
+                        <button onClick={exportPDF} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center"><i data-lucide="download" className="w-4 h-4 mr-1"></i> PDF</button>
+                    </div>
+
+                    <div className="flex flex-1 overflow-hidden relative">
+                        <div className="w-14 bg-gray-900 flex flex-col items-center py-4 space-y-2 border-r border-gray-700 z-10 flex-shrink-0">
+                            {[ 
+                                {id:TOOLS.SELECT, i:'mouse-pointer-2', l:'選択'}, {id:TOOLS.LINE, i:'minus', l:'線分'}, {id:TOOLS.RECT, i:'square', l:'矩形'}, 
+                                {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
+                            ].map(t => (
+                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} className={`tool-btn group w-10 h-10 ${tool === t.id ? 'active' : 'text-gray-400'}`}>
+                                    <i data-lucide={t.i}></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">{t.l}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <div ref={containerRef} className="flex-1 relative overflow-hidden bg-[#2d2d2d] flex justify-center items-center">
+                            <canvas ref={canvasRef} width={size.width} height={size.height} style={{ width: '100%', height: '100%' }}
+                                onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onWheel={handleWheel} onContextMenu={(e) => e.preventDefault()}
+                                className="block absolute top-0 left-0" />
+                             <div className="absolute bottom-4 left-4 bg-black/60 text-white p-3 rounded text-xs pointer-events-none backdrop-blur-sm z-50">
+                                <p className="font-bold mb-1">操作</p>
+                                <ul className="space-y-1 text-gray-300">
+                                    <li>🖱 左: 描画 / 確定</li><li>🖱 中: パン</li><li>🖱 ホイール: ズーム</li>
+                                    <li>⇧ Shift: 角度拘束</li><li>Alt+ドラッグ: VP移動</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
