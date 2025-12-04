@@ -105,16 +105,7 @@
             const [strokeWidth, setStrokeWidth] = useState(0.3);
             const [strokeColor, setStrokeColor] = useState('#000000');
 
-            // visible: true を追加してグリッド全体の表示制御を行う
-            const [gridConfig, setGridConfig] = useState({ 
-                color: '#333333', 
-                opacity: 0.5, 
-                isoAngle: 30, 
-                spacing: 10, 
-                showSubGrid: false, 
-                subDivisions: 5,
-                visible: true // Grid visibility toggle
-            });
+            const [gridConfig, setGridConfig] = useState({ color: '#333333', opacity: 0.5, isoAngle: 30, spacing: 10, showSubGrid: false, subDivisions: 5, visible: true });
             const [showGridPanel, setShowGridPanel] = useState(false);
 
             const viewRef = useRef({ scale: 1.0, offsetX: 0, offsetY: 0 }); 
@@ -219,25 +210,44 @@
                 }
             };
 
-            const getPerspGridPoints = (vp, paperW, paperH, step) => {
-                const points = [];
-                const margin = paperW * 0.5;
-                for (let x = -margin; x <= paperW + margin; x += step) {
-                    points.push({type: 'v', x: x});
-                }
-                const horizon = vp.y;
-                let y = paperH;
-                let limit = 200;
-                while (limit-- > 0 && y > horizon + 1) {
-                    points.push({type: 'h', y: y});
-                    y = horizon + (y - horizon) * 0.85; 
-                    if (Math.abs(y - horizon) < 0.5) break;
-                }
-                return points;
+            // EXPORT PDF FUNCTION defined within scope
+            const exportPDF = () => {
+                const p = PAPERS[paper];
+                const doc = new jsPDF({
+                    orientation: p.width > p.height ? 'l' : 'p',
+                    unit: 'mm',
+                    format: [p.width, p.height]
+                });
+                doc.setFillColor(255, 255, 255);
+                doc.rect(0, 0, p.width, p.height, 'F');
+                entities.forEach(ent => {
+                    const lw = ent.layer === 'dim' ? 0.2 : (ent.lineWidth || 0.3);
+                    const color = ent.color || (ent.layer === 'dim' ? '#00aaff' : '#000000');
+                    const rgb = (() => {
+                        const r = parseInt(color.slice(1, 3), 16);
+                        const g = parseInt(color.slice(3, 5), 16);
+                        const b = parseInt(color.slice(5, 7), 16);
+                        return [r, g, b];
+                    })();
+                    doc.setDrawColor(...rgb);
+                    doc.setTextColor(...rgb);
+                    doc.setLineWidth(lw);
+                    if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) doc.line(ent.p1.x, ent.p1.y, ent.p2.x, ent.p2.y);
+                    else if (ent.type === TOOLS.RECT) doc.rect(ent.p1.x, ent.p1.y, ent.w, ent.h);
+                    else if (ent.type === TOOLS.CIRCLE) doc.circle(ent.c.x, ent.c.y, ent.r);
+                    if (ent.type === TOOLS.DIM) {
+                        doc.setFontSize(8); 
+                        const dist = Geo.dist(ent.p1, ent.p2) * drawingScale;
+                        const dimText = formatDim(dist);
+                        const mid = Geo.mid(ent.p1, ent.p2);
+                        doc.text(dimText, mid.x, mid.y, { align: 'center', baseline: 'bottom' });
+                    }
+                });
+                doc.save("drawing.pdf");
             };
 
+            // Draw Grid Function
             const drawGrid = (ctx, view, paperW, paperH) => {
-                // グリッド表示OFFなら即リターン
                 if (!gridConfig.visible) return;
 
                 ctx.save();
@@ -262,42 +272,25 @@
                     } else if (gridMode === GRID_MODES.ISO) {
                         const maxDim = Math.max(paperW, paperH) * 2;
                         const tanAngle = Math.tan((gridConfig.isoAngle * Math.PI) / 180);
-                        for (let k = -maxDim; k < maxDim; k += stepSize) {
-                            if (!isMajorOnly && Math.abs(k % step) < 0.001) continue;
-                            ctx.moveTo(k, 0); ctx.lineTo(k + paperH / tanAngle, paperH);
-                            ctx.moveTo(k, 0); ctx.lineTo(k - paperH / tanAngle, paperH);
+                        
+                        const startK = Math.floor(-maxDim / stepSize) * stepSize;
+
+                        for (let k = startK; k < maxDim; k += stepSize) {
+                            if (!isMajorOnly && Math.abs(k % step) > 0.001) {}
+                            ctx.moveTo(-maxDim, -maxDim * tanAngle + k); 
+                            ctx.lineTo(maxDim, maxDim * tanAngle + k);
+                            ctx.moveTo(-maxDim, maxDim * tanAngle + k);
+                            ctx.lineTo(maxDim, -maxDim * tanAngle + k);
                         }
                     } else if (gridMode.includes('PERSP')) {
                         if (gridMode === GRID_MODES.PERSP_1) {
                             const margin = paperW * 0.5;
-                            const startX = -margin;
+                            const startX = Math.ceil(-margin / stepSize) * stepSize;
                             const endX = paperW + margin;
 
-                            // Radiating lines (Floor ONLY)
                             for (let x = startX; x <= endX; x += stepSize) {
                                 if (!isMajorOnly && Math.abs(x % step) < 0.001) continue;
                                 ctx.moveTo(vp1.x, vp1.y); ctx.lineTo(x, paperH); 
-                            }
-                            
-                            if (isMajorOnly) { 
-                                // Floor lines
-                                let y = paperH; 
-                                const horizon = vp1.y; 
-                                let limit = 200;
-                                while (limit-- > 0 && y > horizon + 1) {
-                                    ctx.moveTo(0, y); ctx.lineTo(paperW, y);
-                                    y = horizon + (y - horizon) * 0.85; 
-                                    if (Math.abs(y - horizon) < 0.5) break;
-                                }
-                                
-                                // Ceiling lines (Horizontal only)
-                                y = 0;
-                                limit = 200;
-                                while (limit-- > 0 && y < horizon - 1) {
-                                    ctx.moveTo(0, y); ctx.lineTo(paperW, y);
-                                    y = horizon - (horizon - y) * 0.85;
-                                    if (Math.abs(y - horizon) < 0.5) break;
-                                }
                             }
                         } else {
                             if (isMajorOnly) {
@@ -322,33 +315,24 @@
                 buildPath(step, true);
                 ctx.lineWidth = majorLW; ctx.strokeStyle = gridConfig.color; ctx.globalAlpha = gridConfig.opacity; ctx.stroke();
 
-                // Draw Horizontal lines for PERSP_1 (Floor and Ceiling) - Cyan Guide Lines
                 if (gridMode === GRID_MODES.PERSP_1) {
                     ctx.beginPath();
-                    ctx.strokeStyle = '#00cdff'; // Cyan
-                    ctx.lineWidth = Math.max(0.2 / view.scale, 0.05); // Thin
-                    ctx.globalAlpha = 0.4; // Lighter transparency
-
+                    ctx.strokeStyle = '#00cdff'; 
+                    ctx.lineWidth = Math.max(0.2 / view.scale, 0.05); 
+                    ctx.globalAlpha = 0.4; 
                     const horizon = vp1.y;
-                    
-                    // Floor (Bottom to Horizon)
-                    let y = paperH;
-                    let limit = 200;
+                    let y = paperH; let limit = 200;
                     while (limit-- > 0 && y > horizon + 1) {
                         ctx.moveTo(0, y); ctx.lineTo(paperW, y);
                         y = horizon + (y - horizon) * 0.85; 
                         if (Math.abs(y - horizon) < 0.5) break;
                     }
-
-                    // Ceiling (Top to Horizon)
-                    y = 0;
-                    limit = 200;
+                    y = 0; limit = 200;
                     while (limit-- > 0 && y < horizon - 1) {
                         ctx.moveTo(0, y); ctx.lineTo(paperW, y);
                         y = horizon - (horizon - y) * 0.85;
                         if (Math.abs(y - horizon) < 0.5) break;
                     }
-
                     ctx.stroke();
                 }
 
@@ -438,7 +422,6 @@
 
                 ctx.restore(); ctx.restore();
 
-                // Overlay & Snapping (Only if grid is visible)
                 if (gridConfig.visible) {
                     if (gridMode.includes('PERSP')) {
                         const toScreen = (pt) => Geo.projectPoint(pt.x, pt.y, { scale: v.scale * MM_TO_PX, offsetX: v.offsetX, offsetY: v.offsetY });
@@ -480,11 +463,7 @@
             const calculateSnap = (rawPos, shiftKey) => {
                 let bestSnap = null;
                 
-                // グリッド非表示ならスナップしない
                 if (!gridConfig.visible) {
-                    // エンティティスナップだけ有効にするならここで分岐するが、
-                    // 要望的に「グリッドを見えなくする」だけならスナップは生きていてもいいかもしれない。
-                    // ここでは「非表示ならグリッドスナップ無効」とする。
                 } else {
                     let minDist = 10 / viewRef.current.scale;
                     const majorStep = gridConfig.spacing || 10; 
@@ -553,7 +532,6 @@
                     }
                 }
 
-                // Entity Snap はグリッド表示に関わらず有効
                 let minDistEnt = 10 / viewRef.current.scale;
                 entities.forEach(ent => {
                     const checkPts = [];
@@ -582,6 +560,7 @@
             };
 
             const handleMouseDown = (e) => {
+                if (e.button === 2) { setTempPoints([]); return; }
                 if (e.button === 1 || (e.button === 0 && tool === 'pan')) { isPanning.current = true; lastMouse.current = { x: e.clientX, y: e.clientY }; return; }
                 if (e.button === 0) {
                     const wPos = getMouseWorldPos(e);
@@ -635,41 +614,6 @@
                 v.scale = Math.max(0.1, Math.min(v.scale * factor, 10));
                 const after = Geo.unprojectPoint(mx, my, { scale: v.scale*MM_TO_PX, offsetX: v.offsetX, offsetY: v.offsetY });
                 v.offsetX += (after.x - before.x) * v.scale * MM_TO_PX; v.offsetY += (after.y - before.y) * v.scale * MM_TO_PX;
-            };
-
-            const exportPDF = () => {
-                const p = PAPERS[paper];
-                const doc = new jsPDF({
-                    orientation: p.width > p.height ? 'l' : 'p',
-                    unit: 'mm',
-                    format: [p.width, p.height]
-                });
-                doc.setFillColor(255, 255, 255);
-                doc.rect(0, 0, p.width, p.height, 'F');
-                entities.forEach(ent => {
-                    const lw = ent.layer === 'dim' ? 0.2 : (ent.lineWidth || 0.3);
-                    const color = ent.color || (ent.layer === 'dim' ? '#00aaff' : '#000000');
-                    const rgb = (() => {
-                        const r = parseInt(color.slice(1, 3), 16);
-                        const g = parseInt(color.slice(3, 5), 16);
-                        const b = parseInt(color.slice(5, 7), 16);
-                        return [r, g, b];
-                    })();
-                    doc.setDrawColor(...rgb);
-                    doc.setTextColor(...rgb);
-                    doc.setLineWidth(lw);
-                    if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) doc.line(ent.p1.x, ent.p1.y, ent.p2.x, ent.p2.y);
-                    else if (ent.type === TOOLS.RECT) doc.rect(ent.p1.x, ent.p1.y, ent.w, ent.h);
-                    else if (ent.type === TOOLS.CIRCLE) doc.circle(ent.c.x, ent.c.y, ent.r);
-                    if (ent.type === TOOLS.DIM) {
-                        doc.setFontSize(8); 
-                        const dist = Geo.dist(ent.p1, ent.p2) * drawingScale;
-                        const dimText = formatDim(dist);
-                        const mid = Geo.mid(ent.p1, ent.p2);
-                        doc.text(dimText, mid.x, mid.y, { align: 'center', baseline: 'bottom' });
-                    }
-                });
-                doc.save("drawing.pdf");
             };
 
             return (
@@ -738,7 +682,7 @@
                              <div className="absolute bottom-4 left-4 bg-black/60 text-white p-3 rounded text-xs pointer-events-none backdrop-blur-sm z-50">
                                 <p className="font-bold mb-1">操作</p>
                                 <ul className="space-y-1 text-gray-300">
-                                    <li>🖱 左: 描画 / 確定</li><li>🖱 中: パン</li><li>🖱 ホイール: ズーム</li>
+                                    <li>🖱 左: 描画 / 確定</li><li>🖱 中: パン</li><li>🖱 右: 中断</li><li>🖱 ホイール: ズーム</li>
                                     <li>⇧ Shift: 角度拘束</li><li>Alt+ドラッグ: VP移動</li>
                                 </ul>
                             </div>
