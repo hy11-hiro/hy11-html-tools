@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exterior Planner - 外構積算ツール (v3)</title>
+    <title>Exterior Planner - 外構積算ツール (Chrome対応統合版)</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -112,6 +112,12 @@
                 <i class="fas fa-file-pdf mr-1"></i> PDF
             </button>
             <div class="h-6 w-px bg-gray-600 mx-1"></div>
+            
+            <!-- CSV Option (New) -->
+            <label class="flex items-center gap-1 text-xs text-gray-300 mr-2 cursor-pointer hover:text-white">
+                <input type="checkbox" id="csvIncludeDetails" class="rounded bg-gray-700 border-gray-600">
+                詳細寸法を含める
+            </label>
             <button id="exportBtn" class="bg-green-700 hover:bg-green-600 px-3 py-1 rounded text-sm text-white transition">
                 <i class="fas fa-file-csv mr-1"></i> CSV出力
             </button>
@@ -157,6 +163,15 @@
                         <div class="flex items-center gap-2">
                             <input type="checkbox" id="showLabels" class="rounded bg-gray-700 border-gray-600" checked>
                             <label for="showLabels" class="cursor-pointer">ラベル・寸法表示</label>
+                        </div>
+                        
+                        <!-- Font Size Slider (New) -->
+                        <div class="flex flex-col gap-1">
+                            <div class="flex justify-between">
+                                <label for="globalFontSize" class="cursor-pointer">文字サイズ</label>
+                                <span id="fontSizeDisplay" class="font-mono text-gray-400">14px</span>
+                            </div>
+                            <input type="range" id="globalFontSize" min="8" max="48" value="14" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                         </div>
                     </div>
                 </div>
@@ -254,7 +269,7 @@
                 </div>
             </div>
 
-            <!-- Manual Entry Section (NEW) -->
+            <!-- Manual Entry Section -->
             <div class="p-3 border-t border-cad-border bg-gray-800">
                 <label class="block text-xs font-bold text-yellow-500 mb-2">
                     <i class="fas fa-pen-to-square mr-1"></i> 付帯工事・その他 (手入力)
@@ -376,10 +391,10 @@
          */
         let db = null; // 初期値null
         const DEFAULT_PRESETS = [
-            { id: 101, name: 'CB100 (1段m単価)', refName: '重量ブロック 100', unit: 'm', price: 1800, type: 'line', color: '#A9A9A9' },
-            { id: 102, name: 'CB120 (1段m単価)', refName: '重量ブロック 120', unit: 'm', price: 2200, type: 'line', color: '#808080' },
-            { id: 103, name: 'CB150 (1段m単価)', refName: '重量ブロック 150', unit: 'm', price: 2800, type: 'line', color: '#696969' },
-            { id: 104, name: '化粧ブロックA (1段m単価)', refName: 'ユニソン シャモティ', unit: 'm', price: 4500, type: 'line', color: '#CD853F' },
+            { id: 101, name: 'CB100', refName: '重量ブロック 100', unit: 'm', price: 1800, type: 'line', color: '#A9A9A9' },
+            { id: 102, name: 'CB120', refName: '重量ブロック 120', unit: 'm', price: 2200, type: 'line', color: '#808080' },
+            { id: 103, name: 'CB150', refName: '重量ブロック 150', unit: 'm', price: 2800, type: 'line', color: '#696969' },
+            { id: 104, name: '化粧ブロックA', refName: 'ユニソン シャモティ', unit: 'm', price: 4500, type: 'line', color: '#CD853F' },
             { id: 105, name: 'ブロック基礎', refName: 'ブロック 基礎断面', unit: 'm', price: 3500, type: 'line', color: '#778899' },
             
             { id: 201, name: '土間コンクリート(金鏝)', refName: '土間コンクリート 金鏝仕上げ', unit: 'm2', price: 11000, type: 'area', color: '#D3D3D3' },
@@ -418,8 +433,11 @@
             bgImage: null, 
             shapes: [],
             manualItems: [], 
+            fontSize: 14, // Default font size
             currentSettings: {
                 name: '未設定',
+                masterName: '', // NEW: マスタ上の名称
+                refName: '',    // NEW: 参照商品名
                 price: 0,
                 color: '#ffffff',
                 lineWidth: 2,
@@ -468,7 +486,7 @@
             return 'bg-gray-700';
         }
 
-        // --- IndexedDB with Fallback ---
+        // --- IndexedDB with Fallback (Chrome Logic) ---
         function initDB() {
             return new Promise((resolve) => {
                 try {
@@ -521,16 +539,12 @@
                 const request = store.getAll();
                 request.onsuccess = (e) => {
                     const res = e.target.result;
-                    if (!res || res.length === 0) {
-                        // DBは開けたが空の場合（初期化漏れなど）
-                         loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
-                    } else {
-                        loadedMaterials = res;
-                    }
+                    // FIX for Chrome logic: if empty but DB works, it's empty. Don't auto-restore.
+                    loadedMaterials = res || [];
                     resolve();
                 };
                 request.onerror = () => { 
-                    loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
+                    loadedMaterials = []; 
                     resolve(); 
                 }
             });
@@ -710,6 +724,14 @@
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
             document.getElementById('priceListInput').addEventListener('change', handlePriceListUpload);
             document.getElementById('showLabels').addEventListener('change', render);
+            
+            // Font Size Slider
+            document.getElementById('globalFontSize').addEventListener('input', (e) => {
+                App.fontSize = parseInt(e.target.value);
+                document.getElementById('fontSizeDisplay').textContent = `${App.fontSize}px`;
+                render();
+            });
+
             document.getElementById('exportBtn').addEventListener('click', exportCSV);
             document.getElementById('saveImgBtn').addEventListener('click', saveCanvasAsImage);
             document.getElementById('savePdfBtn').addEventListener('click', saveCanvasAsPDF);
@@ -732,6 +754,13 @@
 
             // --- NEW: Manual Item Event ---
             document.getElementById('addManualItemBtn').addEventListener('click', addManualItem);
+            
+            // Enter key support for manual items
+            const handleManualEnter = (e) => {
+                if (e.key === 'Enter') addManualItem();
+            };
+            document.getElementById('manualItemName').addEventListener('keypress', handleManualEnter);
+            document.getElementById('manualItemPrice').addEventListener('keypress', handleManualEnter);
         }
 
         // --- Core Functions ---
@@ -847,14 +876,19 @@
             const preset = JSON.parse(val);
             document.getElementById('itemName').value = preset.name;
             document.getElementById('itemPrice').value = preset.price;
+            
+            // Set properties
+            App.currentSettings.name = preset.name;
+            App.currentSettings.masterName = preset.name; // Keep master name
+            App.currentSettings.refName = preset.refName || ''; // Keep ref name
+            App.currentSettings.price = preset.price;
+            App.currentSettings.multiplier = 1;
+            document.getElementById('itemMultiplier').value = 1;
+
             if (preset.color) {
                 document.getElementById('itemColor').value = preset.color;
                 App.currentSettings.color = preset.color;
             }
-            App.currentSettings.name = preset.name;
-            App.currentSettings.price = preset.price;
-            document.getElementById('itemMultiplier').value = 1;
-            App.currentSettings.multiplier = 1;
         }
 
         function addAdditionalItem() {
@@ -1138,6 +1172,8 @@
 
         function addShape(type, points) {
             const settings = JSON.parse(JSON.stringify(App.currentSettings));
+            // Ensure masterName is populated even if not from preset
+            if (!settings.masterName) settings.masterName = settings.name;
             const shape = { type, points, settings, id: Date.now() + Math.random() };
             App.shapes.push(shape);
             updateEstimation();
@@ -1163,6 +1199,9 @@
                 ctx.translate(App.offsetX, App.offsetY);
                 ctx.scale(App.scale, App.scale);
                 ctx.drawImage(App.bgImage, 0, 0);
+                
+                // Export Font Size Scaling (approx 2x for high res export)
+                const exportFontSize = (App.fontSize || 14) * 2;
                 ctx.restore();
             }
             App.shapes.forEach(shape => drawShape(ctx, shape));
@@ -1289,11 +1328,9 @@
         
         function drawLabel(ctx, p, text, color) {
             const s = worldToScreen(p.x, p.y);
-            ctx.font = "bold 12px sans-serif";
+            const fontSize = App.fontSize || 14;
+            ctx.font = `bold ${fontSize}px sans-serif`;
             ctx.fillStyle = color; 
-            ctx.strokeStyle = "black";
-            ctx.lineWidth = 3;
-            ctx.strokeText(text, s.x + 8, s.y);
             ctx.fillText(text, s.x + 8, s.y);
         }
 
@@ -1314,6 +1351,9 @@
             tempCanvas.height = App.bgImage.height;
             const tCtx = tempCanvas.getContext('2d');
             tCtx.drawImage(App.bgImage, 0, 0);
+            
+            const exportFontSize = (App.fontSize || 14) * 2;
+
             App.shapes.forEach(shape => {
                 const color = shape.settings.color;
                 const isSub = shape.settings.isSubtractive;
@@ -1379,11 +1419,9 @@
                     } else if (shape.type === 'line') {
                         pos = shape.points[Math.floor(shape.points.length/2)];
                     }
-                    tCtx.font = "bold 24px sans-serif"; 
+                    
+                    tCtx.font = `bold ${exportFontSize}px sans-serif`; 
                     tCtx.fillStyle = color; 
-                    tCtx.strokeStyle = "black";
-                    tCtx.lineWidth = 4;
-                    tCtx.strokeText(text, pos.x + 10, pos.y);
                     tCtx.fillText(text, pos.x + 10, pos.y);
                 }
             });
@@ -1464,6 +1502,9 @@
             nameInput.value = '';
             priceInput.value = '';
             updateEstimation(); // 再計算と描画
+            
+            // Focus back on name input for rapid entry
+            nameInput.focus();
         }
 
         function deleteManualItem(id) {
@@ -1619,25 +1660,47 @@
         window.deleteManualItem = deleteManualItem; // グローバルスコープへ公開
 
         function exportCSV() {
-            // NOTE: 手入力がなくても図形があれば出力する、あるいは逆も然り
             if (App.shapes.length === 0 && App.manualItems.length === 0) {
                 alert("出力するデータがありません");
                 return;
             }
+            
+            const includeDetails = document.getElementById('csvIncludeDetails').checked;
             const groups = {};
             
             // 図形データの集計
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
+                const masterName = shape.settings.masterName || name;
+                const refName = shape.settings.refName || '';
                 const mult = Math.round(shape.settings.multiplier || 1);
                 const rawVal = calculateMetric(shape);
+                
+                // Group Key uses name and mult (visible identity)
                 const groupKey = `${name}_${mult}`;
+                
                 if (!groups[groupKey]) {
                     let displayName = name;
                     if(mult > 1) displayName += ` (x${mult})`;
-                    groups[groupKey] = { name: displayName, effectivePrice: shape.settings.price * mult, quantity: 0, unit: '' };
+                    groups[groupKey] = { 
+                        name: displayName, 
+                        masterName: masterName, // Store master name
+                        refName: refName,       // Store ref name
+                        effectivePrice: shape.settings.price * mult, 
+                        quantity: 0, 
+                        unit: '',
+                        details: [] 
+                    };
                 }
+                
                 groups[groupKey].quantity += rawVal;
+                // Add details
+                if (includeDetails) {
+                    const isMinus = rawVal < 0;
+                    const valStr = Math.abs(rawVal).toFixed(2);
+                    groups[groupKey].details.push(isMinus ? `除外:${valStr}` : valStr);
+                }
+
                 if (shape.type === 'line') groups[groupKey].unit = 'm';
                 else if (shape.type === 'area') groups[groupKey].unit = 'm2';
                 else groups[groupKey].unit = '個';
@@ -1646,7 +1709,15 @@
                     shape.settings.additionalItems.forEach(addItem => {
                         const addKey = `_ADD_${addItem.name}`;
                         if (!groups[addKey]) {
-                            groups[addKey] = { name: `${addItem.name} (同時計測)`, effectivePrice: addItem.price, quantity: 0, unit: addItem.unit };
+                            groups[addKey] = { 
+                                name: `${addItem.name} (同時計測)`, 
+                                masterName: addItem.name, // Assume item name as master for additives
+                                refName: '',
+                                effectivePrice: addItem.price, 
+                                quantity: 0, 
+                                unit: addItem.unit,
+                                details: []
+                            };
                         }
                         groups[addKey].quantity += rawVal;
                     });
@@ -1654,18 +1725,31 @@
             });
 
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            csvContent += "品名,単価,数量,単位,合計金額\n";
+            
+            // CSV Header with new columns
+            let header = "部材名称(マスタ),表示名称,単価,数量,単位,合計金額,参照商品名";
+            if (includeDetails) header += ",詳細内訳";
+            csvContent += header + "\n";
             
             // 図形分出力
             Object.keys(groups).forEach(key => {
                 const item = groups[key];
                 const total = Math.round(item.quantity * item.effectivePrice);
-                csvContent += `${item.name},${item.effectivePrice},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
+                
+                let row = `"${item.masterName}","${item.name}",${item.effectivePrice},${item.quantity.toFixed(2)},"${item.unit}",${total},"${item.refName}"`;
+                
+                if (includeDetails) {
+                    row += `,"${item.details.join(' + ')}"`;
+                }
+                csvContent += row + "\n";
             });
 
             // 手入力分出力
             App.manualItems.forEach(item => {
-                csvContent += `${item.name} (手入力),${item.price},1,式,${item.price}\n`;
+                // A列:名称, B列:名称, G列:空, 詳細:空
+                let row = `"${item.name}","${item.name} (手入力)",${item.price},1,"式",${item.price},""`;
+                if (includeDetails) row += `,""`;
+                csvContent += row + "\n";
             });
 
             const encodedUri = encodeURI(csvContent);
