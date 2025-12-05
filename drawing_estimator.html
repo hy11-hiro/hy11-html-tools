@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exterior Planner - 外構積算ツール (Edge版 v5)</title>
+    <title>Exterior Planner - 外構積算ツール (v7)</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -176,7 +176,7 @@
                     </div>
                 </div>
 
-                <!-- Material Settings (Hidden for Select/Scale) -->
+                <!-- Material Settings -->
                 <div id="materialSettings">
                     <label class="block text-xs mb-1 text-gray-400">メイン部材選択 (マスタ参照)</label>
                     <select id="presetSelect" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm mb-3 text-white">
@@ -186,7 +186,6 @@
                     <label class="block text-xs mb-1 text-gray-400">表示名称</label>
                     <input type="text" id="itemName" class="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm mb-3 text-white">
 
-                    <!-- Unit Price Hidden from UI as requested, kept in logic -->
                     <input type="hidden" id="itemPrice"> 
                     
                     <div class="flex gap-2 mb-3">
@@ -206,7 +205,7 @@
                         <input type="color" id="itemColor" class="h-8 w-12 bg-transparent border-none cursor-pointer">
                     </div>
 
-                    <!-- Additional Items (Combo) -->
+                    <!-- Additional Items -->
                     <div class="mb-3 pt-2 border-t border-cad-border">
                         <label class="block text-xs mb-1 text-blue-300"><i class="fas fa-plus-circle"></i> 同時計測する部材</label>
                         <select id="additionalItemSelect" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-xs mb-2 text-white">
@@ -269,7 +268,7 @@
                 </div>
             </div>
 
-            <!-- Manual Entry Section (NEW) -->
+            <!-- Manual Entry Section -->
             <div class="p-3 border-t border-cad-border bg-gray-800">
                 <label class="block text-xs font-bold text-yellow-500 mb-2">
                     <i class="fas fa-pen-to-square mr-1"></i> 付帯工事・その他 (手入力)
@@ -304,7 +303,8 @@
                 <div>
                     <h2 class="text-2xl font-bold text-white mb-2">部材・単価マスタ管理</h2>
                     <p class="text-gray-400 text-sm">図面作成で使用する部材の名称、参照商品名、単位、単価を管理します。<br>
-                    <span class="text-yellow-500">※Excel取込形式：A列=部材名, B列=参照商品名(画像検索用), C列=単位(m/m2/基), D列=単価</span>
+                    <span class="text-yellow-500">※Excel取込形式：A列=部材名, B列=参照商品名(画像検索用), C列=単位(m/m2/基), D列=単価</span><br>
+                    <span class="text-xs font-bold" id="dbStatusMsg"></span>
                     </p>
                 </div>
                 <div class="flex gap-2">
@@ -388,7 +388,7 @@
         /**
          * Database & Defaults
          */
-        let db;
+        let db = null;
         const DEFAULT_PRESETS = [
             { id: 101, name: 'CB100', refName: '重量ブロック 100', unit: 'm', price: 1800, type: 'line', color: '#A9A9A9' },
             { id: 102, name: 'CB120', refName: '重量ブロック 120', unit: 'm', price: 2200, type: 'line', color: '#808080' },
@@ -432,11 +432,11 @@
             bgImage: null, 
             shapes: [],
             manualItems: [], 
-            fontSize: 14, // Default font size
+            fontSize: 14, 
             currentSettings: {
                 name: '未設定',
-                masterName: '', // NEW: マスタ上の名称
-                refName: '',    // NEW: 参照商品名
+                masterName: '', 
+                refName: '',    
                 price: 0,
                 color: '#ffffff',
                 lineWidth: 2,
@@ -471,7 +471,7 @@
             render();
         }
 
-        // --- Helper Functions for Master Table ---
+        // --- Helper Functions ---
         function getTypeLabel(type) {
             if(type === 'line') return '線 (長さ)';
             if(type === 'area') return '面 (面積)';
@@ -484,32 +484,57 @@
             if(type === 'count') return 'bg-yellow-900 text-yellow-200';
             return 'bg-gray-700';
         }
+        
+        function searchMaterialImage(keyword) {
+            if (!keyword) return;
+            const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(keyword)}`;
+            window.open(url, '_blank');
+        }
 
-        // --- IndexedDB (Edge Version: Strict) ---
+        // --- Hybrid IndexedDB Logic (Universal) ---
         function initDB() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open("ExteriorPlannerDB", 2); 
-                request.onupgradeneeded = (e) => {
-                    db = e.target.result;
-                    if (!db.objectStoreNames.contains("materials")) {
-                        const store = db.createObjectStore("materials", { keyPath: "id", autoIncrement: true });
-                         DEFAULT_PRESETS.forEach(item => {
-                            const { id, ...cleanItem } = item;
-                            store.add(cleanItem);
-                        });
-                    }
-                };
-                request.onsuccess = (e) => {
-                    db = e.target.result;
-                    loadMaterialsFromDB().then(() => resolve());
-                };
-                request.onerror = (e) => {
-                    console.error("DB Error", e);
-                    alert("データベースの読み込みに失敗しました。このブラウザ環境ではデータ保存ができない可能性があります。");
-                    loadedMaterials = [...DEFAULT_PRESETS];
+            return new Promise((resolve) => {
+                try {
+                    const request = indexedDB.open("ExteriorPlannerDB", 2); 
+                    request.onupgradeneeded = (e) => {
+                        db = e.target.result;
+                        if (!db.objectStoreNames.contains("materials")) {
+                            const store = db.createObjectStore("materials", { keyPath: "id", autoIncrement: true });
+                             DEFAULT_PRESETS.forEach(item => {
+                                const { id, ...cleanItem } = item;
+                                store.add(cleanItem);
+                            });
+                        }
+                    };
+                    request.onsuccess = (e) => {
+                        db = e.target.result;
+                        document.getElementById('dbStatusMsg').textContent = "保存機能：有効";
+                        document.getElementById('dbStatusMsg').classList.add('text-green-500');
+                        document.getElementById('dbStatusMsg').classList.remove('text-red-400');
+                        loadMaterialsFromDB().then(() => resolve());
+                    };
+                    request.onerror = (e) => {
+                        console.warn("DB Access blocked: Using fallback.", e);
+                        useFallbackMode();
+                        resolve();
+                    };
+                } catch(err) {
+                    console.warn("DB Exception: Using fallback.", err);
+                    useFallbackMode();
                     resolve();
-                };
+                }
             });
+        }
+
+        function useFallbackMode() {
+            db = null;
+            // Fallback: Load defaults into memory if empty
+            loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
+            const msg = document.getElementById('dbStatusMsg');
+            if(msg) {
+                msg.textContent = "保存機能：無効（一時モード・リロードで消えます）";
+                msg.classList.add('text-red-400');
+            }
         }
 
         function loadMaterialsFromDB() {
@@ -520,13 +545,11 @@
                 const request = store.getAll();
                 request.onsuccess = (e) => {
                     const res = e.target.result;
-                    // FIX: If empty, just return empty list. Do NOT load default presets here.
                     loadedMaterials = res || [];
                     resolve();
                 };
                 request.onerror = () => { 
-                    console.error("Failed to load materials");
-                    loadedMaterials = []; // On error, also assume empty or handle appropriately
+                    loadedMaterials = []; 
                     resolve(); 
                 }
             });
@@ -534,15 +557,32 @@
 
         function addMaterialToDB(material) {
             return new Promise((resolve) => {
+                if(!material.type) material.type = determineTypeByUnit(material.unit);
+                
+                // Hybrid: If DB is null, use memory
+                if (!db) {
+                    material.id = Date.now() + Math.random();
+                    loadedMaterials.push(material);
+                    updateMasterTable();
+                    resolve();
+                    return;
+                }
+
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
-                if(!material.type) material.type = determineTypeByUnit(material.unit);
                 store.add(material);
                 transaction.oncomplete = () => {
                     loadMaterialsFromDB().then(() => {
                         updateMasterTable();
                         resolve();
                     });
+                };
+                transaction.onerror = () => {
+                    // Fallback on error
+                    material.id = Date.now() + Math.random();
+                    loadedMaterials.push(material);
+                    updateMasterTable();
+                    resolve();
                 };
             });
         }
@@ -557,6 +597,14 @@
 
         function deleteMaterialFromDB(id) {
             if(!confirm("削除しますか？")) return;
+            
+            // Hybrid: If DB is null, use memory
+            if (!db) {
+                loadedMaterials = loadedMaterials.filter(m => m.id !== id);
+                updateMasterTable();
+                return;
+            }
+
             const transaction = db.transaction(["materials"], "readwrite");
             const store = transaction.objectStore("materials");
             store.delete(id);
@@ -564,8 +612,15 @@
         }
 
         function deleteAllMaterials() {
-            if(!db) return;
             if(!confirm("【警告】マスタデータを全て削除します。\n本当によろしいですか？")) return;
+            
+            // Hybrid: If DB is null, use memory
+            if (!db) {
+                loadedMaterials = [];
+                updateMasterTable();
+                return;
+            }
+
             const transaction = db.transaction(["materials"], "readwrite");
             const store = transaction.objectStore("materials");
             store.clear();
@@ -578,11 +633,16 @@
         }
 
         function restoreDefaults() {
-            if(!db) {
-                alert("データベース接続エラー。");
+            if(!confirm("初期データに戻しますか？（追加データは消えます）")) return;
+
+            // Hybrid: If DB is null, use memory
+            if (!db) {
+                loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
+                updateMasterTable();
+                alert("初期データを復元しました（一時モード）。");
                 return;
             }
-            if(!confirm("初期データに戻しますか？（追加データは消えます）")) return;
+
             try {
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
@@ -603,6 +663,18 @@
 
         function saveMaterialsToDB(materials) {
             return new Promise((resolve, reject) => {
+                // Hybrid
+                if (!db) {
+                    materials.forEach(m => {
+                        m.id = Date.now() + Math.random();
+                        loadedMaterials.push(m);
+                    });
+                    updateMasterTable();
+                    alert(`${materials.length}件の単価データを追加しました（一時モード）。`);
+                    resolve();
+                    return;
+                }
+
                 const transaction = db.transaction(["materials"], "readwrite");
                 const store = transaction.objectStore("materials");
                 materials.forEach(mat => store.add(mat));
@@ -1594,14 +1666,15 @@
         window.deleteManualItem = deleteManualItem; // グローバルスコープへ公開
 
         function exportCSV() {
+            // NOTE: 手入力がなくても図形があれば出力する、あるいは逆も然り
             if (App.shapes.length === 0 && App.manualItems.length === 0) {
                 alert("出力するデータがありません");
                 return;
             }
-            
-            const includeDetails = document.getElementById('csvIncludeDetails').checked;
             const groups = {};
             
+            const includeDetails = document.getElementById('csvIncludeDetails').checked;
+
             // 図形データの集計
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
@@ -1609,8 +1682,6 @@
                 const refName = shape.settings.refName || '';
                 const mult = Math.round(shape.settings.multiplier || 1);
                 const rawVal = calculateMetric(shape);
-                
-                // Group Key uses name and mult (visible identity)
                 const groupKey = `${name}_${mult}`;
                 
                 if (!groups[groupKey]) {
@@ -1626,7 +1697,6 @@
                         details: [] 
                     };
                 }
-                
                 groups[groupKey].quantity += rawVal;
                 // Add details
                 if (includeDetails) {
@@ -1659,7 +1729,6 @@
             });
 
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            
             // CSV Header with new columns
             let header = "部材名称(マスタ),表示名称,単価,数量,単位,合計金額,参照商品名";
             if (includeDetails) header += ",詳細内訳";
@@ -1669,7 +1738,6 @@
             Object.keys(groups).forEach(key => {
                 const item = groups[key];
                 const total = Math.round(item.quantity * item.effectivePrice);
-                
                 let row = `"${item.masterName}","${item.name}",${item.effectivePrice},${item.quantity.toFixed(2)},"${item.unit}",${total},"${item.refName}"`;
                 
                 if (includeDetails) {
