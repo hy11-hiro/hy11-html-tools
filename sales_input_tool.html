@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工事原価・売上入力ツール (Web版 Ver 36.0)</title>
+    <title>工事原価・売上入力ツール (Web版 Ver 38.0)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f4f6f9; font-family: "Yu Gothic UI", sans-serif; font-size: 0.9rem; }
@@ -20,12 +20,13 @@
         .invalid-input { background-color: #f8d7da !important; border-color: #dc3545 !important; }
         .manual-check-col { background-color: #fff3cd !important; }
 
-        /* 完了済み現場の強調表示 (Ver 36.0) */
+        /* 完了済み現場の強調表示 */
         .completed-job { 
-            background-color: #ffcccc !important; /* 赤背景 */
-            color: #d63384; 
-            font-weight: bold; 
-            border: 2px solid #dc3545 !important; /* 赤枠 */
+            background-color: #ffcccc !important; color: #d63384; font-weight: bold; border: 2px solid #dc3545 !important; 
+        }
+        /* 枝番ありの強調表示 */
+        .has-branch {
+            background-color: #e2e3e5 !important; color: #0d6efd; font-weight: bold;
         }
 
         #dropArea { border: 3px dashed #6c757d; border-radius: 10px; background-color: #f8f9fa; color: #6c757d; transition: all 0.3s; cursor: pointer; }
@@ -50,7 +51,7 @@
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 36.0</small></h5>
+        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 38.0</small></h5>
         <div>
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#masterModal">⚙️ マスタ取込</button>
             <button class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="modal" data-bs-target="#templateModal">📑 テンプレート</button>
@@ -168,7 +169,6 @@
                             <th style="width: 60px;">サブ</th>
                             <th style="width: 180px;" class="manual-check-col">手入力現場名<br>(確認用)</th>
                             <th style="width: 100px;">完了日</th>
-                            <!-- (税込)を追加 -->
                             <th style="width: 100px;">金額<br>(税込)</th>
                             <th style="width: 180px;">名称 (自動)</th>
                             <th style="width: 100px;">現場担当者 (自動)</th>
@@ -649,7 +649,7 @@ function addGridRow() {
         tr.querySelector('.i-col').value = "";
         // 完了日クリアはしない（手入力の可能性もあるため）
         jobIn.classList.remove('valid-input', 'invalid-input');
-        dateIn.classList.remove('completed-job'); // 赤背景解除
+        dateIn.classList.remove('completed-job'); 
         dateIn.title = "";
         
         if(!job) return;
@@ -667,10 +667,9 @@ function addGridRow() {
         tr.querySelector('.genba-type').value = found.t; 
         tr.querySelector('.h-col').value = found.h;
         
-        // 完了日チェック (AT列)
+        // ★★★ 完了日チェック (Ver 38.0: 0や0000は無視) ★★★
         const compDate = found.cd ? normalizeDateStr(found.cd) : "";
-        if(compDate !== "") {
-            // 完了日をセットして目印
+        if(compDate !== "" && compDate !== "0" && compDate !== "00000000") {
             dateIn.value = compDate;
             dateIn.classList.add('completed-job');
             dateIn.title = "この工番は完了しています";
@@ -824,14 +823,14 @@ function downloadMaster(type) {
 
     let tsv = "";
     if (type === 'genba') {
-        tsv = data.map(r => `${r.c}\t${r.s}\t${r.n}\t\t\t${r.sn}\t${r.t}\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t${r.h}\t\t${r.t}`).join("\r\n");
+        tsv = data.map(r => `${r.c}\t${r.s}\t${r.n}\t\t\t${r.sn}\t${r.t}\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t${r.cd}\t${r.h}\t\t${r.t}`).join("\r\n");
         // AX列は50番目(index 49)。TSV構築時にタブを調整してAX列に担当者が来るように簡易出力
         // ただし厳密な復元は困難なため、ここではWebツール内での再取込用としての形式を優先
         // Webツールの processGenbaFile は r[49] を担当者(t)として読む。
         // 上記のタブ数は適当なので、配列形式で出力してタブ結合する方が確実。
         
         // 修正: 確実にAX列(49)に値を入れる
-        // A=0, B=1, C=2, F=5, AV=47, AX=49
+        // A=0, B=1, C=2, F=5, AT=45, AV=47, AX=49
         tsv = data.map(r => {
             let cols = new Array(50).fill("");
             cols[0] = r.c; cols[1] = r.s; cols[2] = r.n; cols[5] = r.sn; 
