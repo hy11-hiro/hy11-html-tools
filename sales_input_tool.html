@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>工事原価・売上入力ツール (Web版 Ver 35.0)</title>
+    <title>工事原価・売上入力ツール (Web版 Ver 36.0)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body { background-color: #f4f6f9; font-family: "Yu Gothic UI", sans-serif; font-size: 0.9rem; }
@@ -19,6 +19,14 @@
         .valid-input { background-color: #d4edda !important; border-color: #28a745 !important; }
         .invalid-input { background-color: #f8d7da !important; border-color: #dc3545 !important; }
         .manual-check-col { background-color: #fff3cd !important; }
+
+        /* 完了済み現場の強調表示 (Ver 36.0) */
+        .completed-job { 
+            background-color: #ffcccc !important; /* 赤背景 */
+            color: #d63384; 
+            font-weight: bold; 
+            border: 2px solid #dc3545 !important; /* 赤枠 */
+        }
 
         #dropArea { border: 3px dashed #6c757d; border-radius: 10px; background-color: #f8f9fa; color: #6c757d; transition: all 0.3s; cursor: pointer; }
         #dropArea:hover, #dropArea.dragover { border-color: #0d6efd; background-color: #e9ecef; color: #0d6efd; }
@@ -42,9 +50,8 @@
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 35.0</small></h5>
+        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 36.0</small></h5>
         <div>
-            <!-- ボタンを標準サイズに戻し、名称を明確化 -->
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#masterModal">⚙️ マスタ取込</button>
             <button class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="modal" data-bs-target="#templateModal">📑 テンプレート</button>
         </div>
@@ -257,21 +264,21 @@
  * ============================================================ */
 const LAYOUT_HEADER = [
     "伝票日付", "伝票№", "処理連番", "明細区分", "行", "得意先コード", "得意先名１", "得意先名２", "納品先コード", "納品先名",
-    "担当者コード", "", "", "請求区分", "売掛区分", "取引区分", "取引区分属性", "", "商品コード", "商品名",
-    "", "", "", "数量", "数量単位", "単価", "金額", "原単価", "原価金額", "",
-    "粗利", "単価掛率", "課税区分", "", "消費税率", "内消費税等", "", "行摘要コード", "行摘要１", "行摘要２",
-    "備考コード", "備考", "受注№", "受注行", "見積処理連番", "見積行", "自動生成区分", "", "伝票消費税計算区分", "",
-    "データ発生区分", "相手処理連番", "", "", "", "", "", "", "", "",
-    "", "", "", "", "", "", "", "", "", "",
-    "", "", "", "", "", "", "", "", "", "",
-    "", "", "", "", "", "", "", "", "", "",
-    "", "", "", "", "", "", "現場メインコード", "現場サブコード", "完了日", "",
-    "", "", "", "", "", "", "チェックマーク区分", "", "", "",
-    "", "", "", "", "", "", "", "", "", "",
-    "", "", "", "", "", "消費税分類", "", "", "", "",
-    "", "", "", "", "", "" 
+    "担当者コード", "未使用", "未使用", "請求区分", "売掛区分", "取引区分", "取引区分属性", "未使用", "商品コード", "商品名",
+    "未使用", "未使用", "未使用", "数量", "数量単位", "単価", "金額", "原単価", "原価金額", "未使用",
+    "粗利", "単価掛率", "課税区分", "未使用", "消費税率", "内消費税等", "未使用", "行摘要コード", "行摘要１", "行摘要２",
+    "備考コード", "備考", "受注№", "受注行", "見積処理連番", "見積行", "自動生成区分", "未使用", "伝票消費税計算区分", "未使用",
+    "データ発生区分", "相手処理連番", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用",
+    "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用",
+    "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用",
+    "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用",
+    "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "現場メインコード", "現場サブコード", "完了日", "未使用",
+    "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "チェックマーク区分", "未使用", "未使用", "未使用",
+    "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用", "未使用",
+    "未使用", "未使用", "未使用", "未使用", "未使用", "消費税分類", "未使用", "未使用", "未使用", "未使用",
+    "未使用", "未使用", "未使用"
 ];
-while(LAYOUT_HEADER.length < 136) LAYOUT_HEADER.push("");
+while(LAYOUT_HEADER.length < 136) LAYOUT_HEADER.push("未使用");
 
 let M_GENBA=[], M_CUST=[], M_PROD=[], M_STAFF=[], exportData=[], currentSeq=1;
 
@@ -515,6 +522,7 @@ function parseTSV(text) {
 }
 async function processGenbaFile(f) {
     const rows = parseTSV(await readFileText(f));
+    // t: r[49](AX列 現場担当者)
     const data = rows.map(r => ({ c:r[0]||"", s:r[1]||"", n:r[2]||"", sn:r[5]||"", t:r[49]||"", h:r[47]||"", i:(r[1]&&r[1].trim()!=="")?"有":"", cd:r[45]||"" })).filter(d=>d.c);
     localStorage.setItem('MST_GENBA', JSON.stringify(data));
 }
@@ -641,6 +649,8 @@ function addGridRow() {
         tr.querySelector('.i-col').value = "";
         // 完了日クリアはしない（手入力の可能性もあるため）
         jobIn.classList.remove('valid-input', 'invalid-input');
+        dateIn.classList.remove('completed-job'); // 赤背景解除
+        dateIn.title = "";
         
         if(!job) return;
         let found = null;
@@ -660,9 +670,10 @@ function addGridRow() {
         // 完了日チェック (AT列)
         const compDate = found.cd ? normalizeDateStr(found.cd) : "";
         if(compDate !== "") {
-            // 完了日をセット
-            tr.querySelector('.date-col').value = compDate;
-            alert(`工番「${job}」は ${compDate} に完了しています。\n別コードを作成してください。`);
+            // 完了日をセットして目印
+            dateIn.value = compDate;
+            dateIn.classList.add('completed-job');
+            dateIn.title = "この工番は完了しています";
         }
 
         const hasSub = M_GENBA.some(m => m.c === job && m.s !== "");
