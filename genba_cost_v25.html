@@ -198,7 +198,7 @@
                         <div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500 border-collapse border border-slate-200"><thead class="text-xs text-slate-700 uppercase bg-slate-50" id="monthly-table-head"></thead><tbody id="ranking-table-month" class="bg-white"></tbody><tfoot id="ranking-footer-month" class="bg-slate-100 font-bold"></tfoot></table></div>
                     </div>
                 </div>
-                 <!-- 6. Worst Ranking (UPDATED with Manager Col) -->
+                 <!-- 6. Worst Ranking -->
                  <div id="ranking-worst" class="ranking-tab-content hidden space-y-6">
                     <div class="glass-panel p-6 rounded-xl border-l-4 border-red-500">
                         <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
@@ -221,7 +221,7 @@
     </main>
 
 <script>
-    const db = new Dexie("ConstructionLedgerDB_Main"); 
+    const db = new Dexie("ConstructionLedgerDB_v26"); 
     db.version(1).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, date', meta: 'key' });
     
     let pendingFiles = { cost: null, master: null, purchase: null, sales: null };
@@ -304,6 +304,22 @@
         processBtn.disabled = !(pendingFiles.cost || pendingFiles.master || pendingFiles.purchase || pendingFiles.sales);
     }
     function excelColToIndex(col) { let n=0; for(let i=0;i<col.length;i++){n=n*26+(col.toUpperCase().charCodeAt(i)-64);} return n-1; }
+    
+    // Updated Helper: Parse Text (UTF-16LE) and remove quotes
+    async function parseTextUTF16LE_ByIndex(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const decoder = new TextDecoder('utf-16le');
+                const text = decoder.decode(e.target.result);
+                // Remove all double quotes globally from the text content before parsing
+                const cleanText = text.replace(/"/g, ''); 
+                Papa.parse(cleanText, { header: false, skipEmptyLines: true, complete: (results) => resolve(results.data) });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
     async function parseExcel(file, headerRowIndex) {
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -319,61 +335,115 @@
             reader.readAsArrayBuffer(file);
         });
     }
-    async function parseTextUTF16LE_ByIndex(file) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const decoder = new TextDecoder('utf-16le');
-                const text = decoder.decode(e.target.result);
-                Papa.parse(text, { header: false, skipEmptyLines: true, complete: (results) => resolve(results.data) });
-            };
-            reader.readAsArrayBuffer(file);
-        });
-    }
+
     async function processDroppedFiles() {
         processBtn.disabled = true; document.getElementById('import-spinner').classList.remove('hidden');
         importLog.textContent += "\n--- 処理開始 ---\n";
         try {
             let costData=[], masterData=[], purchaseData=[], salesData=[], periodStr = "";
+            
+            // --- 1. Cost Aggregation (Excel Only, Row 5 Header) ---
             if (pendingFiles.cost) {
-                const { rows, rawJson } = await parseExcel(pendingFiles.cost, 5);
+                importLog.textContent += "読込: 原価集計表(Excel)...\n";
+                // Fixed: Header is at index 5 (Row 6) as per original requirement
+                const { rows, rawJson } = await parseExcel(pendingFiles.cost, 5); 
+                
+                // Extract Period
                 for(let i=0; i<5; i++) {
                     const rowArr = Object.values(rawJson[i] || {});
                     const found = rowArr.find(s => typeof s === 'string' && s.includes("完 了 日"));
                     if(found) { periodStr = found; break; }
                 }
-                // UPDATED: Explicitly exclude 'Total' rows by name in addition to empty code
-                costData = rows.map(r => ({
+
+                // Check for garbage rows (e.g. <00001>) in data area (starts at rawJson[6] / rows[0])
+                let validRows = rows;
+                if (validRows.length > 0) {
+                     const firstRow = validRows[0];
+                     // Check 'コード' column. In obj, key is Header Name.
+                     const codeVal = String(firstRow['コード'] || '');
+                     if (codeVal === '1' || (codeVal.includes('<') && codeVal.includes('>'))) {
+                          validRows = rows.slice(1);
+                          importLog.textContent += "  -> 項目番号行を検出。スキップします。\n";
+                     }
+                }
+
+                costData = validRows.map(r => ({
                     code: String(r['コード'] || ''), 
                     name: String(r['現場メイン名'] || ''),
-                    salesTotal: parseFloat(r['売上累計'] || 0),
-                    costTotal: parseFloat(r['原価累計'] || 0),
-                    profitTotal: parseFloat(r['売上－原価(累計)'] || 0),
-                    marginRatio: parseFloat(r['(売上累計－原価累計)／売上累計'] || 0)
+                    salesTotal: parseFloat(String(r['売上累計'] || '0').replace(/,/g, '')),
+                    costTotal: parseFloat(String(r['原価累計'] || '0').replace(/,/g, '')),
+                    profitTotal: parseFloat(String(r['売上－原価(累計)'] || '0').replace(/,/g, '')),
+                    marginRatio: parseFloat(String(r['(売上累計－原価累計)／売上累計'] || r['粗利率'] || '0').replace(/%/g, ''))
                 })).filter(r => {
                      // Filter out empty codes AND rows containing '総合計' or '合計' in name
                      return r.code && r.code.trim() !== '' && !r.name.includes('総合計') && !r.name.includes('合計');
                 });
             }
+
+            // --- 2. Site Master (Excel/Text, Index Based) ---
             if (pendingFiles.master) {
-                const { rows } = await parseExcel(pendingFiles.master, 0);
+                const isText = pendingFiles.master.name.endsWith('.txt') || pendingFiles.master.name.endsWith('.csv');
+                let rawData = [];
+                
+                if (isText) {
+                    importLog.textContent += "読込: 現場マスター(Text)...\n";
+                    rawData = await parseTextUTF16LE_ByIndex(pendingFiles.master);
+                } else {
+                    importLog.textContent += "読込: 現場マスター(Excel)...\n";
+                    const { rawJson } = await parseExcel(pendingFiles.master, 0); 
+                    rawData = rawJson;
+                }
+                
+                // Skip Header (Row 1)
+                if(rawData.length > 0) rawData = rawData.slice(1); 
+                
+                // Skip Number Row (Row 2) if exists
+                if(rawData.length > 0) {
+                    const row2 = rawData[0];
+                    const valA = String(row2[0] || ''); // A col
+                    if (valA === '1' || (valA.includes('<') && valA.includes('>'))) {
+                        rawData = rawData.slice(1);
+                        importLog.textContent += "  -> 現場マスター項目番号行を検出。スキップします。\n";
+                    }
+                }
+
                 const mastersMap = new Map();
-                rows.forEach(r => {
-                    const code = String(r['現場ｺｰﾄﾞ'] || '');
+                rawData.forEach(r => {
+                    // Mapping: A=0, B=1, C=2, F=5, V=21, W=22, AR=43, AT=45, AV=47, AX=49, BD=55
+                    const code = String(r[0] || ''); // A
                     if (!code) return;
-                    const subCode = String(r['現場サブｺｰﾄﾞ'] || '').trim(); const subName = r['現場サブ名称']; const isParent = (subCode === '');
-                    const record = { code: code, owner: r['施工主名'], name: r['現場名称'], manager: r['現場担当名'], branch: r['拠点名'], startDate: r['着手日'], endDate: r['完了日'], subCodes: [] };
+                    
+                    const subCode = String(r[1] || '').trim(); // B
+                    const subName = r[5]; // F
+                    const isParent = (subCode === '');
+                    
+                    const record = {
+                        code: code,
+                        owner: r[47], // AV
+                        name: r[2],   // C
+                        manager: r[49], // AX
+                        branch: r[55], // BD
+                        startDate: r[43], // AR
+                        endDate: r[45],   // AT
+                        subCodes: []
+                    };
+                    
                     if (!mastersMap.has(code)) {
                         if (!isParent) record.subCodes.push({ code: subCode, name: subName });
                         mastersMap.set(code, record);
                     } else {
                         const existing = mastersMap.get(code);
-                        if (isParent) { existing.owner = record.owner; existing.name = record.name; existing.manager = record.manager; existing.branch = record.branch; existing.startDate = record.startDate; existing.endDate = record.endDate; } 
-                        else { existing.subCodes.push({ code: subCode, name: subName }); }
+                        if (isParent) { 
+                            existing.owner = record.owner; existing.name = record.name; existing.manager = record.manager; existing.branch = record.branch; existing.startDate = record.startDate; existing.endDate = record.endDate; 
+                        } else { 
+                            existing.subCodes.push({ code: subCode, name: subName }); 
+                        }
                     }
                 });
                 masterData = Array.from(mastersMap.values());
             }
+
+            // ... Purchase/Sales import ...
             if (pendingFiles.purchase) {
                 const raw = await parseTextUTF16LE_ByIndex(pendingFiles.purchase);
                 purchaseData = raw.slice(1).map(r => {
@@ -415,7 +485,22 @@
     function parseDateValue(value) {
         if (!value) return null;
         if (typeof value === 'number') { return (value - 25569) * 86400 * 1000; }
-        if (typeof value === 'string') { let ts = Date.parse(value); if (!isNaN(ts)) return ts; const jpRegex = /(\d{1,2})年\s*(\d{1,2})月\s*(\d{1,2})日/; const match = value.match(jpRegex); if (match) { const y = parseInt(match[1]) + 2000; const m = parseInt(match[2]); const d = parseInt(match[3]); return new Date(y, m-1, d).getTime(); } }
+        if (typeof value === 'string') {
+            // Updated to handle YYYYMMDD string format
+            const ymdMatch = value.match(/^20\d{6}$/); 
+            if (ymdMatch) {
+                const y = parseInt(value.substring(0, 4));
+                const m = parseInt(value.substring(4, 6));
+                const d = parseInt(value.substring(6, 8));
+                return new Date(y, m - 1, d).getTime();
+            }
+
+            let ts = Date.parse(value);
+            if (!isNaN(ts)) return ts;
+            const jpRegex = /(\d{1,2})年\s*(\d{1,2})月\s*(\d{1,2})日/;
+            const match = value.match(jpRegex);
+            if (match) { const y = parseInt(match[1]) + 2000; const m = parseInt(match[2]); const d = parseInt(match[3]); return new Date(y, m-1, d).getTime(); }
+        }
         return null;
     }
     function parseAndSetDefaultPeriod(text) {
