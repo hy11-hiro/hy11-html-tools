@@ -140,7 +140,7 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">売上明細</h4><span class="text-[10px] text-slate-400">※税抜・税込を表示</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-sales">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3">得意先</th><th class="px-3 py-3 text-right">金額(税抜)</th><th class="px-3 py-3 text-right text-slate-400">金額(税込)</th></tr></thead><tbody id="table-sales-body" class="divide-y divide-slate-100"></tbody></table></div></div>
-                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">仕入明細 (原価)</h4><span class="text-[10px] text-slate-400">※データ値を表示(税抜+税)</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-purchase">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">業者名</th><th class="px-3 py-3">項目(材料/外注/残土)</th><th class="px-3 py-3 text-right">金額(税抜+税)</th></tr></thead><tbody id="table-purchase-body" class="divide-y divide-slate-100"></tbody></table></div></div>
+                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">仕入明細 (原価)</h4><span class="text-[10px] text-slate-400">※データ値を表示(税抜+税)</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-purchase">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3">業者名</th><th class="px-3 py-3">項目(材料/外注/残土)</th><th class="px-3 py-3 text-right">金額(税抜+税)</th></tr></thead><tbody id="table-purchase-body" class="divide-y divide-slate-100"></tbody></table></div></div>
                     </div>
                 </div>
             </div>
@@ -221,7 +221,7 @@
     </main>
 
 <script>
-    const db = new Dexie("ConstructionLedgerDB_v26"); 
+    const db = new Dexie("ConstructionLedgerDB_System_v27"); 
     db.version(1).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, date', meta: 'key' });
     
     let pendingFiles = { cost: null, master: null, purchase: null, sales: null };
@@ -312,7 +312,6 @@
             reader.onload = (e) => {
                 const decoder = new TextDecoder('utf-16le');
                 const text = decoder.decode(e.target.result);
-                // Remove all double quotes globally from the text content before parsing
                 const cleanText = text.replace(/"/g, ''); 
                 Papa.parse(cleanText, { header: false, skipEmptyLines: true, complete: (results) => resolve(results.data) });
             };
@@ -345,7 +344,7 @@
             // --- 1. Cost Aggregation (Excel Only, Row 5 Header) ---
             if (pendingFiles.cost) {
                 importLog.textContent += "読込: 原価集計表(Excel)...\n";
-                // Fixed: Header is at index 5 (Row 6) as per original requirement
+                // Fixed: Header is at index 5 (Row 6)
                 const { rows, rawJson } = await parseExcel(pendingFiles.cost, 5); 
                 
                 // Extract Period
@@ -354,13 +353,13 @@
                     const found = rowArr.find(s => typeof s === 'string' && s.includes("完 了 日"));
                     if(found) { periodStr = found; break; }
                 }
-
-                // Check for garbage rows (e.g. <00001>) in data area (starts at rawJson[6] / rows[0])
+                
+                // Detect garbage (e.g. <00001>) in first row of data
                 let validRows = rows;
                 if (validRows.length > 0) {
                      const firstRow = validRows[0];
-                     // Check 'コード' column. In obj, key is Header Name.
                      const codeVal = String(firstRow['コード'] || '');
+                     // Check if A col looks like <00001> or 1
                      if (codeVal === '1' || (codeVal.includes('<') && codeVal.includes('>'))) {
                           validRows = rows.slice(1);
                           importLog.textContent += "  -> 項目番号行を検出。スキップします。\n";
@@ -375,7 +374,6 @@
                     profitTotal: parseFloat(String(r['売上－原価(累計)'] || '0').replace(/,/g, '')),
                     marginRatio: parseFloat(String(r['(売上累計－原価累計)／売上累計'] || r['粗利率'] || '0').replace(/%/g, ''))
                 })).filter(r => {
-                     // Filter out empty codes AND rows containing '総合計' or '合計' in name
                      return r.code && r.code.trim() !== '' && !r.name.includes('総合計') && !r.name.includes('合計');
                 });
             }
@@ -397,7 +395,7 @@
                 // Skip Header (Row 1)
                 if(rawData.length > 0) rawData = rawData.slice(1); 
                 
-                // Skip Number Row (Row 2) if exists
+                // Skip Number Row (Row 2) if exists (<00001> or 1)
                 if(rawData.length > 0) {
                     const row2 = rawData[0];
                     const valA = String(row2[0] || ''); // A col
@@ -443,23 +441,39 @@
                 masterData = Array.from(mastersMap.values());
             }
 
-            // ... Purchase/Sales import ...
             if (pendingFiles.purchase) {
                 const raw = await parseTextUTF16LE_ByIndex(pendingFiles.purchase);
+                // I(8):Vendor, M(12):ItemM, N(13):ItemN, Q(16):ItemQ, DE(108):Amount, EB(131):Site, A(0):Date
+                const idxDate = excelColToIndex('A');
+                const idxVendor = excelColToIndex('I');
+                const idxItemM = excelColToIndex('M'); 
+                const idxItemN = excelColToIndex('N'); 
+                const idxItemO = excelColToIndex('O'); 
+                const idxItemQ = excelColToIndex('Q'); 
+                const idxAmount = excelColToIndex('DE');
+                const idxSite = excelColToIndex('EB');
+
                 purchaseData = raw.slice(1).map(r => {
-                    if (!r[excelColToIndex('EB')]) return null;
-                    const txtM = (r[excelColToIndex('M')] || '').trim(); const txtO = (r[excelColToIndex('O')] || '').trim(); const txtQ = (r[excelColToIndex('Q')] || '').trim();
+                    if (!r[idxSite]) return null;
+                    const txtM = (r[idxItemM] || '').trim(); const txtO = (r[idxItemO] || '').trim(); const txtQ = (r[idxItemQ] || '').trim();
                     let itemName = (txtM || txtO || txtQ) ? [txtM, txtO, txtQ].filter(Boolean).join(' ') : '00000000';
-                    let d = r[excelColToIndex('A')] || ''; if (typeof d !== 'string') d = String(d);
-                    return { siteCode: String(r[excelColToIndex('EB')]).trim(), date: d.trim(), vendor: r[excelColToIndex('I')], item: itemName, amount: parseFloat(String(r[excelColToIndex('DE')] || '0').replace(/,/g, '')) };
+                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
+                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), vendor: r[idxVendor], item: itemName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) };
                 }).filter(r => r && r.siteCode);
             }
             if (pendingFiles.sales) {
                 const raw = await parseTextUTF16LE_ByIndex(pendingFiles.sales);
+                // A(0):Date, I(8):Cust, DG(110):Inc, DJ(113):Exc, EI(138):Site
+                const idxDate = excelColToIndex('A');
+                const idxCustomer = excelColToIndex('I');
+                const idxAmountInc = excelColToIndex('DG');
+                const idxAmountExc = excelColToIndex('DJ');
+                const idxSite = excelColToIndex('EI');
+
                 salesData = raw.slice(1).map(r => {
-                    if (!r[excelColToIndex('EI')]) return null;
-                    let d = r[excelColToIndex('A')] || ''; if (typeof d !== 'string') d = String(d);
-                    return { siteCode: String(r[excelColToIndex('EI')]).trim(), date: d.trim(), customer: r[excelColToIndex('I')], amountInc: parseFloat(String(r[excelColToIndex('DG')] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[excelColToIndex('DJ')] || '0').replace(/,/g, '')) };
+                    if (!r[idxSite]) return null;
+                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
+                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), customer: r[idxCustomer], amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) };
                 }).filter(r => r && r.siteCode);
             }
             await db.transaction('rw', db.costs, db.masters, db.purchases, db.sales, db.meta, async () => {
@@ -812,7 +826,7 @@
             document.getElementById('res-sales').textContent = formatCurrency(salesTotal); document.getElementById('res-cost').textContent = formatCurrency(costTotal); document.getElementById('res-profit').textContent = formatCurrency(profitTotal); document.getElementById('res-margin').textContent = margin.toFixed(1) + '%'; document.getElementById('res-margin-bar').style.width = Math.min(Math.max(margin, 0), 100) + '%'; 
             
             window.renderTable('table-sales-body', sales, ['date', 'customer', 'amountExc', 'amountInc']); 
-            window.renderTable('table-purchase-body', purchases, ['vendor', 'item', 'amount']); 
+            window.renderTable('table-purchase-body', purchases, ['date', 'vendor', 'item', 'amount']); 
             document.getElementById('count-sales').textContent = sales.length + "件"; 
             document.getElementById('count-purchase').textContent = purchases.length + "件"; 
             window.renderCharts(sales, purchases);
