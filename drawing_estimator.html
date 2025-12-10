@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exterior Planner - 外構積算ツール (v7)</title>
+    <title>Exterior Planner - 外構積算ツール (Edge版 v11)</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -59,6 +59,32 @@
         .master-table th { background-color: #333; color: #fff; padding: 8px; text-align: left; font-size: 0.85rem; white-space: nowrap; }
         .master-table td { border-bottom: 1px solid #3e3e42; padding: 8px; font-size: 0.85rem; vertical-align: middle; }
         .master-table tr:hover { background-color: #2a2d2e; }
+        
+        /* Editable Cell Style */
+        .editable-cell:hover {
+            background-color: #3e3e42;
+            cursor: pointer;
+            position: relative;
+        }
+        .editable-cell:hover::after {
+            content: '\f303'; /* FontAwesome pen icon */
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            color: #666;
+        }
+        .cell-input {
+            width: 100%;
+            background: #1e1e1e;
+            color: white;
+            border: 1px solid #007fd4;
+            padding: 2px 4px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body class="bg-cad-bg text-cad-text h-screen flex flex-col">
@@ -88,7 +114,7 @@
             </div>
         </div>
 
-        <!-- Planner Actions (Visible only in Planner View) -->
+        <!-- Planner Actions -->
         <div id="plannerActions" class="flex gap-2 items-center">
             <div class="flex bg-gray-700 rounded mr-2">
                 <label class="cursor-pointer hover:bg-gray-600 px-3 py-1 rounded-l text-sm transition text-white border-r border-gray-600" title="図面読込">
@@ -146,6 +172,11 @@
             <button class="tool-btn w-10 h-10 rounded flex items-center justify-center hover:bg-gray-700" data-tool="count" title="個数カウント">
                 <i class="fas fa-map-marker-alt"></i>
             </button>
+            <div class="w-8 h-px bg-cad-border"></div>
+            <!-- Label Move Tool -->
+            <button class="tool-btn w-10 h-10 rounded flex items-center justify-center hover:bg-gray-700 text-yellow-400" data-tool="label" title="ラベル移動モード">
+                <i class="fas fa-arrows-alt"></i>
+            </button>
         </div>
 
         <!-- Sub Sidebar (Settings) -->
@@ -163,6 +194,11 @@
                         <div class="flex items-center gap-2">
                             <input type="checkbox" id="showLabels" class="rounded bg-gray-700 border-gray-600" checked>
                             <label for="showLabels" class="cursor-pointer">ラベル・寸法表示</label>
+                        </div>
+                        <!-- Label Background Option -->
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="showLabelBackground" class="rounded bg-gray-700 border-gray-600">
+                            <label for="showLabelBackground" class="cursor-pointer">ラベル背景 (座布団)</label>
                         </div>
                         
                         <!-- Font Size Slider -->
@@ -237,11 +273,11 @@
             <div class="p-4 text-xs text-gray-500">
                 <p class="mb-2"><strong>操作方法:</strong></p>
                 <ul class="list-disc pl-4 space-y-1">
-                    <li>左クリック: 描画 / 点の追加</li>
+                    <li>左クリック: 描画 / 点の追加 / 移動</li>
                     <li>右クリック: 描画終了 / 閉じる</li>
-                    <li>ホイール: ズーム</li>
-                    <li>ホイール押し込み: パン（移動）</li>
+                    <li>ホイール: ズーム / ホイール押: 移動</li>
                     <li>Delキー: 直前の点/選択削除</li>
+                    <li class="text-yellow-400">ラベル移動モード: ドラッグでラベル調整</li>
                 </ul>
             </div>
         </div>
@@ -355,6 +391,9 @@
                         <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                         <input type="text" id="masterSearchInput" class="w-full bg-gray-700 border border-gray-600 rounded pl-9 pr-3 py-1 text-sm text-white focus:outline-none focus:border-cad-accent" placeholder="部材名・商品名で検索...">
                     </div>
+                    <div class="ml-auto text-xs text-gray-400">
+                        ※セルをダブルクリックで編集
+                    </div>
                 </div>
 
                 <div class="overflow-y-auto custom-scroll flex-1">
@@ -433,6 +472,7 @@
             shapes: [],
             manualItems: [], 
             fontSize: 14, 
+            draggingLabelShape: null, 
             currentSettings: {
                 name: '未設定',
                 masterName: '', 
@@ -528,7 +568,6 @@
 
         function useFallbackMode() {
             db = null;
-            // Fallback: Load defaults into memory if empty
             loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
             const msg = document.getElementById('dbStatusMsg');
             if(msg) {
@@ -559,7 +598,6 @@
             return new Promise((resolve) => {
                 if(!material.type) material.type = determineTypeByUnit(material.unit);
                 
-                // Hybrid: If DB is null, use memory
                 if (!db) {
                     material.id = Date.now() + Math.random();
                     loadedMaterials.push(material);
@@ -578,10 +616,36 @@
                     });
                 };
                 transaction.onerror = () => {
-                    // Fallback on error
                     material.id = Date.now() + Math.random();
                     loadedMaterials.push(material);
                     updateMasterTable();
+                    resolve();
+                };
+            });
+        }
+
+        // --- NEW: Update Material Logic ---
+        function updateMaterialInDB(material) {
+            return new Promise((resolve) => {
+                // Ensure type matches unit
+                material.type = determineTypeByUnit(material.unit);
+                
+                // Update memory first
+                const index = loadedMaterials.findIndex(m => m.id === material.id);
+                if(index !== -1) loadedMaterials[index] = material;
+
+                // Update DB
+                if (!db) {
+                    updateMasterTable();
+                    resolve();
+                    return;
+                }
+
+                const transaction = db.transaction(["materials"], "readwrite");
+                const store = transaction.objectStore("materials");
+                store.put(material); // put updates if key exists
+                transaction.oncomplete = () => {
+                    updateMasterTable(); // Refresh table to show correct type badges etc
                     resolve();
                 };
             });
@@ -598,7 +662,6 @@
         function deleteMaterialFromDB(id) {
             if(!confirm("削除しますか？")) return;
             
-            // Hybrid: If DB is null, use memory
             if (!db) {
                 loadedMaterials = loadedMaterials.filter(m => m.id !== id);
                 updateMasterTable();
@@ -614,10 +677,10 @@
         function deleteAllMaterials() {
             if(!confirm("【警告】マスタデータを全て削除します。\n本当によろしいですか？")) return;
             
-            // Hybrid: If DB is null, use memory
             if (!db) {
                 loadedMaterials = [];
                 updateMasterTable();
+                alert("全てのデータを削除しました（一時モード）。");
                 return;
             }
 
@@ -635,7 +698,6 @@
         function restoreDefaults() {
             if(!confirm("初期データに戻しますか？（追加データは消えます）")) return;
 
-            // Hybrid: If DB is null, use memory
             if (!db) {
                 loadedMaterials = JSON.parse(JSON.stringify(DEFAULT_PRESETS));
                 updateMasterTable();
@@ -663,7 +725,6 @@
 
         function saveMaterialsToDB(materials) {
             return new Promise((resolve, reject) => {
-                // Hybrid
                 if (!db) {
                     materials.forEach(m => {
                         m.id = Date.now() + Math.random();
@@ -724,14 +785,15 @@
             App.canvas.addEventListener('mousedown', onMouseDown);
             App.canvas.addEventListener('mousemove', onMouseMove);
             window.addEventListener('mouseup', onMouseUp); 
+            App.canvas.addEventListener('dblclick', onDoubleClick); 
             App.canvas.addEventListener('wheel', onWheel, { passive: false });
             App.canvas.addEventListener('contextmenu', onRightClick);
 
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
             document.getElementById('priceListInput').addEventListener('change', handlePriceListUpload);
             document.getElementById('showLabels').addEventListener('change', render);
+            document.getElementById('showLabelBackground').addEventListener('change', render); 
             
-            // Font Size Slider
             document.getElementById('globalFontSize').addEventListener('input', (e) => {
                 App.fontSize = parseInt(e.target.value);
                 document.getElementById('fontSizeDisplay').textContent = `${App.fontSize}px`;
@@ -757,11 +819,8 @@
                 document.body.style.cursor = 'crosshair';
             });
             document.getElementById('additionalItemSelect').addEventListener('change', addAdditionalItem);
-
-            // --- NEW: Manual Item Event ---
             document.getElementById('addManualItemBtn').addEventListener('click', addManualItem);
             
-            // Enter key support for manual items
             const handleManualEnter = (e) => {
                 if (e.key === 'Enter') addManualItem();
             };
@@ -795,24 +854,34 @@
             }
         }
 
+        // --- UPDATED: Editable Master Table ---
         function updateMasterTable() {
             const tbody = document.getElementById('masterTableBody');
             const searchInput = document.getElementById('masterSearchInput');
             const filterTerm = searchInput ? searchInput.value.toLowerCase() : '';
             tbody.innerHTML = '';
+            
             const filteredMaterials = loadedMaterials.filter(mat => {
                 const searchStr = (mat.name + (mat.refName || '')).toLowerCase();
                 return !filterTerm || searchStr.includes(filterTerm);
             });
+            
             filteredMaterials.forEach(mat => {
                 const tr = document.createElement('tr');
+                // Use JSON.stringify for safe attribute passing
+                const matStr = encodeURIComponent(JSON.stringify(mat)); 
+                
                 tr.innerHTML = `
-                    <td class="text-center"><span class="inline-block w-6 h-6 rounded border border-gray-600" style="background-color: ${mat.color || '#fff'}"></span></td>
-                    <td class="font-bold text-white truncate" title="${mat.name}">${mat.name}</td>
-                    <td class="text-gray-400 text-sm truncate" title="${mat.refName || ''}">${mat.refName || ''}</td>
+                    <td class="text-center">
+                        <input type="color" class="w-6 h-6 bg-transparent border-none cursor-pointer" 
+                            value="${mat.color || '#ffffff'}" 
+                            onchange="updateCellColor(this, ${mat.id})">
+                    </td>
+                    <td class="editable-cell text-white truncate" title="ダブルクリックで編集" ondblclick="editCell(this, 'name', ${mat.id})">${mat.name}</td>
+                    <td class="editable-cell text-gray-400 text-sm truncate" title="ダブルクリックで編集" ondblclick="editCell(this, 'refName', ${mat.id})">${mat.refName || ''}</td>
                     <td><span class="px-2 py-1 rounded text-xs ${getTypeBadgeColor(mat.type)}">${getTypeLabel(mat.type)}</span></td>
-                    <td class="text-right text-mono text-gray-400">${mat.unit}</td>
-                    <td class="text-right text-mono font-bold">¥${mat.price.toLocaleString()}</td>
+                    <td class="editable-cell text-right text-mono text-gray-400" title="ダブルクリックで編集" ondblclick="editCell(this, 'unit', ${mat.id})">${mat.unit}</td>
+                    <td class="editable-cell text-right text-mono font-bold" title="ダブルクリックで編集" ondblclick="editCell(this, 'price', ${mat.id})">¥${mat.price.toLocaleString()}</td>
                     <td class="text-center"><button class="bg-blue-600 hover:bg-blue-500 text-white rounded p-1.5 w-8 h-8 flex items-center justify-center mx-auto transition" onclick="searchMaterialImage('${mat.refName || mat.name}')"><i class="fas fa-images"></i></button></td>
                     <td class="text-center"><button class="text-red-500 hover:text-red-300 p-1" onclick="deleteMaterialFromDB(${mat.id})"><i class="fas fa-trash"></i></button></td>
                 `;
@@ -821,12 +890,55 @@
             document.getElementById('masterCount').textContent = `全 ${filteredMaterials.length} 件`;
         }
 
+        // --- NEW: In-place Editing Logic ---
+        function updateCellColor(input, id) {
+            const material = loadedMaterials.find(m => m.id === id);
+            if (material) {
+                material.color = input.value;
+                updateMaterialInDB(material);
+            }
+        }
+
+        function editCell(td, field, id) {
+            const material = loadedMaterials.find(m => m.id === id);
+            if (!material) return;
+            
+            const originalValue = material[field];
+            const currentText = (field === 'price') ? originalValue : originalValue; 
+            
+            td.innerHTML = '';
+            const input = document.createElement('input');
+            input.type = field === 'price' ? 'number' : 'text';
+            input.value = currentText;
+            input.className = 'cell-input text-xs';
+            
+            // Save on blur or enter
+            const save = () => {
+                let newValue = input.value;
+                if (field === 'price') newValue = parseInt(newValue) || 0;
+                
+                material[field] = newValue;
+                updateMaterialInDB(material);
+            };
+
+            input.addEventListener('blur', save);
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur();
+                }
+            });
+
+            td.appendChild(input);
+            input.focus();
+        }
+
         // --- Canvas/Tools Logic ---
         function setTool(toolName) {
             App.currentTool = toolName;
             App.drawingPoints = [];
             App.calibrationPoints = [];
             App.isPickingForSubtraction = false;
+            App.draggingLabelShape = null; // reset drag
             document.getElementById('pickStatus').classList.add('hidden');
             document.body.style.cursor = 'default';
             const materialSettings = document.getElementById('materialSettings');
@@ -838,11 +950,12 @@
             document.getElementById('isSubtractive').checked = false;
             updateAdditionalItemsList();
 
-            if (toolName === 'select' || toolName === 'scale') {
+            if (toolName === 'select' || toolName === 'scale' || toolName === 'label') {
                 materialSettings.classList.add('hidden');
                 toolMessage.classList.remove('hidden');
                 if (toolName === 'scale') toolMessage.textContent = '図面上の既知の2点をクリックしてスケールを設定してください';
-                else toolMessage.textContent = '図面をドラッグして移動、ホイールでズーム、Deleteキーで最後の操作を取り消し';
+                else if (toolName === 'label') toolMessage.textContent = '動かしたいラベルをドラッグして移動してください（図面は固定されます）';
+                else toolMessage.textContent = '図面:ドラッグ移動、ホイール:ズーム、Del:削除';
             } else {
                 materialSettings.classList.remove('hidden');
                 toolMessage.classList.add('hidden');
@@ -1024,6 +1137,63 @@
             return { x: wx * App.scale + App.offsetX, y: wy * App.scale + App.offsetY };
         }
         
+        function getShapeCenter(shape) {
+            if (shape.type === 'count') {
+                return shape.points[0];
+            } else if (shape.type === 'line') {
+                return shape.points[Math.floor(shape.points.length/2)];
+            } else if (shape.type === 'area') {
+                let sx=0, sy=0;
+                shape.points.forEach(p => { sx+=p.x; sy+=p.y; });
+                return {x: sx/shape.points.length, y: sy/shape.points.length};
+            }
+            return {x:0, y:0};
+        }
+
+        function getLabelPosition(shape) {
+            if (shape.labelPosition) return shape.labelPosition;
+            return getShapeCenter(shape);
+        }
+
+        function generateLabelText(shape) {
+            const val = calculateMetric(shape);
+            let text = `${shape.settings.name}`;
+            const mult = shape.settings.multiplier || 1;
+            if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
+            else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
+            if (mult > 1) text += ` x${mult}`;
+            if (shape.settings.additionalItems && shape.settings.additionalItems.length > 0) {
+                text += ` (+${shape.settings.additionalItems.length})`;
+            }
+            return text;
+        }
+
+        function hitTestLabel(sx, sy) {
+            const ctx = App.ctx;
+            const fontSize = App.fontSize || 14;
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            
+            for (let i = App.shapes.length - 1; i >= 0; i--) {
+                const shape = App.shapes[i];
+                const pos = getLabelPosition(shape); 
+                const s = worldToScreen(pos.x, pos.y); 
+                
+                const text = generateLabelText(shape);
+                const metrics = ctx.measureText(text);
+                
+                const padding = 8;
+                const x = s.x + 5 - padding;
+                const y = s.y - fontSize - (padding/2); 
+                const w = metrics.width + (padding * 2);
+                const h = fontSize + padding;
+
+                if (sx >= x && sx <= x + w && sy >= y && sy <= y + h) {
+                    return shape;
+                }
+            }
+            return null;
+        }
+        
         function findShapeAt(worldX, worldY) {
             for (let i = App.shapes.length - 1; i >= 0; i--) {
                 const shape = App.shapes[i];
@@ -1084,7 +1254,25 @@
                     } else { alert("図形が見つかりません。"); }
                     return;
                 }
+                
+                // Label Move Mode
+                if (App.currentTool === 'label') {
+                    const labelHit = hitTestLabel(mouseX, mouseY); 
+                    if (labelHit) {
+                        App.draggingLabelShape = labelHit;
+                    }
+                    return; 
+                }
+
                 if (App.currentTool === 'select') {
+                    if (e.shiftKey) {
+                        const labelHit = hitTestLabel(mouseX, mouseY);
+                        if (labelHit) {
+                            App.draggingLabelShape = labelHit;
+                            return; 
+                        }
+                    }
+
                     App.isDragging = true;
                     App.lastMouseX = e.clientX;
                     App.lastMouseY = e.clientY;
@@ -1107,6 +1295,12 @@
             const worldPos = screenToWorld(mouseX, mouseY);
             document.getElementById('cursorPos').textContent = `X: ${Math.round(worldPos.x)}, Y: ${Math.round(worldPos.y)}`;
 
+            if (App.draggingLabelShape) {
+                App.draggingLabelShape.labelPosition = { x: worldPos.x, y: worldPos.y };
+                render();
+                return;
+            }
+
             if (App.isDragging) {
                 const dx = e.clientX - App.lastMouseX;
                 const dy = e.clientY - App.lastMouseY;
@@ -1122,6 +1316,20 @@
 
         function onMouseUp(e) {
             App.isDragging = false;
+            App.draggingLabelShape = null;
+        }
+
+        function onDoubleClick(e) {
+            const rect = App.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldPos = screenToWorld(mouseX, mouseY);
+            
+            const labelHit = hitTestLabel(mouseX, mouseY);
+            if (labelHit) {
+                labelHit.labelPosition = null; // Reset to center
+                render();
+            }
         }
 
         function onWheel(e) {
@@ -1178,9 +1386,8 @@
 
         function addShape(type, points) {
             const settings = JSON.parse(JSON.stringify(App.currentSettings));
-            // Ensure masterName is populated even if not from preset
             if (!settings.masterName) settings.masterName = settings.name;
-            const shape = { type, points, settings, id: Date.now() + Math.random() };
+            const shape = { type, points, settings, id: Date.now() + Math.random(), labelPosition: null };
             App.shapes.push(shape);
             updateEstimation();
         }
@@ -1195,9 +1402,8 @@
         function render(cursorWorldPos = null) {
             const ctx = App.ctx;
             if (App.width === 0 || App.height === 0) return;
-            // Clear handling dpr
             const dpr = window.devicePixelRatio || 1;
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // Scale the context
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0); 
             ctx.clearRect(0, 0, App.width, App.height);
             
             if (App.bgImage) {
@@ -1206,7 +1412,6 @@
                 ctx.scale(App.scale, App.scale);
                 ctx.drawImage(App.bgImage, 0, 0);
                 
-                // Export Font Size Scaling (approx 2x for high res export)
                 const exportFontSize = (App.fontSize || 14) * 2;
                 ctx.restore();
             }
@@ -1282,23 +1487,15 @@
                 ctx.restore();
             }
             if (showLabel && shape.points.length > 0) {
-                const val = calculateMetric(shape);
-                let text = `${shape.settings.name}`;
-                const mult = shape.settings.multiplier || 1;
-                if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
-                else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
-                if (mult > 1) text += ` x${mult}`;
-                if (shape.settings.additionalItems && shape.settings.additionalItems.length > 0) {
-                    text += ` (+${shape.settings.additionalItems.length})`;
+                const text = generateLabelText(shape);
+                const center = getShapeCenter(shape);
+                const pos = shape.labelPosition || center; 
+                
+                if (shape.labelPosition) {
+                    drawLine(ctx, center, pos, color, true, 1);
+                    drawMarker(ctx, center, color, 4); 
                 }
-                let pos = shape.points[0];
-                if (shape.type === 'area') {
-                    let sx=0, sy=0;
-                    shape.points.forEach(p => { sx+=p.x; sy+=p.y; });
-                    pos = {x: sx/shape.points.length, y: sy/shape.points.length};
-                } else if (shape.type === 'line') {
-                    pos = shape.points[Math.floor(shape.points.length/2)];
-                }
+
                 drawLabel(ctx, pos, text, color);
             }
         }
@@ -1336,8 +1533,19 @@
             const s = worldToScreen(p.x, p.y);
             const fontSize = App.fontSize || 14;
             ctx.font = `bold ${fontSize}px sans-serif`;
+            
+            const showBg = document.getElementById('showLabelBackground').checked;
+            if (showBg) {
+                const metrics = ctx.measureText(text);
+                const bgHeight = fontSize * 1.2;
+                const bgWidth = metrics.width + 10;
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.fillRect(s.x, s.y - fontSize, bgWidth, bgHeight);
+            }
+
             ctx.fillStyle = color; 
-            ctx.fillText(text, s.x + 8, s.y);
+            if(showBg) ctx.fillStyle = "#ffffff"; 
+            ctx.fillText(text, s.x + 5, s.y);
         }
 
         function hexToRgba(hex, alpha) {
@@ -1417,17 +1625,32 @@
                     if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
                     else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
                     if (mult > 1) text += ` x${mult}`;
-                    let pos = shape.points[0];
-                    if (shape.type === 'area') {
-                        let sx=0, sy=0;
-                        shape.points.forEach(p => { sx+=p.x; sy+=p.y; });
-                        pos = {x: sx/shape.points.length, y: sy/shape.points.length};
-                    } else if (shape.type === 'line') {
-                        pos = shape.points[Math.floor(shape.points.length/2)];
-                    }
                     
+                    const center = getShapeCenter(shape);
+                    const pos = shape.labelPosition || center;
+
+                    // Draw leader line for export
+                    if (shape.labelPosition) {
+                        tCtx.beginPath();
+                        tCtx.moveTo(center.x, center.y);
+                        tCtx.lineTo(pos.x, pos.y);
+                        tCtx.strokeStyle = color;
+                        tCtx.setLineDash([5, 5]);
+                        tCtx.lineWidth = 2;
+                        tCtx.stroke();
+                    }
+
                     tCtx.font = `bold ${exportFontSize}px sans-serif`; 
                     tCtx.fillStyle = color; 
+                    
+                    const showBg = document.getElementById('showLabelBackground').checked;
+                    if(showBg) {
+                        const metrics = tCtx.measureText(text);
+                        tCtx.fillStyle = "rgba(0,0,0,0.7)";
+                        tCtx.fillRect(pos.x, pos.y - exportFontSize, metrics.width + 20, exportFontSize * 1.2);
+                        tCtx.fillStyle = "#ffffff";
+                    }
+
                     tCtx.fillText(text, pos.x + 10, pos.y);
                 }
             });
@@ -1673,8 +1896,6 @@
             }
             const groups = {};
             
-            const includeDetails = document.getElementById('csvIncludeDetails').checked;
-
             // 図形データの集計
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
@@ -1683,28 +1904,12 @@
                 const mult = Math.round(shape.settings.multiplier || 1);
                 const rawVal = calculateMetric(shape);
                 const groupKey = `${name}_${mult}`;
-                
                 if (!groups[groupKey]) {
                     let displayName = name;
                     if(mult > 1) displayName += ` (x${mult})`;
-                    groups[groupKey] = { 
-                        name: displayName, 
-                        masterName: masterName, // Store master name
-                        refName: refName,       // Store ref name
-                        effectivePrice: shape.settings.price * mult, 
-                        quantity: 0, 
-                        unit: '',
-                        details: [] 
-                    };
+                    groups[groupKey] = { name: displayName, effectivePrice: shape.settings.price * mult, quantity: 0, unit: '' };
                 }
                 groups[groupKey].quantity += rawVal;
-                // Add details
-                if (includeDetails) {
-                    const isMinus = rawVal < 0;
-                    const valStr = Math.abs(rawVal).toFixed(2);
-                    groups[groupKey].details.push(isMinus ? `除外:${valStr}` : valStr);
-                }
-
                 if (shape.type === 'line') groups[groupKey].unit = 'm';
                 else if (shape.type === 'area') groups[groupKey].unit = 'm2';
                 else groups[groupKey].unit = '個';
@@ -1713,15 +1918,7 @@
                     shape.settings.additionalItems.forEach(addItem => {
                         const addKey = `_ADD_${addItem.name}`;
                         if (!groups[addKey]) {
-                            groups[addKey] = { 
-                                name: `${addItem.name} (同時計測)`, 
-                                masterName: addItem.name, // Assume item name as master for additives
-                                refName: '',
-                                effectivePrice: addItem.price, 
-                                quantity: 0, 
-                                unit: addItem.unit,
-                                details: []
-                            };
+                            groups[addKey] = { name: `${addItem.name} (同時計測)`, effectivePrice: addItem.price, quantity: 0, unit: addItem.unit };
                         }
                         groups[addKey].quantity += rawVal;
                     });
@@ -1729,29 +1926,18 @@
             });
 
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            // CSV Header with new columns
-            let header = "部材名称(マスタ),表示名称,単価,数量,単位,合計金額,参照商品名";
-            if (includeDetails) header += ",詳細内訳";
-            csvContent += header + "\n";
+            csvContent += "品名,単価,数量,単位,合計金額\n";
             
             // 図形分出力
             Object.keys(groups).forEach(key => {
                 const item = groups[key];
                 const total = Math.round(item.quantity * item.effectivePrice);
-                let row = `"${item.masterName}","${item.name}",${item.effectivePrice},${item.quantity.toFixed(2)},"${item.unit}",${total},"${item.refName}"`;
-                
-                if (includeDetails) {
-                    row += `,"${item.details.join(' + ')}"`;
-                }
-                csvContent += row + "\n";
+                csvContent += `${item.name},${item.effectivePrice},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
             });
 
             // 手入力分出力
             App.manualItems.forEach(item => {
-                // A列:名称, B列:名称, G列:空, 詳細:空
-                let row = `"${item.name}","${item.name} (手入力)",${item.price},1,"式",${item.price},""`;
-                if (includeDetails) row += `,""`;
-                csvContent += row + "\n";
+                csvContent += `${item.name} (手入力),${item.price},1,式,${item.price}\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
