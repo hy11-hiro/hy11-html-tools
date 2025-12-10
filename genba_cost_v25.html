@@ -12,6 +12,9 @@
     <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- ExcelJS & FileSaver for Advanced Excel Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
@@ -104,7 +107,8 @@
 
                 <div id="search-result" class="hidden space-y-6 animate-fade-in-up">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                        <div class="md:col-span-8 glass-panel p-6 rounded-xl border-l-4 border-blue-600">
+                        <div class="md:col-span-8 glass-panel p-6 rounded-xl border-l-4 border-blue-600 relative">
+                            <button onclick="window.exportSiteReport()" class="absolute top-4 right-4 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow flex items-center gap-2"><i class="fa-solid fa-file-excel"></i> Excelレポート出力</button>
                             <div class="flex justify-between items-start mb-2">
                                 <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold" id="res-code">CODE</span>
                                 <span class="text-slate-500 text-sm" id="res-branch">拠点名</span>
@@ -125,13 +129,31 @@
                                 <div><span class="block text-slate-400 text-xs">完了日</span><span class="font-bold text-slate-700" id="res-end">-</span></div>
                             </div>
                         </div>
-                        <div class="md:col-span-4 glass-panel p-6 rounded-xl flex flex-col justify-center space-y-4">
-                            <div><span class="text-xs text-slate-500 font-bold uppercase tracking-wider">粗利益率</span><div class="flex items-baseline gap-2"><span class="text-3xl font-bold text-slate-800" id="res-margin">0.0%</span></div><div class="w-full bg-slate-200 rounded-full h-2 mt-1"><div id="res-margin-bar" class="bg-blue-600 h-2 rounded-full" style="width: 0%"></div></div></div>
-                            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                                <div><span class="text-xs text-slate-400">売上累計(税抜)</span><div class="font-bold text-slate-700" id="res-sales">¥0</div></div>
-                                <div><span class="text-xs text-slate-400">原価累計</span><div class="font-bold text-slate-700" id="res-cost">¥0</div></div>
+                        
+                        <div class="md:col-span-4 glass-panel p-6 rounded-xl flex flex-col justify-center space-y-6">
+                            <div class="text-center">
+                                <span class="text-sm text-slate-500 font-bold uppercase tracking-wider block mb-1">粗利益率</span>
+                                <div class="flex items-baseline justify-center gap-2">
+                                    <span class="text-6xl font-extrabold text-blue-600" id="res-margin">0.0%</span>
+                                </div>
+                                <div class="w-full bg-slate-200 rounded-full h-3 mt-4 overflow-hidden">
+                                    <div id="res-margin-bar" class="bg-blue-600 h-3 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                                </div>
                             </div>
-                            <div class="pt-2"><span class="text-xs text-slate-400">粗利益額(税抜)</span><div class="font-bold text-xl text-slate-800" id="res-profit">¥0</div></div>
+                            <div class="grid grid-cols-1 gap-4 pt-4 border-t border-slate-100">
+                                <div class="flex justify-between items-end border-b border-slate-50 pb-2">
+                                    <span class="text-sm text-slate-400 font-bold">売上累計(税抜)</span>
+                                    <div class="text-3xl font-bold text-slate-800" id="res-sales">¥0</div>
+                                </div>
+                                <div class="flex justify-between items-end border-b border-slate-50 pb-2">
+                                    <span class="text-sm text-slate-400 font-bold">原価累計</span>
+                                    <div class="text-3xl font-bold text-slate-800" id="res-cost">¥0</div>
+                                </div>
+                                 <div class="flex justify-between items-end">
+                                    <span class="text-sm text-slate-400 font-bold">粗利益 (税抜)</span>
+                                    <div class="text-xl font-bold text-slate-600" id="res-profit">¥0</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -221,7 +243,7 @@
     </main>
 
 <script>
-    const db = new Dexie("ConstructionLedgerDB_System_v27"); 
+    const db = new Dexie("ConstructionLedgerDB_System_v29_fixed"); 
     db.version(1).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, date', meta: 'key' });
     
     let pendingFiles = { cost: null, master: null, purchase: null, sales: null };
@@ -233,10 +255,11 @@
     let currentCostVendor = null;
     let costSortState = { key: 'date', order: 'desc' };
     let currentWorstList = []; 
-    
+    let currentSiteData = null; 
+
     let chartBranchSales = null, chartBranchProfit = null, chartMonthly = null, chartCostTrend = null, chartTrend = null, chartComposition = null;
 
-    // --- GLOBAL HELPERS (Explicitly on window) ---
+    // --- GLOBAL HELPERS ---
     window.destroyChart = function(chartInstance) {
         if (chartInstance) { try { chartInstance.destroy(); } catch(e) { console.warn("Chart destroy error", e); } }
         return null;
@@ -281,6 +304,72 @@
             chartComposition = new Chart(ctxComp, { type: 'doughnut', data: { labels: top5.map(i => `${i[0]} (${Math.round(i[1]/totalCost*100)}%)`), datasets: [{ data: top5.map(i => i[1]), backgroundColor: ['#10b981','#3b82f6','#f59e0b','#ef4444','#8b5cf6','#cbd5e1'] }] }, options: { responsive:true, maintainAspectRatio:false, plugins: { legend: { position:'right' } } } }); 
         }
     }
+    
+    window.exportSiteReport = async function() {
+        if (!currentSiteData) { alert("出力するデータがありません。現場を検索してください。"); return; }
+        
+        // Calculate Margin
+        const marginVal = parseFloat(currentSiteData.sales.replace(/[^0-9.-]+/g,"")) !== 0 
+            ? (parseFloat(currentSiteData.profit.replace(/[^0-9.-]+/g,"")) / parseFloat(currentSiteData.sales.replace(/[^0-9.-]+/g,"")) * 100).toFixed(1) + '%' 
+            : '0.0%';
+
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('現場詳細レポート');
+
+        ws.mergeCells('A1:E1'); ws.getCell('A1').value = '現場詳細レポート'; ws.getCell('A1').style = { font: { bold: true, size: 18 } };
+        
+        ws.getCell('A3').value = '現場コード'; ws.getCell('B3').value = currentSiteData.code;
+        ws.getCell('A4').value = '現場名'; ws.getCell('B4').value = currentSiteData.name;
+        ws.getCell('A5').value = '施工主'; ws.getCell('B5').value = currentSiteData.owner;
+        ws.getCell('D3').value = '担当者'; ws.getCell('E3').value = currentSiteData.manager;
+        ws.getCell('D4').value = '拠点'; ws.getCell('E4').value = currentSiteData.branch;
+        ws.getCell('D5').value = '工期'; ws.getCell('E5').value = `${currentSiteData.start} ～ ${currentSiteData.end}`;
+        
+        ws.getRow(3).font = { bold: true };
+        
+        ws.getCell('A7').value = '売上累計(税抜)'; ws.getCell('B7').value = currentSiteData.sales;
+        ws.getCell('A8').value = '原価累計'; ws.getCell('B8').value = currentSiteData.cost;
+        ws.getCell('A9').value = '粗利益'; ws.getCell('B9').value = currentSiteData.profit;
+        ws.getCell('A10').value = '粗利率'; ws.getCell('B10').value = marginVal; 
+        
+        if (chartTrend) {
+            const trendImg = chartTrend.toBase64Image();
+            const imageId1 = wb.addImage({ base64: trendImg, extension: 'png' });
+            ws.addImage(imageId1, 'G3:L15');
+        }
+        if (chartComposition) {
+            const compImg = chartComposition.toBase64Image();
+            const imageId2 = wb.addImage({ base64: compImg, extension: 'png' });
+            ws.addImage(imageId2, 'M3:R15');
+        }
+
+        let row = 17;
+        ws.getCell(`A${row}`).value = '■ 売上明細'; ws.getCell(`A${row}`).font = { bold: true, size: 12 };
+        row++;
+        ws.getRow(row).values = ['日付', '得意先', '金額(税抜)', '金額(税込)'];
+        ws.getRow(row).font = { bold: true };
+        row++;
+        currentSiteData.salesDetails.forEach(s => {
+            ws.getRow(row).values = [s.date, s.customer, s.amountExc, s.amountInc];
+            row++;
+        });
+
+        row += 2;
+        ws.getCell(`A${row}`).value = '■ 仕入明細'; ws.getCell(`A${row}`).font = { bold: true, size: 12 };
+        row++;
+        ws.getRow(row).values = ['日付', '業者名', '項目', '金額(税抜+税)'];
+        ws.getRow(row).font = { bold: true };
+        row++;
+        currentSiteData.purchaseDetails.forEach(p => {
+            ws.getRow(row).values = [p.date, p.vendor, p.item, p.amount];
+            row++;
+        });
+
+        ws.columns = [ { width: 15 }, { width: 30 }, { width: 15 }, { width: 15 }, { width: 20 }, { width: 10 } ];
+
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `現場詳細_${currentSiteData.code}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
 
     // --- Import Logic ---
     const dropZone = document.getElementById('drop-zone');
@@ -295,7 +384,7 @@
         for (let file of files) {
             const name = file.name.toLowerCase();
             if (name.includes('原価集計')) { pendingFiles.cost = file; logMsg += `✓ 原価集計表: ${file.name}\n`; }
-            else if (name.includes('現場マスター') || name.includes('現場マスタ')) { pendingFiles.master = file; logMsg += `✓ 現場マスター: ${file.name}\n`; }
+            else if (name.includes('現場マスター')) { pendingFiles.master = file; logMsg += `✓ 現場マスター: ${file.name}\n`; }
             else if (name.includes('仕入明細')) { pendingFiles.purchase = file; logMsg += `✓ 仕入明細: ${file.name}\n`; }
             else if (name.includes('売上明細')) { pendingFiles.sales = file; logMsg += `✓ 売上明細: ${file.name}\n`; }
             else { logMsg += `? スキップ: ${file.name}\n`; }
@@ -341,7 +430,7 @@
         try {
             let costData=[], masterData=[], purchaseData=[], salesData=[], periodStr = "";
             
-            // --- 1. Cost Aggregation (Excel Only, Row 5 Header) ---
+            // --- 1. Cost Aggregation ---
             if (pendingFiles.cost) {
                 importLog.textContent += "読込: 原価集計表(Excel)...\n";
                 // Fixed: Header is at index 5 (Row 6)
@@ -378,7 +467,7 @@
                 });
             }
 
-            // --- 2. Site Master (Excel/Text, Index Based) ---
+            // --- 2. Site Master ---
             if (pendingFiles.master) {
                 const isText = pendingFiles.master.name.endsWith('.txt') || pendingFiles.master.name.endsWith('.csv');
                 let rawData = [];
@@ -500,7 +589,7 @@
         if (!value) return null;
         if (typeof value === 'number') { return (value - 25569) * 86400 * 1000; }
         if (typeof value === 'string') {
-            // Updated to handle YYYYMMDD string format
+            // FIX: Handle 8-digit numeric date string (e.g. "20251125")
             const ymdMatch = value.match(/^20\d{6}$/); 
             if (ymdMatch) {
                 const y = parseInt(value.substring(0, 4));
@@ -797,6 +886,22 @@
             
             if (!master && !cost) { alert("見つかりませんでした。コードを確認してください: " + inputCode); return; } 
             
+            currentSiteData = {
+                code: inputCode,
+                name: master ? master.name : (cost ? cost.name : '-'),
+                owner: master ? master.owner : '-',
+                manager: master ? master.manager : '-',
+                branch: master ? master.branch : '-',
+                start: master ? master.startDate : '-',
+                end: master ? master.endDate : '-',
+                sales: formatCurrency(cost ? cost.salesTotal : 0),
+                cost: formatCurrency(cost ? cost.costTotal : 0),
+                profit: formatCurrency(cost ? cost.profitTotal : 0),
+                margin: (cost ? cost.marginRatio : 0).toFixed(1) + '%',
+                salesDetails: sales,
+                purchaseDetails: purchases
+            };
+
             document.getElementById('search-result').classList.remove('hidden'); 
             document.getElementById('res-code').textContent = inputCode; 
             document.getElementById('res-name').textContent = master ? master.name : (cost ? cost.name : '-'); 
