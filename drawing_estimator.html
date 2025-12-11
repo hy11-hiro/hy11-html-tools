@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Exterior Planner - 外構積算ツール (Edge版 v11)</title>
+    <title>Exterior Planner - 外構積算ツール (Edge版 v13)</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -201,13 +201,22 @@
                             <label for="showLabelBackground" class="cursor-pointer">ラベル背景 (座布団)</label>
                         </div>
                         
-                        <!-- Font Size Slider -->
-                        <div class="flex flex-col gap-1">
+                        <!-- Drawing Font Size Slider -->
+                        <div class="flex flex-col gap-1 pt-2 border-t border-gray-700">
                             <div class="flex justify-between">
-                                <label for="globalFontSize" class="cursor-pointer">文字サイズ</label>
+                                <label for="globalFontSize" class="cursor-pointer text-gray-300">図面ラベルサイズ</label>
                                 <span id="fontSizeDisplay" class="font-mono text-gray-400">14px</span>
                             </div>
                             <input type="range" id="globalFontSize" min="8" max="48" value="14" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        </div>
+
+                        <!-- List Font Size Slider (NEW) -->
+                        <div class="flex flex-col gap-1 pt-1">
+                            <div class="flex justify-between">
+                                <label for="listFontSize" class="cursor-pointer text-gray-300">リスト文字サイズ</label>
+                                <span id="listFontSizeDisplay" class="font-mono text-gray-400">16px</span>
+                            </div>
+                            <input type="range" id="listFontSize" min="10" max="32" value="16" class="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
                         </div>
                     </div>
                 </div>
@@ -472,6 +481,7 @@
             shapes: [],
             manualItems: [], 
             fontSize: 14, 
+            listFontSize: 16, // NEW: Default list font size
             draggingLabelShape: null, 
             currentSettings: {
                 name: '未設定',
@@ -494,6 +504,14 @@
             setTool('select');
             render();
             setTimeout(() => updateMasterTable(), 100);
+        });
+        
+        // ページ離脱時の警告
+        window.addEventListener('beforeunload', (e) => {
+            if (App.bgImage || App.shapes.length > 0 || App.manualItems.length > 0) {
+                e.preventDefault();
+                e.returnValue = ''; 
+            }
         });
 
         window.addEventListener('resize', resizeCanvas);
@@ -800,6 +818,13 @@
                 render();
             });
 
+            // NEW: List Font Size Slider
+            document.getElementById('listFontSize').addEventListener('input', (e) => {
+                App.listFontSize = parseInt(e.target.value);
+                document.getElementById('listFontSizeDisplay').textContent = `${App.listFontSize}px`;
+                updateEstimation();
+            });
+
             document.getElementById('exportBtn').addEventListener('click', exportCSV);
             document.getElementById('saveImgBtn').addEventListener('click', saveCanvasAsImage);
             document.getElementById('savePdfBtn').addEventListener('click', saveCanvasAsPDF);
@@ -868,7 +893,6 @@
             
             filteredMaterials.forEach(mat => {
                 const tr = document.createElement('tr');
-                // Use JSON.stringify for safe attribute passing
                 const matStr = encodeURIComponent(JSON.stringify(mat)); 
                 
                 tr.innerHTML = `
@@ -912,7 +936,6 @@
             input.value = currentText;
             input.className = 'cell-input text-xs';
             
-            // Save on blur or enter
             const save = () => {
                 let newValue = input.value;
                 if (field === 'price') newValue = parseInt(newValue) || 0;
@@ -1625,21 +1648,15 @@
                     if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
                     else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
                     if (mult > 1) text += ` x${mult}`;
-                    
-                    const center = getShapeCenter(shape);
-                    const pos = shape.labelPosition || center;
-
-                    // Draw leader line for export
-                    if (shape.labelPosition) {
-                        tCtx.beginPath();
-                        tCtx.moveTo(center.x, center.y);
-                        tCtx.lineTo(pos.x, pos.y);
-                        tCtx.strokeStyle = color;
-                        tCtx.setLineDash([5, 5]);
-                        tCtx.lineWidth = 2;
-                        tCtx.stroke();
+                    let pos = shape.points[0];
+                    if (shape.type === 'area') {
+                        let sx=0, sy=0;
+                        shape.points.forEach(p => { sx+=p.x; sy+=p.y; });
+                        pos = {x: sx/shape.points.length, y: sy/shape.points.length};
+                    } else if (shape.type === 'line') {
+                        pos = shape.points[Math.floor(shape.points.length/2)];
                     }
-
+                    
                     tCtx.font = `bold ${exportFontSize}px sans-serif`; 
                     tCtx.fillStyle = color; 
                     
@@ -1828,12 +1845,17 @@
                 const header = document.createElement('div');
                 header.className = 'bg-gray-700 p-2 rounded cursor-pointer border-l-4 hover:bg-gray-600 transition';
                 header.style.borderLeftColor = item.color;
+                
+                // --- NEW: Apply List Font Size ---
+                const headerFontSize = App.listFontSize || 16; // default 16
+                const detailFontSize = Math.max(10, headerFontSize - 2); // slightly smaller
+
                 header.innerHTML = `
-                    <div class="flex justify-between font-bold text-gray-200 pointer-events-none">
+                    <div class="flex justify-between font-bold text-gray-200 pointer-events-none" style="font-size: ${headerFontSize}px;">
                         <span>${item.name}</span>
                         <span>¥${subtotal.toLocaleString()}</span>
                     </div>
-                    <div class="flex justify-between text-xs text-gray-400 mt-1 pointer-events-none">
+                    <div class="flex justify-between text-gray-400 mt-1 pointer-events-none" style="font-size: ${detailFontSize}px;">
                         <span>単価: ¥${item.effectivePrice.toLocaleString()}</span>
                         <span>計: ${item.quantity.toFixed(2)} ${item.unit}</span>
                     </div>
@@ -1850,13 +1872,13 @@
                 let detailsHtml = '<div class="p-2 space-y-1">';
                 item.items.forEach((subItem, idx) => {
                     if(subItem.isChild) {
-                        detailsHtml += `<div class="text-xs text-gray-500 pl-2">親ID:${subItem.id} に連動</div>`;
+                        detailsHtml += `<div class="text-gray-500 pl-2" style="font-size: ${detailFontSize}px;">親ID:${subItem.id} に連動</div>`;
                         return; 
                     }
                     const isMinus = subItem.val < 0;
                     let desc = isMinus ? '中抜き' : `No.${idx+1}`;
                     detailsHtml += `
-                        <div class="flex justify-between items-center text-xs text-gray-400 border-b border-gray-700 pb-1">
+                        <div class="flex justify-between items-center text-gray-400 border-b border-gray-700 pb-1" style="font-size: ${detailFontSize}px;">
                             <span class="${isMinus ? 'text-red-400' : ''}">
                                 ${desc}: ${subItem.val.toFixed(2)}${item.unit}
                             </span>
@@ -1896,6 +1918,8 @@
             }
             const groups = {};
             
+            const includeDetails = document.getElementById('csvIncludeDetails').checked;
+
             // 図形データの集計
             App.shapes.forEach(shape => {
                 const name = shape.settings.name;
@@ -1904,12 +1928,28 @@
                 const mult = Math.round(shape.settings.multiplier || 1);
                 const rawVal = calculateMetric(shape);
                 const groupKey = `${name}_${mult}`;
+                
                 if (!groups[groupKey]) {
                     let displayName = name;
                     if(mult > 1) displayName += ` (x${mult})`;
-                    groups[groupKey] = { name: displayName, effectivePrice: shape.settings.price * mult, quantity: 0, unit: '' };
+                    groups[groupKey] = { 
+                        name: displayName, 
+                        masterName: masterName, // Store master name
+                        refName: refName,       // Store ref name
+                        effectivePrice: shape.settings.price * mult, 
+                        quantity: 0, 
+                        unit: '',
+                        details: [] 
+                    };
                 }
                 groups[groupKey].quantity += rawVal;
+                // Add details
+                if (includeDetails) {
+                    const isMinus = rawVal < 0;
+                    const valStr = Math.abs(rawVal).toFixed(2);
+                    groups[groupKey].details.push(isMinus ? `除外:${valStr}` : valStr);
+                }
+
                 if (shape.type === 'line') groups[groupKey].unit = 'm';
                 else if (shape.type === 'area') groups[groupKey].unit = 'm2';
                 else groups[groupKey].unit = '個';
@@ -1918,7 +1958,15 @@
                     shape.settings.additionalItems.forEach(addItem => {
                         const addKey = `_ADD_${addItem.name}`;
                         if (!groups[addKey]) {
-                            groups[addKey] = { name: `${addItem.name} (同時計測)`, effectivePrice: addItem.price, quantity: 0, unit: addItem.unit };
+                            groups[addKey] = { 
+                                name: `${addItem.name} (同時計測)`, 
+                                masterName: addItem.name, // Assume item name as master for additives
+                                refName: '',
+                                effectivePrice: addItem.price, 
+                                quantity: 0, 
+                                unit: addItem.unit,
+                                details: []
+                            };
                         }
                         groups[addKey].quantity += rawVal;
                     });
@@ -1926,18 +1974,29 @@
             });
 
             let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-            csvContent += "品名,単価,数量,単位,合計金額\n";
+            // CSV Header with new columns
+            let header = "部材名称(マスタ),表示名称,単価,数量,単位,合計金額,参照商品名";
+            if (includeDetails) header += ",詳細内訳";
+            csvContent += header + "\n";
             
             // 図形分出力
             Object.keys(groups).forEach(key => {
                 const item = groups[key];
                 const total = Math.round(item.quantity * item.effectivePrice);
-                csvContent += `${item.name},${item.effectivePrice},${item.quantity.toFixed(2)},${item.unit},${total}\n`;
+                let row = `"${item.masterName}","${item.name}",${item.effectivePrice},${item.quantity.toFixed(2)},"${item.unit}",${total},"${item.refName}"`;
+                
+                if (includeDetails) {
+                    row += `,"${item.details.join(' + ')}"`;
+                }
+                csvContent += row + "\n";
             });
 
             // 手入力分出力
             App.manualItems.forEach(item => {
-                csvContent += `${item.name} (手入力),${item.price},1,式,${item.price}\n`;
+                // A列:名称, B列:名称, G列:空, 詳細:空
+                let row = `"${item.name}","${item.name} (手入力)",${item.price},1,"式",${item.price},""`;
+                if (includeDetails) row += `,""`;
+                csvContent += row + "\n";
             });
 
             const encodedUri = encodeURI(csvContent);
