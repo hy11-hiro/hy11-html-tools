@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仕入れ明細入力ツール</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Encoding.js: UTF-16LE出力用 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/2.0.0/encoding.min.js"></script>
+    <style>
+        body { background-color: #f0f2f5; font-family: "Yu Gothic UI", sans-serif; font-size: 0.9rem; }
+        .container-fluid { max-width: 1600px; padding: 15px; }
+        
+        .card { margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: none; }
+        .card-header { background-color: #d1e7dd; color: #0a3622; font-weight: bold; padding: 8px 15px; }
+        .card-header.input-area { background-color: #cfe2ff; color: #084298; }
+        
+        /* Grid Styles */
+        .excel-grid th { background-color: #f8f9fa; font-size: 0.8rem; text-align: center; vertical-align: middle; border: 1px solid #dee2e6; padding: 5px; white-space: nowrap; }
+        .excel-grid td { padding: 0; border: 1px solid #dee2e6; }
+        .excel-grid input { border: 1px solid #ced4da; border-radius: 0; font-size: 0.9rem; padding: 4px; width: 100%; box-sizing: border-box; }
+        .excel-grid input:focus { border-color: #86b7fe; outline: 0; box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25); z-index: 10; position: relative; }
+        .excel-grid input[readonly] { background-color: #e9ecef; color: #495057; }
+        
+        .valid-input { background-color: #d4edda !important; border-color: #28a745 !important; }
+        .invalid-input { background-color: #f8d7da !important; border-color: #dc3545 !important; }
+        
+        /* Drag & Drop */
+        #dropArea { border: 3px dashed #a8aeb3; border-radius: 10px; background-color: #ffffff; color: #6c757d; transition: all 0.3s; cursor: pointer; }
+        #dropArea:hover, #dropArea.dragover { border-color: #0d6efd; background-color: #e9ecef; color: #0d6efd; }
+        
+        /* Status Text */
+        .diff-alert { color: #dc3545; font-weight: bold; font-size: 0.85rem; margin-left: 10px; }
+        .diff-ok { color: #198754; font-weight: bold; font-size: 0.85rem; margin-left: 10px; }
+
+        /* Template List */
+        #templateSelectBox { max-height: 200px; overflow-y: auto; border: 1px solid #ced4da; background: #fff; font-size: 0.85rem; }
+        .template-item { padding: 6px 10px; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .template-item:hover { background-color: #e9ecef; }
+        .template-item.active { background-color: #cfe2ff; color: #084298; }
+        .template-del-btn { color: #dc3545; font-size: 1.1em; padding: 0 5px; opacity: 0.5; }
+        .template-del-btn:hover { opacity: 1; transform: scale(1.2); }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h5 class="mb-0 fw-bold">🏗️ 仕入れ明細入力ツール</h5>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#masterModal">⚙️ マスタ管理</button>
+            <button class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="modal" data-bs-target="#templateModal">📑 テンプレート管理</button>
+        </div>
+    </div>
+
+    <!-- 基本情報入力 -->
+    <div class="card">
+        <div class="card-header input-area d-flex justify-content-between align-items-center py-2">
+            <span>基本情報 (請求書情報)</span>
+            <button class="btn btn-sm btn-light border" onclick="saveCurrentAsTemplate()">💾 現在をテンプレート保存</button>
+        </div>
+        <div class="card-body py-2">
+            <div class="row g-2">
+                <!-- 左カラム: 入力項目 + 金額合計エリア -->
+                <div class="col-md-9 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold mb-0">伝票日付</label>
+                                <input type="date" class="form-control form-control-sm" id="txtDate">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold mb-0">担当者 (コード/氏名)</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" id="cmbStaff" list="staffOptions" placeholder="コード または 氏名" onchange="formatStaffInput()">
+                                    <datalist id="staffOptions">
+                                        <!-- マスタから生成 -->
+                                    </datalist>
+                                    <span class="input-group-text bg-white text-muted" id="staffStatus" style="font-size:0.7rem; width: 40px; justify-content: center;">❔</span>
+                                </div>
+                            </div>
+                            
+                            <!-- 仕入れ区分 -->
+                            <div class="col-md-6">
+                                <label class="form-label small fw-bold mb-0 d-block">仕入れ区分</label>
+                                <div class="border rounded p-1 px-2 bg-light d-flex gap-3">
+                                    <div class="form-check form-check-inline mb-0">
+                                        <input class="form-check-input" type="radio" name="purchaseType" id="type1" value="外注" checked onchange="filterTemplates()">
+                                        <label class="form-check-label small" for="type1">外注</label>
+                                    </div>
+                                    <div class="form-check form-check-inline mb-0">
+                                        <input class="form-check-input" type="radio" name="purchaseType" id="type2" value="職人" onchange="filterTemplates()">
+                                        <label class="form-check-label small" for="type2">職人</label>
+                                    </div>
+                                    <div class="form-check form-check-inline mb-0">
+                                        <input class="form-check-input" type="radio" name="purchaseType" id="type3" value="その他" onchange="filterTemplates()">
+                                        <label class="form-check-label small" for="type3">その他</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mt-1 align-items-end">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold mb-0">仕入先名</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" id="cmbSupplier" list="suppOptions" placeholder="仕入先を入力" onchange="resolveSupplier()">
+                                    <datalist id="suppOptions"></datalist>
+                                    <input type="text" class="form-control bg-light text-center" id="txtSupplierCode" readonly placeholder="CD" style="max-width:80px;">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label small fw-bold mb-0">商品名 (税抜き / 税込)</label>
+                                <div class="input-group input-group-sm">
+                                    <!-- 商品コードはJSで動的生成 -->
+                                    <select class="form-select form-select-sm" id="cmbProduct" onchange="resolveProduct()">
+                                        <!-- 初期値（ロード前） -->
+                                        <option value="2">税抜き</option>
+                                        <option value="3">税込</option>
+                                    </select>
+                                    <input type="text" class="form-control bg-light text-center" id="txtProdCode" value="2" readonly style="max-width:60px;">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <span id="taxStatusBadge" class="badge bg-secondary w-100">税抜入力</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 下段: 金額・調整・ボタン -->
+                    <div class="row g-2 mt-3 pt-2 border-top align-items-end">
+                        <div class="col-auto">
+                            <label class="form-label small fw-bold mb-0 text-danger">請求書記載金額（税込み）</label>
+                            <input type="number" class="form-control form-control-sm text-end border-danger fw-bold" id="txtInvoiceTotal" style="width: 140px; font-size: 1.1em;" oninput="calcTotal()" placeholder="金額入力">
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label small text-muted mb-0">計算合計(税込)</label>
+                            <div class="form-control-plaintext form-control-sm fw-bold" id="lblCalcTotal" style="width: 100px;">0</div>
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label small text-muted mb-0">差額</label>
+                            <div class="form-control-plaintext form-control-sm fw-bold" id="lblDiff" style="width: 100px;">0</div>
+                        </div>
+                        <div class="col-auto"><div id="diffMessage"></div></div>
+                        
+                        <div class="col text-end">
+                            <button class="btn btn-info btn-sm px-4 fw-bold text-white me-1" onclick="executeTransfer()">編集</button>
+                            <button class="btn btn-primary btn-sm px-4 fw-bold" onclick="executeTransfer()">転記</button>
+                            <button class="btn btn-success btn-sm px-4 fw-bold" onclick="exportTextFile()">text出力</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="clearDetails()">クリア</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右カラム: テンプレートリスト -->
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-0">テンプレート (区分で絞込)</label>
+                    <input type="text" class="form-control form-control-sm mb-1" id="templateSearch" placeholder="🔍 検索..." oninput="filterTemplates()">
+                    <div id="templateSelectBox" class="rounded">
+                        <!-- JSで動的生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 明細入力 -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between py-1">
+            <span>明細入力 <span class="badge bg-light text-dark ms-2 border">Excel貼付対応</span></span>
+            <span id="masterStatus" class="small align-self-center">現場マスタ: <span class="badge bg-secondary">未読込</span></span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 50vh;">
+                <table class="table table-bordered mb-0 excel-grid" id="gridTable">
+                    <thead class="sticky-top z-1">
+                        <tr>
+                            <th style="width: 50px;">No</th>
+                            <th style="width: 120px;">工番</th>
+                            <th style="width: 40px;">行</th>
+                            <th style="width: 250px;">現場名 (自動)</th>
+                            <th style="width: 150px;">現場担当者 (自動)</th>
+                            <th style="width: 150px;">施工主 (自動)</th>
+                            <th style="width: 150px;">金額</th>
+                            <th style="width: 50px;">-</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gridBody"></tbody>
+                </table>
+            </div>
+            <div class="p-2 border-top bg-light">
+                <button class="btn btn-sm btn-secondary" onclick="addRows(5)">＋ 行追加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-light py-2">
+                <h6 class="modal-title fw-bold">転記結果プレビュー</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-2">
+                <div class="alert alert-info py-1 mb-2 small d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>確認:</strong> 商品コード「<span id="previewTaxType"></span>」で計算しました。<br>
+                        ※「削除」ボタンを押すと、その処理連番に含まれるデータ一式が削除されます。
+                    </div>
+                </div>
+                <div style="overflow: auto; max-height: 50vh;">
+                    <table class="table table-bordered table-striped" id="previewTable" style="font-size: 0.75rem; white-space: nowrap;"></table>
+                </div>
+            </div>
+            <div class="modal-footer py-1">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">閉じる</button>
+                <button type="button" class="btn btn-success btn-sm fw-bold" onclick="exportTextFile()">テキスト出力</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Master Modal -->
+<div class="modal fade" id="masterModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2 bg-light">
+                <h6 class="modal-title fw-bold">マスタ管理</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div id="dropArea" class="p-4 text-center mb-3">
+                            <div class="h3">📂</div>
+                            <div class="fw-bold">ファイルをドロップ</div>
+                            <div class="small text-muted mt-2">
+                                <strong>現場・仕入・担当・商品マスタ (TXT/CSV/TSV)</strong><br>
+                                ※一括ドロップで自動取込（列固定・選択不要）<br>
+                                ※商品マスタも取込可能になりました
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="small fw-bold border-bottom pb-1">登録状況</h6>
+                        <ul class="list-group list-group-flush small" id="masterStatusList">
+                            <li class="list-group-item d-flex justify-content-between">現場マスタ <span id="st_genba">0件</span></li>
+                            <li class="list-group-item d-flex justify-content-between">仕入マスタ <span id="st_supp">0件</span></li>
+                            <li class="list-group-item d-flex justify-content-between">商品マスタ <span id="st_prod">固定</span></li>
+                            <li class="list-group-item d-flex justify-content-between">担当マスタ <span id="st_staff">0件</span></li>
+                            <li class="list-group-item d-flex justify-content-between">テンプレート <span id="st_temp">0件</span></li>
+                        </ul>
+                        <!-- 担当者初期選択機能 -->
+                        <div class="mt-3 p-2 bg-white border rounded">
+                            <label class="form-label small fw-bold">デフォルト担当者設定</label>
+                            <select class="form-select form-select-sm" id="initialStaffSelect" onchange="saveDefaultStaff()">
+                                <option value="">(未選択)</option>
+                            </select>
+                            <div class="small text-muted mt-1">※ここで選択した担当者が常に初期表示されます</div>
+                        </div>
+
+                        <button class="btn btn-sm btn-outline-danger w-100 mt-3" onclick="clearMasters()">全データ削除</button>
+                    </div>
+                </div>
+                <!-- ログ表示エリア -->
+                <div id="importLog" class="mt-3 p-2 bg-light border small text-muted" style="max-height: 100px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template Management Modal -->
+<div class="modal fade" id="templateModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header py-2 bg-light">
+                <h6 class="modal-title fw-bold">テンプレート管理</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="card mb-3 border-0 bg-light">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="small fw-bold">CSV一括編集</span>
+                            <div>
+                                <button class="btn btn-sm btn-outline-success me-1" onclick="downloadTemplateCSV()">📥 CSV出力</button>
+                                <label class="btn btn-sm btn-primary">
+                                    📤 CSV取込 <input type="file" hidden accept=".csv,.txt" onchange="importTemplateCSV(this)">
+                                </label>
+                            </div>
+                        </div>
+                        <div class="small text-muted mt-1">
+                            ※取込様式: <strong>テンプレート名, 仕入れ区分, 仕入先名</strong><br>
+                            ※商品名と担当者はテンプレートでは管理しません
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-secondary small">
+                    ※テンプレートの追加・編集はメイン画面の「保存」またはCSV取込で行ってください。
+                </div>
+                <div class="text-center mt-3 pt-2 border-top">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="resetDefaultTemplates()">初期化</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==========================================
+// 定数・変数
+// ==========================================
+// 修正: 商品マスタ(PROD)の保存キーを追加
+const STORAGE_KEYS = { GENBA: 'P_MST_GENBA', SUPP: 'P_MST_SUPP', STAFF: 'P_MST_STAFF', PROD: 'P_MST_PROD', TEMP: 'P_MST_TEMPLATE', DEFAULT_STAFF: 'P_DEFAULT_STAFF' };
+// 施工主名(SEKO)としてAV列(47)を追加定義
+const MST_GENBA_IDX = { CODE: 0, SUB: 1, NAME: 2, STAFF: 49, SEKO: 47 }; 
+
+// 修正: デフォルト商品マスタ定義
+const DEFAULT_PRODUCTS = [
+    { c: "2", n: "税抜き" },
+    { c: "3", n: "税込" }
+];
+
+let M_GENBA=[], M_SUPP=[], M_STAFF=[], M_TEMPLATES=[], M_PROD=[];
+let exportData = [], currentImportFile = "";
+
+// A列(0) ～ AS列(44)
+const HEADERS_A_TO_AS = [
+    "伝票日付", "伝票№", "処理連番", "明細区分", "行", "仕入先コード", "仕入先名１", "仕入先名２", "担当者コード", "未使用", "未使用", 
+    "支払区分", "買掛区分", "取引区分", "取引区分属性", "未使用", "商品コード", "商品名", "未使用", "未使用", "未使用", 
+    "数量", "数量単位", "単価", "金額", "未使用", "単価掛率", "課税区分", "未使用", "消費税率", "内消費税等", "未使用", 
+    "行摘要コード", "行摘要１", "行摘要２", "備考コード", "備考", "発注№", "発注行", "自動生成区分", "未使用", 
+    "伝票消費税計算区分", "未使用", "データ発生区分", "相手処理連番"
+];
+
+let headerList = [...HEADERS_A_TO_AS];
+
+// AT(45) ～ CJ(87) : 未使用 (43個)
+for(let i=0; i < (87 - 45 + 1); i++) headerList.push("未使用");
+
+// CK(88), CL(89), CM(90)
+headerList.push("現場メインコード");
+headerList.push("現場サブコード");
+headerList.push("要素コード");
+
+// CN(91) ～ CU(98) : 未使用 (8個)
+for(let i=0; i < (98 - 91 + 1); i++) headerList.push("未使用");
+
+// CV(99)
+headerList.push("チェックマーク区分");
+
+// CW(100) ～ DR(121) : 未使用 (22個)
+for(let i=0; i < (121 - 100 + 1); i++) headerList.push("未使用");
+
+// DS(122)
+headerList.push("消費税分類");
+
+// DT(123) ～ EA(130) : 未使用 (8個)
+for(let i=0; i < (130 - 123 + 1); i++) headerList.push("未使用");
+
+// タブ区切りヘッダー文字列を生成
+const RAW_LAYOUT = headerList.join("\t");
+const LAYOUT_HEADER = headerList.map(s => `"${s}"`).join('\t');
+const LAYOUT_COLS = headerList.length;
+
+const DEFAULT_TEMPLATES = [
+    { label: "サンプル外注", type: "外注", supp: "サンプル建設" },
+    { label: "サンプル職人", type: "職人", supp: "〇〇一人親方" }
+];
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadMasters();
+    initGrid(5); // 初期表示5行
+    document.getElementById('txtDate').valueAsDate = new Date();
+    setupDropArea();
+    setupPasteHandler();
+    resolveProduct();
+    filterTemplates();
+});
+
+// ==========================================
+// グリッド操作
+// ==========================================
+function initGrid(count) {
+    document.getElementById('gridBody').innerHTML = '';
+    addRows(count);
+}
+
+function addRows(count) {
+    const tbody = document.getElementById('gridBody');
+    const startNo = tbody.children.length + 1;
+    for (let i = 0; i < count; i++) {
+        const tr = document.createElement('tr');
+        // 施工主(seko-name)カラムを追加
+        tr.innerHTML = `
+            <td class="text-center bg-light text-muted small align-middle">${startNo + i}</td>
+            <td><input type="text" class="job-code" onchange="resolveJob(this)"></td>
+            <td><input type="text" class="row-num text-center bg-light text-primary fw-bold" readonly tabindex="-1"></td>
+            <td><input type="text" class="genba-name" readonly tabindex="-1"></td>
+            <td><input type="text" class="genba-staff" readonly tabindex="-1"></td>
+            <td><input type="text" class="seko-name" readonly tabindex="-1"></td>
+            <td><input type="number" class="amount-col text-end" oninput="handleAmountInput(this)"></td>
+            <input type="hidden" class="sub-code">
+            <input type="hidden" class="genba-address">
+            <td class="text-center p-1"><button class="btn btn-outline-danger btn-sm p-0 px-1" onclick="this.closest('tr').remove(); calcTotal(); updateRowNumbers();" tabindex="-1">×</button></td>
+        `;
+        tbody.appendChild(tr);
+    }
+}
+
+// 行番号自動計算
+function updateRowNumbers() {
+    const rows = document.querySelectorAll('#gridBody tr');
+    let prevJob = "";
+    let counter = 0;
+    
+    rows.forEach(tr => {
+        const jobInp = tr.querySelector('.job-code');
+        const rowNumInp = tr.querySelector('.row-num');
+        const currentJob = jobInp.value.trim();
+        
+        if (currentJob === "") {
+            rowNumInp.value = "";
+            prevJob = ""; 
+            counter = 0;
+        } else {
+            if (currentJob === prevJob) {
+                counter++;
+            } else {
+                counter = 1;
+            }
+            rowNumInp.value = counter;
+            prevJob = currentJob;
+        }
+    });
+}
+
+function resolveJob(input) {
+    const row = input.closest('tr');
+    const val = input.value.trim();
+    // クリア
+    row.querySelector('.genba-name').value = "";
+    row.querySelector('.genba-staff').value = "";
+    row.querySelector('.seko-name').value = "";
+    row.querySelector('.sub-code').value = "";
+    input.classList.remove('valid-input', 'invalid-input');
+
+    if (val) {
+        // 現場マスタ検索 (A列=Codeで検索)
+        const hit = M_GENBA.find(m => m[MST_GENBA_IDX.CODE] == val);
+        if (hit) {
+            input.classList.add('valid-input');
+            row.querySelector('.sub-code').value = hit[MST_GENBA_IDX.SUB] || "";
+            row.querySelector('.genba-name').value = hit[MST_GENBA_IDX.NAME] || "";
+            // 手本ExcelではAX列(49)に担当者名が入っている
+            row.querySelector('.genba-staff').value = hit[MST_GENBA_IDX.STAFF] || "";
+            // AV列(47)の施工主名をセット
+            row.querySelector('.seko-name').value = hit[MST_GENBA_IDX.SEKO] || "";
+        } else {
+            input.classList.add('invalid-input');
+        }
+    }
+    updateRowNumbers();
+}
+
+// ★ Sheet1 ロジック: 金額入力時に工番が空欄なら上の行をコピー ★
+function handleAmountInput(input) {
+    calcTotal();
+    
+    const row = input.closest('tr');
+    const jobInp = row.querySelector('.job-code');
+    const val = input.value;
+    
+    // 金額が入った かつ 工番が空
+    if (val !== "" && jobInp.value === "") {
+        const prevRow = row.previousElementSibling;
+        if (prevRow) {
+            const prevJob = prevRow.querySelector('.job-code').value;
+            if (prevJob) {
+                // 上の行の情報をコピー
+                jobInp.value = prevJob;
+                // コピー後にマスタ参照処理を走らせて名前等を埋める
+                resolveJob(jobInp);
+            }
+        }
+    }
+}
+
+function resolveSupplier() {
+    const val = document.getElementById('cmbSupplier').value;
+    const hit = M_SUPP.find(m => m.n === val);
+    document.getElementById('txtSupplierCode').value = hit ? hit.c : "";
+}
+
+// 修正: マスタから選択肢を動的生成するため、値の取得方法を整理
+function resolveProduct() {
+    const sel = document.getElementById('cmbProduct');
+    const code = sel.value; 
+    document.getElementById('txtProdCode').value = code;
+    
+    const badge = document.getElementById('taxStatusBadge');
+    // コード3のみ「税込」扱い、それ以外は「税抜」として外税計算対象
+    if (code === "3") {
+        badge.innerText = "税込/非課税";
+        badge.className = "badge bg-success";
+    } else {
+        badge.innerText = "税抜入力";
+        badge.className = "badge bg-secondary";
+    }
+    calcTotal();
+}
+
+// ★★★ 担当者入力フォーマット自動化 ★★★
+function formatStaffInput() {
+    const input = document.getElementById('cmbStaff');
+    const val = input.value.trim();
+    const status = document.getElementById('staffStatus');
+    
+    if(!val) { 
+        status.innerText = "❔"; 
+        status.className="input-group-text bg-white text-muted"; 
+        // 空欄時は全件表示リストに戻す
+        updateStaffDatalist(M_STAFF); 
+        return; 
+    }
+
+    // マスタから検索
+    // 1. 完全一致 (コード : 名前)
+    let hit = M_STAFF.find(s => `${s.c} : ${s.n}` === val);
+    // 2. コード一致
+    if (!hit) hit = M_STAFF.find(s => s.c === val);
+    // 3. 名前一致
+    if (!hit) hit = M_STAFF.find(s => s.n === val);
+
+    if (hit) {
+        input.value = `${hit.c} : ${hit.n}`;
+        status.innerText = "OK";
+        status.className = "input-group-text bg-success text-white fw-bold";
+        // 確定時は全件に戻す
+        updateStaffDatalist(M_STAFF);
+    } else {
+        status.innerText = "NG";
+        status.className = "input-group-text bg-danger text-white fw-bold";
+    }
+}
+
+// 担当者datalistを更新する関数
+function updateStaffDatalist(list) {
+    const datalist = document.getElementById('staffOptions');
+    datalist.innerHTML = list.map(s => `<option value="${s.c} : ${s.n}">`).join('');
+    
+    // マスタ管理画面のセレクトボックスも更新
+    const initSelect = document.getElementById('initialStaffSelect');
+    const currentVal = initSelect.value;
+    initSelect.innerHTML = '<option value="">(未選択)</option>' + list.map(s => `<option value="${s.c} : ${s.n}">${s.c} : ${s.n}</option>`).join('');
+    // 選択状態を復元
+    if(currentVal) initSelect.value = currentVal;
+}
+
+// デフォルト担当者を保存
+function saveDefaultStaff() {
+    const val = document.getElementById('initialStaffSelect').value;
+    localStorage.setItem(STORAGE_KEYS.DEFAULT_STAFF, val);
+    // 基本情報欄にも即時反映
+    document.getElementById('cmbStaff').value = val;
+    formatStaffInput();
+}
+
+// デフォルト担当者を読み込み
+function loadDefaultStaff() {
+    const val = localStorage.getItem(STORAGE_KEYS.DEFAULT_STAFF);
+    if(val) {
+        document.getElementById('initialStaffSelect').value = val;
+        document.getElementById('cmbStaff').value = val;
+        formatStaffInput(); 
+    }
+}
+
+
+function calcTotal() {
+    let sum = 0;
+    document.querySelectorAll('.amount-col').forEach(i => sum += (parseFloat(i.value) || 0));
+    
+    const prodCode = document.getElementById('txtProdCode').value;
+    let calcTotal = sum;
+    
+    // 外税計算 (コード2以外の場合) ※コード3以外は全て外税として扱う仕様維持
+    if (prodCode !== "3") {
+        calcTotal = Math.floor(sum * 1.1);
+    }
+    
+    document.getElementById('lblCalcTotal').innerText = calcTotal.toLocaleString();
+    
+    const inv = parseFloat(document.getElementById('txtInvoiceTotal').value);
+    const diffInfo = document.getElementById('diffMessage');
+    const lblDiff = document.getElementById('lblDiff');
+    
+    if (!isNaN(inv)) {
+        const diff = inv - calcTotal;
+        lblDiff.innerText = diff.toLocaleString();
+        if (diff !== 0) {
+            lblDiff.className = "form-control-plaintext form-control-sm fw-bold text-danger";
+            diffInfo.innerHTML = '<span class="diff-alert">差額あり (自動調整されます)</span>';
+        } else {
+            lblDiff.className = "form-control-plaintext form-control-sm fw-bold text-success";
+            diffInfo.innerHTML = '<span class="diff-ok">OK</span>';
+        }
+    } else {
+        lblDiff.innerText = "0";
+        diffInfo.innerHTML = "";
+    }
+}
+
+// ==========================================
+// 転記処理 (Excelロジック完全準拠)
+// ==========================================
+function executeTransfer() {
+    const dateStr = document.getElementById('txtDate').value.replace(/-/g, '');
+    const suppCode = document.getElementById('txtSupplierCode').value;
+    if (!dateStr || !suppCode) { alert("日付と仕入先を入力してください（コード必須）"); return; }
+
+    const suppName = document.getElementById('cmbSupplier').value;
+    const sel = document.getElementById('cmbProduct');
+    const prodName = sel.options[sel.selectedIndex].text; // "税抜き" or "税込"
+    const prodCode = sel.value;
+    const staffInput = document.getElementById('cmbStaff').value;
+    // 担当者コード抽出 (コード : 名前 形式から)
+    const staff = staffInput.includes(":") ? staffInput.split(":")[0].trim() : staffInput.trim();
+    
+    // 差額取得
+    let diff = 0;
+    const invVal = document.getElementById('txtInvoiceTotal').value;
+    if (invVal !== "") {
+        diff = parseFloat(document.getElementById('lblDiff').innerText.replace(/,/g,'')) || 0;
+    }
+    let isDiffApplied = false;
+
+    // グリッドデータ
+    const rows = Array.from(document.querySelectorAll('#gridBody tr')).map(tr => ({
+        job: tr.querySelector('.job-code').value.trim(),
+        sub: tr.querySelector('.sub-code').value.trim(),
+        rowNum: tr.querySelector('.row-num').value.trim(),
+        amt: parseFloat(tr.querySelector('.amount-col').value) || 0
+    })).filter(r => r.job !== "");
+
+    if (rows.length === 0) { alert("明細がありません。"); return; }
+
+    exportData = [];
+    let currentSeq = 1;
+    let groupRows = [];
+    let groupKey = "";
+    let groupSum = 0;
+
+    // ループ処理
+    [...rows, {job: "EOF"}].forEach((row, idx) => {
+        if (idx > 0 && row.job !== groupKey) {
+            // --- グループ終了時の処理 ---
+            
+            // 1. 消費税計算 (外税用)
+            let tax = Math.floor(groupSum * 0.1);
+            let applyDiffHere = false;
+            
+            // 2. 差額調整 (最初のグループの消費税行で調整)
+            if (!isDiffApplied && diff !== 0 && prodCode !== "3") {
+                tax += diff;
+                isDiffApplied = true;
+                applyDiffHere = true;
+            }
+            
+            // AP列の値決定 (差額調整したグループなら2, 以外は0)
+            const apVal = (applyDiffHere) ? "2" : "0";
+
+            // 3. 明細行出力
+            groupRows.forEach(gr => {
+                const ln = new Array(LAYOUT_COLS).fill("");
+                ln[0] = dateStr;    // A: 日付
+                ln[2] = currentSeq; // C: 処理連番(仮)
+                ln[3] = "0";        // D: 明細区分=0
+                ln[4] = gr.rowNum;  // E: 行番号
+                ln[5] = suppCode;   // F
+                ln[6] = suppName;   // G
+                ln[8] = staff;      // I (担当者コード)
+                
+                ln[11]="0"; ln[12]="1"; ln[13]="1"; ln[14]="1"; 
+                ln[16] = prodCode;  // Q
+                ln[17] = prodName;  // R
+                ln[21] = "0"; // 数量(U) -> 0
+                ln[22] = "式"; // 数量単位(W) -> 明細行は"式"
+                ln[23] = "0"; // 単価(X) -> 0
+                ln[24] = gr.amt;    // Y
+                ln[26] = "0"; // 単価掛率(AA) -> 0
+                
+                // 税区分 (AB列)
+                if (prodCode === "3") { // 税込
+                    ln[27] = "1"; // AB=1
+                    ln[30] = Math.floor(gr.amt - (gr.amt / 1.1)); // AE=内税
+                } else { // 税抜
+                    ln[27] = "0"; // AB=0
+                    ln[30] = "0"; // AE=0
+                }
+                ln[29] = "10"; // AD
+                
+                ln[32] = "0"; // AG
+                ln[35] = "0"; // AJ
+                ln[37] = "0"; // AL
+                ln[38] = "0"; // AM
+                ln[39] = "0"; // AN
+                ln[41] = apVal; // AP
+                ln[43] = "0"; // AR
+                ln[44] = "0"; // AS
+                
+                // 修正: 配列は0始まりなので、CK列は index 88
+                ln[88] = gr.job; // CK: 現場メイン
+                ln[89] = gr.sub; // CL: 現場サブ
+                ln[90] = "0";    // CM: 要素
+                ln[99] = "0";    // CV: チェックマーク
+                ln[122] = "0";   // DS: 消費税分類
+
+                exportData.push(ln);
+            });
+
+            // 4. 消費税行出力
+            if (prodCode !== "3") {
+                const txLn = new Array(LAYOUT_COLS).fill("");
+                txLn[0] = dateStr;
+                txLn[2] = currentSeq;
+                txLn[3] = "1"; // D
+                txLn[4] = "1"; // E
+                txLn[5] = suppCode; txLn[6] = suppName;
+                txLn[8] = staff;
+                txLn[11]="0"; txLn[12]="1"; txLn[13]="1"; txLn[14]="1";
+                
+                // 消費税行フォーマット修正: "消費税等（課税対象額       1,500)"
+                txLn[17] = formatTaxSummary(tax);
+                
+                txLn[21] = ""; // U:空欄
+                txLn[22] = ""; // W:空欄
+                txLn[23] = ""; // X:空欄
+                txLn[24] = tax; // Y
+                txLn[26] = ""; // AA:空欄
+                txLn[27] = "9"; txLn[30] = tax; txLn[29] = "10";
+                
+                txLn[32] = "0"; // AG
+                txLn[35] = "0"; // AJ
+                txLn[37] = "0"; // AL
+                txLn[38] = "0"; // AM
+                txLn[39] = "0"; // AN
+                txLn[41] = apVal; // AP
+                txLn[43] = "0"; // AR
+                txLn[44] = "0"; // AS
+                
+                txLn[88] = groupKey;
+                txLn[90] = ""; // CM: 空
+                txLn[99] = "0"; // CV
+
+                exportData.push(txLn);
+            }
+
+            // リセット
+            groupRows = [];
+            groupSum = 0;
+        }
+
+        if (row.job !== "EOF") {
+            groupKey = row.job;
+            groupRows.push(row);
+            groupSum += row.amt;
+        }
+    });
+
+    // 5. 処理連番(C列)の振り直し (Module1 Logic)
+    let pKey = "";
+    let grpNum = 0;
+    exportData.forEach((row, i) => {
+        const isTaxRow = (row[90] === ""); // CM列が空なら消費税行
+        const currentKey = `${row[88]}_${row[0]}_${row[5]}`; // 現場_日付_仕入先
+        
+        let effKey = isTaxRow ? pKey : currentKey;
+        
+        if (i === 0 || effKey !== pKey) {
+            grpNum++;
+        }
+        row[2] = grpNum; 
+        pKey = effKey;
+    });
+
+    document.getElementById('previewTaxType').innerText = (prodCode === "3" ? "税込" : "税抜");
+    renderPreview();
+    new bootstrap.Modal(document.getElementById('previewModal')).show();
+}
+
+function formatTaxSummary(taxAmount) {
+    // 半角スペース7つ + カンマ区切り金額
+    const formattedNum = taxAmount.toLocaleString();
+    const spaces = "       "; 
+    return `消費税等（課税対象額${spaces}${formattedNum})`;
+}
+
+// ----------------------------------------------------
+// プレビュー画面操作 (表示 & 削除)
+// ----------------------------------------------------
+function renderPreview() {
+    const tbl = document.getElementById('previewTable');
+    tbl.innerHTML = "";
+    
+    // ヘッダー生成
+    const th = document.createElement('tr');
+    
+    // 操作列追加
+    const opTh = document.createElement('th');
+    opTh.innerText = "操作";
+    opTh.className = "bg-light sticky-top";
+    opTh.style.top = "0";
+    opTh.style.width = "60px";
+    th.appendChild(opTh);
+
+    const showCols = [
+        { idx: 0, label: "日付(A)" },
+        { idx: 2, label: "連番(C)" },
+        { idx: 3, label: "区分(D)" },
+        { idx: 4, label: "行(E)" },
+        { idx: 5, label: "仕入CD(F)" },
+        { idx: 17, label: "商品名(R)" }, 
+        { idx: 24, label: "金額(Y)" },
+        { idx: 27, label: "課税(AB)" },
+        { idx: 30, label: "内税(AE)" },
+        { idx: 41, label: "調整(AP)" },
+        { idx: 88, label: "現場(CK)" }
+    ];
+
+    showCols.forEach(col => {
+        const t = document.createElement('th');
+        t.innerText = col.label;
+        t.className = "bg-light sticky-top";
+        t.style.top = "0";
+        th.appendChild(t);
+    });
+    tbl.appendChild(document.createElement('thead')).appendChild(th);
+
+    // ボディ生成
+    const tbody = document.createElement('tbody');
+    exportData.forEach((row, rIdx) => {
+        const tr = document.createElement('tr');
+        const serialNo = row[2]; // 連番(C列)
+
+        // 削除ボタンセル
+        const tdOp = document.createElement('td');
+        tdOp.className = "text-center align-middle p-0";
+        const btn = document.createElement('button');
+        btn.className = "btn btn-outline-danger btn-sm py-0";
+        btn.style.fontSize = "0.75rem";
+        btn.innerText = "削除";
+        btn.onclick = () => deleteBySerialNo(serialNo);
+        tdOp.appendChild(btn);
+        tr.appendChild(tdOp);
+
+        // データセル (編集不可テキスト)
+        showCols.forEach(col => {
+            const td = document.createElement('td');
+            td.innerText = row[col.idx];
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+}
+
+// 連番を指定して削除する関数
+function deleteBySerialNo(targetSerial) {
+    if(!targetSerial) return;
+    
+    // 指定された連番と一致しない行だけ残す
+    // ※C列は index 2
+    exportData = exportData.filter(row => row[2] != targetSerial);
+    
+    // 再描画
+    renderPreview();
+    
+    // データが空になった場合の処理
+    if (exportData.length === 0) {
+        bootstrap.Modal.getInstance(document.getElementById('previewModal')).hide();
+        alert("全データが削除されました。");
+    }
+}
+
+// UTF-16LE (BOM付き) 変換関数
+function strToUTF16LE(str) {
+    const buffer = new ArrayBuffer(2 + (str.length * 2));
+    const view = new DataView(buffer);
+    // BOM
+    view.setUint8(0, 0xFF);
+    view.setUint8(1, 0xFE);
+    
+    for (let i = 0; i < str.length; i++) {
+        const code = str.charCodeAt(i);
+        view.setUint16(2 + (i * 2), code, true); // true = Little Endian
+    }
+    return buffer;
+}
+
+function exportTextFile() {
+    if(exportData.length===0) return;
+    
+    // ★修正箇所: ヘッダー行を1行目に追加★
+    let txt = LAYOUT_HEADER + "\r\n";
+    
+    exportData.forEach(r => {
+        // 各要素をダブルクォーテーションで囲み、タブ区切りで結合
+        txt += r.map(c => `"${String(c).replace(/"/g, '""')}"`).join("\t") + "\r\n";
+    });
+    
+    const blob = new Blob([strToUTF16LE(txt)], { type: "text/plain;charset=UTF-16LE" });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `取込データ_${getNowStr()}.txt`;
+    a.click();
+}
+
+function getNowStr() {
+    const d = new Date();
+    return d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0') + "_" +
+           String(d.getHours()).padStart(2,'0') + String(d.getMinutes()).padStart(2,'0') + String(d.getSeconds()).padStart(2,'0');
+}
+
+// ==========================================
+// マスタ & テンプレート管理 (一括取込・固定列)
+// ==========================================
+function setupDropArea() {
+    const d = document.getElementById('dropArea');
+    d.ondragover = e => { e.preventDefault(); d.classList.add('dragover'); };
+    d.ondragleave = e => { e.preventDefault(); d.classList.remove('dragover'); };
+    d.ondrop = e => {
+        e.preventDefault(); d.classList.remove('dragover');
+        if(e.dataTransfer.files.length) {
+            Array.from(e.dataTransfer.files).forEach(f => processFile(f));
+        }
+    };
+}
+
+function processFile(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+        const txt = e.target.result;
+        // TSV/CSV判定とクォート削除
+        const rows = txt.split(/\r\n|\n/).filter(l => l.trim()).map(l => l.split(txt.includes('\t') ? '\t' : ',').map(c => c.replace(/^"|"$/g,'')));
+        handleParsedData(rows, file.name);
+    };
+    reader.readAsText(file, "Shift_JIS");
+}
+
+function handleParsedData(rows, fileName) {
+    if(rows.length < 1) return;
+    // Skip definition rows like <00001>
+    const validRows = rows.filter(r => r.length > 0 && !r[0].startsWith("<"));
+    // Header check
+    const startIdx = (validRows[0][0].includes("コード") || validRows[0][2]?.includes("名称")) ? 1 : 0;
+    const dataRows = validRows.slice(startIdx);
+
+    const logDiv = document.getElementById('importLog');
+    let msg = "";
+
+    // 自動判別と固定列取込
+    if (fileName.includes("現場")) {
+        // 現場マスタ: 全列保存
+        // 手本仕様: [0]:工番, [1]:サブ, [2]:名称, [49]:担当者
+        M_GENBA = dataRows; 
+        saveMasters();
+        msg = "現場マスタ取込: " + dataRows.length + "件";
+    } else if (fileName.includes("仕入") || fileName.includes("得意先")) {
+        // 仕入マスタ: A(0)=Code, B(1)=Name
+        M_SUPP = dataRows.map(r => ({ c: r[0], n: r[1] }));
+        saveMasters();
+        msg = "仕入マスタ取込: " + dataRows.length + "件";
+    } else if (fileName.includes("商品")) {
+        // 修正: 商品マスタの取込を有効化 (A=Code, B=Name)
+        M_PROD = dataRows.map(r => ({ c: r[0], n: r[1] }));
+        saveMasters();
+        msg = "商品マスタ取込: " + dataRows.length + "件";
+    } else if (fileName.includes("担当")) {
+        // 担当マスタ: A(0)=Code, B(1)=Name
+        M_STAFF = dataRows.map(r => ({ c: r[0], n: r[1] }));
+        saveMasters();
+        msg = "担当マスタ取込: " + dataRows.length + "件";
+    } else if (fileName.includes("テンプレート")) {
+        importTemplateData(dataRows);
+        msg = "テンプレートを取り込みました";
+    } else {
+        msg = "不明なファイルです: " + fileName;
+    }
+    
+    logDiv.innerHTML += `<div>${msg}</div>`;
+    logDiv.scrollTop = logDiv.scrollHeight;
+    loadMasters();
+}
+
+// テンプレート取込 (3列のみ)
+function importTemplateData(rows) {
+    let newTemps = [];
+    rows.forEach((cols, i) => {
+        // cols[0]=Label, cols[1]=Type, cols[2]=Supp
+        if (cols.length >= 3 && !cols[0].includes("テンプレート名")) {
+            newTemps.push({
+                label: cols[0].trim(),
+                type: cols[1].trim(), // 仕入れ区分
+                supp: cols[2].trim()  // 仕入先名
+                // prod, staff は保存しない
+            });
+        }
+    });
+    if (newTemps.length > 0) {
+        M_TEMPLATES = [...M_TEMPLATES, ...newTemps];
+        localStorage.setItem(STORAGE_KEYS.TEMP, JSON.stringify(M_TEMPLATES));
+        loadMasters();
+        alert(`${newTemps.length}件のテンプレートを取り込みました。`);
+    }
+}
+
+// マスタ保存・読込共通
+function saveMasters() {
+    localStorage.setItem(STORAGE_KEYS.GENBA, JSON.stringify(M_GENBA));
+    localStorage.setItem(STORAGE_KEYS.SUPP, JSON.stringify(M_SUPP));
+    // 修正: 商品マスタ保存を追加
+    localStorage.setItem(STORAGE_KEYS.PROD, JSON.stringify(M_PROD));
+    localStorage.setItem(STORAGE_KEYS.STAFF, JSON.stringify(M_STAFF));
+    loadMasters();
+}
+
+function loadMasters() {
+    M_GENBA = JSON.parse(localStorage.getItem(STORAGE_KEYS.GENBA)) || [];
+    M_SUPP = JSON.parse(localStorage.getItem(STORAGE_KEYS.SUPP)) || [];
+    // 修正: 商品マスタ読込（なければ初期値を使用）
+    const storedProd = localStorage.getItem(STORAGE_KEYS.PROD);
+    M_PROD = storedProd ? JSON.parse(storedProd) : DEFAULT_PRODUCTS;
+    
+    M_STAFF = JSON.parse(localStorage.getItem(STORAGE_KEYS.STAFF)) || [];
+    M_TEMPLATES = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEMP)) || DEFAULT_TEMPLATES;
+    
+    document.getElementById('st_genba').innerText = M_GENBA.length + "件";
+    document.getElementById('st_supp').innerText = M_SUPP.length + "件";
+    // 修正: 固定表記をやめ、件数または初期値を表示
+    document.getElementById('st_prod').innerText = (storedProd ? M_PROD.length + "件" : "初期値(2件)");
+    document.getElementById('st_staff').innerText = M_STAFF.length + "件";
+    document.getElementById('st_temp').innerText = M_TEMPLATES.length + "件";
+    
+    // Datalist更新
+    document.getElementById('suppOptions').innerHTML = M_SUPP.map(s => `<option value="${s.n}">${s.c}</option>`).join('');
+    // 修正: 商品選択ボックスをマスタから生成
+    updateProductSelect();
+    
+    // 担当者リストは コード : 名前 形式で作成
+    // 初期状態では全件を表示
+    updateStaffDatalist(M_STAFF);
+    
+    filterTemplates(); // Refresh template list
+    loadDefaultStaff(); // デフォルト担当者反映
+}
+
+// 商品セレクトボックス更新関数
+function updateProductSelect() {
+    const sel = document.getElementById('cmbProduct');
+    const currentVal = sel.value; // 現在の選択値を保持
+    sel.innerHTML = M_PROD.map(p => `<option value="${p.c}">${p.n}</option>`).join('');
+    
+    // 保持していた値があれば復元、なければ先頭を選択
+    if (currentVal && M_PROD.some(p => p.c === currentVal)) {
+        sel.value = currentVal;
+    } else if (M_PROD.length > 0) {
+        sel.value = M_PROD[0].c;
+    }
+    // 表示更新
+    resolveProduct();
+}
+
+function clearMasters() { if(confirm("全データを削除しますか？")){ localStorage.clear(); location.reload(); } }
+function clearDetails() { if(confirm("入力をクリアしますか？")) { initGrid(10); document.getElementById('txtInvoiceTotal').value = ""; calcTotal(); } }
+
+// Paste Handler (修正: カーソル位置から貼り付け)
+function setupPasteHandler() {
+    document.getElementById('gridBody').addEventListener('paste', e => {
+        // アクティブな要素を取得 (ペーストの起点)
+        const activeEl = document.activeElement;
+        
+        // inputタグでなければ処理しない
+        if (!activeEl || activeEl.tagName !== 'INPUT') return;
+        
+        // 起点となる行と列を特定
+        const startRowTr = activeEl.closest('tr');
+        if (!startRowTr) return;
+
+        const gridBody = document.getElementById('gridBody');
+        const rowsList = Array.from(gridBody.children);
+        const startRowIdx = rowsList.indexOf(startRowTr);
+        
+        // 起点のinputがその行の中で何番目のinputか特定 (hidden除く)
+        const startRowInputs = Array.from(startRowTr.querySelectorAll('input:not([type=hidden])'));
+        const startColIdx = startRowInputs.indexOf(activeEl);
+        
+        if (startRowIdx === -1 || startColIdx === -1) return;
+
+        e.preventDefault();
+        const clipboardData = (e.clipboardData || window.clipboardData).getData('text');
+        const pasteRows = clipboardData.split(/\r\n|\n/).filter(r => r.trim() !== ""); // 空行は無視
+
+        // 行数が足りない場合は事前に追加
+        const neededRows = (startRowIdx + pasteRows.length) - rowsList.length;
+        if (neededRows > 0) {
+            addRows(neededRows);
+        }
+        
+        // 再度行リストを取得（追加されたため）
+        const updatedRowsList = document.querySelectorAll('#gridBody tr');
+
+        pasteRows.forEach((r, i) => {
+            const cols = r.split('\t');
+            const targetRow = updatedRowsList[startRowIdx + i];
+            
+            if (targetRow) {
+                const targetInputs = targetRow.querySelectorAll('input:not([type=hidden])');
+                
+                cols.forEach((c, j) => {
+                    const targetInput = targetInputs[startColIdx + j];
+                    // 存在する場合のみ値をセット
+                    if (targetInput) {
+                        targetInput.value = c;
+                        if (targetInput.classList.contains('job-code')) resolveJob(targetInput);
+                        if (targetInput.classList.contains('amount-col')) handleAmountInput(targetInput);
+                    }
+                });
+            }
+        });
+        calcTotal();
+    });
+}
+
+// ----------------------------------------------------
+// テンプレート機能 (リスト表示 & フィルタリング)
+// ----------------------------------------------------
+function filterTemplates() {
+    const selectedType = document.querySelector('input[name="purchaseType"]:checked').value;
+    const list = document.getElementById('templateSelectBox');
+    const searchVal = document.getElementById('templateSearch').value.toLowerCase(); // 検索語
+    
+    list.innerHTML = "";
+    
+    const filtered = M_TEMPLATES.filter(t => {
+        // 仕入れ区分が一致 かつ 検索語が名前に含まれる
+        return t.type === selectedType && t.label.toLowerCase().includes(searchVal);
+    });
+    
+    if(filtered.length === 0) {
+        list.innerHTML = `<div class="p-2 text-muted text-center small">テンプレートなし</div>`;
+        return;
+    }
+
+    filtered.forEach((t) => {
+        const originalIdx = M_TEMPLATES.indexOf(t);
+        const div = document.createElement('div');
+        div.className = 'template-item';
+        div.innerHTML = `
+            <div class="text-truncate flex-grow-1" onclick="applyTemplate(${originalIdx})">
+                <div class="fw-bold small">${t.label}</div>
+                <div class="text-muted" style="font-size:0.75rem;">${t.supp}</div>
+            </div>
+            <span class="template-del-btn" onclick="deleteTemplate(${originalIdx})">×</span>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function applyTemplate(idx) {
+    const t = M_TEMPLATES[idx];
+    document.getElementById('cmbSupplier').value = t.supp || "";
+    
+    // 商品名・担当者はテンプレートから反映しない (現状維持)
+    // 担当者はデフォルト設定が維持される、またはユーザーが別途選択済みであれば維持される
+
+    const radios = document.getElementsByName('purchaseType');
+    for(let r of radios) { if(r.value === t.type) r.checked = true; }
+    
+    // 仕入先名からコードを逆引き
+    resolveSupplier();
+    resolveProduct();
+}
+
+function saveCurrentAsTemplate() {
+    const lbl = prompt("テンプレート名:"); if (!lbl) return;
+    // 商品名・担当者は保存しない
+    const newTemp = {
+        label: lbl,
+        supp: document.getElementById('cmbSupplier').value,
+        type: document.querySelector('input[name="purchaseType"]:checked').value
+    };
+    M_TEMPLATES.push(newTemp);
+    localStorage.setItem(STORAGE_KEYS.TEMP, JSON.stringify(M_TEMPLATES));
+    loadMasters(); 
+}
+
+function deleteTemplate(idx) {
+    if(!confirm("削除しますか？")) return;
+    M_TEMPLATES.splice(idx, 1);
+    localStorage.setItem(STORAGE_KEYS.TEMP, JSON.stringify(M_TEMPLATES));
+    loadMasters();
+}
+
+function resetDefaultTemplates() {
+    if(!confirm("初期化しますか？")) return;
+    localStorage.removeItem(STORAGE_KEYS.TEMP);
+    location.reload();
+}
+
+function downloadTemplateCSV() {
+    // 出力形式: テンプレート名, 仕入れ区分, 仕入先名 (3列のみ)
+    let csv = "テンプレート名,仕入れ区分,仕入先名\r\n";
+    M_TEMPLATES.forEach(t => {
+        csv += `${t.label},${t.type},${t.supp}\r\n`;
+    });
+    const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "templates.csv";
+    link.click();
+}
+
+function importTemplateCSV(input) {
+    if (input.files.length === 0) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const rows = e.target.result.split(/\r\n|\n/).filter(r => r.trim());
+        importTemplateData(rows.map(r => r.split(',')));
+        input.value = ""; 
+    };
+    reader.readAsText(input.files[0], "Shift_JIS");
+}
+
+// キーボードナビゲーション (Enter & Arrow Keys)
+document.addEventListener('keydown', function(event) {
+    const target = event.target;
+    // excel-grid内のinputのみ対象
+    if (target.tagName !== 'INPUT' || !target.closest('.excel-grid')) return;
+
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        moveFocus(target, 1, 0); // 下へ
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveFocus(target, -1, 0); // 上へ
+    } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        moveFocus(target, 1, 0); // 下へ
+    } else if (event.key === 'ArrowLeft') {
+        // カーソルが先頭にある場合のみ左へ移動
+        if (canMoveLeft(target)) {
+            event.preventDefault();
+            moveFocus(target, 0, -1);
+        }
+    } else if (event.key === 'ArrowRight') {
+        // カーソルが末尾にある場合のみ右へ移動
+        if (canMoveRight(target)) {
+            event.preventDefault();
+            moveFocus(target, 0, 1);
+        }
+    }
+});
+
+function moveFocus(currentInput, rowDelta, colDelta) {
+    const currentTd = currentInput.closest('td');
+    const currentTr = currentTd.parentElement;
+    const tbody = currentTr.parentElement;
+    const rows = Array.from(tbody.children);
+    const currentRowIdx = rows.indexOf(currentTr);
+    const currentCells = Array.from(currentTr.cells);
+    const currentCellIdx = currentCells.indexOf(currentTd);
+
+    const targetRowIdx = currentRowIdx + rowDelta;
+    // 行範囲チェック
+    if (targetRowIdx < 0 || targetRowIdx >= rows.length) return;
+
+    const targetRow = rows[targetRowIdx];
+    const targetCells = Array.from(targetRow.cells);
+    let targetCellIdx = currentCellIdx + colDelta;
+
+    if (targetCellIdx < 0 || targetCellIdx >= targetCells.length) return;
+    
+    const targetTd = targetCells[targetCellIdx];
+    const targetInput = targetTd.querySelector('input:not([type=hidden])');
+
+    if (targetInput && !targetInput.readOnly) {
+        targetInput.focus();
+        targetInput.select();
+    }
+}
+
+function canMoveLeft(input) {
+    if (input.type === 'number') return false; // numberはカーソル位置取得不安定なため移動なし（安全策）
+    return input.selectionStart === 0 && input.selectionEnd === 0;
+}
+
+function canMoveRight(input) {
+    if (input.type === 'number') return false; 
+    return input.selectionStart === input.value.length;
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
