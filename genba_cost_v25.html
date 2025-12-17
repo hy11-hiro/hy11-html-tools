@@ -18,7 +18,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
         body { font-family: 'Noto Sans JP', sans-serif; background-color: #f3f4f6; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -48,6 +48,10 @@
         .badge-cost { @apply bg-indigo-100 text-indigo-800; }
         .badge-detail { @apply bg-green-100 text-green-800; }
         .badge-alert { @apply bg-red-100 text-red-800 border border-red-200; }
+        
+        /* Pagination Styles */
+        .pagination-btn { @apply px-3 py-1 border border-slate-300 bg-white text-slate-600 rounded text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors; }
+        .pagination-btn.active { @apply bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700; }
     </style>
 </head>
 <body class="text-slate-800 h-screen flex overflow-hidden">
@@ -82,6 +86,7 @@
         <div class="flex-1 overflow-auto p-6 relative">
             <!-- 1. DASHBOARD PAGE -->
             <div id="page-dashboard" class="page-content space-y-6">
+                <!-- Single Search (Existing) -->
                 <div class="glass-panel p-8 rounded-xl max-w-4xl mx-auto">
                     <h3 class="text-lg font-bold mb-4 text-slate-600 text-center">現場検索</h3>
                     <div class="flex flex-col md:flex-row gap-6 justify-center">
@@ -103,6 +108,47 @@
                         </div>
                     </div>
                     <p class="text-xs text-center text-slate-400 mt-3">※コード「01」と「1」は別扱いです。サブコードがある場合はここに表示されます。</p>
+                </div>
+
+                <!-- NEW FUNCTION: Multi-Site Comparison -->
+                <!-- Added ID for dynamic resizing and default width classes -->
+                <div id="multi-compare-panel" class="glass-panel p-6 rounded-xl max-w-4xl mx-auto border-t-4 border-indigo-500 transition-all duration-300 ease-in-out">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-base font-bold text-slate-700 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check text-indigo-500"></i>
+                            複数現場 簡易比較・一覧
+                        </h3>
+                        <button onclick="document.getElementById('multi-compare-content').classList.toggle('hidden')" class="text-xs text-blue-600 hover:text-blue-800 underline">
+                            <i class="fa-solid fa-chevron-down mr-1"></i>開閉
+                        </button>
+                    </div>
+                    
+                    <div id="multi-compare-content" class="hidden animate-fade-in-up mt-4">
+                        <div class="bg-indigo-50 p-4 rounded-lg mb-4">
+                            <p class="text-xs text-indigo-800 mb-2 font-bold">工番入力 (複数可)</p>
+                            <textarea id="multi-code-input" rows="2" class="w-full p-3 border border-indigo-200 rounded bg-white text-sm font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="工番を入力 (スペース、カンマ、改行区切りで複数入力可)&#13;&#10;例: 0001 0002 0003"></textarea>
+                            <div class="flex justify-between items-center mt-2">
+                                <div class="flex items-center gap-4">
+                                    <!-- View Mode Toggle -->
+                                    <div class="bg-indigo-200 p-1 rounded-md flex">
+                                        <button onclick="window.switchViewMode('card')" id="btn-view-card" class="px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all"><i class="fa-solid fa-grip mr-1"></i>カード</button>
+                                        <button onclick="window.switchViewMode('table')" id="btn-view-table" class="px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all"><i class="fa-solid fa-table-list mr-1"></i>表形式</button>
+                                    </div>
+                                    <div class="text-xs text-indigo-400">
+                                        <i class="fa-solid fa-circle-info mr-1"></i>入力された全ての現場を表示します
+                                    </div>
+                                </div>
+                                <button onclick="window.compareSites()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-6 rounded shadow transition-colors flex items-center gap-2">
+                                    <i class="fa-solid fa-magnifying-glass"></i> 表示実行
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Results Container -->
+                        <div id="multi-result-container" class="hidden">
+                            <div id="multi-content-area"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="search-result" class="hidden space-y-6 animate-fade-in-up">
@@ -256,6 +302,10 @@
     let costSortState = { key: 'date', order: 'desc' };
     let currentWorstList = []; 
     let currentSiteData = null; 
+
+    // Multi-Site State
+    let multiCompareData = [];
+    let currentViewMode = 'card'; // 'card' or 'table'
 
     let chartBranchSales = null, chartBranchProfit = null, chartMonthly = null, chartCostTrend = null, chartTrend = null, chartComposition = null;
 
@@ -940,6 +990,212 @@
             alert("エラーが発生しました: " + e.message);
         }
     }
+    
+    // --- New Function: Multi-Site Comparison with Paging (CARD VERSION) ---
+    window.switchViewMode = function(mode) {
+        currentViewMode = mode;
+        const btnCard = document.getElementById('btn-view-card');
+        const btnTable = document.getElementById('btn-view-table');
+        const panel = document.getElementById('multi-compare-panel');
+        
+        if (mode === 'card') {
+            btnCard.className = 'px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all';
+            btnTable.className = 'px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all';
+            if(panel) {
+                panel.classList.remove('max-w-[95%]');
+                panel.classList.add('max-w-4xl');
+            }
+        } else {
+            btnTable.className = 'px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all';
+            btnCard.className = 'px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all';
+            if(panel) {
+                panel.classList.remove('max-w-4xl');
+                panel.classList.add('max-w-[95%]');
+            }
+        }
+        
+        // Re-render if data exists
+        if (multiCompareData.length > 0) {
+            window.renderMultiCompare();
+        }
+    }
+
+    window.compareSites = async function() {
+        const input = document.getElementById('multi-code-input').value;
+        if (!input.trim()) { alert("工番を入力してください。"); return; }
+        
+        const codes = input.split(/[\s,]+/).filter(c => c.trim() !== '');
+        if (codes.length === 0) return;
+
+        try {
+            document.getElementById('multi-result-container').classList.remove('hidden');
+            const contentArea = document.getElementById('multi-content-area');
+            contentArea.innerHTML = '<div class="text-center py-6"><div class="loader mx-auto"></div></div>';
+
+            const masters = await Promise.all(codes.map(c => db.masters.get(c)));
+            const costs = await Promise.all(codes.map(c => db.costs.get(c)));
+
+            multiCompareData = [];
+            
+            codes.forEach((code, index) => {
+                const m = masters[index] || {};
+                const c = costs[index] || {};
+                
+                const name = m.name || c.name || '-';
+                const manager = m.manager || '-';
+                const owner = m.owner || '-';
+                const branch = m.branch || '-';
+                const endDate = m.endDate || '-';
+                const subCodes = m.subCodes || [];
+                const sales = c.salesTotal || 0;
+                const cost = c.costTotal || 0;
+                const profit = c.profitTotal || 0;
+                const margin = sales ? (profit / sales * 100) : 0;
+                const exists = (m.code || c.code);
+
+                multiCompareData.push({
+                   code, name, manager, owner, branch, endDate, subCodes, sales, cost, profit, margin, exists
+                });
+            });
+
+            window.renderMultiCompare();
+
+        } catch (e) {
+            console.error(e);
+            alert("エラー: " + e.message);
+        }
+    }
+
+    window.renderMultiCompare = function() {
+        const contentArea = document.getElementById('multi-content-area');
+        
+        if (multiCompareData.length === 0) {
+            contentArea.innerHTML = '<div class="text-center py-6 text-slate-400">データなし</div>';
+            return;
+        }
+
+        if (currentViewMode === 'card') {
+            window.renderMultiCompareCards(contentArea);
+        } else {
+            window.renderMultiCompareTable(contentArea);
+        }
+    }
+
+    // Card Render (Enhanced)
+    window.renderMultiCompareCards = function(container) {
+        let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">';
+        multiCompareData.forEach(d => {
+            if (!d.exists) {
+                html += `
+                    <div class="bg-red-50 p-4 rounded-lg border border-red-200 shadow-sm opacity-75">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-2xl font-black text-black font-mono">${d.code}</span>
+                            <span class="text-xs text-red-500 font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i>データなし</span>
+                        </div>
+                        <div class="text-xs text-red-400">指定された工番のデータは見つかりませんでした。</div>
+                    </div>`;
+            } else {
+                let subHtml = '';
+                if(d.subCodes && d.subCodes.length > 0) {
+                    subHtml = `<div class="mt-3 pt-2 border-t border-slate-100"><span class="text-xs text-slate-400 block mb-1">関連サブコード</span><div class="flex flex-wrap gap-1">` + 
+                        d.subCodes.map(s => `<span class="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded border border-blue-100 font-bold" title="${s.name}">${s.code}</span>`).join('') +
+                        `</div></div>`;
+                }
+
+                html += `
+                    <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
+                        <div class="mb-3">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-2xl font-black text-black font-mono tracking-tight">${d.code}</span>
+                            </div>
+                            <h4 class="font-bold text-slate-800 text-lg mb-2 line-clamp-1" title="${d.name}">${d.name}</h4>
+                            <div class="flex flex-wrap gap-2 text-sm text-slate-600 mb-2">
+                                <span class="bg-slate-100 px-2 py-1 rounded border border-slate-200"><i class="fa-solid fa-user mr-1 text-slate-400"></i>${d.manager}</span>
+                                <span class="bg-slate-100 px-2 py-1 rounded border border-slate-200"><i class="fa-solid fa-building mr-1 text-slate-400"></i>${d.branch}</span>
+                            </div>
+                            <div class="flex flex-wrap gap-2 text-sm text-slate-600">
+                                <span class="bg-orange-50 text-orange-800 px-2 py-1 rounded border border-orange-100"><i class="fa-solid fa-briefcase mr-1 text-orange-400"></i>${d.owner}</span>
+                                <span class="bg-green-50 text-green-800 px-2 py-1 rounded border border-green-100"><i class="fa-regular fa-calendar-check mr-1 text-green-500"></i>${d.endDate}</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-4 pt-4 border-t border-slate-100">
+                            <div>
+                                <span class="text-xs text-slate-400 block font-bold">売上(税抜)</span>
+                                <div class="font-mono font-bold text-slate-700 text-lg">${formatCurrency(d.sales)}</div>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-xs text-slate-400 block font-bold">原価</span>
+                                <div class="font-mono font-bold text-slate-500 text-lg">${formatCurrency(d.cost)}</div>
+                            </div>
+                            <div class="col-span-2 flex justify-between items-center bg-slate-50 rounded px-3 py-2 mt-1">
+                                <div>
+                                    <span class="text-xs text-slate-400 block font-bold">粗利益</span>
+                                    <div class="font-mono font-bold ${d.profit<0?'text-red-600':'text-indigo-600'} text-xl">${formatCurrency(d.profit)}</div>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-xs text-slate-400 block font-bold">利益率</span>
+                                    <div class="font-mono font-bold ${d.margin<10?'text-red-600':'text-blue-600'} text-xl">${d.margin.toFixed(1)}%</div>
+                                </div>
+                            </div>
+                        </div>
+                        ${subHtml}
+                    </div>
+                `;
+            }
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    // Table Render
+    window.renderMultiCompareTable = function(container) {
+        let html = `
+            <div class="rounded border border-slate-200 shadow-sm bg-white overflow-hidden w-full">
+                <div class="overflow-x-auto w-full">
+                    <table class="w-full text-sm text-left text-slate-600 border-collapse whitespace-nowrap">
+                        <thead class="bg-slate-100 text-slate-700 uppercase text-xs">
+                            <tr>
+                                <th class="px-3 py-2 border-b border-r border-slate-200">工番</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200">現場名</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200">担当者</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200">施工主</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200">拠点</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200">完工日</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200 text-right">売上(税抜)</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200 text-right">原価</th>
+                                <th class="px-3 py-2 border-b border-r border-slate-200 text-right">粗利益</th>
+                                <th class="px-3 py-2 border-b border-slate-200 text-right">粗利率</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-100">
+        `;
+
+        multiCompareData.forEach(d => {
+            if (!d.exists) {
+                html += `<tr class="bg-red-50"><td class="px-3 py-2 border text-red-900 font-black font-mono">${d.code}</td><td colspan="9" class="px-3 py-2 border text-red-400 text-xs">データなし</td></tr>`;
+            } else {
+                html += `
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-3 py-2 border font-mono text-base font-black text-black bg-slate-50/50">${d.code}</td>
+                        <td class="px-3 py-2 border truncate max-w-[200px] text-xs font-bold text-slate-700" title="${d.name}">${d.name}</td>
+                        <td class="px-3 py-2 border text-xs">${d.manager}</td>
+                        <td class="px-3 py-2 border text-xs truncate max-w-[120px]" title="${d.owner}">${d.owner}</td>
+                        <td class="px-3 py-2 border text-center text-xs">${d.branch}</td>
+                        <td class="px-3 py-2 border text-center text-xs font-mono">${d.endDate}</td>
+                        <td class="px-3 py-2 border text-right font-mono text-slate-700">${formatCurrency(d.sales)}</td>
+                        <td class="px-3 py-2 border text-right font-mono text-slate-500">${formatCurrency(d.cost)}</td>
+                        <td class="px-3 py-2 border text-right font-mono font-bold ${d.profit < 0 ? 'text-red-600' : 'text-slate-700'}">${formatCurrency(d.profit)}</td>
+                        <td class="px-3 py-2 border text-right font-mono font-bold ${d.margin < 10 ? 'text-red-600' : 'text-blue-600'}">${d.margin.toFixed(1)}%</td>
+                    </tr>
+                `;
+            }
+        });
+
+        html += `</tbody></table></div></div>`;
+        container.innerHTML = html;
+    }
+
     function normalizeStr(s) { return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); }).toLowerCase().replace(/\s+/g, ''); }
     
     // --- Global ShowPage ---
