@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMILE マスター編集ツール v25</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS (Excel処理用) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Encoding.js (読込時のShift_JIS対応用) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/encoding-japanese/2.0.0/encoding.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        .drag-active { border-color: #3b82f6; background-color: #eff6ff; }
+        .edit-input {
+            width: 100%;
+            min-width: 80px;
+            padding: 4px 8px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .edit-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+            background-color: #fff;
+        }
+        .edit-input:hover { background-color: #f8fafc; }
+        
+        /* Tab Styles */
+        .tab-btn {
+            padding: 16px 24px;
+            font-weight: bold;
+            border-bottom: 4px solid transparent;
+            color: #64748b;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .tab-btn:hover {
+            color: #4f46e5;
+            background-color: #f8fafc;
+        }
+        .tab-btn.active {
+            color: #4f46e5;
+            border-bottom-color: #4f46e5;
+            background-color: #eef2ff;
+        }
+        
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen p-4 md:p-8">
+
+    <div class="max-w-[95rem] mx-auto bg-white rounded-xl shadow-lg overflow-hidden flex flex-col min-h-[85vh]">
+        
+        <!-- ヘッダー -->
+        <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6 shadow-md">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold flex items-center gap-3">
+                        <i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>
+                        SMILE マスター編集ツール v25
+                    </h1>
+                    <p class="text-slate-300 text-sm mt-1 ml-11">
+                        SMILE V Air 連携用データの結合・編集・変換をサポートする統合ツール
+                    </p>
+                </div>
+                <div class="text-right hidden md:block">
+                    <span class="bg-indigo-600 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-400">UTF-16LE 対応</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- タブ切り替え -->
+        <div class="flex border-b border-gray-200 bg-white sticky top-0 z-20 shadow-sm">
+            <button onclick="switchTab('tabCombine')" id="btnCombine" class="tab-btn active flex-1">
+                <i data-lucide="combine"></i>
+                現場データ結合・集計
+            </button>
+            <button onclick="switchTab('tabGeneral')" id="btnGeneral" class="tab-btn flex-1">
+                <i data-lucide="file-cog"></i>
+                汎用マスター変換 (全レイアウト対応)
+            </button>
+        </div>
+
+        <!-- コンテンツエリア -->
+        <div class="p-6 md:p-8 flex-1 bg-slate-50">
+            
+            <!-- ========================================== -->
+            <!-- TAB 1: 現場データ結合 (既存機能) -->
+            <!-- ========================================== -->
+            <div id="tabCombine" class="space-y-8 block animate-fade-in">
+                
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg mb-6">
+                    <p class="text-blue-800 text-sm font-medium flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                        枝別データ(Excel)と現場マスター(Text)を結合し、編集用データを作成します。
+                    </p>
+                </div>
+
+                <!-- 1. 設定エリア -->
+                <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                        <span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
+                        読込設定
+                    </h2>
+                    <div class="flex items-center gap-4 pl-8">
+                        <label class="block text-sm font-bold text-slate-700 whitespace-nowrap">対象の拠点:</label>
+                        <div class="relative w-full max-w-lg">
+                            <i data-lucide="map-pin" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
+                            <input type="text" id="branchFilter" placeholder="拠点名 または 拠点コードを入力（空欄で全対象）" 
+                                   class="w-full pl-10 p-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. ファイル読み込みエリア -->
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- 枝別データ -->
+                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col h-full">
+                        <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                            <span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
+                            枝別データ (Excel)
+                        </h2>
+                        <div id="dropZoneBranch" class="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors cursor-pointer hover:bg-slate-50 relative group min-h-[160px] flex items-center justify-center">
+                            <input type="file" id="fileBranch" accept=".xlsx, .xls, .csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <div class="flex flex-col items-center pointer-events-none">
+                                <div class="bg-indigo-50 p-3 rounded-full mb-3 group-hover:bg-indigo-100 transition-colors">
+                                    <i data-lucide="sheet" class="w-8 h-8 text-indigo-500"></i>
+                                </div>
+                                <p class="text-sm font-bold text-gray-600" id="fileNameBranch">クリック または ファイルをドロップ</p>
+                                <p class="text-xs text-gray-400 mt-1">A列:コード / E列:金額</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 現場マスター -->
+                    <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col h-full">
+                        <h2 class="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+                            <span class="bg-emerald-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+                            現場マスター (テキスト/CSV)
+                        </h2>
+                        <div id="dropZoneMaster" class="flex-1 border-2 border-dashed border-gray-300 rounded-lg p-8 text-center transition-colors cursor-pointer hover:bg-slate-50 relative group min-h-[160px] flex items-center justify-center">
+                            <input type="file" id="fileMaster" accept=".txt, .csv, .tsv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                            <div class="flex flex-col items-center pointer-events-none">
+                                <div class="bg-emerald-50 p-3 rounded-full mb-3 group-hover:bg-emerald-100 transition-colors">
+                                    <i data-lucide="file-text" class="w-8 h-8 text-emerald-500"></i>
+                                </div>
+                                <p class="text-sm font-bold text-gray-600" id="fileNameMaster">クリック または ファイルをドロップ</p>
+                                <p class="text-xs text-gray-400 mt-1">SMILE出力テキスト (ヘッダー・ID行必須)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. 実行オプション -->
+                <div class="bg-white p-6 rounded-xl border border-indigo-100 shadow-md">
+                    <div class="flex flex-col items-center gap-8">
+                        <!-- 金額オプション -->
+                        <div class="bg-indigo-50 p-5 rounded-lg border border-indigo-100 w-full max-w-lg hover:shadow-sm transition-shadow">
+                            <label class="flex items-center space-x-3 cursor-pointer mb-3">
+                                <input type="checkbox" id="chkAutoCalcAmount" checked class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500">
+                                <span class="font-bold text-gray-800">金額を自動反映する</span>
+                            </label>
+                            <div class="flex items-center gap-3 pl-8 text-sm text-gray-600">
+                                <span>端数処理:</span>
+                                <select id="selRoundMode" class="bg-white border border-gray-300 rounded px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                                    <option value="floor">切り捨て (FLOOR)</option>
+                                    <option value="ceil">切り上げ (CEIL)</option>
+                                    <option value="round" selected>四捨五入 (ROUND)</option>
+                                </select>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2 pl-8">※枝別データの金額(税込) × 1.1 の結果に対して適用</p>
+                        </div>
+
+                        <button onclick="processData()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-12 rounded-full shadow-lg transform transition hover:scale-105 flex items-center gap-2 group">
+                            <i data-lucide="play" class="group-hover:fill-current"></i>
+                            データを結合・集計する
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4. 結果表示・編集・ダウンロード -->
+                <div id="resultArea" class="hidden space-y-8 animate-fade-in-up">
+                    
+                    <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                        <div class="flex flex-col md:flex-row justify-between items-end mb-4 gap-4 pb-4 border-b border-gray-100">
+                            <div>
+                                <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <i data-lucide="edit-3" class="text-indigo-500"></i>
+                                    結合データ確認・編集 
+                                    <span id="countDst" class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full ml-2">0件</span>
+                                </h3>
+                                <p class="text-sm text-gray-500 mt-1 ml-8">画面上で値を修正できます。ここで修正した内容がファイルに反映されます。</p>
+                            </div>
+                            
+                            <div class="flex items-center gap-2 flex-wrap justify-end">
+                                <button onclick="clearZeroValues()" class="bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm transition-colors">
+                                    <i data-lucide="eraser" class="w-4 h-4"></i> 「0」を消去
+                                </button>
+                                <button onclick="downloadCurrentTableAsCSV()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm transition-colors">
+                                    <i data-lucide="download" class="w-4 h-4"></i> 編集用CSV保存
+                                </button>
+                                
+                                <div class="relative">
+                                    <input type="file" id="fileEditedCsv" accept=".csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="importEditedCSV(this)">
+                                    <button class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm transition-colors pointer-events-none">
+                                        <i data-lucide="upload" class="w-4 h-4"></i> 編集CSV読込
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto custom-scrollbar max-h-[500px] mb-6 relative border border-gray-200 rounded-lg">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm" id="tableDst">
+                                <thead class="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <!-- JSで生成 -->
+                                        <th class="px-4 py-3 text-left font-medium text-gray-500">処理後に表示されます</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-200 bg-white" id="tbodyDst"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- SMILE用出力ボタンエリア -->
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                            <div class="flex flex-col md:flex-row justify-between items-start gap-6">
+                                <div class="flex-1 w-full">
+                                    <h4 class="text-lg font-bold text-yellow-800 mb-3 flex items-center gap-2">
+                                        <i data-lucide="file-output" class="w-5 h-5"></i>
+                                        SMILE取込用テキスト作成 (UTF-16LE)
+                                    </h4>
+                                    
+                                    <div class="bg-white/60 p-4 rounded border border-yellow-100 mb-4">
+                                        <p class="text-xs font-bold text-yellow-800 mb-2">出力項目選択:</p>
+                                        <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
+                                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkAmount" checked class="w-4 h-4 text-indigo-600 rounded"> <span>開始時売上済受注額</span></label>
+                                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkCustomer" checked class="w-4 h-4 text-indigo-600 rounded"> <span>得意先コード</span></label>
+                                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkStartDate" checked class="w-4 h-4 text-indigo-600 rounded"> <span>着手日</span></label>
+                                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkDeliveryDate" checked class="w-4 h-4 text-indigo-600 rounded"> <span>納期</span></label>
+                                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkEndDate" checked class="w-4 h-4 text-indigo-600 rounded"> <span>完了日</span></label>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mt-2">※チェックを入れた項目は、データが空でも列を維持して出力します。</p>
+                                    </div>
+
+                                    <!-- 移動: 不要な列を削除するチェックボックス -->
+                                    <div class="mb-2">
+                                        <label class="flex items-center space-x-2 cursor-pointer text-sm font-bold text-gray-700">
+                                            <input type="checkbox" id="chkOptimizeIds" checked class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                                            <span>不要な列（上記以外で項目番号なし）を削除する</span>
+                                        </label>
+                                        <p class="text-xs text-gray-500 ml-6 mt-1">
+                                            ON: 上記でチェックしていない、かつ項目番号(ID)がない列はファイルから削除します。<br>
+                                            OFF: 全ての列を出力します。
+                                        </p>
+                                    </div>
+                                </div>
+                                <button onclick="generateSmileLayoutFile()" class="w-full md:w-auto bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 px-10 rounded-lg shadow-md flex items-center justify-center gap-2 transition-transform transform active:scale-95 self-center">
+                                    <i data-lucide="download"></i>
+                                    テキストファイルをダウンロード
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- TAB 2: 汎用マスター変換 (新機能) -->
+            <!-- ========================================== -->
+            <div id="tabGeneral" class="hidden space-y-8 animate-fade-in">
+                <div class="bg-orange-50 p-6 rounded-xl border border-orange-200 shadow-sm flex items-start gap-4">
+                    <div class="bg-orange-100 p-3 rounded-full">
+                        <i data-lucide="arrow-right-left" class="w-6 h-6 text-orange-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-orange-900 mb-1">汎用マスター変換</h2>
+                        <p class="text-sm text-orange-800 leading-relaxed">
+                            任意のマスターデータ（ExcelまたはCSV）を読み込み、SMILE取込形式（UTF-16LE, タブ区切り, 列自動削除）に変換します。<br>
+                            データの1行目：ヘッダー、2行目：項目番号(&lt;...&gt;)、3行目以降：データ、の形式に対応しています。
+                        </p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h3 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
+                        マスターデータファイル選択
+                    </h3>
+                    <div id="dropZoneGen" class="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center transition-colors cursor-pointer hover:bg-orange-50 hover:border-orange-300 relative group bg-white">
+                        <input type="file" id="fileGenMaster" accept=".xlsx, .xls, .csv, .txt" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="flex flex-col items-center pointer-events-none">
+                            <i data-lucide="file-box" class="w-16 h-16 text-gray-300 mb-4 group-hover:text-orange-500 transition-colors"></i>
+                            <p class="text-xl text-gray-600 font-bold" id="fileNameGen">クリック または ファイルをドロップ</p>
+                            <p class="text-sm text-gray-400 mt-2">対応形式: Excel (.xlsx), CSV, Text (タブ区切り)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                    <h3 class="text-lg font-bold text-slate-700 flex items-center gap-2">
+                        <span class="bg-orange-500 text-white w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
+                        変換オプション
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <label class="flex items-start space-x-3 cursor-pointer p-4 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200 transition-colors">
+                            <input type="checkbox" id="chkGenRemoveEmptyIdCols" checked class="w-5 h-5 mt-1 text-orange-600 rounded focus:ring-orange-500">
+                            <div>
+                                <span class="font-bold text-gray-800">項目番号(ID)がない列を削除する</span>
+                                <p class="text-xs text-gray-500 mt-1">チェックONで、&lt;00001&gt;等のIDがない列を出力から除外します。<br>不要な列をカットしてスリム化します。</p>
+                            </div>
+                        </label>
+                        <label class="flex items-start space-x-3 cursor-pointer p-4 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200 transition-colors">
+                            <input type="checkbox" id="chkGenClearIdIfEmpty" checked class="w-5 h-5 mt-1 text-orange-600 rounded focus:ring-orange-500">
+                            <div>
+                                <span class="font-bold text-gray-800">先頭データ空欄時にIDを消去</span>
+                                <p class="text-xs text-gray-500 mt-1">1件目のデータが空の列はIDを消します。<br>「IDなし列削除」と組み合わせることで、データがない列を自動削除できます。<br><span class="text-orange-600">※&lt;00001&gt;,&lt;00002&gt;等の必須キーは保護されます。</span></p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="text-center py-8">
+                    <button onclick="processGeneralData()" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 px-16 rounded-full shadow-lg transform transition hover:scale-105 flex items-center gap-3 mx-auto text-lg">
+                        <i data-lucide="play-circle" class="w-6 h-6"></i>
+                        変換を実行してダウンロード
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 transition-opacity backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform transition-all scale-100">
+            <div id="modalIcon" class="mb-4 flex justify-center"></div>
+            <h3 id="modalTitle" class="text-xl font-bold mb-2 text-gray-800"></h3>
+            <p id="modalMessage" class="text-gray-600 mb-8 whitespace-pre-line leading-relaxed"></p>
+            <button onclick="closeModal()" class="bg-indigo-600 text-white px-8 py-3 rounded-lg hover:bg-indigo-700 w-full font-bold shadow-lg transition-transform active:scale-95">OK</button>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // --- タブ制御 ---
+        function switchTab(tabId) {
+            document.getElementById('tabCombine').classList.add('hidden');
+            document.getElementById('tabGeneral').classList.add('hidden');
+            document.getElementById('btnCombine').classList.remove('active');
+            document.getElementById('btnGeneral').classList.remove('active');
+
+            document.getElementById(tabId).classList.remove('hidden');
+            if(tabId === 'tabCombine') document.getElementById('btnCombine').classList.add('active');
+            else document.getElementById('btnGeneral').classList.add('active');
+        }
+
+        // --- 共通: ファイルハンドリング ---
+        const handleFileSelect = (inputId, displayId, containerId) => {
+            const input = document.getElementById(inputId);
+            const display = document.getElementById(displayId);
+            const container = document.getElementById(containerId);
+            if(!input) return;
+
+            const updateUI = (files) => {
+                if (files.length > 0) {
+                    display.textContent = files[0].name;
+                    container.classList.add('border-indigo-500', 'bg-indigo-50');
+                }
+            };
+            input.addEventListener('change', (e) => updateUI(e.target.files));
+            container.addEventListener('dragover', (e) => { e.preventDefault(); container.classList.add('drag-active'); });
+            container.addEventListener('dragleave', () => { container.classList.remove('drag-active'); });
+            container.addEventListener('drop', (e) => {
+                e.preventDefault(); container.classList.remove('drag-active');
+                input.files = e.dataTransfer.files; updateUI(e.dataTransfer.files);
+            });
+        };
+
+        handleFileSelect('fileBranch', 'fileNameBranch', 'dropZoneBranch');
+        handleFileSelect('fileMaster', 'fileNameMaster', 'dropZoneMaster');
+        handleFileSelect('fileGenMaster', 'fileNameGen', 'dropZoneGen');
+
+        // --- 共通: ユーティリティ ---
+        function readExcelOrText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const data = new Uint8Array(e.target.result);
+                    try {
+                        const workbook = XLSX.read(data, {type: 'array'});
+                        resolve(workbook);
+                    } catch(ex) {
+                        // Excelとして読めない場合はテキスト(Shift_JIS)として試行
+                        const reader2 = new FileReader();
+                        reader2.onload = (e2) => {
+                            resolve(e2.target.result); // String
+                        };
+                        reader2.readAsText(file, "Shift_JIS");
+                    }
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function normalizeSubCode(val) {
+            if (!val) return "";
+            return val.toString().trim();
+        }
+        function formatDate(val) {
+            if (!val) return "";
+            return String(val).replace(/[\/\-\s]/g, "");
+        }
+        function quote(str) {
+            if (str === null || str === undefined) str = "";
+            str = String(str);
+            return '"' + str.replace(/"/g, '""') + '"';
+        }
+        function stringToUTF16LE(str) {
+            const buffer = new ArrayBuffer(2 + str.length * 2);
+            const view = new Uint8Array(buffer);
+            view[0] = 0xFF; view[1] = 0xFE; // BOM
+            for (let i = 0; i < str.length; i++) {
+                const code = str.charCodeAt(i);
+                view[2 + i * 2] = code & 0xFF;
+                view[2 + i * 2 + 1] = code >> 8;
+            }
+            return view;
+        }
+
+        // ==========================================
+        //  MODE 1: 現場データ結合 (既存ロジック)
+        // ==========================================
+        // グローバル変数
+        let globalResultList = [];
+        const LAYOUT_HEADERS_COMBINE = "現場ｺｰﾄﾞ\t現場サブｺｰﾄﾞ\t現場名称\t現場詳細名称\t現場索引\t現場サブ名称\t現場サブ詳細名称\t現場サブ索引\t備考ｺｰﾄﾞ\t備考\t伝票印刷用略称\t予算\t変更予算区分\t変更予算区分名\t変更後予算\t開始時売上発生額\t開始時売上済受注額\tﾏｽﾀｰ検索表示区分\tﾏｽﾀｰ検索表示区分名\t明細削除対象区分\t明細削除対象区分名\t得意先ｺｰﾄﾞ\t得意先名\t主担当ｺｰﾄﾞ\t主担当名\t補担当ｺｰﾄﾞ\t補担当名\t担当ｺｰﾄﾞ\t担当名\t得意先分類３ｺｰﾄﾞ\t得意先分類３名\t得意先分類４ｺｰﾄﾞ\t得意先分類４名\t得意先分類５ｺｰﾄﾞ\t得意先分類５名\t得意先分類６ｺｰﾄﾞ\t得意先分類６名\t得意先分類７ｺｰﾄﾞ\t得意先分類７名\t得意先分類８ｺｰﾄﾞ\t得意先分類８名\t得意先分類９ｺｰﾄﾞ\t得意先分類９名\t着手日\t納期\t完了日\t施工主ｺｰﾄﾞ\t施工主名\t現場担当ｺｰﾄﾞ\t現場担当名\t設計担当ｺｰﾄﾞ\t設計担当名\t積算担当ｺｰﾄﾞ\t積算担当名\t拠点ｺｰﾄﾞ\t拠点名\tエリアｺｰﾄﾞ\tエリア名\t売上分類①ｺｰﾄﾞ\t売上分類①名\t売上分類②ｺｰﾄﾞ\t売上分類②名\t現場区分ｺｰﾄﾞ\t現場区分名\t未設定ｺｰﾄﾞ\t未設定名\t契約日\t操作日付\tﾛｸﾞｲﾝID\tﾛｸﾞｲﾝ名".split("\t");
+        const LAYOUT_IDS_COMBINE = "<00001>\t<00002>\t<00003>\t<00004>\t<00005>\t<00006>\t<00007>\t<00008>\t<00009>\t<00010>\t<00011>\t<00012>\t<00013>\t<>\t<00014>\t<00015>\t<00016>\t<00017>\t<>\t<00018>\t<>\t<00019>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<>\t<00020>\t<00021>\t<00022>\t<00023>\t<>\t<00024>\t<>\t<00025>\t<>\t<00026>\t<>\t<00027>\t<>\t<00028>\t<>\t<00029>\t<>\t<00030>\t<>\t<00031>\t<>\t<00032>\t<>\t<00056>\t<>\t<>\t<".split("\t");
+
+        async function processData() {
+            const fileBranch = document.getElementById('fileBranch').files[0];
+            const fileMaster = document.getElementById('fileMaster').files[0];
+            const branchFilter = document.getElementById('branchFilter').value.trim();
+            const autoCalcAmount = document.getElementById('chkAutoCalcAmount').checked;
+            const roundMode = document.getElementById('selRoundMode').value;
+
+            if (!fileBranch || !fileMaster) { showModal('error', 'ファイル不足', '両方のファイルを選択してください。'); return; }
+
+            try {
+                // 1. 現場マスター読込 (Text想定)
+                const masterData = await readExcelOrText(fileMaster);
+                let linesMaster = [];
+                // Workbookならテキスト化
+                if (typeof masterData === 'object' && masterData.SheetNames) {
+                    linesMaster = XLSX.utils.sheet_to_csv(masterData.Sheets[masterData.SheetNames[0]], {FS:"\t"}).split("\n");
+                } else {
+                    linesMaster = masterData.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+                }
+
+                // 区切り文字判定 & マッピング
+                let separator = "\t";
+                if (linesMaster.length > 0 && !linesMaster[0].includes("\t") && linesMaster[0].includes(",")) separator = ",";
+
+                let idRowIdx = -1;
+                const mapping = { code:-1, subCode:-1, customerCode:-1, customerName:-1, startDate:-1, deliveryDate:-1, endDate:-1, branchCode:-1, branchName:-1 };
+
+                for (let i = 0; i < Math.min(20, linesMaster.length); i++) {
+                    const line = linesMaster[i];
+                    if (line.includes("<00001>")) {
+                        idRowIdx = i;
+                        const cols = line.split(separator).map(c => c.trim().replace(/"/g,""));
+                        cols.forEach((val, idx) => {
+                            if (val === "<00001>") mapping.code = idx;
+                            if (val === "<00002>") mapping.subCode = idx;
+                            if (val === "<00019>") { mapping.customerCode = idx; if(idx+1 < cols.length) mapping.customerName = idx+1; }
+                            if (val === "<00020>") mapping.startDate = idx;
+                            if (val === "<00021>") mapping.deliveryDate = idx;
+                            if (val === "<00022>") mapping.endDate = idx;
+                            if (val === "<00028>") mapping.branchCode = idx;
+                        });
+                    }
+                    if (idRowIdx === -1 || i < idRowIdx) {
+                        const cols = line.split(separator).map(c => c.trim().replace(/"/g,""));
+                        cols.forEach((val, idx) => {
+                            if (val === "拠点名" || val === "拠点") mapping.branchName = idx;
+                            if (val === "得意先名" || val === "得意先") mapping.customerName = idx;
+                        });
+                    }
+                }
+                
+                if(mapping.code === -1) throw new Error("現場マスターからコード列が見つかりません。");
+
+                const dictMaster = new Map();
+                const startDataRow = (idRowIdx !== -1) ? idRowIdx + 1 : 1;
+
+                for (let i = startDataRow; i < linesMaster.length; i++) {
+                    const line = linesMaster[i].trim();
+                    if (!line) continue;
+                    const cols = line.split(separator).map(c => c.trim().replace(/"/g,""));
+                    if (cols.length < 2) continue;
+
+                    const mBranch = (mapping.branchName !== -1) ? cols[mapping.branchName] : (mapping.branchCode !== -1 ? cols[mapping.branchCode] : "");
+                    const isTarget = (branchFilter === "") || (mBranch === branchFilter);
+
+                    if (isTarget) {
+                        const rawCode = cols[mapping.code] || "";
+                        const rawSub = cols[mapping.subCode] || "";
+                        if (rawCode) {
+                            const key = `${rawCode}|${normalizeSubCode(rawSub)}`;
+                            if (!dictMaster.has(key)) {
+                                dictMaster.set(key, {
+                                    branch: mBranch,
+                                    custCode: (mapping.customerCode!==-1) ? cols[mapping.customerCode] : "",
+                                    custName: (mapping.customerName!==-1) ? cols[mapping.customerName] : "",
+                                    start: (mapping.startDate!==-1) ? cols[mapping.startDate] : "",
+                                    deliv: (mapping.deliveryDate!==-1) ? cols[mapping.deliveryDate] : "",
+                                    end: (mapping.endDate!==-1) ? cols[mapping.endDate] : ""
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // 2. 枝別データ読込 (Excel想定)
+                const branchWb = await readExcelOrText(fileBranch);
+                if(typeof branchWb !== 'object') throw new Error("枝別データはExcel形式でアップロードしてください。");
+                const srcSheet = branchWb.Sheets[branchWb.SheetNames[0]];
+                const srcRows = XLSX.utils.sheet_to_json(srcSheet, {header: "A", range: 6, raw: false, defval: ""});
+
+                globalResultList = [];
+                srcRows.forEach(row => {
+                    const rawA = (row["A"] || "").toString().trim();
+                    if (!rawA) return;
+                    
+                    let leftPart = rawA, rightPart = "";
+                    if (rawA.includes("-")) {
+                        const parts = rawA.split("-");
+                        leftPart = parts[0].trim();
+                        rightPart = parts[parts.length - 1].trim();
+                    }
+
+                    let amount = "";
+                    if (autoCalcAmount) {
+                        const rawE = row["E"];
+                        if (rawE) {
+                            const valE = parseFloat(rawE.toString().replace(/,/g, ""));
+                            if (!isNaN(valE)) {
+                                const taxed = valE * 1.1;
+                                if (roundMode === "ceil") amount = Math.ceil(taxed);
+                                else if (roundMode === "round") amount = Math.round(taxed);
+                                else amount = Math.floor(taxed);
+                            }
+                        }
+                    }
+
+                    const key = `${leftPart}|${normalizeSubCode(rightPart)}`;
+                    if (dictMaster.has(key)) {
+                        const mData = dictMaster.get(key);
+                        globalResultList.push({
+                            code: leftPart, subCode: rightPart, amount: amount,
+                            custCode: mData.custCode, custName: mData.custName,
+                            start: mData.start, deliv: mData.deliv, end: mData.end, branch: mData.branch
+                        });
+                    }
+                });
+
+                renderTable(globalResultList);
+                document.getElementById("countDst").textContent = `${globalResultList.length}件`;
+                document.getElementById("resultArea").classList.remove("hidden");
+                showModal('success', '結合完了', `${globalResultList.length}件抽出しました。`);
+
+            } catch(e) {
+                console.error(e);
+                showModal('error', 'エラー', e.message);
+            }
+        }
+
+        // --- テーブル描画 (結合モード) ---
+        function renderTable(data) {
+            const tbody = document.getElementById("tbodyDst");
+            // ヘッダー書き換え
+            const thead = document.querySelector("#tableDst thead tr");
+            thead.innerHTML = `
+                <th class="px-4 py-3 text-left font-bold text-gray-600 bg-gray-50 w-24 border-b">現場CD</th>
+                <th class="px-4 py-3 text-left font-bold text-gray-600 bg-gray-50 w-20 border-b">サブCD</th>
+                <th class="px-4 py-3 text-left font-bold text-blue-600 bg-blue-50 w-36 border-b">開始時売上済受注額<br><span class="text-xs font-normal text-gray-500">&lt;00016&gt;</span></th>
+                <th class="px-4 py-3 text-left font-bold text-orange-600 bg-orange-50 w-32 border-b">得意先コード<br><span class="text-xs font-normal text-gray-500">&lt;00019&gt;</span></th>
+                <th class="px-4 py-3 text-left font-medium text-gray-600 w-48 border-b">得意先名<br><span class="text-xs font-normal text-gray-400">(参照)</span></th>
+                <th class="px-4 py-3 text-left font-medium text-gray-600 w-32 border-b">着手日<br><span class="text-xs font-normal text-gray-400">&lt;00020&gt;</span></th>
+                <th class="px-4 py-3 text-left font-medium text-green-600 w-32 border-b">納期<br><span class="text-xs font-normal text-gray-400">&lt;00021&gt;</span></th>
+                <th class="px-4 py-3 text-left font-medium text-gray-600 w-32 border-b">完了日<br><span class="text-xs font-normal text-gray-400">&lt;00022&gt;</span></th>
+                <th class="px-4 py-3 text-left font-medium text-gray-600 w-32 border-b">参照拠点</th>
+            `;
+
+            tbody.innerHTML = "";
+            data.forEach(row => {
+                const tr = document.createElement("tr");
+                tr.appendChild(createCell(row.code, true));
+                tr.appendChild(createCell(row.subCode, true));
+                tr.appendChild(createCell(row.amount, false, "text-blue-700 font-bold bg-blue-50/50"));
+                tr.appendChild(createCell(row.custCode, false, "text-orange-700 font-medium bg-orange-50/50"));
+                tr.appendChild(createCell(row.custName, true, "text-gray-500 text-xs"));
+                tr.appendChild(createCell(row.start, false));
+                tr.appendChild(createCell(row.deliv, false));
+                tr.appendChild(createCell(row.end, false));
+                tr.appendChild(createCell(row.branch, true, "text-gray-400"));
+                tbody.appendChild(tr);
+            });
+        }
+
+        function createCell(val, readonly, classes) {
+            const td = document.createElement("td");
+            td.className = "px-2 py-1 border-b border-gray-100";
+            const input = document.createElement("input");
+            input.type = "text";
+            input.value = (val===undefined||val===null)?"":val;
+            input.className = readonly ? "w-full text-sm bg-transparent text-slate-500 border-none px-2 py-1 focus:ring-0" : "edit-input text-sm " + (classes||"");
+            if(readonly) input.readOnly = true;
+            td.appendChild(input);
+            return td;
+        }
+
+        // --- 結合データの出力 ---
+        function generateSmileLayoutFile() {
+            const rows = document.querySelectorAll("#tbodyDst tr");
+            if(rows.length===0) { showModal('error','データなし','データがありません'); return; }
+
+            const useAmount = document.getElementById("chkAmount").checked;
+            const useCust = document.getElementById("chkCustomer").checked;
+            const useStart = document.getElementById("chkStartDate").checked;
+            const useDeliv = document.getElementById("chkDeliveryDate").checked;
+            const useEnd = document.getElementById("chkEndDate").checked;
+            const optimize = document.getElementById("chkOptimizeIds").checked;
+
+            const outputRows = [];
+            const findIdx = (id) => LAYOUT_IDS_COMBINE.indexOf(id);
+            // 0:Code, 1:Sub, 2:Amt, 3:Cust, 4:CustName(Skip), 5:Start, 6:Deliv, 7:End
+            
+            rows.forEach(tr => {
+                const inputs = tr.querySelectorAll("input");
+                const rowData = new Array(LAYOUT_HEADERS_COMBINE.length).fill("");
+                rowData[findIdx("<00001>")] = inputs[0].value;
+                rowData[findIdx("<00002>")] = inputs[1].value;
+                if(useAmount) rowData[findIdx("<00016>")] = inputs[2].value;
+                if(useCust) rowData[findIdx("<00019>")] = inputs[3].value;
+                if(useStart) rowData[findIdx("<00020>")] = formatDate(inputs[5].value);
+                if(useDeliv) rowData[findIdx("<00021>")] = formatDate(inputs[6].value);
+                if(useEnd) rowData[findIdx("<00022>")] = formatDate(inputs[7].value);
+                outputRows.push(rowData);
+            });
+
+            // ----------------------------------------------------
+            // ID最適化: データ先頭が空ならIDを消去 (※チェック有り項目は保護)
+            // ----------------------------------------------------
+            const finalIds = [...LAYOUT_IDS_COMBINE];
+            if (optimize && outputRows.length > 0) {
+                // 保護するIDのリストを作成（チェックボックスでONにしたもの）
+                const protectedIds = ["<00001>", "<00002>"]; // キーは常に保護
+                if (useAmount) protectedIds.push("<00016>");
+                if (useCust) protectedIds.push("<00019>");
+                if (useStart) protectedIds.push("<00020>");
+                if (useDeliv) protectedIds.push("<00021>");
+                if (useEnd) protectedIds.push("<00022>");
+
+                const firstRowData = outputRows[0];
+                for (let i = 0; i < finalIds.length; i++) {
+                    const currentId = finalIds[i];
+                    // 保護対象のIDであれば、データが空でもスキップ（IDを維持＝列削除されない）
+                    if (protectedIds.includes(currentId)) continue;
+                    
+                    // データが無ければIDを消す（→列削除の対象になる）
+                    if (!firstRowData[i] || String(firstRowData[i]).trim() === "") {
+                        finalIds[i] = ""; 
+                    }
+                }
+            }
+
+            createAndDownload(LAYOUT_HEADERS_COMBINE, finalIds, outputRows, optimize, "現場マスター取込用.txt");
+        }
+
+        // ==========================================
+        //  MODE 2: 汎用マスター変換 (新機能)
+        // ==========================================
+        async function processGeneralData() {
+            const file = document.getElementById('fileGenMaster').files[0];
+            const removeEmptyCols = document.getElementById('chkGenRemoveEmptyIdCols').checked;
+            const clearIdIfEmpty = document.getElementById('chkGenClearIdIfEmpty').checked;
+
+            if(!file) { showModal('error', 'ファイルなし', 'マスターデータファイルを選択してください。'); return; }
+
+            try {
+                // ファイル読込 (Excel or Text)
+                const rawData = await readExcelOrText(file);
+                let rows = [];
+                
+                if (typeof rawData === 'object' && rawData.SheetNames) {
+                    // Excelの場合: シート1を配列化
+                    const sheet = rawData.Sheets[rawData.SheetNames[0]];
+                    // header:1 (配列の配列)
+                    rows = XLSX.utils.sheet_to_json(sheet, {header: 1, raw: false, defval: ""});
+                } else {
+                    // Textの場合: 行分割 -> タブorカンマ分割
+                    const lines = rawData.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+                    let sep = "\t";
+                    if(lines.length>0 && !lines[0].includes("\t") && lines[0].includes(",")) sep = ",";
+                    rows = lines.map(line => line.split(sep).map(c => c.trim().replace(/"/g,"")));
+                }
+
+                // 構造チェック (最低2行: Header, ID)
+                if (rows.length < 2) throw new Error("データの行数が不足しています（ヘッダーとID行が必要です）。");
+
+                const headerRow = rows[0]; // 1行目
+                const idRow = rows[1];     // 2行目
+                const dataRows = rows.slice(2); // 3行目以降
+
+                // ID行整形 (空行や不要行の削除処理)
+                // 1件目のデータを確認してIDを消すロジック (clearIdIfEmpty)
+                if (clearIdIfEmpty && dataRows.length > 0) {
+                    const firstData = dataRows[0];
+                    for(let i=0; i<idRow.length; i++) {
+                        // <00001>, <00002> 等の必須系は保護 (簡易的に00001-00005くらいまで保護するか、あるいは <00002> だけ保護するか)
+                        // ここでは、サブコード<00002>と主コード<00001>は最低限残す
+                        if(idRow[i] === "<00001>" || idRow[i] === "<00002>") continue;
+                        
+                        // データが空ならID消去
+                        if(!firstData[i] || firstData[i] === "") {
+                            idRow[i] = ""; 
+                        }
+                    }
+                }
+
+                // ダウンロード処理呼び出し
+                createAndDownload(headerRow, idRow, dataRows, removeEmptyCols, "汎用マスター取込用.txt");
+
+            } catch(e) {
+                console.error(e);
+                showModal('error', '変換エラー', e.message);
+            }
+        }
+
+
+        // ==========================================
+        //  共通: ファイル生成 & ダウンロード
+        // ==========================================
+        function createAndDownload(headers, ids, dataRows, optimizeCol, filename) {
+            // 列絞り込みロジック
+            let targetIndices = [];
+            if (optimizeCol) {
+                for(let i=0; i<headers.length; i++) {
+                    // IDがある、または <00001>/<00002> なら出力対象
+                    // ※ID行が空でもデータがある場合は出したくないので、「IDがある」ことが条件
+                    if ((ids[i] && ids[i].trim() !== "") || ids[i] === "<00001>" || ids[i] === "<00002>") {
+                        targetIndices.push(i);
+                    }
+                }
+            } else {
+                targetIndices = headers.map((_, i) => i);
+            }
+
+            if(targetIndices.length === 0) {
+                showModal('error','エラー','出力対象となる列がありません（すべての列のIDが空です）。');
+                return;
+            }
+
+            // 行構築
+            const buildLine = (row) => targetIndices.map(i => quote(row[i])).join("\t");
+            
+            const lines = [];
+            lines.push(buildLine(headers));
+            lines.push(buildLine(ids));
+            dataRows.forEach(r => {
+                const safeRow = targetIndices.map(i => {
+                    let val = r[i];
+                    // 簡易日付整形: スラッシュ2つ含むなら日付とみなして整形
+                    if(typeof val === "string" && val.match(/\d+\/\d+\/\d+/)) {
+                        val = formatDate(val);
+                    }
+                    return val;
+                });
+                lines.push(safeRow.map(v => quote(v)).join("\t"));
+            });
+
+            const fullText = lines.join("\r\n") + "\r\n";
+
+            // UTF-16LE変換
+            try {
+                const u8 = stringToUTF16LE(fullText);
+                const blob = new Blob([u8], { type: 'text/plain;charset=utf-16le' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showModal('success', '出力完了', `ファイル「${filename}」を作成しました。\n有効列数: ${targetIndices.length}`);
+            } catch(e) {
+                showModal('error', '保存エラー', e.message);
+            }
+        }
+
+        // --- 共通: CSV再取込 (結合モード用) ---
+        function importEditedCSV(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                const lines = e.target.result.replace(/\r\n/g,"\n").replace(/\r/g,"\n").split("\n");
+                const newData = [];
+                for(let i=1; i<lines.length; i++) {
+                    const l = lines[i].trim();
+                    if(!l) continue;
+                    const c = l.split(","); // 簡易CSVパース
+                    if(c.length<9) continue;
+                    newData.push({
+                        code:c[0], subCode:c[1], amount:c[2], custCode:c[3], custName:c[4],
+                        start:c[5], deliv:c[6], end:c[7], branch:c[8]
+                    });
+                }
+                globalResultList = newData;
+                renderTable(globalResultList);
+                document.getElementById("countDst").textContent = `${globalResultList.length}件 (CSV再取込)`;
+                showModal('success','完了','CSVを読み込みました');
+            };
+            reader.readAsText(file);
+            input.value = "";
+        }
+        function clearZeroValues() {
+            document.querySelectorAll("#tbodyDst input:not([readonly])").forEach(el => {
+                if(el.value.trim()==="0") el.value="";
+            });
+        }
+        function downloadCurrentTableAsCSV() {
+            const data = [["現場コード","サブコード","開始時売上済受注額","得意先コード","得意先名","着手日","納期","完了日","参照拠点"]];
+            document.querySelectorAll("#tbodyDst tr").forEach(tr => {
+                const ins = tr.querySelectorAll("input");
+                data.push([ins[0].value, ins[1].value, ins[2].value, ins[3].value, ins[4].value, ins[5].value, ins[6].value, ins[7].value, ins[8].value]);
+            });
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+            XLSX.writeFile(wb, "編集済みデータ.csv");
+        }
+
+        function showModal(type, title, message) {
+            const m = document.getElementById('modal');
+            m.classList.remove('hidden');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            document.getElementById('modalIcon').innerHTML = type==='success' ? '<i data-lucide="check-circle" class="w-12 h-12 text-green-500"></i>' : '<i data-lucide="alert-triangle" class="w-12 h-12 text-red-500"></i>';
+            lucide.createIcons();
+        }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>
