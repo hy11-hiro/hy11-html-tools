@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム</title>
+    <title>G-Ledger | 現場原価管理台帳システム v44</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
-    <!-- ExcelJS & FileSaver for Advanced Excel Export -->
+    <!-- ExcelJS & FileSaver -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -49,7 +49,10 @@
         .badge-detail { @apply bg-green-100 text-green-800; }
         .badge-alert { @apply bg-red-100 text-red-800 border border-red-200; }
         
-        /* Pagination Styles */
+        .check-group { @apply flex items-center mb-2; }
+        .check-input { @apply w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 rounded focus:ring-orange-500 focus:ring-2; }
+        .check-label { @apply ml-2 text-sm font-medium text-gray-900 cursor-pointer; }
+
         .pagination-btn { @apply px-3 py-1 border border-slate-300 bg-white text-slate-600 rounded text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors; }
         .pagination-btn.active { @apply bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700; }
     </style>
@@ -60,13 +63,14 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v44</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
                 <li><button onclick="window.showPage('dashboard')" id="nav-dashboard" class="sidebar-link active w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-magnifying-glass-chart"></i> 現場照会・分析</button></li>
                 <li><button onclick="window.showPage('cost-search')" id="nav-cost-search" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-magnifying-glass-dollar"></i> 原価検索</button></li>
                 <li><button onclick="window.showPage('ranking')" id="nav-ranking" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-chart-pie"></i> 集計・ランキング</button></li>
+                <li><button onclick="window.showPage('check')" id="nav-check" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-list-check"></i> データチェック</button></li>
                 <li><button onclick="window.showPage('import')" id="nav-import" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-database"></i> データ取込・管理</button></li>
             </ul>
         </nav>
@@ -86,7 +90,7 @@
         <div class="flex-1 overflow-auto p-6 relative">
             <!-- 1. DASHBOARD PAGE -->
             <div id="page-dashboard" class="page-content space-y-6">
-                <!-- Single Search (Existing) -->
+                <!-- Single Search -->
                 <div class="glass-panel p-8 rounded-xl max-w-4xl mx-auto">
                     <h3 class="text-lg font-bold mb-4 text-slate-600 text-center">現場検索</h3>
                     <div class="flex flex-col md:flex-row gap-6 justify-center">
@@ -107,11 +111,16 @@
                             <div id="site-autocomplete-list" class="autocomplete-list hidden"></div>
                         </div>
                     </div>
+                    <!-- Clear Button -->
+                    <div class="text-center mt-4">
+                        <button onclick="window.clearSiteSearch()" class="text-sm text-slate-500 hover:text-slate-700 underline flex items-center justify-center mx-auto gap-1">
+                            <i class="fa-solid fa-eraser"></i> 検索条件と結果をクリア
+                        </button>
+                    </div>
                     <p class="text-xs text-center text-slate-400 mt-3">※コード「01」と「1」は別扱いです。サブコードがある場合はここに表示されます。</p>
                 </div>
 
-                <!-- NEW FUNCTION: Multi-Site Comparison -->
-                <!-- Added ID for dynamic resizing and default width classes -->
+                <!-- Multi-Site Comparison -->
                 <div id="multi-compare-panel" class="glass-panel p-6 rounded-xl max-w-4xl mx-auto border-t-4 border-indigo-500 transition-all duration-300 ease-in-out">
                     <div class="flex justify-between items-center mb-2">
                         <h3 class="text-base font-bold text-slate-700 flex items-center gap-2">
@@ -126,10 +135,10 @@
                     <div id="multi-compare-content" class="hidden animate-fade-in-up mt-4">
                         <div class="bg-indigo-50 p-4 rounded-lg mb-4">
                             <p class="text-xs text-indigo-800 mb-2 font-bold">工番入力 (複数可)</p>
-                            <textarea id="multi-code-input" rows="2" class="w-full p-3 border border-indigo-200 rounded bg-white text-sm font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="工番を入力 (スペース、カンマ、改行区切りで複数入力可)&#13;&#10;例: 0001 0002 0003"></textarea>
+                            <!-- UPDATED: Added placeholder for better guidance -->
+                            <textarea id="multi-code-input" rows="3" class="w-full p-3 border border-indigo-200 rounded bg-white text-sm font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="工番を入力してください。&#13;&#10;貼り付けると自動的にスペース区切りに変換されます。&#13;&#10;例: 0001 0002 0003"></textarea>
                             <div class="flex justify-between items-center mt-2">
                                 <div class="flex items-center gap-4">
-                                    <!-- View Mode Toggle -->
                                     <div class="bg-indigo-200 p-1 rounded-md flex">
                                         <button onclick="window.switchViewMode('card')" id="btn-view-card" class="px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all"><i class="fa-solid fa-grip mr-1"></i>カード</button>
                                         <button onclick="window.switchViewMode('table')" id="btn-view-table" class="px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all"><i class="fa-solid fa-table-list mr-1"></i>表形式</button>
@@ -144,7 +153,6 @@
                             </div>
                         </div>
 
-                        <!-- Results Container -->
                         <div id="multi-result-container" class="hidden">
                             <div id="multi-content-area"></div>
                         </div>
@@ -154,7 +162,10 @@
                 <div id="search-result" class="hidden space-y-6 animate-fade-in-up">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
                         <div class="md:col-span-8 glass-panel p-6 rounded-xl border-l-4 border-blue-600 relative">
-                            <button onclick="window.exportSiteReport()" class="absolute top-4 right-4 bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow flex items-center gap-2"><i class="fa-solid fa-file-excel"></i> Excelレポート出力</button>
+                            <div class="absolute top-4 right-4 flex gap-2">
+                                <button onclick="window.exportSiteReport()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow flex items-center gap-2"><i class="fa-solid fa-file-excel"></i> Excelレポート出力</button>
+                                <button onclick="window.clearSiteSearch()" class="bg-slate-500 hover:bg-slate-600 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2"><i class="fa-solid fa-xmark"></i> 閉じる</button>
+                            </div>
                             <div class="flex justify-between items-start mb-2">
                                 <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold" id="res-code">CODE</span>
                                 <span class="text-slate-500 text-sm" id="res-branch">拠点名</span>
@@ -164,15 +175,19 @@
                                 <span class="bg-slate-100 px-2 py-1 rounded">現場サブ名称: <span id="res-sub-name" class="font-bold">-</span></span>
                                 <span class="bg-slate-100 px-2 py-1 rounded">サブコード: <span id="res-sub-code" class="font-bold font-mono">-</span></span>
                             </div>
-                            <p class="text-slate-500 mb-4" id="res-owner">施工主名</p>
+                            <div class="flex gap-4 mb-4">
+                                <p class="text-slate-500"><span class="text-xs text-slate-400 block">施工主</span><span id="res-owner" class="font-bold">-</span></p>
+                                <p class="text-slate-500"><span class="text-xs text-slate-400 block">得意先</span><span id="res-customer" class="font-bold">-</span></p>
+                            </div>
                             <div id="res-subcodes-container" class="mb-4 hidden">
                                 <h4 class="text-xs font-bold text-slate-500 mb-1"><i class="fa-solid fa-link mr-1"></i> 紐づくサブコード (関連工事)</h4>
                                 <div id="res-subcodes-list" class="flex flex-wrap gap-2"></div>
                             </div>
-                            <div class="grid grid-cols-3 gap-4 text-sm bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <div class="grid grid-cols-4 gap-4 text-sm bg-slate-50 p-3 rounded-lg border border-slate-200">
                                 <div><span class="block text-slate-400 text-xs">現場監督</span><span class="font-bold text-slate-700" id="res-manager">-</span></div>
                                 <div><span class="block text-slate-400 text-xs">着手日</span><span class="font-bold text-slate-700" id="res-start">-</span></div>
                                 <div><span class="block text-slate-400 text-xs">完了日</span><span class="font-bold text-slate-700" id="res-end">-</span></div>
+                                <div><span class="block text-slate-400 text-xs">納期</span><span class="font-bold text-slate-700" id="res-delivery">-</span></div>
                             </div>
                         </div>
                         
@@ -248,7 +263,7 @@
                 <div id="ranking-manager" class="ranking-tab-content hidden space-y-6">
                     <div class="glass-panel p-6 rounded-xl">
                         <div class="flex flex-wrap justify-between items-center mb-6 gap-4"><div><h3 class="text-lg font-bold text-slate-700">担当者別 ランキング</h3><span class="badge-base badge-cost">🛠️ 集計ベース: 原価集計 (完工日基準・税抜)</span></div><div class="flex items-center gap-2"><select id="rank-manager-month" onchange="window.renderManagerRanking()" class="text-sm border rounded p-1 bg-slate-50"></select><select id="rank-manager-branch" onchange="window.renderManagerRanking()" class="text-sm border rounded p-1 bg-slate-50"><option value="ALL">全拠点</option></select><div class="border-l border-slate-300 h-6 mx-2"></div><select id="rank-sort-manager" onchange="window.renderManagerRanking()" class="text-sm border rounded p-1"><option value="profit">利益額順</option><option value="sales">売上高順</option><option value="margin">粗利率順</option><option value="count">現場数順</option></select></div></div>
-                        <div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50"><tr><th class="px-6 py-3">順位</th><th class="px-6 py-3">担当者名</th><th class="px-6 py-3">拠点</th><th class="px-6 py-3 text-right">総売上(税抜)</th><th class="px-6 py-3 text-right">総原価</th><th class="px-6 py-3 text-right">総利益(税抜)</th><th class="px-6 py-3 text-right">粗利率</th><th class="px-6 py-3 text-center">現場数</th></tr></thead><tbody id="ranking-body-manager" class="bg-white border-b hover:bg-slate-50"></tbody></table></div>
+                        <div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50"><tr><th class="px-6 py-3">順位</th><th class="px-6 py-3">担当者名</th><th class="px-6 py-3 text-right">総売上(税抜)</th><th class="px-6 py-3 text-right">総原価</th><th class="px-6 py-3 text-right">総利益(税抜)</th><th class="px-6 py-3 text-right">粗利率</th><th class="px-6 py-3 text-center">現場数</th></tr></thead><tbody id="ranking-body-manager" class="bg-white border-b hover:bg-slate-50"></tbody></table></div>
                     </div>
                 </div>
                 <!-- 4. Monthly Manager/Owner Ranking -->
@@ -282,16 +297,90 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- 4. DATA CHECK PAGE (NEW TAB) -->
+            <div id="page-check" class="page-content hidden max-w-4xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-xl border-b border-slate-200 shadow-sm mb-4">
+                    <h2 class="text-xl font-bold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-blue-500"></i> データ不備・整合性チェック
+                    </h2>
+                    <p class="text-sm text-slate-500 mt-2">取り込んだデータの必須項目漏れや、売上・原価の整合性（0円データ等）をチェックし、Excelレポートを出力します。</p>
+                </div>
+
+                <!-- 1. Master Data Check -->
+                <div class="glass-panel p-6 rounded-xl border-l-4 border-orange-400">
+                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-clipboard-check text-orange-500"></i> マスターデータ不備チェック</h4>
+                    <div class="bg-orange-50 p-4 rounded-lg mb-4">
+                        <p class="text-xs text-orange-800 font-bold mb-2">チェック対象設定:</p>
+                        <div class="flex flex-col gap-3 mb-4">
+                            <div class="flex items-center">
+                                <i class="fa-solid fa-filter text-orange-500 mr-2"></i>
+                                <span class="text-xs font-bold text-slate-700 mr-2">対象範囲:</span>
+                                <span class="text-xs bg-orange-200 text-orange-900 px-2 py-1 rounded font-bold">原価データに存在する工番のみ対象</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <i class="fa-regular fa-calendar-check text-orange-500 mr-1"></i>
+                                <span class="text-xs font-bold text-slate-700">完了日 期間指定 (YYYYMMDD):</span>
+                                <input type="number" id="chk-period-start" placeholder="開始 (例:20250401)" class="text-xs border rounded p-1 w-28 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500">
+                                <span class="text-xs text-slate-400">～</span>
+                                <input type="number" id="chk-period-end" placeholder="終了 (例:20250630)" class="text-xs border rounded p-1 w-28 bg-white focus:outline-none focus:ring-1 focus:ring-orange-500">
+                            </div>
+                            <p class="text-[10px] text-slate-400 ml-6">※期間を指定すると、完了日がその範囲に含まれる現場のみをチェックします。</p>
+                        </div>
+                        
+                        <p class="text-xs font-bold text-slate-700 mb-2">チェック項目 (選択可):</p>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                            <div class="check-group"><input type="checkbox" id="chk-name" checked class="check-input"><label for="chk-name" class="check-label">現場名</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-customer" checked class="check-input"><label for="chk-customer" class="check-label">得意先名</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-owner" checked class="check-input"><label for="chk-owner" class="check-label">施工主</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-manager" checked class="check-input"><label for="chk-manager" class="check-label">担当者</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-branch" checked class="check-input"><label for="chk-branch" class="check-label">拠点</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-start" checked class="check-input"><label for="chk-start" class="check-label">着手日</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-end" checked class="check-input"><label for="chk-end" class="check-label">完了日</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-delivery" checked class="check-input"><label for="chk-delivery" class="check-label">納期</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-subname" class="check-input"><label for="chk-subname" class="check-label">現場サブ名称</label></div>
+                        </div>
+                        <p class="text-[10px] text-orange-600">※チェックONにした項目が「空欄」または「0」の場合に不備としてリストアップします。</p>
+                    </div>
+                    <div class="text-right">
+                        <button onclick="window.exportMasterCheck()" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-6 rounded-lg shadow flex items-center gap-2 ml-auto">
+                            <i class="fa-solid fa-file-circle-exclamation"></i> 不備チェックレポート出力
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. Cost Integrity Check -->
+                <div class="glass-panel p-6 rounded-xl border-l-4 border-red-500">
+                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-file-invoice-dollar text-red-500"></i> 原価データ整合性チェック</h4>
+                    <div class="bg-red-50 p-4 rounded-lg mb-4">
+                        <p class="text-xs text-red-800 font-bold mb-2">チェック条件 (売上/原価 0円検出):</p>
+                        <ul class="list-disc list-inside space-y-1 text-xs text-red-700">
+                            <li><strong>完了済かつデータ0:</strong> 8桁の完了日が入力されているのに、売上または原価が「0」のデータ</li>
+                            <li><strong>進行中・未計上:</strong> 完了日が未入力(または0)だが、売上または原価が「0」のデータ</li>
+                        </ul>
+                        <p class="text-[10px] text-red-600 mt-3">※原価集計データに基づき、どちらかが0円の場合にリストアップします。</p>
+                    </div>
+                    <div class="text-right">
+                        <button onclick="window.exportCostCheck()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg shadow flex items-center gap-2 ml-auto">
+                            <i class="fa-solid fa-file-circle-xmark"></i> 整合性チェックレポート出力
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div id="page-import" class="page-content hidden max-w-4xl mx-auto space-y-6">
-                <div id="drop-zone" class="glass-panel p-10 rounded-xl border-2 border-dashed border-blue-300 text-center cursor-pointer hover:bg-blue-50 transition-colors relative"><input type="file" id="file-input-multi" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileSelect(this.files)"><div class="pointer-events-none"><i class="fa-solid fa-cloud-arrow-up text-6xl text-blue-400 mb-4"></i><h3 class="text-xl font-bold text-slate-700 mb-2">ファイルをここにドラッグ＆ドロップ</h3><p class="text-slate-500 mb-4">またはクリックしてファイルを選択</p></div></div><div class="glass-panel p-6 rounded-xl border border-red-100"><div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r"><div class="flex items-center gap-2 text-red-700 font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i><span>ご注意：データは上書きされます</span></div><p class="text-sm text-red-600">ファイルを取り込むと、以前のデータは全て<strong>削除・上書き</strong>されます。</p></div><h4 class="font-bold text-slate-600 mb-3">取り込みステータス</h4><div id="import-log" class="bg-slate-800 text-green-400 font-mono text-xs p-4 rounded h-40 overflow-y-auto mb-4">待機中...</div><div class="flex justify-end gap-3"><button id="btn-process-files" onclick="processDroppedFiles()" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center gap-2"><span id="import-spinner" class="loader hidden"></span><span>データベース更新を実行</span></button></div></div><div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4">現在のデータ登録状況</h4><div class="grid grid-cols-4 gap-4 text-center"><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">原価集計</div><div class="text-xl font-bold text-slate-800" id="db-count-cost">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">現場マスター</div><div class="text-xl font-bold text-slate-800" id="db-count-master">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">仕入明細</div><div class="text-xl font-bold text-slate-800" id="db-count-purchase">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">売上明細</div><div class="text-xl font-bold text-slate-800" id="db-count-sales">-</div></div></div><div class="mt-4 text-right"><button onclick="clearDatabase()" class="text-xs text-red-500 hover:text-red-700 underline">全データを削除する</button></div></div>
+                <div id="drop-zone" class="glass-panel p-10 rounded-xl border-2 border-dashed border-blue-300 text-center cursor-pointer hover:bg-blue-50 transition-colors relative"><input type="file" id="file-input-multi" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileSelect(this.files)"><div class="pointer-events-none"><i class="fa-solid fa-cloud-arrow-up text-6xl text-blue-400 mb-4"></i><h3 class="text-xl font-bold text-slate-700 mb-2">ファイルをここにドラッグ＆ドロップ</h3><p class="text-slate-500 mb-4">またはクリックしてファイルを選択</p></div></div><div class="glass-panel p-6 rounded-xl border border-red-100"><div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r"><div class="flex items-center gap-2 text-red-700 font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i><span>ご注意：データは上書きされます</span></div><p class="text-sm text-red-600">ファイルを取り込むと、以前のデータは全て<strong>削除・上書き</strong>されます。</p></div><h4 class="font-bold text-slate-600 mb-3">取り込みステータス</h4><div id="import-log" class="bg-slate-800 text-green-400 font-mono text-xs p-4 rounded h-40 overflow-y-auto mb-4">待機中...</div><div class="flex justify-end gap-3"><button id="btn-process-files" onclick="window.processDroppedFiles()" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center gap-2"><span id="import-spinner" class="loader hidden"></span><span>データベース更新を実行</span></button></div></div>
+                <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4">現在のデータ登録状況</h4><div class="grid grid-cols-4 gap-4 text-center"><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">原価集計</div><div class="text-xl font-bold text-slate-800" id="db-count-cost">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">現場マスター</div><div class="text-xl font-bold text-slate-800" id="db-count-master">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">仕入明細</div><div class="text-xl font-bold text-slate-800" id="db-count-purchase">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">売上明細</div><div class="text-xl font-bold text-slate-800" id="db-count-sales">-</div></div></div><div class="mt-4 text-right"><button onclick="window.clearDatabase()" class="text-xs text-red-500 hover:text-red-700 underline">全データを削除する</button></div></div>
             </div>
         </div>
     </main>
 
 <script>
-    const db = new Dexie("ConstructionLedgerDB_System_v29_fixed"); 
+    // 1. DB Config
+    const db = new Dexie("ConstructionLedgerDB_System_v44_MultiInputFix"); 
     db.version(1).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, date', meta: 'key' });
     
+    // 2. Global Vars
     let pendingFiles = { cost: null, master: null, purchase: null, sales: null };
     let currentMonthlyMode = 'manager'; 
     let currentWorstType = 'ranking'; 
@@ -302,22 +391,320 @@
     let costSortState = { key: 'date', order: 'desc' };
     let currentWorstList = []; 
     let currentSiteData = null; 
-
-    // Multi-Site State
     let multiCompareData = [];
-    let currentViewMode = 'card'; // 'card' or 'table'
-
+    let currentViewMode = 'card';
     let chartBranchSales = null, chartBranchProfit = null, chartMonthly = null, chartCostTrend = null, chartTrend = null, chartComposition = null;
+    let cachedMasters = [];
+    let cachedVendors = [];
+    let dropZone, importLog, processBtn;
 
-    // --- GLOBAL HELPERS ---
+    // 3. Helper Functions & Core Utilities (MOVED TO TOP)
     window.destroyChart = function(chartInstance) {
         if (chartInstance) { try { chartInstance.destroy(); } catch(e) { console.warn("Chart destroy error", e); } }
         return null;
     }
     window.formatCurrency = function(n) { return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(n); }
+    window.normalizeStr = function(s) { return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); }).toLowerCase().replace(/\s+/g, ''); }
 
+    window.toISODate = function(m) { 
+        const y = parseInt(m[1]) + 2000; 
+        const mo = String(m[2]).padStart(2,'0'); 
+        const d = String(m[3]).padStart(2,'0'); 
+        return `${y}-${mo}-${d}`; 
+    }
+    
+    window.parseAndSetDefaultPeriod = function(text) {
+        const regex = /(\d{1,2})年\s*(\d{1,2})月\s*(\d{1,2})日/g; 
+        const matches = [...text.matchAll(regex)];
+        const startEl = document.getElementById('rank-date-start');
+        const endEl = document.getElementById('rank-date-end');
+        const statusEl = document.getElementById('rank-date-status');
+
+        if (matches.length >= 1) {
+            const start = window.toISODate(matches[0]); 
+            const end = matches.length >= 2 ? window.toISODate(matches[1]) : null;
+            if (start && startEl) startEl.value = start;
+            if (end && endEl) endEl.value = end;
+            if (start) rankingFilter = { start, end: end || start };
+            if (statusEl) statusEl.textContent = "";
+        } else {
+            const today = new Date(); 
+            const s = `${today.getFullYear()}-01-01`; 
+            const e = `${today.getFullYear()}-12-31`;
+            if(startEl) startEl.value = s; 
+            if(endEl) endEl.value = e; 
+            if(statusEl) statusEl.textContent = "※デフォルト期間(今年)を表示"; 
+            rankingFilter = { start: s, end: e };
+        }
+    }
+
+    window.parseDateValue = function(value) {
+        if (!value) return null;
+        if (typeof value === 'number') { return (value - 25569) * 86400 * 1000; }
+        if (typeof value === 'string') {
+            const ymdMatch = value.match(/^20\d{6}$/); 
+            if (ymdMatch) {
+                const y = parseInt(value.substring(0, 4));
+                const m = parseInt(value.substring(4, 6));
+                const d = parseInt(value.substring(6, 8));
+                return new Date(y, m - 1, d).getTime();
+            }
+            let ts = Date.parse(value);
+            if (!isNaN(ts)) return ts;
+            const jpRegex = /(\d{1,2})年\s*(\d{1,2})月\s*(\d{1,2})日/;
+            const match = value.match(jpRegex);
+            if (match) { const y = parseInt(match[1]) + 2000; const m = parseInt(match[2]); const d = parseInt(match[3]); return new Date(y, m-1, d).getTime(); }
+        }
+        return null;
+    }
+
+    window.applyDateFilter = function() {
+        const s = document.getElementById('rank-date-start').value; 
+        const e = document.getElementById('rank-date-end').value;
+        rankingFilter = { start: s, end: e }; 
+        const statusEl = document.getElementById('rank-date-status');
+        if(statusEl) statusEl.textContent = "";
+        const activeTab = document.querySelector('.tab-btn.active');
+        if (activeTab) { const tabId = activeTab.id.replace('tab-', ''); window.switchRankingTab(tabId); }
+    }
+
+    window.updateDBStats = async function() {
+        const elCost = document.getElementById('db-count-cost'); if (elCost) elCost.textContent = (await db.costs.count()) + "件";
+        const elMaster = document.getElementById('db-count-master'); if (elMaster) elMaster.textContent = (await db.masters.count()) + "件";
+        const elPurchase = document.getElementById('db-count-purchase'); if (elPurchase) elPurchase.textContent = (await db.purchases.count()) + "件";
+        const elSales = document.getElementById('db-count-sales'); if (elSales) elSales.textContent = (await db.sales.count()) + "件";
+        const meta = await db.meta.get('period');
+        if(meta && meta.value) { 
+            const headerP = document.getElementById('header-period');
+            if(headerP) headerP.classList.remove('hidden'); 
+            const pText = document.getElementById('period-text');
+            if(pText) pText.textContent = meta.value; 
+            window.parseAndSetDefaultPeriod(meta.value); 
+        }
+    }
+
+    window.clearDatabase = async function() { 
+        if(confirm("全データを削除しますか？")) { 
+            await Promise.all([db.costs.clear(), db.masters.clear(), db.purchases.clear(), db.sales.clear(), db.meta.clear()]); 
+            window.updateDBStats(); 
+        } 
+    }
+
+    // 4. File Processing Logic
+    function handleFileSelect(files) { handleFiles(files); }
+    function handleFiles(files) {
+        if (!importLog) return;
+        let logMsg = "";
+        for (let file of files) {
+            const name = file.name.toLowerCase();
+            if (name.includes('原価集計')) { pendingFiles.cost = file; logMsg += `✓ 原価集計表: ${file.name}\n`; }
+            else if (name.includes('現場マスター')) { pendingFiles.master = file; logMsg += `✓ 現場マスター: ${file.name}\n`; }
+            else if (name.includes('仕入明細')) { pendingFiles.purchase = file; logMsg += `✓ 仕入明細: ${file.name}\n`; }
+            else if (name.includes('売上明細')) { pendingFiles.sales = file; logMsg += `✓ 売上明細: ${file.name}\n`; }
+            else { logMsg += `? スキップ: ${file.name}\n`; }
+        }
+        importLog.textContent = logMsg || "認識できませんでした。";
+        if (processBtn) processBtn.disabled = !(pendingFiles.cost || pendingFiles.master || pendingFiles.purchase || pendingFiles.sales);
+    }
+    function excelColToIndex(col) { let n=0; for(let i=0;i<col.length;i++){n=n*26+(col.toUpperCase().charCodeAt(i)-64);} return n-1; }
+    
+    async function parseTextUTF16LE_ByIndex(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const decoder = new TextDecoder('utf-16le');
+                const text = decoder.decode(e.target.result);
+                const cleanText = text.replace(/"/g, ''); 
+                Papa.parse(cleanText, { header: false, skipEmptyLines: true, complete: (results) => resolve(results.data) });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    async function parseExcel(file, headerRowIndex) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
+                const headers = json[headerRowIndex];
+                const rows = json.slice(headerRowIndex + 1).map(row => { let obj={}; headers.forEach((h,i)=>{if(h)obj[h]=row[i]}); return obj; });
+                resolve({ rows, rawJson: json });
+            };
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    window.processDroppedFiles = async function() {
+        const btn = document.getElementById('btn-process-files');
+        const spinner = document.getElementById('import-spinner');
+        if(btn) btn.disabled = true; 
+        if(spinner) spinner.classList.remove('hidden');
+        if(importLog) importLog.textContent += "\n--- 処理開始 ---\n";
+        
+        try {
+            let costData=[], masterData=[], purchaseData=[], salesData=[], periodStr = "";
+            
+            if (pendingFiles.cost) {
+                if(importLog) importLog.textContent += "読込: 原価集計表(Excel)...\n";
+                const { rows, rawJson } = await parseExcel(pendingFiles.cost, 5); 
+                for(let i=0; i<5; i++) {
+                    const rowArr = Object.values(rawJson[i] || {});
+                    const found = rowArr.find(s => typeof s === 'string' && s.includes("完 了 日"));
+                    if(found) { periodStr = found; break; }
+                }
+                let validRows = rows;
+                if (validRows.length > 0) {
+                     const firstRow = validRows[0];
+                     const codeVal = String(firstRow['コード'] || '');
+                     if (codeVal === '1' || (codeVal.includes('<') && codeVal.includes('>'))) {
+                          validRows = rows.slice(1);
+                          if(importLog) importLog.textContent += "  -> 項目番号行を検出。スキップします。\n";
+                     }
+                }
+                costData = validRows.map(r => ({
+                    code: String(r['コード'] || ''), 
+                    name: String(r['現場メイン名'] || ''),
+                    salesTotal: parseFloat(String(r['売上累計'] || '0').replace(/,/g, '')),
+                    costTotal: parseFloat(String(r['原価累計'] || '0').replace(/,/g, '')),
+                    profitTotal: parseFloat(String(r['売上－原価(累計)'] || '0').replace(/,/g, '')),
+                    marginRatio: parseFloat(String(r['(売上累計－原価累計)／売上累計'] || r['粗利率'] || '0').replace(/%/g, ''))
+                })).filter(r => {
+                     return r.code && r.code.trim() !== '' && !r.name.includes('総合計') && !r.name.includes('合計');
+                });
+            }
+
+            if (pendingFiles.master) {
+                const isText = pendingFiles.master.name.endsWith('.txt') || pendingFiles.master.name.endsWith('.csv');
+                let rawData = [];
+                
+                if (isText) {
+                    if(importLog) importLog.textContent += "読込: 現場マスター(Text)...\n";
+                    rawData = await parseTextUTF16LE_ByIndex(pendingFiles.master);
+                } else {
+                    if(importLog) importLog.textContent += "読込: 現場マスター(Excel)...\n";
+                    const { rawJson } = await parseExcel(pendingFiles.master, 0); 
+                    rawData = rawJson;
+                }
+                if(rawData.length > 0) rawData = rawData.slice(1); 
+                if(rawData.length > 0) {
+                    const row2 = rawData[0];
+                    const valA = String(row2[0] || ''); 
+                    if (valA === '1' || (valA.includes('<') && valA.includes('>'))) {
+                        rawData = rawData.slice(1);
+                        if(importLog) importLog.textContent += "  -> 現場マスター項目番号行を検出。スキップします。\n";
+                    }
+                }
+
+                const mastersMap = new Map();
+                rawData.forEach(r => {
+                    const code = String(r[0] || ''); 
+                    if (!code) return;
+                    
+                    const subCode = String(r[1] || '').trim(); 
+                    const subName = r[5]; 
+                    const isParent = (subCode === '');
+                    
+                    const rowObj = {
+                        code: code,
+                        name: r[2],       
+                        subCode: subCode,
+                        subName: subName,
+                        customer: r[22],  
+                        delivery: r[44],  
+                        owner: r[47],     
+                        manager: r[49],   
+                        branch: r[55],    
+                        startDate: r[43], 
+                        endDate: r[45],   
+                    };
+                    
+                    if (!mastersMap.has(code)) {
+                        const parentRecord = { ...rowObj, subCodes: [] };
+                        if (!isParent) {
+                             parentRecord.subCodes.push(rowObj);
+                        }
+                        mastersMap.set(code, parentRecord);
+                    } else {
+                        const existing = mastersMap.get(code);
+                        if (isParent) { 
+                            existing.name = rowObj.name;
+                            existing.customer = rowObj.customer;
+                            existing.delivery = rowObj.delivery;
+                            existing.owner = rowObj.owner;
+                            existing.manager = rowObj.manager;
+                            existing.branch = rowObj.branch;
+                            existing.startDate = rowObj.startDate;
+                            existing.endDate = rowObj.endDate;
+                        } else { 
+                            if (!rowObj.name || rowObj.name.trim() === '') {
+                                rowObj.name = existing.name; 
+                            }
+                            existing.subCodes.push(rowObj); 
+                        }
+                    }
+                });
+                masterData = Array.from(mastersMap.values());
+            }
+
+            if (pendingFiles.purchase) {
+                const raw = await parseTextUTF16LE_ByIndex(pendingFiles.purchase);
+                const idxDate = excelColToIndex('A');
+                const idxVendor = excelColToIndex('I');
+                const idxItemM = excelColToIndex('M'); 
+                const idxItemN = excelColToIndex('N'); 
+                const idxItemO = excelColToIndex('O'); 
+                const idxItemQ = excelColToIndex('Q'); 
+                const idxAmount = excelColToIndex('DE');
+                const idxSite = excelColToIndex('EB');
+
+                purchaseData = raw.slice(1).map(r => {
+                    if (!r[idxSite]) return null;
+                    const txtM = (r[idxItemM] || '').trim(); const txtO = (r[idxItemO] || '').trim(); const txtQ = (r[idxItemQ] || '').trim();
+                    let itemName = (txtM || txtO || txtQ) ? [txtM, txtO, txtQ].filter(Boolean).join(' ') : '00000000';
+                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
+                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), vendor: r[idxVendor], item: itemName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) };
+                }).filter(r => r && r.siteCode);
+            }
+            if (pendingFiles.sales) {
+                const raw = await parseTextUTF16LE_ByIndex(pendingFiles.sales);
+                const idxDate = excelColToIndex('A');
+                const idxCustomer = excelColToIndex('I');
+                const idxAmountInc = excelColToIndex('DG');
+                const idxAmountExc = excelColToIndex('DJ');
+                const idxSite = excelColToIndex('EI');
+
+                salesData = raw.slice(1).map(r => {
+                    if (!r[idxSite]) return null;
+                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
+                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), customer: r[idxCustomer], amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) };
+                }).filter(r => r && r.siteCode);
+            }
+            await db.transaction('rw', db.costs, db.masters, db.purchases, db.sales, db.meta, async () => {
+                if (pendingFiles.cost) { await db.costs.clear(); await db.costs.bulkPut(costData); await db.meta.put({ key: 'period', value: periodStr }); }
+                if (pendingFiles.master) { await db.masters.clear(); await db.masters.bulkPut(masterData); }
+                if (pendingFiles.purchase) { await db.purchases.clear(); await db.purchases.bulkAdd(purchaseData); }
+                if (pendingFiles.sales) { await db.sales.clear(); await db.sales.bulkAdd(salesData); }
+            });
+            if(importLog) importLog.textContent += "完了！\n"; 
+            await window.updateDBStats(); 
+            alert("完了しました。");
+            window.showPage('dashboard');
+        } catch (e) { 
+            console.error(e); 
+            if(importLog) importLog.textContent += `エラー: ${e.message}\n`; 
+            alert(`エラー: ${e.message}`); 
+        } 
+        finally { 
+            if(spinner) spinner.classList.add('hidden'); 
+        }
+    }
+
+    // 5. Render Functions
     window.renderTable = function(tbodyId, data, cols) { 
-        const tbody = document.getElementById(tbodyId); tbody.innerHTML = ''; 
+        const tbody = document.getElementById(tbodyId); if(!tbody) return; tbody.innerHTML = ''; 
         data.forEach(r => { 
             const tr = document.createElement('tr'); 
             cols.forEach(c => { 
@@ -355,335 +742,178 @@
         }
     }
     
-    window.exportSiteReport = async function() {
-        if (!currentSiteData) { alert("出力するデータがありません。現場を検索してください。"); return; }
-        
-        // Calculate Margin
-        const marginVal = parseFloat(currentSiteData.sales.replace(/[^0-9.-]+/g,"")) !== 0 
-            ? (parseFloat(currentSiteData.profit.replace(/[^0-9.-]+/g,"")) / parseFloat(currentSiteData.sales.replace(/[^0-9.-]+/g,"")) * 100).toFixed(1) + '%' 
-            : '0.0%';
-
-        const wb = new ExcelJS.Workbook();
-        const ws = wb.addWorksheet('現場詳細レポート');
-
-        ws.mergeCells('A1:E1'); ws.getCell('A1').value = '現場詳細レポート'; ws.getCell('A1').style = { font: { bold: true, size: 18 } };
-        
-        ws.getCell('A3').value = '現場コード'; ws.getCell('B3').value = currentSiteData.code;
-        ws.getCell('A4').value = '現場名'; ws.getCell('B4').value = currentSiteData.name;
-        ws.getCell('A5').value = '施工主'; ws.getCell('B5').value = currentSiteData.owner;
-        ws.getCell('D3').value = '担当者'; ws.getCell('E3').value = currentSiteData.manager;
-        ws.getCell('D4').value = '拠点'; ws.getCell('E4').value = currentSiteData.branch;
-        ws.getCell('D5').value = '工期'; ws.getCell('E5').value = `${currentSiteData.start} ～ ${currentSiteData.end}`;
-        
-        ws.getRow(3).font = { bold: true };
-        
-        ws.getCell('A7').value = '売上累計(税抜)'; ws.getCell('B7').value = currentSiteData.sales;
-        ws.getCell('A8').value = '原価累計'; ws.getCell('B8').value = currentSiteData.cost;
-        ws.getCell('A9').value = '粗利益'; ws.getCell('B9').value = currentSiteData.profit;
-        ws.getCell('A10').value = '粗利率'; ws.getCell('B10').value = marginVal; 
-        
-        if (chartTrend) {
-            const trendImg = chartTrend.toBase64Image();
-            const imageId1 = wb.addImage({ base64: trendImg, extension: 'png' });
-            ws.addImage(imageId1, 'G3:L15');
-        }
-        if (chartComposition) {
-            const compImg = chartComposition.toBase64Image();
-            const imageId2 = wb.addImage({ base64: compImg, extension: 'png' });
-            ws.addImage(imageId2, 'M3:R15');
-        }
-
-        let row = 17;
-        ws.getCell(`A${row}`).value = '■ 売上明細'; ws.getCell(`A${row}`).font = { bold: true, size: 12 };
-        row++;
-        ws.getRow(row).values = ['日付', '得意先', '金額(税抜)', '金額(税込)'];
-        ws.getRow(row).font = { bold: true };
-        row++;
-        currentSiteData.salesDetails.forEach(s => {
-            ws.getRow(row).values = [s.date, s.customer, s.amountExc, s.amountInc];
-            row++;
-        });
-
-        row += 2;
-        ws.getCell(`A${row}`).value = '■ 仕入明細'; ws.getCell(`A${row}`).font = { bold: true, size: 12 };
-        row++;
-        ws.getRow(row).values = ['日付', '業者名', '項目', '金額(税抜+税)'];
-        ws.getRow(row).font = { bold: true };
-        row++;
-        currentSiteData.purchaseDetails.forEach(p => {
-            ws.getRow(row).values = [p.date, p.vendor, p.item, p.amount];
-            row++;
-        });
-
-        ws.columns = [ { width: 15 }, { width: 30 }, { width: 15 }, { width: 15 }, { width: 20 }, { width: 10 } ];
-
-        const buffer = await wb.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `現場詳細_${currentSiteData.code}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    // 6. Search & Ranking Logic
+    window.initSiteSearch = async function() { 
+        const masters = await db.masters.toArray(); 
+        cachedMasters = masters.map(m => ({ name: m.name || '', owner: m.owner || '', code: m.code })); 
     }
 
-    // --- Import Logic ---
-    const dropZone = document.getElementById('drop-zone');
-    const importLog = document.getElementById('import-log');
-    const processBtn = document.getElementById('btn-process-files');
-    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
-    dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); });
-    dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
-    function handleFileSelect(files) { handleFiles(files); }
-    function handleFiles(files) {
-        let logMsg = "";
-        for (let file of files) {
-            const name = file.name.toLowerCase();
-            if (name.includes('原価集計')) { pendingFiles.cost = file; logMsg += `✓ 原価集計表: ${file.name}\n`; }
-            else if (name.includes('現場マスター')) { pendingFiles.master = file; logMsg += `✓ 現場マスター: ${file.name}\n`; }
-            else if (name.includes('仕入明細')) { pendingFiles.purchase = file; logMsg += `✓ 仕入明細: ${file.name}\n`; }
-            else if (name.includes('売上明細')) { pendingFiles.sales = file; logMsg += `✓ 売上明細: ${file.name}\n`; }
-            else { logMsg += `? スキップ: ${file.name}\n`; }
-        }
-        importLog.textContent = logMsg || "認識できませんでした。";
-        processBtn.disabled = !(pendingFiles.cost || pendingFiles.master || pendingFiles.purchase || pendingFiles.sales);
-    }
-    function excelColToIndex(col) { let n=0; for(let i=0;i<col.length;i++){n=n*26+(col.toUpperCase().charCodeAt(i)-64);} return n-1; }
-    
-    // Updated Helper: Parse Text (UTF-16LE) and remove quotes
-    async function parseTextUTF16LE_ByIndex(file) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const decoder = new TextDecoder('utf-16le');
-                const text = decoder.decode(e.target.result);
-                const cleanText = text.replace(/"/g, ''); 
-                Papa.parse(cleanText, { header: false, skipEmptyLines: true, complete: (results) => resolve(results.data) });
-            };
-            reader.readAsArrayBuffer(file);
-        });
+    window.clearSiteSearch = function() {
+        const i1 = document.getElementById('search-input');
+        const i2 = document.getElementById('site-name-search');
+        if(i1) i1.value = '';
+        if(i2) i2.value = '';
+        
+        // Also clear multi-input
+        const i3 = document.getElementById('multi-code-input');
+        if(i3) i3.value = '';
+        
+        // Hide result panels
+        const res = document.getElementById('search-result');
+        if(res) res.classList.add('hidden');
+        
+        const multiRes = document.getElementById('multi-result-container');
+        if(multiRes) multiRes.classList.add('hidden');
+        
+        const multiContent = document.getElementById('multi-content-area');
+        if(multiContent) multiContent.innerHTML = '';
+        
+        const auto = document.getElementById('site-autocomplete-list');
+        if(auto) auto.classList.add('hidden');
+        
+        currentSiteData = null;
+        multiCompareData = [];
     }
 
-    async function parseExcel(file, headerRowIndex) {
-        return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: null});
-                const headers = json[headerRowIndex];
-                const rows = json.slice(headerRowIndex + 1).map(row => { let obj={}; headers.forEach((h,i)=>{if(h)obj[h]=row[i]}); return obj; });
-                resolve({ rows, rawJson: json });
-            };
-            reader.readAsArrayBuffer(file);
-        });
-    }
-
-    async function processDroppedFiles() {
-        processBtn.disabled = true; document.getElementById('import-spinner').classList.remove('hidden');
-        importLog.textContent += "\n--- 処理開始 ---\n";
+    window.searchSite = async function() { 
         try {
-            let costData=[], masterData=[], purchaseData=[], salesData=[], periodStr = "";
+            const inputCode = document.getElementById('search-input').value.trim(); if (!inputCode) return; 
+            const master = await db.masters.get(inputCode); const cost = await db.costs.get(inputCode); 
+            const sales = await db.sales.where('siteCode').equals(inputCode).toArray(); 
+            const purchases = await db.purchases.where('siteCode').equals(inputCode).toArray(); 
             
-            // --- 1. Cost Aggregation ---
-            if (pendingFiles.cost) {
-                importLog.textContent += "読込: 原価集計表(Excel)...\n";
-                // Fixed: Header is at index 5 (Row 6)
-                const { rows, rawJson } = await parseExcel(pendingFiles.cost, 5); 
-                
-                // Extract Period
-                for(let i=0; i<5; i++) {
-                    const rowArr = Object.values(rawJson[i] || {});
-                    const found = rowArr.find(s => typeof s === 'string' && s.includes("完 了 日"));
-                    if(found) { periodStr = found; break; }
+            if (!master && !cost) { alert("見つかりませんでした。コードを確認してください: " + inputCode); return; } 
+            
+            currentSiteData = {
+                code: inputCode,
+                name: master ? master.name : (cost ? cost.name : '-'),
+                owner: master ? master.owner : '-',
+                manager: master ? master.manager : '-',
+                branch: master ? master.branch : '-',
+                start: master ? master.startDate : '-',
+                end: master ? master.endDate : '-',
+                customer: master ? master.customer : '-',
+                delivery: master ? master.delivery : '-',
+                sales: window.formatCurrency(cost ? cost.salesTotal : 0),
+                cost: window.formatCurrency(cost ? cost.costTotal : 0),
+                profit: window.formatCurrency(cost ? cost.profitTotal : 0),
+                margin: (cost ? cost.marginRatio : 0).toFixed(1) + '%',
+                salesDetails: sales,
+                purchaseDetails: purchases
+            };
+
+            document.getElementById('search-result').classList.remove('hidden'); 
+            document.getElementById('res-code').textContent = inputCode; 
+            document.getElementById('res-name').textContent = master ? master.name : (cost ? cost.name : '-'); 
+            
+            const subNameEl = document.getElementById('res-sub-name');
+            const subCodeEl = document.getElementById('res-sub-code');
+            if(subNameEl) subNameEl.textContent = master ? (master.subName || '-') : '-'; 
+            if(subCodeEl) subCodeEl.textContent = master ? (master.subCode || '-') : '-'; 
+            
+            document.getElementById('res-owner').textContent = master ? master.owner : '-'; 
+            document.getElementById('res-customer').textContent = master ? master.customer : '-';
+            document.getElementById('res-manager').textContent = master ? master.manager : '-'; 
+            document.getElementById('res-branch').textContent = master ? master.branch : '-'; 
+            document.getElementById('res-start').textContent = master ? master.startDate : '-'; 
+            document.getElementById('res-end').textContent = master ? master.endDate : '-'; 
+            document.getElementById('res-delivery').textContent = master ? master.delivery : '-';
+            
+            const subCont = document.getElementById('res-subcodes-container');
+            const subList = document.getElementById('res-subcodes-list');
+            if(subCont && subList) {
+                subCont.classList.add('hidden'); subList.innerHTML = ''; 
+                if (master && master.subCodes && master.subCodes.length > 0) { 
+                    subCont.classList.remove('hidden'); 
+                    master.subCodes.forEach(s => { const span = document.createElement('span'); span.className = "bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-100"; span.textContent = `${s.code}: ${s.name}`; subList.appendChild(span); }); 
                 }
-                
-                // Detect garbage (e.g. <00001>) in first row of data
-                let validRows = rows;
-                if (validRows.length > 0) {
-                     const firstRow = validRows[0];
-                     const codeVal = String(firstRow['コード'] || '');
-                     // Check if A col looks like <00001> or 1
-                     if (codeVal === '1' || (codeVal.includes('<') && codeVal.includes('>'))) {
-                          validRows = rows.slice(1);
-                          importLog.textContent += "  -> 項目番号行を検出。スキップします。\n";
-                     }
-                }
-
-                costData = validRows.map(r => ({
-                    code: String(r['コード'] || ''), 
-                    name: String(r['現場メイン名'] || ''),
-                    salesTotal: parseFloat(String(r['売上累計'] || '0').replace(/,/g, '')),
-                    costTotal: parseFloat(String(r['原価累計'] || '0').replace(/,/g, '')),
-                    profitTotal: parseFloat(String(r['売上－原価(累計)'] || '0').replace(/,/g, '')),
-                    marginRatio: parseFloat(String(r['(売上累計－原価累計)／売上累計'] || r['粗利率'] || '0').replace(/%/g, ''))
-                })).filter(r => {
-                     return r.code && r.code.trim() !== '' && !r.name.includes('総合計') && !r.name.includes('合計');
-                });
             }
-
-            // --- 2. Site Master ---
-            if (pendingFiles.master) {
-                const isText = pendingFiles.master.name.endsWith('.txt') || pendingFiles.master.name.endsWith('.csv');
-                let rawData = [];
-                
-                if (isText) {
-                    importLog.textContent += "読込: 現場マスター(Text)...\n";
-                    rawData = await parseTextUTF16LE_ByIndex(pendingFiles.master);
-                } else {
-                    importLog.textContent += "読込: 現場マスター(Excel)...\n";
-                    const { rawJson } = await parseExcel(pendingFiles.master, 0); 
-                    rawData = rawJson;
-                }
-                
-                // Skip Header (Row 1)
-                if(rawData.length > 0) rawData = rawData.slice(1); 
-                
-                // Skip Number Row (Row 2) if exists (<00001> or 1)
-                if(rawData.length > 0) {
-                    const row2 = rawData[0];
-                    const valA = String(row2[0] || ''); // A col
-                    if (valA === '1' || (valA.includes('<') && valA.includes('>'))) {
-                        rawData = rawData.slice(1);
-                        importLog.textContent += "  -> 現場マスター項目番号行を検出。スキップします。\n";
-                    }
-                }
-
-                const mastersMap = new Map();
-                rawData.forEach(r => {
-                    // Mapping: A=0, B=1, C=2, F=5, V=21, W=22, AR=43, AT=45, AV=47, AX=49, BD=55
-                    const code = String(r[0] || ''); // A
-                    if (!code) return;
-                    
-                    const subCode = String(r[1] || '').trim(); // B
-                    const subName = r[5]; // F
-                    const isParent = (subCode === '');
-                    
-                    const record = {
-                        code: code,
-                        owner: r[47], // AV
-                        name: r[2],   // C
-                        manager: r[49], // AX
-                        branch: r[55], // BD
-                        startDate: r[43], // AR
-                        endDate: r[45],   // AT
-                        subCodes: []
-                    };
-                    
-                    if (!mastersMap.has(code)) {
-                        if (!isParent) record.subCodes.push({ code: subCode, name: subName });
-                        mastersMap.set(code, record);
-                    } else {
-                        const existing = mastersMap.get(code);
-                        if (isParent) { 
-                            existing.owner = record.owner; existing.name = record.name; existing.manager = record.manager; existing.branch = record.branch; existing.startDate = record.startDate; existing.endDate = record.endDate; 
-                        } else { 
-                            existing.subCodes.push({ code: subCode, name: subName }); 
-                        }
-                    }
-                });
-                masterData = Array.from(mastersMap.values());
-            }
-
-            if (pendingFiles.purchase) {
-                const raw = await parseTextUTF16LE_ByIndex(pendingFiles.purchase);
-                // I(8):Vendor, M(12):ItemM, N(13):ItemN, Q(16):ItemQ, DE(108):Amount, EB(131):Site, A(0):Date
-                const idxDate = excelColToIndex('A');
-                const idxVendor = excelColToIndex('I');
-                const idxItemM = excelColToIndex('M'); 
-                const idxItemN = excelColToIndex('N'); 
-                const idxItemO = excelColToIndex('O'); 
-                const idxItemQ = excelColToIndex('Q'); 
-                const idxAmount = excelColToIndex('DE');
-                const idxSite = excelColToIndex('EB');
-
-                purchaseData = raw.slice(1).map(r => {
-                    if (!r[idxSite]) return null;
-                    const txtM = (r[idxItemM] || '').trim(); const txtO = (r[idxItemO] || '').trim(); const txtQ = (r[idxItemQ] || '').trim();
-                    let itemName = (txtM || txtO || txtQ) ? [txtM, txtO, txtQ].filter(Boolean).join(' ') : '00000000';
-                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
-                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), vendor: r[idxVendor], item: itemName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) };
-                }).filter(r => r && r.siteCode);
-            }
-            if (pendingFiles.sales) {
-                const raw = await parseTextUTF16LE_ByIndex(pendingFiles.sales);
-                // A(0):Date, I(8):Cust, DG(110):Inc, DJ(113):Exc, EI(138):Site
-                const idxDate = excelColToIndex('A');
-                const idxCustomer = excelColToIndex('I');
-                const idxAmountInc = excelColToIndex('DG');
-                const idxAmountExc = excelColToIndex('DJ');
-                const idxSite = excelColToIndex('EI');
-
-                salesData = raw.slice(1).map(r => {
-                    if (!r[idxSite]) return null;
-                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
-                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), customer: r[idxCustomer], amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) };
-                }).filter(r => r && r.siteCode);
-            }
-            await db.transaction('rw', db.costs, db.masters, db.purchases, db.sales, db.meta, async () => {
-                if (pendingFiles.cost) { await db.costs.clear(); await db.costs.bulkPut(costData); await db.meta.put({ key: 'period', value: periodStr }); }
-                if (pendingFiles.master) { await db.masters.clear(); await db.masters.bulkPut(masterData); }
-                if (pendingFiles.purchase) { await db.purchases.clear(); await db.purchases.bulkAdd(purchaseData); }
-                if (pendingFiles.sales) { await db.sales.clear(); await db.sales.bulkAdd(salesData); }
-            });
-            importLog.textContent += "完了！\n"; await updateDBStats(); alert("完了しました。");
-        } catch (e) { console.error(e); importLog.textContent += `エラー: ${e.message}\n`; alert(`エラー: ${e.message}`); } 
-        finally { document.getElementById('import-spinner').classList.add('hidden'); }
+            
+            const salesTotal = cost ? cost.salesTotal : 0; const costTotal = cost ? cost.costTotal : 0; const profitTotal = cost ? cost.profitTotal : 0; const margin = salesTotal !== 0 ? (profitTotal / salesTotal * 100) : 0; 
+            document.getElementById('res-sales').textContent = window.formatCurrency(salesTotal); document.getElementById('res-cost').textContent = window.formatCurrency(costTotal); document.getElementById('res-profit').textContent = window.formatCurrency(profitTotal); document.getElementById('res-margin').textContent = margin.toFixed(1) + '%'; document.getElementById('res-margin-bar').style.width = Math.min(Math.max(margin, 0), 100) + '%'; 
+            
+            window.renderTable('table-sales-body', sales, ['date', 'customer', 'amountExc', 'amountInc']); 
+            window.renderTable('table-purchase-body', purchases, ['date', 'vendor', 'item', 'amount']); 
+            document.getElementById('count-sales').textContent = sales.length + "件"; 
+            document.getElementById('count-purchase').textContent = purchases.length + "件"; 
+            window.renderCharts(sales, purchases);
+        } catch(e) { console.error("Search Error:", e); alert("エラーが発生しました: " + e.message); }
     }
 
-    async function updateDBStats() {
-        const elCost = document.getElementById('db-count-cost'); if (elCost) elCost.textContent = (await db.costs.count()) + "件";
-        const elMaster = document.getElementById('db-count-master'); if (elMaster) elMaster.textContent = (await db.masters.count()) + "件";
-        const elPurchase = document.getElementById('db-count-purchase'); if (elPurchase) elPurchase.textContent = (await db.purchases.count()) + "件";
-        const elSales = document.getElementById('db-count-sales'); if (elSales) elSales.textContent = (await db.sales.count()) + "件";
-        const meta = await db.meta.get('period');
-        if(meta && meta.value) { document.getElementById('header-period').classList.remove('hidden'); document.getElementById('period-text').textContent = meta.value; parseAndSetDefaultPeriod(meta.value); }
+    window.initCostSearch = async function() { 
+        const purchases = await db.purchases.toArray(); 
+        const vendorCounts = {}; 
+        purchases.forEach(p => { if(p.vendor) vendorCounts[p.vendor] = (vendorCounts[p.vendor] || 0) + 1; }); 
+        cachedVendors = Object.entries(vendorCounts).sort((a,b) => b[1] - a[1]).map(e => e[0]); 
+        const masters = await db.masters.toArray(); 
+        const brSet = new Set(masters.map(m => m.branch).filter(Boolean)); 
+        const sel = document.getElementById('cost-search-branch'); 
+        if(sel && sel.options.length === 1) Array.from(brSet).sort().forEach(b => sel.add(new Option(b,b))); 
+    }
+
+    window.executeCostSearch = async function(vendorName) { 
+        currentCostVendor = vendorName; 
+        const targetBranch = document.getElementById('cost-search-branch').value; 
+        let purchases = await db.purchases.where('vendor').equals(vendorName).toArray(); 
+        const masters = await db.masters.toArray(); 
+        const masterMap = new Map(); 
+        masters.forEach(m => masterMap.set(m.code, m)); 
+        if(targetBranch !== 'ALL') purchases = purchases.filter(p => { const m = masterMap.get(p.siteCode); return m && m.branch === targetBranch; }); 
+        document.getElementById('cost-search-result').classList.remove('hidden'); 
+        document.getElementById('cs-vendor-name').textContent = vendorName; 
+        const totalAmt = purchases.reduce((sum, p) => sum + p.amount, 0); 
+        document.getElementById('cs-total-amount').textContent = window.formatCurrency(totalAmt); 
+        document.getElementById('cs-total-count').textContent = purchases.length + '件'; 
+        const catCounts = {}; 
+        purchases.forEach(p => { let cat = 'その他'; if(p.item && p.item.length < 15) cat = p.item; catCounts[cat] = (catCounts[cat]||0)+1; }); 
+        const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]); 
+        document.getElementById('cs-top-items').innerHTML = topCats.map(c => `<span class="px-2 py-1 bg-slate-100 text-xs rounded text-slate-600">${c}</span>`).join(''); 
+        const monthly = {}; 
+        purchases.forEach(p => { const m = p.date ? p.date.substring(0,6) : '不明'; if(!monthly[m]) monthly[m] = {amt:0, cnt:0}; monthly[m].amt += p.amount; monthly[m].cnt++; }); 
+        const labels = Object.keys(monthly).sort().filter(k=>k!=='不明'); 
+        chartCostTrend = window.destroyChart(chartCostTrend); 
+        chartCostTrend = new Chart(document.getElementById('chart-cost-trend'), { type: 'bar', data: { labels: labels.map(l=>l.slice(0,4)+'/'+l.slice(4)), datasets: [{ label:'発生額', data:labels.map(l=>monthly[l].amt), backgroundColor:'#3b82f6' }] }, options:{ maintainAspectRatio:false } }); 
+        const tbodyM = document.getElementById('cs-table-monthly'); tbodyM.innerHTML = ''; 
+        labels.reverse().forEach(m => { const d = monthly[m]; const ratio = totalAmt ? (d.amt/totalAmt*100) : 0; tbodyM.innerHTML += `<tr class="border-b"><td class="px-4 py-2">${m}</td><td class="px-4 py-2 text-right font-mono">${window.formatCurrency(d.amt)}</td><td class="px-4 py-2 text-center">${d.cnt}</td><td class="px-4 py-2 text-center">${ratio.toFixed(1)}%</td></tr>`; }); 
+        currentCostDetails = purchases.map(p => { const m = masterMap.get(p.siteCode) || {}; return { date: p.date || '-', code: p.siteCode, name: m.name || '-', branch: m.branch || '-', item: p.item, amount: p.amount }; }); 
+        window.renderCostDetailsTable(); 
     }
     
-    function parseDateValue(value) {
-        if (!value) return null;
-        if (typeof value === 'number') { return (value - 25569) * 86400 * 1000; }
-        if (typeof value === 'string') {
-            // FIX: Handle 8-digit numeric date string (e.g. "20251125")
-            const ymdMatch = value.match(/^20\d{6}$/); 
-            if (ymdMatch) {
-                const y = parseInt(value.substring(0, 4));
-                const m = parseInt(value.substring(4, 6));
-                const d = parseInt(value.substring(6, 8));
-                return new Date(y, m - 1, d).getTime();
-            }
-
-            let ts = Date.parse(value);
-            if (!isNaN(ts)) return ts;
-            const jpRegex = /(\d{1,2})年\s*(\d{1,2})月\s*(\d{1,2})日/;
-            const match = value.match(jpRegex);
-            if (match) { const y = parseInt(match[1]) + 2000; const m = parseInt(match[2]); const d = parseInt(match[3]); return new Date(y, m-1, d).getTime(); }
-        }
-        return null;
+    // RESTORED: Cost Details Table Rendering
+    window.sortCostDetails = function(key) { 
+        if (costSortState.key === key) costSortState.order = costSortState.order === 'asc' ? 'desc' : 'asc'; 
+        else { costSortState.key = key; costSortState.order = 'desc'; } 
+        window.renderCostDetailsTable(); 
     }
-    function parseAndSetDefaultPeriod(text) {
-        const regex = /(\d{1,2})年\s*(\d{1,2})月\s*(\d{1,2})日/g; const matches = [...text.matchAll(regex)];
-        if (matches.length >= 1) {
-            const start = toISODate(matches[0]); const end = matches.length >= 2 ? toISODate(matches[1]) : null;
-            if (start) document.getElementById('rank-date-start').value = start;
-            if (end) document.getElementById('rank-date-end').value = end;
-            if (start) rankingFilter = { start, end: end || start };
-        } else {
-            const today = new Date(); const s = `${today.getFullYear()}-01-01`; const e = `${today.getFullYear()}-12-31`;
-            document.getElementById('rank-date-start').value = s; document.getElementById('rank-date-end').value = e; document.getElementById('rank-date-status').textContent = "※デフォルト期間(今年)を表示"; rankingFilter = { start: s, end: e };
+
+    window.renderCostDetailsTable = function() { 
+        const { key, order } = costSortState; 
+        const sorted = [...currentCostDetails].sort((a,b) => { 
+            let valA = a[key]; let valB = b[key]; 
+            if(key === 'amount') { valA = parseFloat(valA); valB = parseFloat(valB); } 
+            if (valA < valB) return order === 'asc' ? -1 : 1; 
+            if (valA > valB) return order === 'asc' ? 1 : -1; 
+            return 0; 
+        }); 
+        const tbody = document.getElementById('cs-table-details'); 
+        if(tbody) {
+            tbody.innerHTML = ''; 
+            sorted.slice(0, 500).forEach(p => { 
+                tbody.innerHTML += `<tr class="border-b hover:bg-slate-50"><td class="px-4 py-2">${p.date}</td><td class="px-4 py-2 font-mono text-xs">${p.code}</td><td class="px-4 py-2 text-xs truncate max-w-[150px]">${p.name}</td><td class="px-4 py-2 text-xs">${p.branch}</td><td class="px-4 py-2 text-xs truncate max-w-[150px]">${p.item}</td><td class="px-4 py-2 text-right font-mono">${window.formatCurrency(p.amount)}</td></tr>`; 
+            }); 
         }
     }
-    function toISODate(m) { const y = parseInt(m[1]) + 2000; const mo = String(m[2]).padStart(2,'0'); const d = String(m[3]).padStart(2,'0'); return `${y}-${mo}-${d}`; }
-    window.applyDateFilter = function() {
-        const s = document.getElementById('rank-date-start').value; const e = document.getElementById('rank-date-end').value;
-        rankingFilter = { start: s, end: e }; document.getElementById('rank-date-status').textContent = "";
-        const activeTab = document.querySelector('.tab-btn.active');
-        if (activeTab) { const tabId = activeTab.id.replace('tab-', ''); window.switchRankingTab(tabId); }
-    }
-    window.clearDatabase = async function() { if(confirm("全データを削除しますか？")) { await Promise.all([db.costs.clear(), db.masters.clear(), db.purchases.clear(), db.sales.clear(), db.meta.clear()]); updateDBStats(); } }
-
-    // --- Ranking Logic ---
+    
+    // --- RANKING LOGIC ---
     window.switchRankingTab = function(tab) {
         try {
             document.querySelectorAll('.ranking-tab-content').forEach(el=>el.classList.add('hidden'));
-            document.getElementById(`ranking-${tab}`).classList.remove('hidden');
+            const content = document.getElementById(`ranking-${tab}`);
+            if(content) content.classList.remove('hidden');
+            
             document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
-            document.getElementById(`tab-${tab}`).classList.add('active');
+            const btn = document.getElementById(`tab-${tab}`);
+            if(btn) btn.classList.add('active');
 
             if(tab==='owner') window.initOwnerRanking();
             if(tab==='branch') window.renderBranchRanking();
@@ -700,7 +930,8 @@
         const fEnd = rankingFilter.end ? new Date(rankingFilter.end).setHours(23,59,59,999) : 9999999999999;
         costs.forEach(c => {
             const m = masters.find(ma => ma.code === c.code); if (!m) return;
-            const endTs = parseDateValue(m.endDate); if (!endTs || endTs < fStart || endTs > fEnd) return;
+            const endTs = window.parseDateValue(m.endDate); 
+            if (!endTs || endTs < fStart || endTs > fEnd) return;
             let k = '不明'; if (keyType==='owner') k = m.owner || '不明'; else if(keyType==='branch') k = m.branch || '不明'; else if(keyType==='manager') k = m.manager || '不明';
             if(!groups[k]) groups[k] = { name:k, sales:0, cost:0, profit:0, count:0 };
             groups[k].sales += c.salesTotal; groups[k].cost += c.costTotal; groups[k].profit += c.profitTotal; groups[k].count++;
@@ -710,17 +941,20 @@
 
     window.initOwnerRanking = async function() {
         const masters = await db.masters.toArray(); const branches = new Set(masters.map(m => m.branch).filter(b => b));
-        const select = document.getElementById('rank-owner-branch'); if (select.options.length <= 1) Array.from(branches).sort().forEach(b => select.add(new Option(b, b)));
+        const select = document.getElementById('rank-owner-branch'); 
+        if (select && select.options.length <= 1) Array.from(branches).sort().forEach(b => select.add(new Option(b, b)));
         window.renderOwnerRanking();
     }
     window.renderOwnerRanking = async function() {
-        const targetBranch = document.getElementById('rank-owner-branch').value;
+        const select = document.getElementById('rank-owner-branch');
+        const targetBranch = select ? select.value : 'ALL';
         const costs = await db.costs.toArray(); const masters = await db.masters.toArray(); const groups = {};
         const fStart = rankingFilter.start ? new Date(rankingFilter.start).setHours(0,0,0,0) : 0;
         const fEnd = rankingFilter.end ? new Date(rankingFilter.end).setHours(23,59,59,999) : 9999999999999;
         costs.forEach(c => {
             const m = masters.find(ma => ma.code === c.code); if (!m) return;
-            const endTs = parseDateValue(m.endDate); if (!endTs || endTs < fStart || endTs > fEnd) return;
+            const endTs = window.parseDateValue(m.endDate); 
+            if (!endTs || endTs < fStart || endTs > fEnd) return;
             if (targetBranch !== 'ALL' && m.branch !== targetBranch) return;
             const k = m.owner || '不明';
             if(!groups[k]) groups[k] = { name:k, sales:0, cost:0, profit:0, count:0 };
@@ -742,18 +976,22 @@
 
     window.initManagerRanking = async function() {
         const masters = await db.masters.toArray(); const branches = new Set(); const months = new Set();
-        masters.forEach(m => { if(m.branch) branches.add(m.branch); const ts = parseDateValue(m.endDate); if(ts) { const d = new Date(ts); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); months.add(yyyymm); } });
+        masters.forEach(m => { if(m.branch) branches.add(m.branch); const ts = window.parseDateValue(m.endDate); if(ts) { const d = new Date(ts); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); months.add(yyyymm); } });
         const selMonth = document.getElementById('rank-manager-month'); const selBranch = document.getElementById('rank-manager-branch');
-        if(selMonth.options.length === 0) { selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m + ' 完工', m))); }
-        if(selBranch.options.length === 1) { Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
+        if(selMonth && selMonth.options.length === 0) { selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m + ' 完工', m))); }
+        if(selBranch && selBranch.options.length === 1) { Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
         window.renderManagerRanking();
     }
     window.renderManagerRanking = async function() {
-        const targetMonth = document.getElementById('rank-manager-month').value; const targetBranch = document.getElementById('rank-manager-branch').value;
+        const selMonth = document.getElementById('rank-manager-month');
+        const selBranch = document.getElementById('rank-manager-branch');
+        const targetMonth = selMonth ? selMonth.value : 'ALL'; 
+        const targetBranch = selBranch ? selBranch.value : 'ALL';
         const costs = await db.costs.toArray(); const masters = await db.masters.toArray(); const groups = {};
         costs.forEach(c => {
             const m = masters.find(ma => ma.code === c.code); if (!m) return;
-            const endTs = parseDateValue(m.endDate); if (!endTs) return;
+            const endTs = window.parseDateValue(m.endDate); 
+            if (!endTs) return;
             if (targetMonth !== 'ALL') { const d = new Date(endTs); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); if (yyyymm !== targetMonth) return; }
             if (targetBranch !== 'ALL' && m.branch !== targetBranch) return;
             const k = m.manager || '不明';
@@ -775,18 +1013,24 @@
             const targetName = currentMonthlyMode === 'manager' ? manager : owner; const key = `${yyyymm}_${targetName}_${branch}`;
             if (!agg[key]) agg[key] = { month: yyyymm, name: targetName, branch, sales: 0 }; agg[key].sales += s.amountExc; 
         });
-        if (monthSelect.options.length === 0) Array.from(months).sort().reverse().forEach(m => monthSelect.add(new Option(m, m))); if (branchSelect.options.length === 1) Array.from(branches).sort().forEach(b => branchSelect.add(new Option(b, b)));
-        const selMonth = monthSelect.value; const selBranch = branchSelect.value;
+        if (monthSelect && monthSelect.options.length === 0) Array.from(months).sort().reverse().forEach(m => monthSelect.add(new Option(m, m))); 
+        if (branchSelect && branchSelect.options.length === 1) Array.from(branches).sort().forEach(b => branchSelect.add(new Option(b, b)));
+        const selMonth = monthSelect ? monthSelect.value : ''; 
+        const selBranch = branchSelect ? branchSelect.value : 'ALL';
         const list = Object.values(agg).filter(a => { if (selMonth && a.month !== selMonth) return false; if (selBranch !== 'ALL' && a.branch !== selBranch) return false; return true; });
         list.sort((a,b) => b.sales - a.sales);
-        const tbody = document.getElementById('ranking-body-monthly-manager'); tbody.innerHTML = '';
-        list.forEach((r, i) => { tbody.innerHTML += `<tr><td class="px-6 py-4 font-bold">${i+1}</td><td class="px-6 py-4">${r.name}</td><td class="px-6 py-4">${r.branch}</td><td class="px-6 py-4 text-right font-bold">${formatCurrency(r.sales)}</td><td class="px-6 py-4 text-right text-slate-300">-</td><td class="px-6 py-4 text-right text-slate-300">-</td></tr>`; });
+        const tbody = document.getElementById('ranking-body-monthly-manager'); 
+        if(tbody) {
+            tbody.innerHTML = '';
+            list.forEach((r, i) => { tbody.innerHTML += `<tr><td class="px-6 py-4 font-bold">${i+1}</td><td class="px-6 py-4">${r.name}</td><td class="px-6 py-4">${r.branch}</td><td class="px-6 py-4 text-right font-bold">${formatCurrency(r.sales)}</td><td class="px-6 py-4 text-right text-slate-300">-</td><td class="px-6 py-4 text-right text-slate-300">-</td></tr>`; });
+        }
     }
 
-    window.initMonthlyRanking = async function() { const selBranch = document.getElementById('month-filter-branch'); if (selBranch.options.length === 1) { const masters = await db.masters.toArray(); const brSet = new Set(masters.map(m=>m.branch).filter(b=>b)); Array.from(brSet).sort().forEach(b => selBranch.add(new Option(b,b))); } window.renderMonthlyRanking(); }
+    window.initMonthlyRanking = async function() { const selBranch = document.getElementById('month-filter-branch'); if (selBranch && selBranch.options.length === 1) { const masters = await db.masters.toArray(); const brSet = new Set(masters.map(m=>m.branch).filter(b=>b)); Array.from(brSet).sort().forEach(b => selBranch.add(new Option(b,b))); } window.renderMonthlyRanking(); }
     window.renderMonthlyRanking = async function() {
         try {
-            const targetB = document.getElementById('month-filter-branch').value;
+            const selBranch = document.getElementById('month-filter-branch');
+            const targetB = selBranch ? selBranch.value : 'ALL';
             const sales = await db.sales.toArray(); const purchases = await db.purchases.toArray(); const masters = await db.masters.toArray(); const masterMap = new Map(); masters.forEach(m => masterMap.set(m.code, m.branch));
             const stats = {}; 
             sales.forEach(s => { if (targetB !== 'ALL') { const b = masterMap.get(s.siteCode); if (b !== targetB) return; } const m = s.date.substring(0,6); if(m) { if(!stats[m]) stats[m]={s:0, p:0}; stats[m].s += s.amountExc; } });
@@ -795,17 +1039,22 @@
             chartMonthly = window.destroyChart(chartMonthly);
             const ctx = document.getElementById('chart-monthly-total');
             if (ctx) { chartMonthly = new Chart(ctx, { type: 'bar', data: { labels: labels, datasets: [{ label: `売上(税抜)`, data: labels.map(l=>stats[l].s), backgroundColor: '#3b82f6' }, { label: '原価', data: labels.map(l=>stats[l].p), backgroundColor: '#ef4444' }] }, options:{maintainAspectRatio:false} }); }
-            const tbody = document.getElementById('ranking-table-month'); const tfoot = document.getElementById('ranking-footer-month'); tbody.innerHTML = ''; let sumS=0, sumP=0;
-            if(targetB === 'ALL') { document.getElementById('monthly-table-head').innerHTML = `<tr><th class="px-4 py-2 border border-slate-300">年月</th><th class="px-4 py-2 border border-slate-300 text-right">売上(税抜)</th><th class="px-4 py-2 border border-slate-300 text-right">原価(税抜)</th><th class="px-4 py-2 border border-slate-300 text-right">粗利益</th><th class="px-4 py-2 border border-slate-300 text-right">粗利率</th></tr>`; } else { document.getElementById('monthly-table-head').innerHTML = `<tr><th class="px-4 py-2 border border-slate-300">年月</th><th class="px-4 py-2 border border-slate-300 text-right">売上(税抜)</th></tr>`; }
+            const tbody = document.getElementById('ranking-table-month'); const tfoot = document.getElementById('ranking-footer-month'); 
+            if(tbody) tbody.innerHTML = ''; 
+            let sumS=0, sumP=0;
+            const th = document.getElementById('monthly-table-head');
+            if(th) {
+                if(targetB === 'ALL') { th.innerHTML = `<tr><th class="px-4 py-2 border border-slate-300">年月</th><th class="px-4 py-2 border border-slate-300 text-right">売上(税抜)</th><th class="px-4 py-2 border border-slate-300 text-right">原価(税抜)</th><th class="px-4 py-2 border border-slate-300 text-right">粗利益</th><th class="px-4 py-2 border border-slate-300 text-right">粗利率</th></tr>`; } else { th.innerHTML = `<tr><th class="px-4 py-2 border border-slate-300">年月</th><th class="px-4 py-2 border border-slate-300 text-right">売上(税抜)</th></tr>`; }
+            }
             labels.forEach(m => {
                 const d = stats[m]; sumS += d.s; sumP += d.p; const profit = d.s - d.p; const margin = d.s ? (profit/d.s*100) : 0;
                 let row = `<td class="px-4 py-2">${m}</td><td class="px-4 py-2 text-right font-mono">${formatCurrency(d.s)}</td>`;
                 if(targetB === 'ALL') { row += `<td class="px-4 py-2 text-right font-mono text-red-600">${formatCurrency(d.p)}</td><td class="px-4 py-2 text-right font-mono ${profit<0?'text-red-600':'text-blue-600'}">${formatCurrency(profit)}</td><td class="px-4 py-2 text-right">${margin.toFixed(1)}%</td>`; }
-                tbody.innerHTML += `<tr class="border-b">${row}</tr>`;
+                if(tbody) tbody.innerHTML += `<tr class="border-b">${row}</tr>`;
             });
             let footRow = `<td class="px-4 py-2">合計</td><td class="px-4 py-2 text-right">${formatCurrency(sumS)}</td>`;
             if(targetB === 'ALL') { const tp = sumS - sumP; const tm = sumS ? (tp/sumS*100) : 0; footRow += `<td class="px-4 py-2 text-right">${formatCurrency(sumP)}</td><td class="px-4 py-2 text-right">${formatCurrency(tp)}</td><td class="px-4 py-2 text-right">${tm.toFixed(1)}%</td>`; }
-            tfoot.innerHTML = `<tr>${footRow}</tr>`;
+            if(tfoot) tfoot.innerHTML = `<tr>${footRow}</tr>`;
         } catch (e) { console.error("Monthly Render Error:", e); }
     }
 
@@ -825,25 +1074,31 @@
     }
     window.initWorstRanking = async function() {
         const masters = await db.masters.toArray(); const branches = new Set(); const months = new Set();
-        masters.forEach(m => { if(m.branch) branches.add(m.branch); const ts = parseDateValue(m.endDate); if(ts) { const d = new Date(ts); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); months.add(yyyymm); } });
+        masters.forEach(m => { if(m.branch) branches.add(m.branch); const ts = window.parseDateValue(m.endDate); if(ts) { const d = new Date(ts); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); months.add(yyyymm); } });
         const selMonth = document.getElementById('worst-alert-month'); const selBranch = document.getElementById('worst-alert-branch');
-        if(selMonth.options.length === 0) { selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m + ' 完工', m))); }
-        if(selBranch.options.length === 1) { Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
+        if(selMonth && selMonth.options.length === 0) { selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m + ' 完工', m))); }
+        if(selBranch && selBranch.options.length === 1) { Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
         window.renderWorstRanking();
     }
     window.renderWorstRanking = async function() {
-        const costs = await db.costs.toArray(); const masters = await db.masters.toArray(); const tbody = document.getElementById('ranking-body-worst'); tbody.innerHTML = ''; let list = [];
+        const costs = await db.costs.toArray(); const masters = await db.masters.toArray(); const tbody = document.getElementById('ranking-body-worst'); if(tbody) tbody.innerHTML = ''; 
+        let list = [];
         if (currentWorstType === 'ranking') {
             const fStart = rankingFilter.start ? new Date(rankingFilter.start).setHours(0,0,0,0) : 0; const fEnd = rankingFilter.end ? new Date(rankingFilter.end).setHours(23,59,59,999) : 9999999999999;
             costs.forEach(c => {
-                const m = masters.find(ma => ma.code === c.code); if (!m) return; const endTs = parseDateValue(m.endDate); if (!endTs || endTs < fStart || endTs > fEnd) return; if (c.salesTotal <= 0) return;
+                const m = masters.find(ma => ma.code === c.code); if (!m) return; const endTs = window.parseDateValue(m.endDate); 
+                if (!endTs || endTs < fStart || endTs > fEnd) return; if (c.salesTotal <= 0) return;
                 list.push({ code: c.code, name: c.name, manager: m.manager || '-', owner: m.owner || '-', branch: m.branch || '-', endStr: m.endDate, sales: c.salesTotal, profit: c.profitTotal, margin: (c.profitTotal / c.salesTotal * 100) });
             });
             if (currentWorstSort === 'rate') list.sort((a,b) => a.margin - b.margin); else list.sort((a,b) => a.profit - b.profit); list = list.slice(0, 20);
         } else {
-            const targetMonth = document.getElementById('worst-alert-month').value; const targetBranch = document.getElementById('worst-alert-branch').value;
+            const selMonth = document.getElementById('worst-alert-month');
+            const selBranch = document.getElementById('worst-alert-branch');
+            const targetMonth = selMonth ? selMonth.value : 'ALL'; 
+            const targetBranch = selBranch ? selBranch.value : 'ALL';
             costs.forEach(c => {
-                const m = masters.find(ma => ma.code === c.code); if (!m) return; const endTs = parseDateValue(m.endDate); if (!endTs) return;
+                const m = masters.find(ma => ma.code === c.code); if (!m) return; const endTs = window.parseDateValue(m.endDate); 
+                if (!endTs) return;
                 if (targetMonth !== 'ALL') { const d = new Date(endTs); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); if (yyyymm !== targetMonth) return; }
                 if (targetBranch !== 'ALL' && m.branch !== targetBranch) return; if (c.salesTotal <= 0) return;
                 const margin = (c.profitTotal / c.salesTotal * 100); if (margin > 20) return;
@@ -852,178 +1107,438 @@
             list.sort((a,b) => a.margin - b.margin);
         }
         currentWorstList = list;
-        if (list.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-4 text-center text-slate-400">該当データがありません</td></tr>'; return; }
-        list.forEach((r,i) => {
-            let dateDisp = '-'; const ts = parseDateValue(r.endStr); if(ts) { const d = new Date(ts); dateDisp = `${d.getMonth()+1}月 (${r.branch})`; } else { dateDisp = r.branch; }
-            tbody.innerHTML += `<tr>
-                <td class="px-6 py-4 font-bold text-red-600">${i+1}</td>
-                <td class="px-6 py-4 text-xs font-mono text-slate-500">${r.code}</td>
-                <td class="px-6 py-4 text-xs"><div class="font-bold text-sm text-slate-800 mb-1 truncate max-w-xs" title="${r.name}">${r.name}</div></td>
-                <td class="px-6 py-4 text-xs text-slate-700">${r.manager}</td>
-                <td class="px-6 py-4 text-xs text-slate-600 truncate max-w-[100px]">${r.owner}</td>
-                <td class="px-6 py-4 text-xs text-slate-500">${dateDisp}</td>
-                <td class="px-6 py-4 text-right font-bold text-red-600">${r.margin.toFixed(1)}%</td>
-                <td class="px-6 py-4 text-right text-red-500 text-xs font-mono">${formatCurrency(r.profit)}</td>
-                <td class="px-6 py-4 text-right text-xs font-mono">${formatCurrency(r.sales)}</td>
-            </tr>`;
-        });
+        if(tbody) {
+            if (list.length === 0) { tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-4 text-center text-slate-400">該当データがありません</td></tr>'; return; }
+            list.forEach((r,i) => {
+                let dateDisp = '-'; const ts = window.parseDateValue(r.endStr); if(ts) { const d = new Date(ts); dateDisp = `${d.getMonth()+1}月 (${r.branch})`; } else { dateDisp = r.branch; }
+                tbody.innerHTML += `<tr>
+                    <td class="px-6 py-4 font-bold text-red-600">${i+1}</td>
+                    <td class="px-6 py-4 text-xs font-mono text-slate-500">${r.code}</td>
+                    <td class="px-6 py-4 text-xs"><div class="font-bold text-sm text-slate-800 mb-1 truncate max-w-xs" title="${r.name}">${r.name}</div></td>
+                    <td class="px-6 py-4 text-xs text-slate-700">${r.manager}</td>
+                    <td class="px-6 py-4 text-xs text-slate-600 truncate max-w-[100px]">${r.owner}</td>
+                    <td class="px-6 py-4 text-xs text-slate-500">${dateDisp}</td>
+                    <td class="px-6 py-4 text-right font-bold text-red-600">${r.margin.toFixed(1)}%</td>
+                    <td class="px-6 py-4 text-right text-red-500 text-xs font-mono">${formatCurrency(r.profit)}</td>
+                    <td class="px-6 py-4 text-right text-xs font-mono">${formatCurrency(r.sales)}</td>
+                </tr>`;
+            });
+        }
     }
     window.exportWorstExcel = function() { if(!currentWorstList || currentWorstList.length === 0) { alert("出力するデータがありません"); return; } const exportData = currentWorstList.map((r, i) => ({ "順位": i+1, "工番": r.code, "現場名": r.name, "担当者": r.manager, "施工主": r.owner, "拠点": r.branch, "完工日": r.endStr, "粗利率": r.margin.toFixed(2) + "%", "粗利益(税抜)": r.profit, "売上(税抜)": r.sales })); const ws = XLSX.utils.json_to_sheet(exportData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "ワースト分析"); XLSX.writeFile(wb, `利益率ワースト分析_${new Date().toISOString().slice(0,10)}.xlsx`); }
-    window.sortAndRender = function(data, tbodyId, sortSelectId) { const sortKey = sortSelectId ? document.getElementById(sortSelectId).value : 'profit'; data.sort((a,b) => b[sortKey] - a[sortKey]); const tbody = document.getElementById(tbodyId); tbody.innerHTML = ''; data.forEach((r,i) => { const margin = r.sales? (r.profit/r.sales*100) : 0; tbody.innerHTML += `<tr><td class="px-6 py-4 font-bold">${i+1}</td><td class="px-6 py-4">${r.name}</td><td class="px-6 py-4 text-right">${formatCurrency(r.sales)}</td><td class="px-6 py-4 text-right">${formatCurrency(r.cost)}</td><td class="px-6 py-4 text-right font-bold">${formatCurrency(r.profit)}</td><td class="px-6 py-4 text-right font-bold ${margin<10?'text-red-500':'text-green-600'}">${margin.toFixed(1)}%</td><td class="px-6 py-4 text-center">${r.count}</td></tr>`; }); }
-    
-    // --- Cost Search & Site Search (Same as v14) ---
-    // (Omitted for brevity, fully included in final file)
-    const searchInput = document.getElementById('cost-search-input');
-    const autocompleteList = document.getElementById('cost-autocomplete-list');
-    let cachedVendors = [];
-    window.initCostSearch = async function() { const purchases = await db.purchases.toArray(); const vendorCounts = {}; purchases.forEach(p => { if(p.vendor) vendorCounts[p.vendor] = (vendorCounts[p.vendor] || 0) + 1; }); cachedVendors = Object.entries(vendorCounts).sort((a,b) => b[1] - a[1]).map(e => e[0]); const masters = await db.masters.toArray(); const brSet = new Set(masters.map(m => m.branch).filter(Boolean)); const sel = document.getElementById('cost-search-branch'); if(sel.options.length === 1) Array.from(brSet).sort().forEach(b => sel.add(new Option(b,b))); sel.addEventListener('change', () => { if(currentCostVendor) window.executeCostSearch(currentCostVendor); }); }
-    searchInput.addEventListener('input', function() { const val = this.value.toLowerCase().trim(); autocompleteList.innerHTML = ''; autocompleteList.classList.add('hidden'); if(!val) return; const matches = cachedVendors.filter(v => normalizeStr(v).includes(normalizeStr(val))).slice(0, 10); if(matches.length === 0) return; autocompleteList.classList.remove('hidden'); matches.forEach(vendor => { const div = document.createElement('div'); div.className = 'autocomplete-item'; div.innerHTML = `<strong>${vendor}</strong>`; div.addEventListener('click', () => { searchInput.value = vendor; autocompleteList.classList.add('hidden'); window.executeCostSearch(vendor); }); autocompleteList.appendChild(div); }); });
-    // Enter key handling for Cost Search
-    searchInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            // If autocomplete has items, pick the first one. Otherwise search input value.
-            const firstItem = !autocompleteList.classList.contains('hidden') ? autocompleteList.querySelector('.autocomplete-item') : null;
-            
-            if (firstItem) {
-                firstItem.click();
-            } else {
-                // 候補がない、または閉じていれば入力値で検索
-                const val = this.value.trim();
-                if (val) {
-                    window.executeCostSearch(val);
-                    autocompleteList.classList.add('hidden'); // 念のため閉じる
-                }
-            }
-        }
-    });
-
-    window.executeCostSearch = async function(vendorName) { currentCostVendor = vendorName; const targetBranch = document.getElementById('cost-search-branch').value; let purchases = await db.purchases.where('vendor').equals(vendorName).toArray(); const masters = await db.masters.toArray(); const masterMap = new Map(); masters.forEach(m => masterMap.set(m.code, m)); if(targetBranch !== 'ALL') purchases = purchases.filter(p => { const m = masterMap.get(p.siteCode); return m && m.branch === targetBranch; }); document.getElementById('cost-search-result').classList.remove('hidden'); document.getElementById('cs-vendor-name').textContent = vendorName; const totalAmt = purchases.reduce((sum, p) => sum + p.amount, 0); document.getElementById('cs-total-amount').textContent = formatCurrency(totalAmt); document.getElementById('cs-total-count').textContent = purchases.length + '件'; const catCounts = {}; purchases.forEach(p => { let cat = 'その他'; if(p.item && p.item.length < 15) cat = p.item; catCounts[cat] = (catCounts[cat]||0)+1; }); const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]); document.getElementById('cs-top-items').innerHTML = topCats.map(c => `<span class="px-2 py-1 bg-slate-100 text-xs rounded text-slate-600">${c}</span>`).join(''); const monthly = {}; purchases.forEach(p => { const m = p.date ? p.date.substring(0,6) : '不明'; if(!monthly[m]) monthly[m] = {amt:0, cnt:0}; monthly[m].amt += p.amount; monthly[m].cnt++; }); const labels = Object.keys(monthly).sort().filter(k=>k!=='不明'); chartCostTrend = destroyChart(chartCostTrend); chartCostTrend = new Chart(document.getElementById('chart-cost-trend'), { type: 'bar', data: { labels: labels.map(l=>l.slice(0,4)+'/'+l.slice(4)), datasets: [{ label:'発生額', data:labels.map(l=>monthly[l].amt), backgroundColor:'#3b82f6' }] }, options:{ maintainAspectRatio:false } }); const tbodyM = document.getElementById('cs-table-monthly'); tbodyM.innerHTML = ''; labels.reverse().forEach(m => { const d = monthly[m]; const ratio = totalAmt ? (d.amt/totalAmt*100) : 0; tbodyM.innerHTML += `<tr class="border-b"><td class="px-4 py-2">${m}</td><td class="px-4 py-2 text-right font-mono">${formatCurrency(d.amt)}</td><td class="px-4 py-2 text-center">${d.cnt}</td><td class="px-4 py-2 text-center">${ratio.toFixed(1)}%</td></tr>`; }); currentCostDetails = purchases.map(p => { const m = masterMap.get(p.siteCode) || {}; return { date: p.date || '-', code: p.siteCode, name: m.name || '-', branch: m.branch || '-', item: p.item, amount: p.amount }; }); window.renderCostDetailsTable(); }
-    window.sortCostDetails = function(key) { if (costSortState.key === key) costSortState.order = costSortState.order === 'asc' ? 'desc' : 'asc'; else { costSortState.key = key; costSortState.order = 'desc'; } window.renderCostDetailsTable(); }
-    window.renderCostDetailsTable = function() { const { key, order } = costSortState; const sorted = [...currentCostDetails].sort((a,b) => { let valA = a[key]; let valB = b[key]; if(key === 'amount') { valA = parseFloat(valA); valB = parseFloat(valB); } if (valA < valB) return order === 'asc' ? -1 : 1; if (valA > valB) return order === 'asc' ? 1 : -1; return 0; }); const tbody = document.getElementById('cs-table-details'); tbody.innerHTML = ''; sorted.slice(0, 500).forEach(p => { tbody.innerHTML += `<tr class="border-b hover:bg-slate-50"><td class="px-4 py-2">${p.date}</td><td class="px-4 py-2 font-mono text-xs">${p.code}</td><td class="px-4 py-2 text-xs truncate max-w-[150px]">${p.name}</td><td class="px-4 py-2 text-xs">${p.branch}</td><td class="px-4 py-2 text-xs truncate max-w-[150px]">${p.item}</td><td class="px-4 py-2 text-right font-mono">${formatCurrency(p.amount)}</td></tr>`; }); }
-    
-    // --- Site Search ---
-    const siteNameInput = document.getElementById('site-name-search');
-    const siteAutoList = document.getElementById('site-autocomplete-list');
-    let cachedMasters = [];
-    async function initSiteSearch() { const masters = await db.masters.toArray(); cachedMasters = masters.map(m => ({ name: m.name || '', owner: m.owner || '', code: m.code })); }
-    siteNameInput.addEventListener('input', function() { const val = this.value.trim(); siteAutoList.innerHTML = ''; siteAutoList.classList.add('hidden'); if(!val) return; const normVal = normalizeStr(val); const matches = cachedMasters.filter(m => normalizeStr(m.name).includes(normVal) || normalizeStr(m.owner).includes(normVal)).slice(0, 10); if(matches.length === 0) return; siteAutoList.classList.remove('hidden'); matches.forEach(m => { const div = document.createElement('div'); div.className = 'autocomplete-item'; div.innerHTML = `<div class="font-bold text-sm">${m.name}</div><div class="text-xs text-slate-500">${m.owner} (${m.code})</div>`; div.addEventListener('click', () => { document.getElementById('search-input').value = m.code; siteNameInput.value = ''; siteAutoList.classList.add('hidden'); window.searchSite(); }); siteAutoList.appendChild(div); }); });
-    // Enter key handling for Site Name Search
-    siteNameInput.addEventListener('keydown', function(e) {
-         if(e.key === 'Enter') {
-            e.preventDefault();
-            const firstItem = siteAutoList.querySelector('.autocomplete-item');
-            if (firstItem) {
-                firstItem.click();
-            }
-         }
-    });
-
-    // Enter key handling for Site Code Search
-    document.getElementById('search-input').addEventListener('keydown', function(e) {
-        if(e.key === 'Enter') {
-            e.preventDefault();
-            window.searchSite();
-        }
-    });
-
-    window.searchSite = async function() { 
-        try {
-            const inputCode = document.getElementById('search-input').value.trim(); if (!inputCode) return; 
-            const master = await db.masters.get(inputCode); const cost = await db.costs.get(inputCode); 
-            const sales = await db.sales.where('siteCode').equals(inputCode).toArray(); 
-            const purchases = await db.purchases.where('siteCode').equals(inputCode).toArray(); 
-            
-            if (!master && !cost) { alert("見つかりませんでした。コードを確認してください: " + inputCode); return; } 
-            
-            currentSiteData = {
-                code: inputCode,
-                name: master ? master.name : (cost ? cost.name : '-'),
-                owner: master ? master.owner : '-',
-                manager: master ? master.manager : '-',
-                branch: master ? master.branch : '-',
-                start: master ? master.startDate : '-',
-                end: master ? master.endDate : '-',
-                sales: formatCurrency(cost ? cost.salesTotal : 0),
-                cost: formatCurrency(cost ? cost.costTotal : 0),
-                profit: formatCurrency(cost ? cost.profitTotal : 0),
-                margin: (cost ? cost.marginRatio : 0).toFixed(1) + '%',
-                salesDetails: sales,
-                purchaseDetails: purchases
-            };
-
-            document.getElementById('search-result').classList.remove('hidden'); 
-            document.getElementById('res-code').textContent = inputCode; 
-            document.getElementById('res-name').textContent = master ? master.name : (cost ? cost.name : '-'); 
-            
-            const subNameEl = document.getElementById('res-sub-name');
-            const subCodeEl = document.getElementById('res-sub-code');
-            if(subNameEl) subNameEl.textContent = master ? (master.subName || '-') : '-'; 
-            if(subCodeEl) subCodeEl.textContent = master ? (master.subCode || '-') : '-'; 
-            
-            document.getElementById('res-owner').textContent = master ? master.owner : '-'; 
-            document.getElementById('res-manager').textContent = master ? master.manager : '-'; 
-            document.getElementById('res-branch').textContent = master ? master.branch : '-'; 
-            document.getElementById('res-start').textContent = master ? master.startDate : '-'; 
-            document.getElementById('res-end').textContent = master ? master.endDate : '-'; 
-            
-            const subCont = document.getElementById('res-subcodes-container');
-            const subList = document.getElementById('res-subcodes-list');
-            if(subCont && subList) {
-                subCont.classList.add('hidden'); subList.innerHTML = ''; 
-                if (master && master.subCodes && master.subCodes.length > 0) { 
-                    subCont.classList.remove('hidden'); 
-                    master.subCodes.forEach(s => { const span = document.createElement('span'); span.className = "bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-100"; span.textContent = `${s.code}: ${s.name}`; subList.appendChild(span); }); 
-                }
-            }
-            
-            const salesTotal = cost ? cost.salesTotal : 0; const costTotal = cost ? cost.costTotal : 0; const profitTotal = cost ? cost.profitTotal : 0; const margin = salesTotal !== 0 ? (profitTotal / salesTotal * 100) : 0; 
-            document.getElementById('res-sales').textContent = formatCurrency(salesTotal); document.getElementById('res-cost').textContent = formatCurrency(costTotal); document.getElementById('res-profit').textContent = formatCurrency(profitTotal); document.getElementById('res-margin').textContent = margin.toFixed(1) + '%'; document.getElementById('res-margin-bar').style.width = Math.min(Math.max(margin, 0), 100) + '%'; 
-            
-            window.renderTable('table-sales-body', sales, ['date', 'customer', 'amountExc', 'amountInc']); 
-            window.renderTable('table-purchase-body', purchases, ['date', 'vendor', 'item', 'amount']); 
-            document.getElementById('count-sales').textContent = sales.length + "件"; 
-            document.getElementById('count-purchase').textContent = purchases.length + "件"; 
-            window.renderCharts(sales, purchases);
-        } catch(e) {
-            console.error("Search Error:", e);
-            alert("エラーが発生しました: " + e.message);
+    window.sortAndRender = function(data, tbodyId, sortSelectId) { 
+        const sel = document.getElementById(sortSelectId);
+        const sortKey = sel ? sel.value : 'profit'; 
+        data.sort((a,b) => b[sortKey] - a[sortKey]); 
+        const tbody = document.getElementById(tbodyId); 
+        if(tbody) {
+            tbody.innerHTML = ''; 
+            data.forEach((r,i) => { const margin = r.sales? (r.profit/r.sales*100) : 0; tbody.innerHTML += `<tr><td class="px-6 py-4 font-bold">${i+1}</td><td class="px-6 py-4">${r.name}</td><td class="px-6 py-4 text-right">${formatCurrency(r.sales)}</td><td class="px-6 py-4 text-right">${formatCurrency(r.cost)}</td><td class="px-6 py-4 text-right font-bold">${formatCurrency(r.profit)}</td><td class="px-6 py-4 text-right font-bold ${margin<10?'text-red-500':'text-green-600'}">${margin.toFixed(1)}%</td><td class="px-6 py-4 text-center">${r.count}</td></tr>`; }); 
         }
     }
     
-    // --- New Function: Multi-Site Comparison with Paging (CARD VERSION) ---
+    // --- Global ShowPage ---
+    window.showPage = function(p) {
+        document.querySelectorAll('.page-content').forEach(el=>el.classList.add('hidden'));
+        document.getElementById(`page-${p}`).classList.remove('hidden');
+        document.querySelectorAll('.sidebar-link').forEach(el=>el.classList.remove('active'));
+        document.getElementById(`nav-${p}`).classList.add('active');
+        const titles = { 'dashboard': '現場照会・分析', 'cost-search': '原価検索', 'ranking': '集計・ランキング', 'import': 'データ取込・管理', 'check': 'データ不備・整合性チェック' };
+        document.getElementById('page-title').textContent = titles[p] || 'G-Ledger';
+        
+        if(p==='import') window.updateDBStats();
+        if(p==='ranking') window.switchRankingTab('owner');
+        if(p==='cost-search') window.initCostSearch();
+        if(p==='dashboard') window.initSiteSearch();
+    }
+
+    // --- DOMContentLoaded EVENT LISTENERS ---
+    window.addEventListener('DOMContentLoaded', () => {
+        // DropZone
+        dropZone = document.getElementById('drop-zone');
+        importLog = document.getElementById('import-log');
+        processBtn = document.getElementById('btn-process-files');
+        
+        if(dropZone) {
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('dragover'); window.handleFileSelect(e.dataTransfer.files); });
+        }
+
+        // Site Search Inputs
+        const siteNameInput = document.getElementById('site-name-search');
+        const siteAutoList = document.getElementById('site-autocomplete-list');
+        const searchInput = document.getElementById('search-input');
+
+        if(siteNameInput && siteAutoList) {
+            siteNameInput.addEventListener('input', function() { 
+                const val = this.value.trim(); 
+                siteAutoList.innerHTML = ''; 
+                siteAutoList.classList.add('hidden'); 
+                if(!val) return; 
+                const normVal = window.normalizeStr(val); 
+                const matches = cachedMasters.filter(m => window.normalizeStr(m.name).includes(normVal) || window.normalizeStr(m.owner).includes(normVal)).slice(0, 10); 
+                if(matches.length === 0) return; 
+                siteAutoList.classList.remove('hidden'); 
+                matches.forEach(m => { 
+                    const div = document.createElement('div'); 
+                    div.className = 'autocomplete-item'; 
+                    div.innerHTML = `<div class="font-bold text-sm">${m.name}</div><div class="text-xs text-slate-500">${m.owner} (${m.code})</div>`; 
+                    div.addEventListener('click', () => { 
+                        if(searchInput) searchInput.value = m.code; 
+                        siteNameInput.value = ''; 
+                        siteAutoList.classList.add('hidden'); 
+                        window.searchSite(); 
+                    }); 
+                    siteAutoList.appendChild(div); 
+                }); 
+            });
+            siteNameInput.addEventListener('keydown', function(e) { 
+                if(e.key === 'Enter') { 
+                    e.preventDefault(); 
+                    const firstItem = siteAutoList.querySelector('.autocomplete-item'); 
+                    if (firstItem) { firstItem.click(); } 
+                } 
+            });
+        }
+        
+        if(searchInput) {
+            searchInput.addEventListener('keydown', function(e) { if(e.key === 'Enter') { e.preventDefault(); window.searchSite(); } });
+        }
+
+        // Cost Search Inputs
+        const searchInputCost = document.getElementById('cost-search-input');
+        const autocompleteListCost = document.getElementById('cost-autocomplete-list');
+        const selCostBranch = document.getElementById('cost-search-branch');
+
+        if(searchInputCost && autocompleteListCost) {
+            searchInputCost.addEventListener('input', function() { 
+                const val = this.value.toLowerCase().trim(); 
+                autocompleteListCost.innerHTML = ''; 
+                autocompleteListCost.classList.add('hidden'); 
+                if(!val) return; 
+                const matches = cachedVendors.filter(v => window.normalizeStr(v).includes(window.normalizeStr(val))).slice(0, 10); 
+                if(matches.length === 0) return; 
+                autocompleteListCost.classList.remove('hidden'); 
+                matches.forEach(vendor => { 
+                    const div = document.createElement('div'); 
+                    div.className = 'autocomplete-item'; 
+                    div.innerHTML = `<strong>${vendor}</strong>`; 
+                    div.addEventListener('click', () => { 
+                        searchInputCost.value = vendor; 
+                        autocompleteListCost.classList.add('hidden'); 
+                        window.executeCostSearch(vendor); 
+                    }); 
+                    autocompleteListCost.appendChild(div); 
+                }); 
+            });
+            searchInputCost.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const firstItem = !autocompleteListCost.classList.contains('hidden') ? autocompleteListCost.querySelector('.autocomplete-item') : null;
+                    if (firstItem) { firstItem.click(); } else { const val = this.value.trim(); if (val) { window.executeCostSearch(val); autocompleteListCost.classList.add('hidden'); } }
+                }
+            });
+        }
+        
+        if(selCostBranch) {
+            selCostBranch.addEventListener('change', () => { if(currentCostVendor) window.executeCostSearch(currentCostVendor); });
+        }
+
+        // Multi-Code Input Formatter
+        const multiCodeInput = document.getElementById('multi-code-input');
+        if(multiCodeInput) {
+            // Paste event: Format text to be space-separated
+            multiCodeInput.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const text = (e.clipboardData || window.clipboardData).getData('text');
+                // Replace newlines and commas with spaces, remove multiple spaces
+                const formatted = text.replace(/[\r\n,]+/g, ' ').replace(/\s+/g, ' ').trim();
+                
+                // Insert at cursor position
+                const start = multiCodeInput.selectionStart;
+                const end = multiCodeInput.selectionEnd;
+                const val = multiCodeInput.value;
+                multiCodeInput.value = val.substring(0, start) + formatted + val.substring(end);
+                
+                // Move cursor
+                multiCodeInput.selectionStart = multiCodeInput.selectionEnd = start + formatted.length;
+            });
+            
+            // Keydown (Enter): Insert space instead of newline
+            multiCodeInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const start = multiCodeInput.selectionStart;
+                    const end = multiCodeInput.selectionEnd;
+                    const val = multiCodeInput.value;
+                    multiCodeInput.value = val.substring(0, start) + ' ' + val.substring(end);
+                    multiCodeInput.selectionStart = multiCodeInput.selectionEnd = start + 1;
+                }
+            });
+        }
+
+        // Initial Load
+        window.updateDBStats();
+        window.showPage('dashboard');
+    });
+
+    // --- Export Master Check Report ---
+    window.exportMasterCheck = async function() {
+        try {
+            if ((await db.masters.count()) === 0) { alert("現場マスターデータがありません。"); return; }
+            
+            // Safe getter
+            const getChecked = (id) => { const el = document.getElementById(id); return el ? el.checked : false; };
+            const getVal = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+
+            const checks = {
+                name: getChecked('chk-name'),
+                customer: getChecked('chk-customer'),
+                owner: getChecked('chk-owner'),
+                manager: getChecked('chk-manager'),
+                branch: getChecked('chk-branch'),
+                start: getChecked('chk-start'),
+                end: getChecked('chk-end'),
+                delivery: getChecked('chk-delivery'),
+                subname: getChecked('chk-subname')
+            };
+
+            if (!Object.values(checks).includes(true)) { alert("少なくとも1つのチェック項目を選択してください。"); return; }
+
+            const pStart = getVal('chk-period-start');
+            const pEnd = getVal('chk-period-end');
+            const hasPeriodFilter = pStart !== '' || pEnd !== '';
+            const nStart = pStart ? parseInt(pStart) : 0;
+            const nEnd = pEnd ? parseInt(pEnd) : 99999999;
+
+            const costKeys = new Set(await db.costs.toCollection().keys());
+            
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('マスター不備チェック');
+
+            const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFED7D31' } }, alignment: { horizontal: 'center' } };
+
+            ws.columns = [
+                { header: '親コード', key: 'code', width: 12 },
+                { header: 'サブコード', key: 'subCode', width: 12 },
+                { header: '現場名', key: 'name', width: 35 },
+                { header: '現場サブ名称', key: 'subName', width: 25 },
+                { header: '判定', key: 'result', width: 10 },
+                { header: '未入力項目', key: 'missing', width: 40 },
+                { header: '得意先', key: 'customer', width: 15 },
+                { header: '施工主', key: 'owner', width: 15 },
+                { header: '担当者', key: 'manager', width: 12 },
+                { header: '拠点', key: 'branch', width: 10 },
+                { header: '着手日', key: 'start', width: 12 },
+                { header: '完了日', key: 'end', width: 12 },
+                { header: '納期', key: 'delivery', width: 12 }
+            ];
+            
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+
+            const masters = await db.masters.toArray();
+            let errorCount = 0;
+            let checkedCount = 0;
+
+            const checkItem = (val) => {
+                if (val === null || val === undefined) return false;
+                const s = String(val).trim();
+                return s !== '' && s !== '0';
+            };
+
+            const processRecord = (rec) => {
+                let targetCode = rec.subCode ? rec.subCode : rec.code;
+                if (!costKeys.has(targetCode)) {
+                    if (!costKeys.has(rec.code)) return; 
+                }
+
+                if (hasPeriodFilter) {
+                    const rawEnd = String(rec.endDate || '').trim();
+                    const nEndVal = parseInt(rawEnd);
+                    if (!rawEnd || isNaN(nEndVal) || nEndVal === 0) return; 
+                    if (nEndVal < nStart || nEndVal > nEnd) return;
+                }
+
+                checkedCount++;
+                const missing = [];
+                
+                let isNameNG = false;
+                if (checks.name) {
+                    if (rec.subCode && (!rec.name || rec.name.trim() === '')) {
+                        if (!checkItem(rec.name)) isNameNG = true;
+                    } else {
+                        if (!checkItem(rec.name)) isNameNG = true;
+                    }
+                }
+                if (isNameNG) missing.push('現場名');
+
+                if (checks.subname && !checkItem(rec.subName)) missing.push('現場サブ名称');
+                if (checks.customer && !checkItem(rec.customer)) missing.push('得意先名');
+                if (checks.owner && !checkItem(rec.owner)) missing.push('施工主');
+                if (checks.manager && !checkItem(rec.manager)) missing.push('担当者');
+                if (checks.branch && !checkItem(rec.branch)) missing.push('拠点');
+                if (checks.start && !checkItem(rec.startDate)) missing.push('着手日');
+                if (checks.end && !checkItem(rec.endDate)) missing.push('完了日');
+                if (checks.delivery && !checkItem(rec.delivery)) missing.push('納期');
+
+                const isNG = missing.length > 0;
+                if(isNG) errorCount++;
+
+                const rowData = {
+                    code: rec.code || '',
+                    subCode: rec.subCode || '',
+                    name: rec.name || '',
+                    subName: rec.subName || '',
+                    result: isNG ? '不備あり' : 'OK',
+                    missing: missing.join(', '),
+                    customer: rec.customer,
+                    owner: rec.owner,
+                    manager: rec.manager,
+                    branch: rec.branch,
+                    start: rec.startDate,
+                    end: rec.endDate,
+                    delivery: rec.delivery
+                };
+
+                const newRow = ws.addRow(rowData);
+                if(isNG) {
+                    newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
+                    newRow.getCell('result').font = { color: { argb: 'FFFF0000' }, bold: true };
+                }
+            };
+
+            masters.forEach(m => {
+                processRecord({ ...m, subCode: '' });
+                if (m.subCodes && m.subCodes.length > 0) {
+                    m.subCodes.forEach(s => {
+                        const subRec = { ...s, code: m.code, subCode: s.subCode };
+                        processRecord(subRec);
+                    });
+                }
+            });
+
+            if (checkedCount === 0) {
+                alert("条件に一致するデータが見つかりませんでした。");
+                return;
+            }
+
+            const buffer = await wb.xlsx.writeBuffer();
+            saveAs(new Blob([buffer]), `マスター不備チェック_${new Date().toISOString().slice(0,10)}.xlsx`);
+            alert(`出力完了: ${checkedCount}件中、${errorCount}件の不備が見つかりました。`);
+        } catch (e) {
+            console.error(e);
+            alert("エクスポート中にエラーが発生しました: " + e.message);
+        }
+    }
+
+    // --- Export Cost Data Integrity Check ---
+    window.exportCostCheck = async function() {
+        try {
+            if ((await db.costs.count()) === 0) { alert("原価データがありません。"); return; }
+            
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('原価整合性チェック');
+
+            const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } }, alignment: { horizontal: 'center' } };
+
+            ws.columns = [
+                { header: '工番', key: 'code', width: 12 },
+                { header: '現場名', key: 'name', width: 35 },
+                { header: '完了日', key: 'end', width: 12 },
+                { header: '売上累計(税抜)', key: 'sales', width: 15 },
+                { header: '原価累計', key: 'cost', width: 15 },
+                { header: '判定コメント', key: 'comment', width: 25 },
+            ];
+            
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+
+            const costs = await db.costs.toArray();
+            const masters = await db.masters.toArray();
+            const masterMap = new Map();
+            masters.forEach(m => masterMap.set(m.code, m));
+
+            let alertCount = 0;
+
+            costs.forEach(c => {
+                const m = masterMap.get(c.code) || {};
+                const rawEndDate = m.endDate;
+                
+                let isCompleted = false;
+                if (rawEndDate) {
+                    const sDate = String(rawEndDate).trim();
+                    if (sDate.length === 8 && sDate !== '0') {
+                        isCompleted = true;
+                    }
+                }
+                
+                const sales = c.salesTotal || 0;
+                const cost = c.costTotal || 0;
+                
+                if (sales === 0 || cost === 0) {
+                    alertCount++;
+                    let comment = '';
+                    let isCritical = false;
+
+                    if (isCompleted) {
+                        comment = '【要注意】完了済だが0円';
+                        isCritical = true;
+                    } else {
+                        comment = '進行中・未計上';
+                    }
+                    
+                    if (sales === 0 && cost === 0) comment += ' (売上・原価共に0)';
+                    else if (sales === 0) comment += ' (売上0)';
+                    else if (cost === 0) comment += ' (原価0)';
+
+                    const newRow = ws.addRow({
+                        code: c.code,
+                        name: c.name,
+                        end: rawEndDate || '-',
+                        sales: sales,
+                        cost: cost,
+                        comment: comment
+                    });
+
+                    if (isCritical) {
+                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; }); 
+                        newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
+                    } else {
+                         newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFE0' } }; }); 
+                    }
+                }
+            });
+
+            const buffer = await wb.xlsx.writeBuffer();
+            saveAs(new Blob([buffer]), `原価整合性チェック_${new Date().toISOString().slice(0,10)}.xlsx`);
+            alert(`出力完了: ${alertCount}件の該当データが見つかりました。`);
+        } catch (e) {
+            console.error(e);
+            alert("エクスポート中にエラーが発生しました: " + e.message);
+        }
+    }
+
+    // --- Multi-Site Comparison Logic ---
     window.switchViewMode = function(mode) {
         currentViewMode = mode;
         const btnCard = document.getElementById('btn-view-card');
         const btnTable = document.getElementById('btn-view-table');
         const panel = document.getElementById('multi-compare-panel');
-        
         if (mode === 'card') {
-            btnCard.className = 'px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all';
-            btnTable.className = 'px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all';
-            if(panel) {
-                panel.classList.remove('max-w-[95%]');
-                panel.classList.add('max-w-4xl');
-            }
+            if(btnCard) btnCard.className = 'px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all';
+            if(btnTable) btnTable.className = 'px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all';
+            if(panel) { panel.classList.remove('max-w-[95%]'); panel.classList.add('max-w-4xl'); }
         } else {
-            btnTable.className = 'px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all';
-            btnCard.className = 'px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all';
-            if(panel) {
-                panel.classList.remove('max-w-4xl');
-                panel.classList.add('max-w-[95%]');
-            }
+            if(btnTable) btnTable.className = 'px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all';
+            if(btnCard) btnCard.className = 'px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all';
+            if(panel) { panel.classList.remove('max-w-4xl'); panel.classList.add('max-w-[95%]'); }
         }
-        
-        // Re-render if data exists
-        if (multiCompareData.length > 0) {
-            window.renderMultiCompare();
-        }
+        if (multiCompareData.length > 0) { window.renderMultiCompare(); }
     }
 
     window.compareSites = async function() {
         const input = document.getElementById('multi-code-input').value;
         if (!input.trim()) { alert("工番を入力してください。"); return; }
-        
         const codes = input.split(/[\s,]+/).filter(c => c.trim() !== '');
         if (codes.length === 0) return;
 
@@ -1034,13 +1549,11 @@
 
             const masters = await Promise.all(codes.map(c => db.masters.get(c)));
             const costs = await Promise.all(codes.map(c => db.costs.get(c)));
-
             multiCompareData = [];
             
             codes.forEach((code, index) => {
                 const m = masters[index] || {};
                 const c = costs[index] || {};
-                
                 const name = m.name || c.name || '-';
                 const manager = m.manager || '-';
                 const owner = m.owner || '-';
@@ -1052,36 +1565,19 @@
                 const profit = c.profitTotal || 0;
                 const margin = sales ? (profit / sales * 100) : 0;
                 const exists = (m.code || c.code);
-
-                multiCompareData.push({
-                   code, name, manager, owner, branch, endDate, subCodes, sales, cost, profit, margin, exists
-                });
+                multiCompareData.push({ code, name, manager, owner, branch, endDate, subCodes, sales, cost, profit, margin, exists });
             });
-
             window.renderMultiCompare();
-
-        } catch (e) {
-            console.error(e);
-            alert("エラー: " + e.message);
-        }
+        } catch (e) { console.error(e); alert("エラー: " + e.message); }
     }
 
     window.renderMultiCompare = function() {
         const contentArea = document.getElementById('multi-content-area');
-        
-        if (multiCompareData.length === 0) {
-            contentArea.innerHTML = '<div class="text-center py-6 text-slate-400">データなし</div>';
-            return;
-        }
-
-        if (currentViewMode === 'card') {
-            window.renderMultiCompareCards(contentArea);
-        } else {
-            window.renderMultiCompareTable(contentArea);
-        }
+        if (multiCompareData.length === 0) { contentArea.innerHTML = '<div class="text-center py-6 text-slate-400">データなし</div>'; return; }
+        if (currentViewMode === 'card') { window.renderMultiCompareCards(contentArea); } else { window.renderMultiCompareTable(contentArea); }
     }
 
-    // Card Render (Enhanced)
+    // Card Render
     window.renderMultiCompareCards = function(container) {
         let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">';
         multiCompareData.forEach(d => {
@@ -1098,10 +1594,9 @@
                 let subHtml = '';
                 if(d.subCodes && d.subCodes.length > 0) {
                     subHtml = `<div class="mt-3 pt-2 border-t border-slate-100"><span class="text-xs text-slate-400 block mb-1">関連サブコード</span><div class="flex flex-wrap gap-1">` + 
-                        d.subCodes.map(s => `<span class="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded border border-blue-100 font-bold" title="${s.name}">${s.code}</span>`).join('') +
+                        d.subCodes.map(s => `<span class="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded border border-blue-100 font-bold" title="${s.name}">${s.subCode || ''}</span>`).join('') +
                         `</div></div>`;
                 }
-
                 html += `
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
                         <div class="mb-3">
@@ -1118,20 +1613,19 @@
                                 <span class="bg-green-50 text-green-800 px-2 py-1 rounded border border-green-100"><i class="fa-regular fa-calendar-check mr-1 text-green-500"></i>${d.endDate}</span>
                             </div>
                         </div>
-
                         <div class="grid grid-cols-2 gap-x-4 gap-y-4 pt-4 border-t border-slate-100">
                             <div>
                                 <span class="text-xs text-slate-400 block font-bold">売上(税抜)</span>
-                                <div class="font-mono font-bold text-slate-700 text-lg">${formatCurrency(d.sales)}</div>
+                                <div class="font-mono font-bold text-slate-700 text-lg">${window.formatCurrency(d.sales)}</div>
                             </div>
                             <div class="text-right">
                                 <span class="text-xs text-slate-400 block font-bold">原価</span>
-                                <div class="font-mono font-bold text-slate-500 text-lg">${formatCurrency(d.cost)}</div>
+                                <div class="font-mono font-bold text-slate-500 text-lg">${window.formatCurrency(d.cost)}</div>
                             </div>
                             <div class="col-span-2 flex justify-between items-center bg-slate-50 rounded px-3 py-2 mt-1">
                                 <div>
                                     <span class="text-xs text-slate-400 block font-bold">粗利益</span>
-                                    <div class="font-mono font-bold ${d.profit<0?'text-red-600':'text-indigo-600'} text-xl">${formatCurrency(d.profit)}</div>
+                                    <div class="font-mono font-bold ${d.profit<0?'text-red-600':'text-indigo-600'} text-xl">${window.formatCurrency(d.profit)}</div>
                                 </div>
                                 <div class="text-right">
                                     <span class="text-xs text-slate-400 block font-bold">利益率</span>
@@ -1170,7 +1664,6 @@
                         </thead>
                         <tbody class="bg-white divide-y divide-slate-100">
         `;
-
         multiCompareData.forEach(d => {
             if (!d.exists) {
                 html += `<tr class="bg-red-50"><td class="px-3 py-2 border text-red-900 font-black font-mono">${d.code}</td><td colspan="9" class="px-3 py-2 border text-red-400 text-xs">データなし</td></tr>`;
@@ -1183,37 +1676,17 @@
                         <td class="px-3 py-2 border text-xs truncate max-w-[120px]" title="${d.owner}">${d.owner}</td>
                         <td class="px-3 py-2 border text-center text-xs">${d.branch}</td>
                         <td class="px-3 py-2 border text-center text-xs font-mono">${d.endDate}</td>
-                        <td class="px-3 py-2 border text-right font-mono text-slate-700">${formatCurrency(d.sales)}</td>
-                        <td class="px-3 py-2 border text-right font-mono text-slate-500">${formatCurrency(d.cost)}</td>
-                        <td class="px-3 py-2 border text-right font-mono font-bold ${d.profit < 0 ? 'text-red-600' : 'text-slate-700'}">${formatCurrency(d.profit)}</td>
+                        <td class="px-3 py-2 border text-right font-mono text-slate-700">${window.formatCurrency(d.sales)}</td>
+                        <td class="px-3 py-2 border text-right font-mono text-slate-500">${window.formatCurrency(d.cost)}</td>
+                        <td class="px-3 py-2 border text-right font-mono font-bold ${d.profit < 0 ? 'text-red-600' : 'text-slate-700'}">${window.formatCurrency(d.profit)}</td>
                         <td class="px-3 py-2 border text-right font-mono font-bold ${d.margin < 10 ? 'text-red-600' : 'text-blue-600'}">${d.margin.toFixed(1)}%</td>
                     </tr>
                 `;
             }
         });
-
         html += `</tbody></table></div></div>`;
         container.innerHTML = html;
     }
-
-    function normalizeStr(s) { return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); }).toLowerCase().replace(/\s+/g, ''); }
-    
-    // --- Global ShowPage ---
-    window.showPage = function(p) {
-        document.querySelectorAll('.page-content').forEach(el=>el.classList.add('hidden'));
-        document.getElementById(`page-${p}`).classList.remove('hidden');
-        document.querySelectorAll('.sidebar-link').forEach(el=>el.classList.remove('active'));
-        document.getElementById(`nav-${p}`).classList.add('active');
-        const titles = { 'dashboard': '現場照会・分析', 'cost-search': '原価検索', 'ranking': '集計・ランキング', 'import': 'データ取込・管理' };
-        document.getElementById('page-title').textContent = titles[p] || 'G-Ledger';
-        if(p==='import') updateDBStats();
-        if(p==='ranking') window.switchRankingTab('owner');
-        if(p==='cost-search') window.initCostSearch();
-        if(p==='dashboard') initSiteSearch();
-    }
-
-    function formatCurrency(n) { return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(n); }
-    updateDBStats();
 </script>
 </body>
 </html>
