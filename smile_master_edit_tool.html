@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMILE マスター編集ツール v25</title>
+    <title>SMILE マスター編集ツール v27</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- SheetJS (Excel処理用) -->
@@ -81,7 +81,7 @@
                 <div>
                     <h1 class="text-2xl font-bold flex items-center gap-3">
                         <i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>
-                        SMILE マスター編集ツール v25
+                        SMILE マスター編集ツール v27
                     </h1>
                     <p class="text-slate-300 text-sm mt-1 ml-11">
                         SMILE V Air 連携用データの結合・編集・変換をサポートする統合ツール
@@ -255,8 +255,9 @@
                                     </h4>
                                     
                                     <div class="bg-white/60 p-4 rounded border border-yellow-100 mb-4">
-                                        <p class="text-xs font-bold text-yellow-800 mb-2">出力項目選択:</p>
+                                        <p class="text-xs font-bold text-yellow-800 mb-2">出力項目選択 (チェックOFFは空欄出力):</p>
                                         <div class="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-700">
+                                            <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkGenName" checked class="w-4 h-4 text-indigo-600 rounded"> <span>現場名称</span></label>
                                             <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkAmount" checked class="w-4 h-4 text-indigo-600 rounded"> <span>開始時売上済受注額</span></label>
                                             <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkCustomer" checked class="w-4 h-4 text-indigo-600 rounded"> <span>得意先コード</span></label>
                                             <label class="flex items-center space-x-2 cursor-pointer"><input type="checkbox" id="chkStartDate" checked class="w-4 h-4 text-indigo-600 rounded"> <span>着手日</span></label>
@@ -486,7 +487,7 @@
                 if (linesMaster.length > 0 && !linesMaster[0].includes("\t") && linesMaster[0].includes(",")) separator = ",";
 
                 let idRowIdx = -1;
-                const mapping = { code:-1, subCode:-1, customerCode:-1, customerName:-1, startDate:-1, deliveryDate:-1, endDate:-1, branchCode:-1, branchName:-1 };
+                const mapping = { code:-1, subCode:-1, genName:-1, customerCode:-1, customerName:-1, startDate:-1, deliveryDate:-1, endDate:-1, branchCode:-1, branchName:-1 };
 
                 for (let i = 0; i < Math.min(20, linesMaster.length); i++) {
                     const line = linesMaster[i];
@@ -496,6 +497,7 @@
                         cols.forEach((val, idx) => {
                             if (val === "<00001>") mapping.code = idx;
                             if (val === "<00002>") mapping.subCode = idx;
+                            if (val === "<00003>") mapping.genName = idx; // 現場名称
                             if (val === "<00019>") { mapping.customerCode = idx; if(idx+1 < cols.length) mapping.customerName = idx+1; }
                             if (val === "<00020>") mapping.startDate = idx;
                             if (val === "<00021>") mapping.deliveryDate = idx;
@@ -534,6 +536,7 @@
                             if (!dictMaster.has(key)) {
                                 dictMaster.set(key, {
                                     branch: mBranch,
+                                    genName: (mapping.genName!==-1) ? cols[mapping.genName] : "",
                                     custCode: (mapping.customerCode!==-1) ? cols[mapping.customerCode] : "",
                                     custName: (mapping.customerName!==-1) ? cols[mapping.customerName] : "",
                                     start: (mapping.startDate!==-1) ? cols[mapping.startDate] : "",
@@ -581,7 +584,7 @@
                     if (dictMaster.has(key)) {
                         const mData = dictMaster.get(key);
                         globalResultList.push({
-                            code: leftPart, subCode: rightPart, amount: amount,
+                            code: leftPart, subCode: rightPart, genName: mData.genName, amount: amount,
                             custCode: mData.custCode, custName: mData.custName,
                             start: mData.start, deliv: mData.deliv, end: mData.end, branch: mData.branch
                         });
@@ -607,6 +610,7 @@
             thead.innerHTML = `
                 <th class="px-4 py-3 text-left font-bold text-gray-600 bg-gray-50 w-24 border-b">現場CD</th>
                 <th class="px-4 py-3 text-left font-bold text-gray-600 bg-gray-50 w-20 border-b">サブCD</th>
+                <th class="px-4 py-3 text-left font-bold text-gray-600 bg-gray-50 w-48 border-b">現場名称<br><span class="text-xs font-normal text-gray-500">&lt;00003&gt;</span></th>
                 <th class="px-4 py-3 text-left font-bold text-blue-600 bg-blue-50 w-36 border-b">開始時売上済受注額<br><span class="text-xs font-normal text-gray-500">&lt;00016&gt;</span></th>
                 <th class="px-4 py-3 text-left font-bold text-orange-600 bg-orange-50 w-32 border-b">得意先コード<br><span class="text-xs font-normal text-gray-500">&lt;00019&gt;</span></th>
                 <th class="px-4 py-3 text-left font-medium text-gray-600 w-48 border-b">得意先名<br><span class="text-xs font-normal text-gray-400">(参照)</span></th>
@@ -621,6 +625,7 @@
                 const tr = document.createElement("tr");
                 tr.appendChild(createCell(row.code, true));
                 tr.appendChild(createCell(row.subCode, true));
+                tr.appendChild(createCell(row.genName, false)); // 現場名称(編集可)
                 tr.appendChild(createCell(row.amount, false, "text-blue-700 font-bold bg-blue-50/50"));
                 tr.appendChild(createCell(row.custCode, false, "text-orange-700 font-medium bg-orange-50/50"));
                 tr.appendChild(createCell(row.custName, true, "text-gray-500 text-xs"));
@@ -649,6 +654,7 @@
             const rows = document.querySelectorAll("#tbodyDst tr");
             if(rows.length===0) { showModal('error','データなし','データがありません'); return; }
 
+            const useGenName = document.getElementById("chkGenName").checked;
             const useAmount = document.getElementById("chkAmount").checked;
             const useCust = document.getElementById("chkCustomer").checked;
             const useStart = document.getElementById("chkStartDate").checked;
@@ -658,18 +664,19 @@
 
             const outputRows = [];
             const findIdx = (id) => LAYOUT_IDS_COMBINE.indexOf(id);
-            // 0:Code, 1:Sub, 2:Amt, 3:Cust, 4:CustName(Skip), 5:Start, 6:Deliv, 7:End
+            // 0:Code, 1:Sub, 2:Name, 3:Amt, 4:Cust, 5:CustName(Skip), 6:Start, 7:Deliv, 8:End
             
             rows.forEach(tr => {
                 const inputs = tr.querySelectorAll("input");
                 const rowData = new Array(LAYOUT_HEADERS_COMBINE.length).fill("");
                 rowData[findIdx("<00001>")] = inputs[0].value;
                 rowData[findIdx("<00002>")] = inputs[1].value;
-                if(useAmount) rowData[findIdx("<00016>")] = inputs[2].value;
-                if(useCust) rowData[findIdx("<00019>")] = inputs[3].value;
-                if(useStart) rowData[findIdx("<00020>")] = formatDate(inputs[5].value);
-                if(useDeliv) rowData[findIdx("<00021>")] = formatDate(inputs[6].value);
-                if(useEnd) rowData[findIdx("<00022>")] = formatDate(inputs[7].value);
+                if(useGenName) rowData[findIdx("<00003>")] = inputs[2].value;
+                if(useAmount) rowData[findIdx("<00016>")] = inputs[3].value;
+                if(useCust) rowData[findIdx("<00019>")] = inputs[4].value;
+                if(useStart) rowData[findIdx("<00020>")] = formatDate(inputs[6].value);
+                if(useDeliv) rowData[findIdx("<00021>")] = formatDate(inputs[7].value);
+                if(useEnd) rowData[findIdx("<00022>")] = formatDate(inputs[8].value);
                 outputRows.push(rowData);
             });
 
@@ -680,6 +687,7 @@
             if (optimize && outputRows.length > 0) {
                 // 保護するIDのリストを作成（チェックボックスでONにしたもの）
                 const protectedIds = ["<00001>", "<00002>"]; // キーは常に保護
+                if (useGenName) protectedIds.push("<00003>");
                 if (useAmount) protectedIds.push("<00016>");
                 if (useCust) protectedIds.push("<00019>");
                 if (useStart) protectedIds.push("<00020>");
@@ -735,7 +743,12 @@
 
                 const headerRow = rows[0]; // 1行目
                 const idRow = rows[1];     // 2行目
-                const dataRows = rows.slice(2); // 3行目以降
+                
+                // --- 修正: 空行(全セルが空)をフィルタリングしてデータ行を取得 ---
+                const dataRows = rows.slice(2).filter(row => {
+                    // 行内のセルが1つでも空文字でなければ「データあり」とみなす
+                    return row.some(cell => cell !== null && cell !== undefined && String(cell).trim() !== "");
+                });
 
                 // ID行整形 (空行や不要行の削除処理)
                 // 1件目のデータを確認してIDを消すロジック (clearIdIfEmpty)
@@ -746,8 +759,8 @@
                         // ここでは、サブコード<00002>と主コード<00001>は最低限残す
                         if(idRow[i] === "<00001>" || idRow[i] === "<00002>") continue;
                         
-                        // データが空ならID消去
-                        if(!firstData[i] || firstData[i] === "") {
+                        // データが空ならID消去 (ただし配列長チェック)
+                        if(i >= firstData.length || !firstData[i] || String(firstData[i]).trim() === "") {
                             idRow[i] = ""; 
                         }
                     }
@@ -787,7 +800,10 @@
             }
 
             // 行構築
-            const buildLine = (row) => targetIndices.map(i => quote(row[i])).join("\t");
+            const buildLine = (row) => targetIndices.map(i => {
+                // row[i] が undefined の場合は空文字にする
+                return quote(row[i] !== undefined ? row[i] : "");
+            }).join("\t");
             
             const lines = [];
             lines.push(buildLine(headers));
@@ -799,7 +815,7 @@
                     if(typeof val === "string" && val.match(/\d+\/\d+\/\d+/)) {
                         val = formatDate(val);
                     }
-                    return val;
+                    return val !== undefined ? val : "";
                 });
                 lines.push(safeRow.map(v => quote(v)).join("\t"));
             });
@@ -818,7 +834,7 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                showModal('success', '出力完了', `ファイル「${filename}」を作成しました。\n有効列数: ${targetIndices.length}`);
+                showModal('success', '出力完了', `ファイル「${filename}」を作成しました。\n有効列数: ${targetIndices.length}\nデータ行数: ${dataRows.length}`);
             } catch(e) {
                 showModal('error', '保存エラー', e.message);
             }
@@ -836,10 +852,10 @@
                     const l = lines[i].trim();
                     if(!l) continue;
                     const c = l.split(","); // 簡易CSVパース
-                    if(c.length<9) continue;
+                    if(c.length<10) continue; // 現場名称追加で10列
                     newData.push({
-                        code:c[0], subCode:c[1], amount:c[2], custCode:c[3], custName:c[4],
-                        start:c[5], deliv:c[6], end:c[7], branch:c[8]
+                        code:c[0], subCode:c[1], genName:c[2], amount:c[3], custCode:c[4], custName:c[5],
+                        start:c[6], deliv:c[7], end:c[8], branch:c[9]
                     });
                 }
                 globalResultList = newData;
@@ -856,10 +872,10 @@
             });
         }
         function downloadCurrentTableAsCSV() {
-            const data = [["現場コード","サブコード","開始時売上済受注額","得意先コード","得意先名","着手日","納期","完了日","参照拠点"]];
+            const data = [["現場コード","サブコード","現場名称","開始時売上済受注額","得意先コード","得意先名","着手日","納期","完了日","参照拠点"]];
             document.querySelectorAll("#tbodyDst tr").forEach(tr => {
                 const ins = tr.querySelectorAll("input");
-                data.push([ins[0].value, ins[1].value, ins[2].value, ins[3].value, ins[4].value, ins[5].value, ins[6].value, ins[7].value, ins[8].value]);
+                data.push([ins[0].value, ins[1].value, ins[2].value, ins[3].value, ins[4].value, ins[5].value, ins[6].value, ins[7].value, ins[8].value, ins[9].value]);
             });
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.aoa_to_sheet(data);
