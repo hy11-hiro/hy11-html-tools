@@ -155,19 +155,31 @@
                 </div>
 
                 <!-- 画像入力エリア (アイコン小・高さ半減) -->
-                <div class="grid grid-cols-2 gap-4 relative">
-                    <input type="file" id="cameraInput" accept="image/*" capture="environment" class="sr-input">
-                    <input type="file" id="fileInput" accept="image/*" class="sr-input">
+                <div id="dropZone" class="border-4 border-dashed border-gray-300 rounded-2xl p-4 transition-colors relative">
+                    <!-- オーバーレイメッセージ -->
+                    <div id="dragOverlay" class="absolute inset-0 bg-blue-50/90 hidden items-center justify-center rounded-xl z-10 pointer-events-none">
+                        <span class="text-2xl font-bold text-blue-600 flex items-center gap-2">
+                            <span class="material-icons text-4xl">add_photo_alternate</span>
+                            ここに画像をドロップ
+                        </span>
+                    </div>
 
-                    <button type="button" id="btnCamera" class="border-4 border-blue-400 rounded-2xl p-3 text-center bg-white hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-blue-100">
-                        <span class="material-icons text-4xl text-blue-600 mb-1">photo_camera</span>
-                        <span class="text-lg font-extrabold text-blue-800">カメラを起動</span>
-                    </button>
+                    <div class="grid grid-cols-2 gap-4 relative">
+                        <input type="file" id="cameraInput" accept="image/*" capture="environment" class="sr-input">
+                        <input type="file" id="fileInput" accept="image/*" class="sr-input" multiple>
 
-                    <button type="button" id="btnFile" class="border-4 border-gray-300 rounded-2xl p-3 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-gray-200">
-                        <span class="material-icons text-4xl text-gray-500 mb-1">photo_library</span>
-                        <span class="text-lg font-extrabold text-gray-700">アルバムから</span>
-                    </button>
+                        <button type="button" id="btnCamera" class="border-4 border-blue-400 rounded-2xl p-3 text-center bg-white hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-blue-100">
+                            <span class="material-icons text-4xl text-blue-600 mb-1">photo_camera</span>
+                            <span class="text-lg font-extrabold text-blue-800">カメラを起動</span>
+                        </button>
+
+                        <button type="button" id="btnFile" class="border-4 border-gray-300 rounded-2xl p-3 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-gray-200">
+                            <span class="material-icons text-4xl text-gray-500 mb-1">photo_library</span>
+                            <span class="text-lg font-extrabold text-gray-700">アルバムから</span>
+                        </button>
+                    </div>
+                    <!-- 文言変更 -->
+                    <p class="text-center text-xs text-gray-400 mt-2 font-bold hidden md:block">PCからはここに画像をドロップして追加できます（複数選択可能）</p>
                 </div>
 
                 <!-- キャンバス -->
@@ -177,6 +189,19 @@
                         <span class="text-xl font-bold text-gray-600">処理中...</span>
                     </div>
                     <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height: 80vh;"></canvas>
+                </div>
+
+                <!-- 画像切り替えナビゲーション (複数画像用) -->
+                <div id="imageNav" class="hidden flex items-center justify-between bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+                    <button onclick="prevImage()" class="p-3 bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-700 font-bold flex items-center gap-1 active:scale-95 touch-manipulation">
+                        <span class="material-icons">arrow_back</span> 前へ
+                    </button>
+                    <div class="text-center font-bold text-lg text-gray-800">
+                        <span id="currentImageNum">1</span> / <span id="totalImageNum">1</span>
+                    </div>
+                    <button onclick="nextImage()" class="p-3 bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-700 font-bold flex items-center gap-1 active:scale-95 touch-manipulation">
+                        次へ <span class="material-icons">arrow_forward</span>
+                    </button>
                 </div>
                 
                 <!-- 保存・共有ボタン（分離版・アイコン小・高さ半減） -->
@@ -368,11 +393,16 @@
                                             <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="8t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">8t</span></label>
                                             <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600">なし</span></label>
                                         </div>
+
                                         <div class="flex items-center gap-2">
                                             <div class="flex items-center border-2 border-gray-300 rounded-lg bg-white overflow-hidden flex-1 shadow-sm">
-                                                <button type="button" onclick="changeCounter(-1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-r border-gray-200 touch-manipulation flex-none w-16"><span class="material-icons text-xl font-bold">remove</span></button>
+                                                <button type="button" onclick="changeCounter(-1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-r border-gray-200 touch-manipulation flex-none w-16">
+                                                    <span class="material-icons text-xl font-bold">remove</span>
+                                                </button>
                                                 <span id="counterValue" class="flex-1 px-2 py-2 font-extrabold text-2xl text-center text-gray-800">1</span>
-                                                <button type="button" onclick="changeCounter(1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-l border-gray-200 touch-manipulation flex-none w-16"><span class="material-icons text-xl font-bold">add</span></button>
+                                                <button type="button" onclick="changeCounter(1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-l border-gray-200 touch-manipulation flex-none w-16">
+                                                    <span class="material-icons text-xl font-bold">add</span>
+                                                </button>
                                             </div>
                                             <span class="text-lg text-gray-700 font-bold whitespace-nowrap mr-2">台目</span>
                                         </div>
@@ -432,13 +462,36 @@
                         </div>
 
                         <div>
+                            <label class="block text-lg font-bold text-gray-800 mb-2">日付・時間の表示</label>
+                            
+                            <!-- 日付表示モード選択 (3択) -->
+                            <div class="grid grid-cols-3 gap-2 mb-3">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="dateMode" value="standard" class="hidden peer" checked>
+                                    <div class="p-2 border-2 border-gray-300 rounded-lg text-center bg-white hover:bg-gray-50 peer-checked:border-blue-600 peer-checked:bg-blue-50">
+                                        <div class="font-bold text-sm text-gray-700 peer-checked:text-blue-700">標準</div>
+                                        <div class="text-xs text-gray-500">枠の隅</div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="dateMode" value="inline" class="hidden peer">
+                                    <div class="p-2 border-2 border-gray-300 rounded-lg text-center bg-white hover:bg-gray-50 peer-checked:border-blue-600 peer-checked:bg-blue-50">
+                                        <div class="font-bold text-sm text-gray-700 peer-checked:text-blue-700">備考下</div>
+                                        <div class="text-xs text-gray-500">月日時分</div>
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="dateMode" value="none" class="hidden peer">
+                                    <div class="p-2 border-2 border-gray-300 rounded-lg text-center bg-white hover:bg-gray-50 peer-checked:border-gray-500 peer-checked:bg-gray-100">
+                                        <div class="font-bold text-sm text-gray-700 peer-checked:text-gray-900">なし</div>
+                                        <div class="text-xs text-gray-500">表示しない</div>
+                                    </div>
+                                </label>
+                            </div>
+
                             <div class="flex justify-between items-center mb-2">
-                                <label class="block text-lg font-bold text-gray-800">日付・時間</label>
-                                <div class="flex items-center gap-3">
-                                    <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none"><input type="checkbox" id="toggleDate" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>日付を表示</label>
-                                    <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none"><input type="checkbox" id="toggleTime" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>時間も</label>
-                                    <button type="button" onclick="setToday()" class="bg-gray-200 px-3 py-2 rounded-lg text-sm hover:bg-gray-300 font-bold text-gray-700 flex items-center gap-1 touch-manipulation shadow-sm"><span class="material-icons text-base">update</span>現在</button>
-                                </div>
+                                <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none"><input type="checkbox" id="toggleTime" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>時間も表示</label>
+                                <button type="button" onclick="setToday()" class="bg-gray-200 px-3 py-2 rounded-lg text-sm hover:bg-gray-300 font-bold text-gray-700 flex items-center gap-1 touch-manipulation shadow-sm"><span class="material-icons text-base">update</span>現在</button>
                             </div>
                             <div class="flex gap-4">
                                 <input type="date" id="inputDate" class="flex-1 p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none font-bold text-gray-700">
@@ -454,40 +507,75 @@
                         <span class="material-icons text-gray-500">tune</span> サイズ・位置調整
                     </div>
                     <div class="p-5 border-t border-gray-200 space-y-6">
+                        
+                        <!-- 個別サイズ調整 -->
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>工事件名 サイズ</span><span id="valScaleProject" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
+                                <span>工事件名 サイズ</span>
+                                <span id="valScaleProject" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
+                            </div>
                             <input type="range" id="scaleProject" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
+
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span id="adjustLabelWorkType">工事場所 サイズ</span><span id="valScaleWorkType" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
+                                <span id="adjustLabelWorkType">工事場所 サイズ</span>
+                                <span id="valScaleWorkType" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
+                            </div>
                             <input type="range" id="scaleWorkType" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
+
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>備考・内容 サイズ</span><span id="valScaleMemo" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
+                                <span>備考・内容 サイズ</span>
+                                <span id="valScaleMemo" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
+                            </div>
                             <input type="range" id="scaleMemo" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
+
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>日付・時間 サイズ</span><span id="valScaleDate" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
+                                <span>日付・時間 サイズ</span>
+                                <span id="valScaleDate" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
+                            </div>
                             <input type="range" id="scaleDate" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
+
                         <hr class="border-gray-300 my-2">
+
                         <div>
-                            <label class="text-base font-bold text-gray-700 mb-2 block">日付・時間の位置</label>
+                            <label class="text-base font-bold text-gray-700 mb-2 block">日付・時間の位置 (標準モード時)</label>
                             <div class="grid grid-cols-2 gap-4 text-base">
-                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50"><input type="radio" name="datePos" value="left" class="text-blue-600 focus:ring-blue-500 w-5 h-5"><span class="font-bold">左下</span></label>
-                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50"><input type="radio" name="datePos" value="right" class="text-blue-600 focus:ring-blue-500 w-5 h-5" checked><span class="font-bold">右下</span></label>
+                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50">
+                                    <input type="radio" name="datePos" value="left" class="text-blue-600 focus:ring-blue-500 w-5 h-5">
+                                    <span class="font-bold">左下</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50">
+                                    <input type="radio" name="datePos" value="right" class="text-blue-600 focus:ring-blue-500 w-5 h-5" checked>
+                                    <span class="font-bold">右下</span>
+                                </label>
                             </div>
                         </div>
+
                         <hr class="border-gray-300 my-2">
+
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>行間（すきま）</span><span id="dispLineHeight" class="bg-gray-100 px-2 rounded text-gray-500">1.2</span></div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
+                                <span>行間（すきま）</span>
+                                <span id="dispLineHeight" class="bg-gray-100 px-2 rounded text-gray-500">1.2</span>
+                            </div>
                             <input type="range" id="lineHeight" min="0.8" max="2.0" step="0.1" value="1.2">
                         </div>
+
                         <div>
                             <label class="text-base font-bold text-gray-700 block mb-2">黒板の微調整 (上下)</label>
                             <div class="grid grid-cols-2 gap-4">
-                                <button type="button" onclick="adjustOffset(-5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2"><span class="material-icons">arrow_upward</span> 上へ</button>
-                                <button type="button" onclick="adjustOffset(5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2"><span class="material-icons">arrow_downward</span> 下へ</button>
+                                <button type="button" onclick="adjustOffset(-5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2">
+                                    <span class="material-icons">arrow_upward</span> 上へ
+                                </button>
+                                <button type="button" onclick="adjustOffset(5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2">
+                                    <span class="material-icons">arrow_downward</span> 下へ
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -496,11 +584,14 @@
                 <div class="text-center mt-4">
                     <button type="button" onclick="resetAll()" class="text-base text-red-600 font-bold underline hover:text-red-800 touch-manipulation p-2">設定を全てリセット</button>
                 </div>
+
             </div>
         </div>
     </div>
 
+    <!-- Core Logic -->
     <script>
+        // 関数定義を最上位で行う (Hosting & Scope対策)
         function drawMultilineText(ctx, text, x, y, lineHeight) {
             if(!text) return;
             const lines = text.split('\n'); 
@@ -512,11 +603,13 @@
         (function() {
             const initialState = {
                 image: null,
+                images: [], 
+                currentImageIndex: 0,
                 boardPos: 'right', 
                 boardSize: 'medium', 
                 boardColor: 'green',
                 showBoard: true,
-                showDate: true,
+                dateDisplayMode: 'standard', 
                 showTime: true,
                 datePos: 'right',
                 showConstructor: false,
@@ -551,6 +644,25 @@
                 canvas = document.getElementById('mainCanvas');
                 ctx = canvas.getContext('2d');
                 loading = document.getElementById('loading');
+                
+                // ドロップゾーンのイベント設定
+                const dropZone = document.getElementById('dropZone');
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('drag-over');
+                    document.getElementById('dragOverlay').classList.replace('hidden', 'flex');
+                });
+                dropZone.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('drag-over');
+                    document.getElementById('dragOverlay').classList.replace('flex', 'hidden');
+                });
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('drag-over');
+                    document.getElementById('dragOverlay').classList.replace('flex', 'hidden');
+                    handleFiles(e.dataTransfer.files);
+                });
 
                 setToday();
                 loadPlaceholder();
@@ -558,8 +670,9 @@
             });
 
             function setupEventListeners() {
-                document.getElementById('cameraInput').addEventListener('change', handleImageUpload);
-                document.getElementById('fileInput').addEventListener('change', handleImageUpload);
+                // ファイル入力を handleFiles に統合
+                document.getElementById('cameraInput').addEventListener('change', (e) => handleFiles(e.target.files));
+                document.getElementById('fileInput').addEventListener('change', (e) => handleFiles(e.target.files));
                 
                 const btnClear = document.getElementById('btnClearMemo');
                 if(btnClear) btnClear.addEventListener('click', clearMemo);
@@ -816,14 +929,102 @@
                 window.requestSave();
             }
 
+            // 画像切り替え関数
+            window.prevImage = function() {
+                if (window.state.images.length === 0) return;
+                window.state.currentImageIndex = (window.state.currentImageIndex - 1 + window.state.images.length) % window.state.images.length;
+                setImage(window.state.currentImageIndex);
+            };
+
+            window.nextImage = function() {
+                if (window.state.images.length === 0) return;
+                window.state.currentImageIndex = (window.state.currentImageIndex + 1) % window.state.images.length;
+                setImage(window.state.currentImageIndex);
+            };
+
+            function setImage(index) {
+                if (index < 0 || index >= window.state.images.length) return;
+                const imgData = window.state.images[index];
+                window.state.image = imgData.img;
+                window.state.currentFileName = imgData.name; // ファイル名保持
+                
+                // キャンバスリサイズ
+                const canvas = document.getElementById('mainCanvas');
+                canvas.width = window.state.image.width;
+                canvas.height = window.state.image.height;
+                window.state.style.fontSizeBase = Math.max(16, Math.floor(window.state.image.width * 0.015));
+
+                // UI更新
+                document.getElementById('currentImageNum').innerText = index + 1;
+                document.getElementById('totalImageNum').innerText = window.state.images.length;
+                
+                draw();
+            }
+
+            // 一括処理関数 (ファイルを読み込み、リストに追加)
+            function handleFiles(files) {
+                if (!files || files.length === 0) return;
+                loading.classList.remove('hidden');
+
+                let loadedCount = 0;
+                const newImages = [];
+
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            newImages.push({
+                                img: img,
+                                name: file.name
+                            });
+                            loadedCount++;
+                            
+                            // 全て読み込み完了
+                            if (loadedCount === files.length) {
+                                // 既存リストに追加するか、新規作成するか。
+                                // ここでは追加する仕様にする (空なら新規)
+                                if (!window.state.images) window.state.images = [];
+                                const startIndex = window.state.images.length;
+                                window.state.images = window.state.images.concat(newImages);
+                                
+                                // 画像ナビゲーションを表示
+                                if (window.state.images.length > 1) {
+                                    document.getElementById('imageNav').classList.remove('hidden');
+                                    document.getElementById('imageNav').classList.add('flex');
+                                }
+
+                                // 最初に追加された画像を表示
+                                window.state.currentImageIndex = startIndex;
+                                setImage(window.state.currentImageIndex);
+                                loading.classList.add('hidden');
+                            }
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+
+
             window.downloadImage = function() {
                 if (!window.state.image) {
                     alert("画像が選択されていません。");
                     return;
                 }
                 const canvas = document.getElementById('mainCanvas');
-                const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
-                const fileName = `board_${safeProject}_${window.state.text.date.replace(/\//g, '')}.jpg`;
+                
+                // 元ファイル名を取得 (拡張子を除去)
+                let originalName = window.state.currentFileName || 'photo.jpg';
+                const lastDot = originalName.lastIndexOf('.');
+                if (lastDot !== -1) {
+                    originalName = originalName.substring(0, lastDot);
+                }
+                
+                // ダウンロードファイル名: 元の名前_board.jpg (要望は「同じ名前」だが、識別子がないと不便なので_boardをつけるのが安全だが、
+                // ユーザー要望「取り込んだ時と同じ名前がいい」を尊重しつつ、DL時はブラウザが自動連番をつけるのでそのままにする手もある。
+                // ここでは分かりやすく元の名前に戻す。
+                const fileName = `${originalName}.jpg`;
 
                 canvas.toBlob(async (blob) => {
                     const file = new File([blob], fileName, { type: "image/jpeg" });
@@ -840,8 +1041,11 @@
                     return;
                 }
                 const canvas = document.getElementById('mainCanvas');
-                const safeProject = window.state.text.project.replace(/[\/\s]/g, '_') || 'photo';
-                const fileName = `board_${safeProject}_${window.state.text.date.replace(/\//g, '')}.jpg`;
+                
+                let originalName = window.state.currentFileName || 'photo.jpg';
+                const lastDot = originalName.lastIndexOf('.');
+                if (lastDot !== -1) originalName = originalName.substring(0, lastDot);
+                const fileName = `${originalName}.jpg`;
 
                 canvas.toBlob(async (blob) => {
                     const file = new File([blob], fileName, { type: "image/jpeg" });
@@ -862,37 +1066,12 @@
                 }, 'image/jpeg', 0.95);
             };
 
-            function handleImageUpload(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-                loading.classList.remove('hidden');
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        window.state.image = img;
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        window.state.style.fontSizeBase = Math.max(16, Math.floor(img.width * 0.015));
-                        loading.classList.add('hidden');
-                        draw();
-                    };
-                    img.src = event.target.result;
-                };
-                reader.readAsDataURL(file);
-            }
-
             function loadPlaceholder() {
                 canvas.width = 800;
                 canvas.height = 600;
                 window.state.style.fontSizeBase = 16;
                 ctx.fillStyle = "#e2e8f0";
                 ctx.fillRect(0,0,800,600);
-                ctx.fillStyle = "#94a3b8";
-                ctx.font = "bold 30px sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText("ここに写真をドロップ", 400, 300);
             }
 
             function draw() {
@@ -904,7 +1083,6 @@
                     ctx.fillStyle = "#94a3b8";
                     ctx.font = "bold 30px sans-serif";
                     ctx.textAlign = "center";
-                    ctx.fillText("写真を選択してください", canvas.width/2, canvas.height/2);
                 }
 
                 if (!window.state.showBoard) return;
