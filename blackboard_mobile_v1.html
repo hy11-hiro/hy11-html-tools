@@ -68,6 +68,14 @@
             border-color: #2563eb !important;
         }
 
+        /* サブタブのアクティブスタイル */
+        .sub-tab-active {
+            background-color: #dbeafe !important; /* blue-100 */
+            color: #1e40af !important; /* blue-800 */
+            border-bottom: 3px solid #2563eb !important;
+            font-weight: bold;
+        }
+
         button:active, label:active {
             transform: scale(0.96);
             opacity: 0.9;
@@ -98,6 +106,10 @@
             border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
         }
+        textarea {
+            text-align: left;
+            vertical-align: top;
+        }
     </style>
 </head>
 <body class="text-gray-900 pb-20">
@@ -119,41 +131,42 @@
             <!-- 左側: キャンバスエリア (スマホでは上部) -->
             <div class="editor-area w-full lg:w-2/3 flex flex-col gap-6">
                 
-                <!-- 撮影ルール -->
-                <div class="bg-yellow-50 border-4 border-yellow-400 p-5 rounded-xl shadow-sm">
-                    <div class="flex items-center mb-3">
-                        <span class="material-icons text-yellow-600 mr-2 text-3xl">campaign</span>
-                        <h3 class="font-bold text-gray-900 text-xl">撮影時のルール</h3>
+                <!-- 撮影ルール (文字サイズ拡大) -->
+                <div class="bg-yellow-50 border-4 border-yellow-400 p-3 rounded-xl shadow-sm">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="font-bold text-gray-800 text-lg flex items-center">
+                            <span class="material-icons text-yellow-600 mr-2 text-2xl">campaign</span> 撮影時のルール
+                        </div>
                     </div>
-                    <ul class="list-none space-y-3 text-base md:text-lg font-bold text-gray-800">
-                        <li class="flex items-start">
-                            <span class="material-icons text-blue-600 mr-3 text-2xl">screen_rotation</span>
-                            <span>カメラは<span class="text-red-600 underline decoration-4 decoration-red-400 text-xl">横向き</span>で！</span>
-                        </li>
-                        <li class="flex items-start">
-                            <span class="material-icons text-green-700 mr-3 text-2xl">local_shipping</span>
-                            <span><span class="text-red-600 text-xl">積載量・ナンバー</span>を入れる</span>
-                        </li>
-                        <li class="flex items-start">
-                            <span class="material-icons text-red-600 mr-3 text-2xl">do_not_disturb_on</span>
-                            <span>アップすぎは×（全体を撮る）</span>
-                        </li>
-                    </ul>
+                    <div class="mt-1 grid grid-cols-1 md:grid-cols-3 gap-y-2 gap-x-4 text-base font-bold text-gray-800">
+                        <div class="flex items-center">
+                            <span class="material-icons text-blue-600 mr-2 text-xl">screen_rotation</span>
+                            <span>カメラは<span class="text-red-600 underline text-lg">横向き</span></span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="material-icons text-green-700 mr-2 text-xl">local_shipping</span>
+                            <span><span class="text-red-600 text-lg">積載量・ナンバー</span>入れる</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="material-icons text-red-600 mr-2 text-xl">do_not_disturb_on</span>
+                            <span>アップすぎ×(全体撮る)</span>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- 画像入力エリア -->
+                <!-- 画像入力エリア (アイコン小・高さ半減) -->
                 <div class="grid grid-cols-2 gap-4 relative">
                     <input type="file" id="cameraInput" accept="image/*" capture="environment" class="sr-input">
                     <input type="file" id="fileInput" accept="image/*" class="sr-input">
 
-                    <button type="button" onclick="document.getElementById('cameraInput').click()" class="border-4 border-blue-400 rounded-2xl p-4 text-center bg-white hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-40 shadow-md select-none touch-manipulation active:bg-blue-100">
-                        <span class="material-icons text-6xl text-blue-600 mb-2">photo_camera</span>
-                        <span class="text-xl font-extrabold text-blue-800">カメラを起動</span>
+                    <button type="button" id="btnCamera" class="border-4 border-blue-400 rounded-2xl p-3 text-center bg-white hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-blue-100">
+                        <span class="material-icons text-4xl text-blue-600 mb-1">photo_camera</span>
+                        <span class="text-lg font-extrabold text-blue-800">カメラを起動</span>
                     </button>
 
-                    <button type="button" onclick="document.getElementById('fileInput').click()" class="border-4 border-gray-300 rounded-2xl p-4 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-40 shadow-md select-none touch-manipulation active:bg-gray-200">
-                        <span class="material-icons text-6xl text-gray-500 mb-2">photo_library</span>
-                        <span class="text-xl font-extrabold text-gray-700">アルバムから</span>
+                    <button type="button" id="btnFile" class="border-4 border-gray-300 rounded-2xl p-3 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-gray-200">
+                        <span class="material-icons text-4xl text-gray-500 mb-1">photo_library</span>
+                        <span class="text-lg font-extrabold text-gray-700">アルバムから</span>
                     </button>
                 </div>
 
@@ -166,15 +179,15 @@
                     <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height: 80vh;"></canvas>
                 </div>
                 
-                <!-- 保存・共有ボタン -->
+                <!-- 保存・共有ボタン（分離版・アイコン小・高さ半減） -->
                 <div class="grid grid-cols-2 gap-4">
-                    <button onclick="downloadImage()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-blue-800">
-                        <span class="material-icons text-4xl">download</span>
+                    <button id="btnDownload" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-3 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-blue-800 h-24">
+                        <span class="material-icons text-3xl">download</span>
                         <span>端末に保存</span>
                         <span class="text-xs font-normal opacity-80">(ダウンロード)</span>
                     </button>
-                    <button onclick="shareImage()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-green-800">
-                        <span class="material-icons text-4xl">share</span>
+                    <button id="btnShare" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-3 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-green-800 h-24">
+                        <span class="material-icons text-3xl">share</span>
                         <span>アプリで共有</span>
                         <span class="text-xs font-normal opacity-80">(LINE/フォト等)</span>
                     </button>
@@ -189,7 +202,6 @@
                     <button type="button" onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-4 text-base md:text-lg font-bold text-blue-700 border-r-2 border-blue-600 hover:bg-blue-50 transition-colors flex flex-col md:flex-row items-center justify-center gap-1 tab-active touch-manipulation">
                         <span class="material-icons text-xl md:text-2xl">settings</span>設定
                     </button>
-                    <!-- 変更: 案件 -> 現場 -->
                     <button type="button" onclick="switchTab('project')" id="btn-tab-project" class="tab-btn flex-1 py-4 text-base md:text-lg font-bold text-blue-700 border-r-2 border-blue-600 hover:bg-blue-50 transition-colors flex flex-col md:flex-row items-center justify-center gap-1 touch-manipulation">
                         <span class="material-icons text-xl md:text-2xl">business</span>現場
                     </button>
@@ -231,7 +243,6 @@
                                 <label class="text-base font-bold text-gray-700 mb-2">黒板の大きさ</label>
                                 <select id="boardSize" class="bg-gray-50 border-2 border-gray-400 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3 font-bold">
                                     <option value="small">小 (Small)</option>
-                                    <!-- デフォルトを中に変更 -->
                                     <option value="medium" selected>中 (Medium)</option>
                                     <option value="large">大 (Large)</option>
                                     <option value="extraLarge">特大 (Ex-Large)</option>
@@ -270,11 +281,10 @@
                     </div>
                 </div>
 
-                <!-- 2. タブコンテンツ: 現場 (工事件名・場所) -->
+                <!-- 2. タブコンテンツ: 案件 (工事件名・場所) -->
                 <div id="tab-project" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
                     <div class="bg-blue-50 p-4 border-b-2 border-gray-200 font-bold text-blue-800 flex items-center gap-2 text-xl">
-                        <!-- 変更: 案件 -> 現場 -->
-                        <span class="material-icons text-blue-600">business</span> 現場の入力
+                        <span class="material-icons text-blue-600">business</span> 案件の入力
                     </div>
                     
                     <div class="p-5 flex flex-col gap-6">
@@ -320,49 +330,102 @@
                             
                             <textarea id="inputMemo" rows="4" placeholder="状況写真&#13;&#10;配筋D13&#13;&#10;@200" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none resize-y text-left align-top mb-4"></textarea>
 
-                            <!-- 残土・客土入力支援 -->
+                            <!-- 簡単入力支援エリア (タブ化) -->
                             <div class="bg-blue-50 rounded-xl border-2 border-blue-100 shadow-inner">
                                 <button type="button" onclick="toggleEasyInput()" class="w-full p-4 text-sm font-bold text-blue-800 flex items-center justify-between touch-manipulation">
-                                    <span class="flex items-center"><span class="material-icons text-sm mr-1">touch_app</span> 残土・客土入力</span>
+                                    <span class="flex items-center"><span class="material-icons text-sm mr-1">touch_app</span> 簡単入力支援</span>
                                     <span id="easyInputIcon" class="material-icons text-blue-600">keyboard_arrow_down</span>
                                 </button>
                                 
-                                <div id="easyInputContent" class="p-4 pt-0 hidden">
-                                    <div class="flex flex-wrap gap-2 mb-3">
-                                        <label class="flex-1 min-w-[90px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 active:bg-blue-100 select-none" onclick="updateSoilDirectly()">
-                                            <input type="radio" name="soilType" value="残土搬出" class="hidden peer" checked>
-                                            <span class="text-gray-700 font-bold peer-checked:text-blue-700">残土搬出</span>
-                                        </label>
-                                        <label class="flex-1 min-w-[90px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 active:bg-blue-100 select-none" onclick="updateSoilDirectly()">
-                                            <input type="radio" name="soilType" value="客土搬入" class="hidden peer">
-                                            <span class="text-gray-700 font-bold peer-checked:text-blue-700">客土搬入</span>
-                                        </label>
-                                        <label class="flex-none inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-gray-200 hover:bg-gray-50 active:bg-gray-100 select-none" onclick="updateSoilDirectly()">
-                                            <input type="radio" name="soilType" value="" class="hidden peer">
-                                            <span class="text-gray-500 font-bold peer-checked:text-gray-900">なし</span>
-                                        </label>
+                                <div id="easyInputContent" class="hidden">
+                                    <!-- サブタブ -->
+                                    <div class="flex border-b border-blue-200">
+                                        <button type="button" onclick="switchSubTab('soil')" id="btn-sub-soil" class="flex-1 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100 sub-tab-active">土砂・運搬</button>
+                                        <button type="button" onclick="switchSubTab('dimension')" id="btn-sub-dimension" class="flex-1 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100">寸法・数値</button>
                                     </div>
 
-                                    <div class="flex flex-wrap gap-2 mb-4">
-                                        <span class="text-sm font-bold text-gray-600 flex items-center">積載:</span>
-                                        <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="2t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">2t</span></label>
-                                        <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="3t" class="hidden peer" checked><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">3t</span></label>
-                                        <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="4t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">4t</span></label>
-                                        <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="8t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">8t</span></label>
-                                        <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600">なし</span></label>
-                                    </div>
-
-                                    <div class="flex items-center gap-2">
-                                        <div class="flex items-center border-2 border-gray-300 rounded-lg bg-white overflow-hidden flex-1 shadow-sm">
-                                            <button type="button" onclick="changeCounter(-1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-r border-gray-200 touch-manipulation flex-none w-16">
-                                                <span class="material-icons text-xl font-bold">remove</span>
-                                            </button>
-                                            <span id="counterValue" class="flex-1 px-2 py-2 font-extrabold text-2xl text-center text-gray-800">1</span>
-                                            <button type="button" onclick="changeCounter(1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-l border-gray-200 touch-manipulation flex-none w-16">
-                                                <span class="material-icons text-xl font-bold">add</span>
-                                            </button>
+                                    <!-- 土砂・運搬パネル -->
+                                    <div id="panel-soil" class="p-4">
+                                        <div class="flex flex-wrap gap-2 mb-3">
+                                            <label class="flex-1 min-w-[90px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 active:bg-blue-100 select-none" onclick="updateSoilDirectly()">
+                                                <input type="radio" name="soilType" value="残土搬出" class="hidden peer" checked>
+                                                <span class="text-gray-700 font-bold peer-checked:text-blue-700">残土搬出</span>
+                                            </label>
+                                            <label class="flex-1 min-w-[90px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 active:bg-blue-100 select-none" onclick="updateSoilDirectly()">
+                                                <input type="radio" name="soilType" value="客土搬入" class="hidden peer">
+                                                <span class="text-gray-700 font-bold peer-checked:text-blue-700">客土搬入</span>
+                                            </label>
+                                            <label class="flex-none inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-gray-200 hover:bg-gray-50 active:bg-gray-100 select-none" onclick="updateSoilDirectly()">
+                                                <input type="radio" name="soilType" value="" class="hidden peer">
+                                                <span class="text-gray-500 font-bold peer-checked:text-gray-900">なし</span>
+                                            </label>
                                         </div>
-                                        <span class="text-lg text-gray-700 font-bold whitespace-nowrap mr-2">台目</span>
+                                        <div class="flex flex-wrap gap-2 mb-4">
+                                            <span class="text-sm font-bold text-gray-600 flex items-center">積載:</span>
+                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="2t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">2t</span></label>
+                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="3t" class="hidden peer" checked><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">3t</span></label>
+                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="4t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">4t</span></label>
+                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="8t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">8t</span></label>
+                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600">なし</span></label>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex items-center border-2 border-gray-300 rounded-lg bg-white overflow-hidden flex-1 shadow-sm">
+                                                <button type="button" onclick="changeCounter(-1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-r border-gray-200 touch-manipulation flex-none w-16"><span class="material-icons text-xl font-bold">remove</span></button>
+                                                <span id="counterValue" class="flex-1 px-2 py-2 font-extrabold text-2xl text-center text-gray-800">1</span>
+                                                <button type="button" onclick="changeCounter(1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-l border-gray-200 touch-manipulation flex-none w-16"><span class="material-icons text-xl font-bold">add</span></button>
+                                            </div>
+                                            <span class="text-lg text-gray-700 font-bold whitespace-nowrap mr-2">台目</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- 寸法・数値パネル -->
+                                    <div id="panel-dimension" class="p-4 hidden">
+                                        <div class="mb-3">
+                                            <span class="text-xs font-bold text-gray-500 block mb-1">記号を選択</span>
+                                            <div class="flex flex-wrap gap-2">
+                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
+                                                    <input type="radio" name="dimPrefix" value="T=" class="hidden peer" checked>
+                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">T=</span>
+                                                </label>
+                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
+                                                    <input type="radio" name="dimPrefix" value="W=" class="hidden peer">
+                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">W=</span>
+                                                </label>
+                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
+                                                    <input type="radio" name="dimPrefix" value="H=" class="hidden peer">
+                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">H=</span>
+                                                </label>
+                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
+                                                    <input type="radio" name="dimPrefix" value="L=" class="hidden peer">
+                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">L=</span>
+                                                </label>
+                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
+                                                    <input type="radio" name="dimPrefix" value="@" class="hidden peer">
+                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">@</span>
+                                                </label>
+                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
+                                                    <input type="radio" name="dimPrefix" value="φ" class="hidden peer">
+                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">φ</span>
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <span class="text-xs font-bold text-gray-500 block mb-1">数値を入力</span>
+                                            <div class="flex gap-2 mb-2">
+                                                <input type="number" id="dimValue" class="flex-1 p-3 border-2 border-gray-300 rounded-lg text-xl font-bold text-center focus:ring-2 focus:ring-blue-200 outline-none" placeholder="0">
+                                            </div>
+                                            <div class="grid grid-cols-4 gap-2">
+                                                <button type="button" onclick="adjustDimValue(-100)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">-100</button>
+                                                <button type="button" onclick="adjustDimValue(-10)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">-10</button>
+                                                <button type="button" onclick="adjustDimValue(10)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">+10</button>
+                                                <button type="button" onclick="adjustDimValue(100)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">+100</button>
+                                            </div>
+                                        </div>
+
+                                        <button type="button" onclick="insertDimension()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md active:scale-95 transition-transform flex justify-center items-center gap-2">
+                                            <span class="material-icons">input</span> 入力する
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -372,17 +435,9 @@
                             <div class="flex justify-between items-center mb-2">
                                 <label class="block text-lg font-bold text-gray-800">日付・時間</label>
                                 <div class="flex items-center gap-3">
-                                    <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none">
-                                        <input type="checkbox" id="toggleDate" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>
-                                        日付を表示
-                                    </label>
-                                    <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none">
-                                        <input type="checkbox" id="toggleTime" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>
-                                        時間も
-                                    </label>
-                                    <button type="button" onclick="setToday()" class="bg-gray-200 px-3 py-2 rounded-lg text-sm hover:bg-gray-300 font-bold text-gray-700 flex items-center gap-1 touch-manipulation shadow-sm">
-                                        <span class="material-icons text-base">update</span>現在
-                                    </button>
+                                    <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none"><input type="checkbox" id="toggleDate" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>日付を表示</label>
+                                    <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none"><input type="checkbox" id="toggleTime" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>時間も</label>
+                                    <button type="button" onclick="setToday()" class="bg-gray-200 px-3 py-2 rounded-lg text-sm hover:bg-gray-300 font-bold text-gray-700 flex items-center gap-1 touch-manipulation shadow-sm"><span class="material-icons text-base">update</span>現在</button>
                                 </div>
                             </div>
                             <div class="flex gap-4">
@@ -393,81 +448,46 @@
                     </div>
                 </div>
 
-                <!-- 4. タブコンテンツ: 調整 -->
+                <!-- 4. 調整 -->
                 <div id="tab-adjust" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
                     <div class="bg-gray-50 p-4 border-b-2 border-gray-200 font-bold text-gray-700 flex items-center gap-2 text-xl">
                         <span class="material-icons text-gray-500">tune</span> サイズ・位置調整
                     </div>
                     <div class="p-5 border-t border-gray-200 space-y-6">
-                        
-                        <!-- 個別サイズ調整 -->
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>工事件名 サイズ</span>
-                                <span id="valScaleProject" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>工事件名 サイズ</span><span id="valScaleProject" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
                             <input type="range" id="scaleProject" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
-
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span id="adjustLabelWorkType">工事場所 サイズ</span>
-                                <span id="valScaleWorkType" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span id="adjustLabelWorkType">工事場所 サイズ</span><span id="valScaleWorkType" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
                             <input type="range" id="scaleWorkType" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
-
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>備考・内容 サイズ</span>
-                                <span id="valScaleMemo" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>備考・内容 サイズ</span><span id="valScaleMemo" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
                             <input type="range" id="scaleMemo" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
-
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>日付・時間 サイズ</span>
-                                <span id="valScaleDate" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>日付・時間 サイズ</span><span id="valScaleDate" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span></div>
                             <input type="range" id="scaleDate" min="0.5" max="2.0" step="0.1" value="1.0">
                         </div>
-
                         <hr class="border-gray-300 my-2">
-
                         <div>
                             <label class="text-base font-bold text-gray-700 mb-2 block">日付・時間の位置</label>
                             <div class="grid grid-cols-2 gap-4 text-base">
-                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50">
-                                    <input type="radio" name="datePos" value="left" class="text-blue-600 focus:ring-blue-500 w-5 h-5">
-                                    <span class="font-bold">左下</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50">
-                                    <input type="radio" name="datePos" value="right" class="text-blue-600 focus:ring-blue-500 w-5 h-5" checked>
-                                    <span class="font-bold">右下</span>
-                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50"><input type="radio" name="datePos" value="left" class="text-blue-600 focus:ring-blue-500 w-5 h-5"><span class="font-bold">左下</span></label>
+                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50"><input type="radio" name="datePos" value="right" class="text-blue-600 focus:ring-blue-500 w-5 h-5" checked><span class="font-bold">右下</span></label>
                             </div>
                         </div>
-
                         <hr class="border-gray-300 my-2">
-
                         <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>行間（すきま）</span>
-                                <span id="dispLineHeight" class="bg-gray-100 px-2 rounded text-gray-500">1.2</span>
-                            </div>
+                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2"><span>行間（すきま）</span><span id="dispLineHeight" class="bg-gray-100 px-2 rounded text-gray-500">1.2</span></div>
                             <input type="range" id="lineHeight" min="0.8" max="2.0" step="0.1" value="1.2">
                         </div>
-
                         <div>
                             <label class="text-base font-bold text-gray-700 block mb-2">黒板の微調整 (上下)</label>
                             <div class="grid grid-cols-2 gap-4">
-                                <button type="button" onclick="adjustOffset(-5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2">
-                                    <span class="material-icons">arrow_upward</span> 上へ
-                                </button>
-                                <button type="button" onclick="adjustOffset(5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2">
-                                    <span class="material-icons">arrow_downward</span> 下へ
-                                </button>
+                                <button type="button" onclick="adjustOffset(-5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2"><span class="material-icons">arrow_upward</span> 上へ</button>
+                                <button type="button" onclick="adjustOffset(5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2"><span class="material-icons">arrow_downward</span> 下へ</button>
                             </div>
                         </div>
                     </div>
@@ -476,15 +496,20 @@
                 <div class="text-center mt-4">
                     <button type="button" onclick="resetAll()" class="text-base text-red-600 font-bold underline hover:text-red-800 touch-manipulation p-2">設定を全てリセット</button>
                 </div>
-
             </div>
         </div>
     </div>
 
-    <!-- Core Logic -->
     <script>
+        function drawMultilineText(ctx, text, x, y, lineHeight) {
+            if(!text) return;
+            const lines = text.split('\n'); 
+            lines.forEach((line, index) => {
+                ctx.fillText(line, x, y + (index * lineHeight));
+            });
+        }
+
         (function() {
-            // 変更: boardSize のデフォルトを 'medium' に
             const initialState = {
                 image: null,
                 boardPos: 'right', 
@@ -572,7 +597,6 @@
                     }
                 });
 
-                // Ensure elements exist before adding listeners
                 const bindChange = (id, handler) => {
                     const el = document.getElementById(id);
                     if(el) el.addEventListener('change', handler);
@@ -599,16 +623,21 @@
                         window.requestSave();
                     });
                 });
+                
+                document.querySelectorAll('input[name="dateMode"]').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        window.state.dateDisplayMode = e.target.value;
+                        draw();
+                        window.requestSave();
+                    });
+                });
 
-                // Work Label Type Switcher
                 document.querySelectorAll('input[name="labelType"]').forEach(radio => {
                     radio.addEventListener('change', (e) => {
                         window.state.workLabelType = e.target.value;
                         const labelText = e.target.value === 'place' ? '工事場所' : '工種';
-                        const el1 = document.getElementById('workTypeLabel');
-                        if(el1) el1.textContent = labelText;
-                        const el2 = document.getElementById('adjustLabelWorkType');
-                        if(el2) el2.textContent = labelText + ' サイズ';
+                        document.getElementById('workTypeLabel').textContent = labelText;
+                        document.getElementById('adjustLabelWorkType').textContent = labelText + ' サイズ';
                         draw();
                         window.requestSave();
                     });
@@ -663,6 +692,61 @@
                 content.classList.toggle('hidden');
                 icon.innerText = content.classList.contains('hidden') ? 'keyboard_arrow_down' : 'keyboard_arrow_up';
             };
+
+            // サブタブ切り替え (新規追加)
+            window.switchSubTab = function(subTabName) {
+                // ボタンのスタイルリセット
+                document.getElementById('btn-sub-soil').classList.remove('sub-tab-active');
+                document.getElementById('btn-sub-dimension').classList.remove('sub-tab-active');
+                
+                // パネル非表示
+                document.getElementById('panel-soil').classList.add('hidden');
+                document.getElementById('panel-dimension').classList.add('hidden');
+
+                // 選択されたものをアクティブ化
+                document.getElementById(`btn-sub-${subTabName}`).classList.add('sub-tab-active');
+                document.getElementById(`panel-${subTabName}`).classList.remove('hidden');
+            };
+
+            // 寸法値の調整 (新規追加)
+            window.adjustDimValue = function(val) {
+                const input = document.getElementById('dimValue');
+                let current = parseFloat(input.value) || 0;
+                input.value = current + val;
+            };
+
+            // 寸法・数値の挿入 (新規追加)
+            window.insertDimension = function() {
+                const prefixRadio = document.querySelector('input[name="dimPrefix"]:checked');
+                const prefix = prefixRadio ? prefixRadio.value : '';
+                const valInput = document.getElementById('dimValue');
+                const val = valInput.value;
+
+                if (!val && val !== "0") return; 
+
+                // User Request: Add space BEFORE and AFTER
+                const textToInsert = ` ${prefix}${val} `; 
+                
+                const memoInput = document.getElementById('inputMemo');
+                
+                // カーソル位置に挿入するロジック
+                const startPos = memoInput.selectionStart;
+                const endPos = memoInput.selectionEnd;
+                const before = memoInput.value.substring(0, startPos);
+                const after = memoInput.value.substring(endPos, memoInput.value.length);
+                
+                memoInput.value = before + textToInsert + after;
+                
+                // カーソル位置を挿入後に移動
+                const newPos = startPos + textToInsert.length;
+                memoInput.setSelectionRange(newPos, newPos);
+                memoInput.focus();
+
+                window.state.text.memo = memoInput.value;
+                draw();
+                window.requestSave();
+            };
+
 
             window.changeCounter = function(change) {
                 counterValue += change;
@@ -743,7 +827,6 @@
 
                 canvas.toBlob(async (blob) => {
                     const file = new File([blob], fileName, { type: "image/jpeg" });
-                    
                     const link = document.createElement('a');
                     link.download = fileName;
                     link.href = URL.createObjectURL(blob);
@@ -905,7 +988,7 @@
 
                 ctx.textAlign = "center";
                 ctx.textBaseline = "middle";
-                const labelSize = 0.9 * responsiveBaseSize; // Larger labels
+                const labelSize = 1.0 * responsiveBaseSize; 
                 ctx.font = `${labelSize}px ${window.state.style.fontFamily}`;
                 ctx.fillText("工事件名", bx + bw * 0.125, by + bh * 0.075);
                 
@@ -917,7 +1000,7 @@
                     const constCenterY = by + bh - (constH / 2);
                     ctx.fillText("施工者", bx + bw * 0.125, constCenterY);
                     ctx.textAlign = "left";
-                    const constSize = 0.85 * responsiveBaseSize; // Slightly larger constructor name
+                    const constSize = 0.9 * responsiveBaseSize; 
                     ctx.font = `${constSize}px ${window.state.style.fontFamily}`; 
                     ctx.fillText(window.state.text.constructorName, bx + bw * 0.27, constCenterY);
                 }
@@ -935,14 +1018,51 @@
                 // 備考
                 ctx.font = `${window.state.style.fontScaleMemo * responsiveBaseSize}px ${window.state.style.fontFamily}`;
                 
+                // 備考は上揃え
                 ctx.textBaseline = "top";
                 const memoY = by + (bh * 0.30) + (pad * 0.5) + globalOffsetY;
-                drawMultilineText(ctx, window.state.text.memo, bx + pad, memoY, window.state.style.fontScaleMemo * responsiveBaseSize * window.state.style.lineHeight);
+                
+                // 備考テキストの描画
+                const memoLines = window.state.text.memo.split('\n');
+                const memoLineH = window.state.style.fontScaleMemo * responsiveBaseSize * window.state.style.lineHeight;
+                memoLines.forEach((line, index) => {
+                    ctx.fillText(line, bx + pad, memoY + (index * memoLineH));
+                });
+                
+                // 備考下のインライン日付表示 (mode === 'inline')
+                if(window.state.dateDisplayMode === 'inline') {
+                    const nextY = memoY + (memoLines.length * memoLineH) + (pad * 0.2); 
+                    
+                    let dStr = "";
+                    if(window.state.text.date) {
+                         const dParts = window.state.text.date.split('/');
+                         if(dParts.length === 3) {
+                             dStr = `${parseInt(dParts[1])}月${parseInt(dParts[2])}日`;
+                         } else {
+                             dStr = window.state.text.date;
+                         }
+                    }
+
+                    if(window.state.showTime && window.state.text.time) {
+                         const tParts = window.state.text.time.split(':');
+                         if(tParts.length === 2) {
+                             dStr += ` ${parseInt(tParts[0])}時${parseInt(tParts[1])}分`;
+                         } else {
+                             dStr += ` ${window.state.text.time}`;
+                         }
+                    }
+
+                    if(dStr) {
+                         // フォントサイズは日付用スケールを適用
+                         ctx.font = `${window.state.style.fontScaleDate * responsiveBaseSize}px ${window.state.style.fontFamily}`;
+                         ctx.fillText(dStr, bx + pad, nextY);
+                    }
+                }
                 
                 ctx.textBaseline = "middle";
 
-                // 日付
-                if (window.state.showDate) {
+                // 標準日付 (mode === 'standard')
+                if (window.state.dateDisplayMode === 'standard') {
                     let dateString = window.state.text.date.replace(/-/g, '/');
                     if (window.state.showTime && window.state.text.time) {
                         dateString += " " + window.state.text.time;
@@ -971,7 +1091,6 @@
             function drawMultilineText(ctx, text, x, y, lineHeight) {
                 if(!text) return;
                 const lines = text.split('\n'); 
-                // Y位置は上から順に描画
                 lines.forEach((line, index) => {
                     ctx.fillText(line, x, y + (index * lineHeight));
                 });
@@ -1027,7 +1146,7 @@
                         if(data.boardSize) window.state.boardSize = data.boardSize;
                         if(data.boardColor) window.state.boardColor = data.boardColor;
                         if(data.showBoard !== undefined) window.state.showBoard = data.showBoard;
-                        if(data.showDate !== undefined) window.state.showDate = data.showDate;
+                        if(data.dateDisplayMode) window.state.dateDisplayMode = data.dateDisplayMode;
                         if(data.showTime !== undefined) window.state.showTime = data.showTime;
                         if(data.datePos) window.state.datePos = data.datePos;
                         if(data.showConstructor !== undefined) window.state.showConstructor = data.showConstructor;
@@ -1058,7 +1177,7 @@
                     boardSize: window.state.boardSize,
                     boardColor: window.state.boardColor,
                     showBoard: window.state.showBoard,
-                    showDate: window.state.showDate,
+                    dateDisplayMode: window.state.dateDisplayMode,
                     showTime: window.state.showTime,
                     datePos: window.state.datePos,
                     showConstructor: window.state.showConstructor,
@@ -1086,7 +1205,6 @@
                 document.getElementById('inputWorkType').value = window.state.text.workType || "";
                 document.getElementById('inputMemo').value = window.state.text.memo || "";
                 
-                // Date input needs hyphen format yyyy-mm-dd
                 if(window.state.text.date) {
                      document.getElementById('inputDate').value = window.state.text.date.replace(/\//g, '-');
                 }
@@ -1097,7 +1215,10 @@
                 document.getElementById('boardColor').value = window.state.boardColor;
                 document.getElementById('boardSize').value = window.state.boardSize;
                 document.getElementById('toggleBoard').checked = window.state.showBoard;
-                document.getElementById('toggleDate').checked = window.state.showDate;
+                
+                const dateModeRadio = document.querySelector(`input[name="dateMode"][value="${window.state.dateDisplayMode}"]`);
+                if(dateModeRadio) dateModeRadio.checked = true;
+
                 document.getElementById('toggleTime').checked = window.state.showTime;
                 document.getElementById('showConstructor').checked = window.state.showConstructor;
                 document.getElementById('fontFamily').value = window.state.style.fontFamily;
