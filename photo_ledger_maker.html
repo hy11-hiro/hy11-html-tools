@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>工事写真台帳作成ツール (v3.1 - All Basic Info Tags)</title>
+  <title>工事写真台帳作成ツール (v3.4 - Auto Compact & Renumber)</title>
   
   <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -129,6 +129,7 @@
       RefreshCw: (p) => <Icon name="refresh-cw" {...p} />, RotateCcw: (p) => <Icon name="rotate-ccw" {...p} />, Layers: (p) => <Icon name="layers" {...p} />,
       AlertTriangle: (p) => <Icon name="alert-triangle" {...p} />, Info: (p) => <Icon name="info" {...p} />, Terminal: (p) => <Icon name="terminal" {...p} />,
       LayoutTemplate: (p) => <Icon name="layout-template" {...p} />, FolderUp: (p) => <Icon name="folder-up" {...p} />, FolderDown: (p) => <Icon name="folder-down" {...p} />,
+      ArrowUp: (p) => <Icon name="arrow-up" {...p} />, XCircle: (p) => <Icon name="x-circle" {...p} />, Hash: (p) => <Icon name="hash" {...p} />,
     };
 
     const DEFAULT_LAYOUT_DEFS = {
@@ -420,8 +421,6 @@
             row.eachCell({ includeEmpty: true }, (cell) => {
                 const v = getCellValue(cell);
                 if (!v || (typeof v !== 'string' && !v.richText)) return;
-                
-                // UPDATED: Added all basic info tags including constructionNumber
                 const processText = (text) => {
                     let processed = text;
                     processed = processed.replace(/\{%title\}/g, info.title || '')
@@ -431,7 +430,6 @@
                                  .replace(/\{%contractor\}/g, info.contractor || '')
                                  .replace(/\{%constructionNumber\}/g, info.constructionNumber || '')
                                  .replace(/\{%period\}/g, `自 ${info.periodStart}  至 ${info.periodEnd}`);
-                    
                     processed = processed.replace(/\{%([a-zA-Z0-9_]+)(\d+|N)(_(\d+))?\}/g, (match, type, numStr, _, subIdx) => {
                         let itemIdx = -1;
                         if (numStr === 'N') itemIdx = effectiveIndexForN - 1;
@@ -1010,7 +1008,6 @@
             { tag: "{%titleN}", desc: "施工名" },
             { tag: "{%textN_1}", desc: "詳細 (上段)" },
             { tag: "{%textN_2}", desc: "詳細 (下段)" },
-            // UPDATED: Added all basic info tags
             { tag: "{%constructionNumber}", desc: "基本: 工事番号" }, 
             { tag: "{%title}", desc: "基本: 工事名" },
             { tag: "{%location}", desc: "基本: 工事場所" },
@@ -1319,6 +1316,56 @@
           })};
         }));
       };
+      
+      // --- Helper to Renumber ALL Items (Auto-Renumber Logic) ---
+      const renumberAllItems = (currentPages) => {
+          let currentNo = 1;
+          return currentPages.map(page => {
+              const newItems = page.items.map(item => {
+                  // Only number items that have content
+                  if (item.image || (item.title && item.title.trim()) || (item.description && item.description.trim())) {
+                      return { ...item, number: (currentNo++).toString() };
+                  } else {
+                      return { ...item, number: '' }; // Clear number for empty items
+                  }
+              });
+              return { ...page, items: newItems };
+          });
+      };
+
+      const handleRemoveItem = (pageId, itemId) => {
+          setPages(prev => {
+              const newPages = prev.map(page => {
+                  if (page.id !== pageId) return page;
+                  const remainingItems = page.items.filter(i => i.id !== itemId);
+                  const itemsNeeded = page.items.length - remainingItems.length;
+                  const newItems = [...remainingItems];
+                  for(let i=0; i<itemsNeeded; i++) {
+                      newItems.push(createEmptyItem(`${page.id}-new-${Date.now()}-${i}`));
+                  }
+                  return { ...page, items: newItems };
+              });
+              // Auto Renumber after removal
+              return renumberAllItems(newPages);
+          });
+      };
+
+      const handleCompactPage = (pageId) => {
+          setPages(prev => {
+              const newPages = prev.map(page => {
+                  if (page.id !== pageId) return page;
+                  const validItems = page.items.filter(i => i.image || (i.title && i.title.trim()) || (i.description && i.description.trim()));
+                  const needed = page.items.length - validItems.length;
+                  const newItems = [...validItems];
+                  for(let i=0; i<needed; i++) {
+                      newItems.push(createEmptyItem(`${page.id}-compact-${Date.now()}-${i}`));
+                  }
+                  return { ...page, items: newItems };
+              });
+              // Auto Renumber after compaction
+              return renumberAllItems(newPages);
+          });
+      };
 
       const handleAddTemplate = () => {
           if (!newTemplateText.trim()) return;
@@ -1502,6 +1549,7 @@
         document.body.removeChild(textArea);
       };
 
+      // --- Project Save/Load Logic ---
       const handleSaveProject = () => {
           const data = {
               version: '2.8',
@@ -1880,6 +1928,15 @@
                                     return <option key={key} value={key}>{def.label}</option>;
                                 })}
                             </select>
+                            
+                            {/* NEW: Renumber Page Button */}
+                            <button onClick={() => renumberPage(page.id)} className="bg-slate-100 border border-slate-300 text-slate-500 hover:text-brand-600 hover:bg-brand-50 px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all" title="このページのみ連番化">
+                                <Icons.Hash className="w-3 h-3" /> 連番
+                            </button>
+
+                            <button onClick={() => handleCompactPage(page.id)} className="bg-slate-100 border border-slate-300 text-slate-500 hover:text-brand-600 hover:bg-brand-50 px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all" title="空白を詰める">
+                                <Icons.ArrowUp className="w-3 h-3" /> 詰める
+                            </button>
                         </div>
                     )}
                 </div>
@@ -1920,19 +1977,30 @@
                                         <label className="cursor-pointer bg-white text-slate-800 px-4 py-2 rounded-full shadow-lg text-xs font-bold hover:bg-brand-50 hover:text-brand-600 transition-colors flex items-center gap-2">
                                             <Icons.Edit3 className="w-3 h-3"/> 変更 <input type="file" accept="image/*" className="hidden" onChange={(e) => handleBatchImageUpload(e, page.id, item.id)} />
                                         </label>
-                                        <button onClick={() => updateItem(page.id, item.id, { image: null })} className="bg-red-500 text-white px-4 py-2 rounded-full shadow-lg text-xs font-bold hover:bg-red-600 transition-colors flex items-center gap-2">
-                                            <Icons.Trash2 className="w-3 h-3"/> 削除
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => updateItem(page.id, item.id, { image: null })} className="bg-slate-500 text-white px-3 py-2 rounded-full shadow-lg text-xs font-bold hover:bg-slate-600 transition-colors flex items-center gap-1" title="画像のみ削除(枠は残す)">
+                                                <Icons.Trash2 className="w-3 h-3"/> クリア
+                                            </button>
+                                            <button onClick={() => { if(confirm('この項目を削除して後ろを詰めますか？')) handleRemoveItem(page.id, item.id); }} className="bg-red-500 text-white px-3 py-2 rounded-full shadow-lg text-xs font-bold hover:bg-red-600 transition-colors flex items-center gap-1" title="項目自体を削除して詰める">
+                                                <Icons.XCircle className="w-3 h-3"/> 削除(詰める)
+                                            </button>
+                                        </div>
                                       </div>
                                   )}
                                 </>
                               ) : (
                                 !isWebPreview ? (
-                                    <label className="cursor-pointer flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-brand-500 hover:bg-brand-50/50 transition-all text-center px-4">
+                                    <label className="cursor-pointer flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-brand-500 hover:bg-brand-50/50 transition-all text-center px-4 relative group/empty">
                                     <Icons.Camera className="w-10 h-10 mb-2 opacity-50" />
                                     <span className="text-sm font-bold">写真を追加</span>
                                     <span className="text-[10px] opacity-70 mt-1">ドラッグ＆ドロップ可</span>
                                     <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleBatchImageUpload(e, page.id, item.id)} />
+                                    
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover/empty:opacity-100 transition-opacity">
+                                        <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveItem(page.id, item.id); }} className="bg-white border border-slate-300 text-slate-400 hover:text-red-500 p-1.5 rounded-full shadow-sm" title="この空枠を削除して詰める">
+                                            <Icons.XCircle className="w-4 h-4"/>
+                                        </button>
+                                    </div>
                                     </label>
                                 ) : (<div className="flex items-center justify-center w-full h-full text-slate-300 text-xs">NO IMAGE</div>)
                               )}
