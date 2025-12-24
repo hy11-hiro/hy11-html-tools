@@ -1,0 +1,2012 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工事写真台帳作成ツール (v3.1 - All Basic Info Tags)</title>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- ExcelJS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+
+  <style>
+    body {
+      font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+      user-select: none;
+    }
+    .a4-paper {
+      width: 210mm;
+      min-height: 297mm;
+      background: white;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      padding: 15mm;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+    input, textarea { user-select: text; }
+    
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* Modal Animation */
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+
+    /* --- 印刷設定 --- */
+    @media print {
+      body, #root, .flex-1 {
+        height: auto !important;
+        overflow: visible !important;
+        display: block !important;
+      }
+      .no-print, .w-80, .fixed { display: none !important; }
+      .p-8 { padding: 0 !important; }
+      .bg-slate-200\/50 { background: none !important; }
+      .a4-paper {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        break-after: page;
+        page-break-after: always;
+      }
+      .a4-paper:last-child { break-after: auto; page-break-after: auto; }
+      .a4-paper > div { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 h-screen overflow-hidden">
+
+  <div id="root"></div>
+
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+        if(message.includes('ResizeObserver')) return;
+        if(message.includes('QuotaExceededError') || message.includes('quota')) return true;
+        console.error(message, lineno);
+    };
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useLayoutEffect, useRef, memo, useCallback } = React;
+    
+    // ==========================================
+    // 1. Icons & Constants
+    // ==========================================
+
+    const IconComponent = ({ name, className, ...props }) => {
+      const spanRef = useRef(null);
+      useLayoutEffect(() => {
+        if (window.lucide && spanRef.current) {
+          while (spanRef.current.firstChild) spanRef.current.removeChild(spanRef.current.firstChild);
+          const i = document.createElement('i');
+          i.setAttribute('data-lucide', name);
+          if (className) i.setAttribute('class', className);
+          spanRef.current.appendChild(i);
+          window.lucide.createIcons({ root: spanRef.current, nameAttr: 'data-lucide' });
+        }
+      }, [name, className]);
+      return <span ref={spanRef} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: '1em', minHeight: '1em' }} {...props}></span>;
+    };
+    const Icon = memo(IconComponent);
+    const Icons = {
+      Camera: (p) => <Icon name="camera" {...p} />, Download: (p) => <Icon name="download" {...p} />, Plus: (p) => <Icon name="plus" {...p} />,
+      Trash2: (p) => <Icon name="trash-2" {...p} />, ImageIcon: (p) => <Icon name="image" {...p} />, Settings: (p) => <Icon name="settings" {...p} />,
+      FileSpreadsheet: (p) => <Icon name="file-spreadsheet" {...p} />, Check: (p) => <Icon name="check" {...p} />, Eye: (p) => <Icon name="eye" {...p} />,
+      Edit3: (p) => <Icon name="edit-3" {...p} />, Copy: (p) => <Icon name="copy" {...p} />, X: (p) => <Icon name="x" {...p} />,
+      Save: (p) => <Icon name="save" {...p} />, List: (p) => <Icon name="list" {...p} />, FileText: (p) => <Icon name="file-text" {...p} />,
+      RefreshCw: (p) => <Icon name="refresh-cw" {...p} />, RotateCcw: (p) => <Icon name="rotate-ccw" {...p} />, Layers: (p) => <Icon name="layers" {...p} />,
+      AlertTriangle: (p) => <Icon name="alert-triangle" {...p} />, Info: (p) => <Icon name="info" {...p} />, Terminal: (p) => <Icon name="terminal" {...p} />,
+      LayoutTemplate: (p) => <Icon name="layout-template" {...p} />, FolderUp: (p) => <Icon name="folder-up" {...p} />, FolderDown: (p) => <Icon name="folder-down" {...p} />,
+    };
+
+    const DEFAULT_LAYOUT_DEFS = {
+      'standard-3': { label: '3枚 (1列・標準)', itemCount: 3, type: 'list' },
+      'large-2': { label: '2枚 (1列・詳細)', itemCount: 2, type: 'list' },
+      'grid-4': { label: '4枚 (2列・一覧)', itemCount: 4, type: 'grid' },
+      'grid-6': { label: '6枚 (2列・多枚数)', itemCount: 6, type: 'grid' },
+    };
+
+    // ==========================================
+    // 2. Utility Functions
+    // ==========================================
+
+    const compressImage = (dataUrl, maxWidth = 1200) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.src = dataUrl;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve({
+            data: canvas.toDataURL('image/jpeg', 0.75), 
+            width: width,
+            height: height
+          });
+        };
+      });
+    };
+
+    const formatTextToHtml = (text) => {
+      if (!text) return { __html: '&nbsp;' };
+      const escaped = text.replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+      });
+      return { __html: escaped.replace(/(\r\n|\n|\r)/g, '<br/>') };
+    };
+
+    const getCellValue = (cell) => {
+        if (!cell || cell.value === null || cell.value === undefined) return '';
+        if (typeof cell.value === 'object') {
+            if (cell.value.richText) return cell.value.richText.map(r => r.text).join('');
+            if (cell.value.text) return cell.value.text;
+            if (cell.value.result !== undefined) return cell.value.result.toString();
+        }
+        return cell.value.toString();
+    };
+
+    // ==========================================
+    // 3. Logic Functions
+    // ==========================================
+
+    const deepCopyStyle = (style) => {
+        if (!style) return null;
+        try { return JSON.parse(JSON.stringify(style)); } catch(e) { return {}; }
+    };
+
+    const cloneSheetDetailed = (workbook, sourceSheet, newSheetName) => {
+        const newSheet = workbook.addWorksheet(newSheetName);
+        if (sourceSheet.pageSetup) newSheet.pageSetup = deepCopyStyle(sourceSheet.pageSetup);
+        if (sourceSheet.properties) newSheet.properties = deepCopyStyle(sourceSheet.properties);
+        if (sourceSheet.views) newSheet.views = deepCopyStyle(sourceSheet.views);
+        if (sourceSheet.headerFooter) newSheet.headerFooter = deepCopyStyle(sourceSheet.headerFooter);
+
+        let maxRow = sourceSheet.rowCount || 0;
+        let maxCol = sourceSheet.columnCount || 0;
+        const merges = (sourceSheet.model && sourceSheet.model.merges) || [];
+        
+        merges.forEach(range => {
+            const parts = range.split(':');
+            if(parts.length === 2) {
+                const endAddr = parts[1];
+                const colStr = endAddr.replace(/[0-9]/g, '');
+                const rowNum = parseInt(endAddr.replace(/[A-Z]/g, ''));
+                let colNum = 0;
+                for(let i=0; i<colStr.length; i++) colNum = colNum * 26 + (colStr.charCodeAt(i) - 64);
+                if(rowNum > maxRow) maxRow = rowNum;
+                if(colNum > maxCol) maxCol = colNum;
+            }
+        });
+        maxCol = Math.max(maxCol, 26); 
+        
+        if (maxCol > 0) {
+            for(let i=1; i<=maxCol; i++) {
+                const srcCol = sourceSheet.getColumn(i);
+                const destCol = newSheet.getColumn(i);
+                destCol.width = srcCol.width;
+                destCol.hidden = srcCol.hidden;
+                destCol.outlineLevel = srcCol.outlineLevel;
+                if (srcCol.style) destCol.style = deepCopyStyle(srcCol.style);
+                if (srcCol.numFmt) destCol.numFmt = srcCol.numFmt;
+            }
+        }
+
+        for(let r=1; r<=maxRow; r++) {
+            const srcRow = sourceSheet.getRow(r);
+            const destRow = newSheet.getRow(r);
+            if (srcRow.height) destRow.height = srcRow.height;
+            destRow.hidden = srcRow.hidden;
+            destRow.outlineLevel = srcRow.outlineLevel;
+            if(srcRow.style) destRow.style = deepCopyStyle(srcRow.style);
+
+            for(let c=1; c<=maxCol; c++) {
+                const srcCell = srcRow.getCell(c);
+                const destCell = destRow.getCell(c);
+                if (srcCell.value !== null && srcCell.value !== undefined) {
+                    if (typeof srcCell.value === 'object' && srcCell.value.richText) {
+                        destCell.value = { richText: deepCopyStyle(srcCell.value.richText) };
+                    } else {
+                        destCell.value = srcCell.value;
+                    }
+                }
+                if(srcCell.style) destCell.style = deepCopyStyle(srcCell.style);
+                if(srcCell.border) destCell.border = deepCopyStyle(srcCell.border);
+                if(srcCell.fill) destCell.fill = deepCopyStyle(srcCell.fill);
+                if(srcCell.font) destCell.font = deepCopyStyle(srcCell.font);
+                if(srcCell.alignment) destCell.alignment = deepCopyStyle(srcCell.alignment);
+                if(srcCell.numFmt) destCell.numFmt = srcCell.numFmt;
+            }
+            destRow.commit();
+        }
+
+        merges.forEach(mergeRange => {
+            const rangeParts = mergeRange.split(':');
+            if (rangeParts.length !== 2) return;
+            const getCoords = (addr) => {
+                const colStr = addr.replace(/[0-9]/g, '');
+                const row = parseInt(addr.replace(/[A-Z]/g, ''));
+                let col = 0;
+                for(let i=0; i<colStr.length; i++) col = col * 26 + (colStr.charCodeAt(i) - 64);
+                return { c: col, r: row };
+            };
+            const s = getCoords(rangeParts[0]);
+            const e = getCoords(rangeParts[1]);
+            const top = s.r; const left = s.c; const bottom = e.r; const right = e.c;
+
+            const newMaster = newSheet.getCell(top, left);
+            let hasValueInMaster = (newMaster.value !== null && newMaster.value !== undefined && newMaster.value !== '');
+            if (!hasValueInMaster) {
+                let foundValue = null;
+                for(let r = top; r <= bottom; r++) {
+                    for(let c = left; c <= right; c++) {
+                        if (r === top && c === left) continue; 
+                        const slave = newSheet.getCell(r, c);
+                        const v = slave.value;
+                        if (v !== null && v !== undefined && v !== '') {
+                            foundValue = v;
+                            newMaster.value = v;
+                            slave.value = null;
+                            break;
+                        }
+                    }
+                    if (foundValue) break;
+                }
+            }
+
+            let smartBorder = {};
+            const srcTL = sourceSheet.getCell(top, left);
+            if (srcTL.border) {
+                if(srcTL.border.top) smartBorder.top = deepCopyStyle(srcTL.border.top);
+                if(srcTL.border.left) smartBorder.left = deepCopyStyle(srcTL.border.left);
+                if(srcTL.border.bottom) smartBorder.bottom = deepCopyStyle(srcTL.border.bottom);
+                if(srcTL.border.right) smartBorder.right = deepCopyStyle(srcTL.border.right);
+            }
+            const srcBL = sourceSheet.getCell(bottom, left);
+            if (srcBL.border && srcBL.border.bottom) smartBorder.bottom = deepCopyStyle(srcBL.border.bottom);
+            const srcTR = sourceSheet.getCell(top, right);
+            if (srcTR.border && srcTR.border.right) smartBorder.right = deepCopyStyle(srcTR.border.right);
+            const srcBR = sourceSheet.getCell(bottom, right);
+            if (srcBR.border) {
+                if (srcBR.border.right) smartBorder.right = deepCopyStyle(srcBR.border.right);
+                if (srcBR.border.bottom) smartBorder.bottom = deepCopyStyle(srcBR.border.bottom);
+            }
+
+            if (Object.keys(smartBorder).length > 0) {
+                 for(let r = top; r <= bottom; r++) {
+                     for(let c = left; c <= right; c++) {
+                         const cell = newSheet.getCell(r, c);
+                         cell.border = smartBorder;
+                     }
+                 }
+            }
+            try { newSheet.mergeCells(top, left, bottom, right); } catch (err) {}
+        });
+        
+        const images = sourceSheet.getImages();
+        images.forEach(image => {
+            try { newSheet.addImage(image.imageId, image.range); } catch(e) {}
+        });
+        return newSheet;
+    };
+
+    const calculateImagePosition = (worksheet, startCell, imageW, imageH, options) => {
+        let top = startCell.row; let left = startCell.col;
+        let bottom = startCell.row; let right = startCell.col;
+        const cell = worksheet.getCell(top, left);
+        if (cell.isMerged && cell.master) {
+            const masterAddr = cell.master.address;
+            const merges = (worksheet.model && worksheet.model.merges) || [];
+            const rangeStr = merges.find(str => str.startsWith(masterAddr + ":") || str === masterAddr); 
+            if (rangeStr) {
+                 const parts = rangeStr.split(':');
+                 if (parts.length === 2) {
+                     const end = parts[1];
+                     const getColNum = (colStr) => {
+                         let num = 0;
+                         for(let i=0; i<colStr.length; i++) num = num * 26 + (colStr.charCodeAt(i) - 64);
+                         return num;
+                     };
+                     right = getColNum(end.replace(/[0-9]/g, ''));
+                     bottom = parseInt(end.replace(/[A-Z]/g, ''));
+                 }
+            }
+        }
+        let cellW = 0;
+        for (let c = left; c <= right; c++) cellW += (worksheet.getColumn(c).width || 8.38) * 7.2;
+        let cellH = 0;
+        for (let r = top; r <= bottom; r++) cellH += (worksheet.getRow(r).height || 15) * 1.33;
+        if (cellW === 0) cellW = 100;
+        if (cellH === 0) cellH = 100;
+        let targetW = cellW, targetH = cellH;
+        if (options.imgFit === 'merge') {
+             const cellRatio = cellW / cellH;
+             const imgRatio = imageW / imageH;
+             if (options.keepRatio) {
+                 if (imgRatio > cellRatio) targetH = cellW / imgRatio;
+                 else targetW = cellH * imgRatio;
+             }
+        }
+        const hOffset = (cellW - targetW) / 2; 
+        const vOffset = (cellH - targetH) / 2;
+        const getAnchor = (startIdx, pixelOffset, isCol) => {
+            let currentIdx = startIdx;
+            let remainingPx = pixelOffset;
+            while (true) {
+                let size = 0;
+                if (isCol) size = (worksheet.getColumn(currentIdx).width || 8.38) * 7.2;
+                else size = (worksheet.getRow(currentIdx).height || 15) * 1.33;
+                if (remainingPx < size) return currentIdx - 1 + (remainingPx / size);
+                remainingPx -= size;
+                currentIdx++;
+            }
+        };
+        return {
+            tl: { col: getAnchor(left, hOffset, true), row: getAnchor(top, vOffset, false) },
+            br: { col: getAnchor(left, hOffset + targetW, true), row: getAnchor(top, vOffset + targetH, false) },
+            editAs: 'oneCell' 
+        };
+    };
+
+    const replaceMarkersOrdered = (workbook, worksheet, items, globalOffset, info, capacity, options) => {
+        let currentItemIndexForN = 0; 
+        const rowProcessedMasters = new Set(); 
+        const maxRow = worksheet.rowCount;
+        for(let r=1; r<=maxRow; r++) {
+            const row = worksheet.getRow(r);
+            let rowHasImg = false;
+            row.eachCell({ includeEmpty: true }, (cell) => {
+                const v = getCellValue(cell);
+                if (typeof v === 'string' && /\{%img(N|\d+)\}/.test(v)) rowHasImg = true;
+            });
+            if(rowHasImg) currentItemIndexForN++;
+        }
+        currentItemIndexForN = 0;
+        const mastersProcessed = new Set();
+        for(let r=1; r<=maxRow; r++) {
+            const row = worksheet.getRow(r);
+            let rowHasImg = false;
+            row.eachCell({ includeEmpty: true }, (cell) => {
+                if (cell.isMerged && cell.master.address !== cell.address) return;
+                const v = getCellValue(cell);
+                if (typeof v === 'string' && /\{%img(N|\d+)\}/.test(v)) {
+                   if(!mastersProcessed.has(cell.address)) {
+                       rowHasImg = true;
+                       mastersProcessed.add(cell.address);
+                   }
+                }
+            });
+            if (rowHasImg) currentItemIndexForN++;
+            const effectiveIndexForN = currentItemIndexForN === 0 ? 1 : currentItemIndexForN;
+            row.eachCell({ includeEmpty: true }, (cell) => {
+                const v = getCellValue(cell);
+                if (!v || (typeof v !== 'string' && !v.richText)) return;
+                
+                // UPDATED: Added all basic info tags including constructionNumber
+                const processText = (text) => {
+                    let processed = text;
+                    processed = processed.replace(/\{%title\}/g, info.title || '')
+                                 .replace(/\{%location\}/g, info.location || '')
+                                 .replace(/\{%date\}/g, info.date || '')
+                                 .replace(/\{%client\}/g, info.client || '')
+                                 .replace(/\{%contractor\}/g, info.contractor || '')
+                                 .replace(/\{%constructionNumber\}/g, info.constructionNumber || '')
+                                 .replace(/\{%period\}/g, `自 ${info.periodStart}  至 ${info.periodEnd}`);
+                    
+                    processed = processed.replace(/\{%([a-zA-Z0-9_]+)(\d+|N)(_(\d+))?\}/g, (match, type, numStr, _, subIdx) => {
+                        let itemIdx = -1;
+                        if (numStr === 'N') itemIdx = effectiveIndexForN - 1;
+                        else itemIdx = parseInt(numStr) - 1;
+                        if (itemIdx >= capacity) return ''; 
+                        if (itemIdx >= 0 && itemIdx < items.length) {
+                            const item = items[itemIdx];
+                            if (type === 'img') return '';
+                            if (type === 'no') return item.number || (globalOffset + itemIdx + 1).toString();
+                            if (type === 'title') return item.title || '';
+                            if (type === 'text' || type === 'txt') {
+                                if (subIdx === '2') return item.description2 || '';
+                                return item.description || '';
+                            }
+                        }
+                        return ''; 
+                    });
+                    return processed;
+                };
+                if (cell.value && cell.value.richText) {
+                    const newRichText = cell.value.richText.map(rt => {
+                        return { ...rt, text: processText(rt.text) };
+                    });
+                    cell.value = { richText: newRichText };
+                } else if (typeof v === 'string' && v.includes('{%')) {
+                    let targetImage = null;
+                    let imgW = 0, imgH = 0;
+                    if (/\{%img(N|\d+)\}/.test(v)) {
+                        const match = v.match(/\{%img(N|\d+)\}/);
+                        if(match) {
+                            const numStr = match[1];
+                            let itemIdx = (numStr === 'N') ? (effectiveIndexForN - 1) : (parseInt(numStr) - 1);
+                            if (itemIdx >= 0 && itemIdx < capacity && itemIdx < items.length) {
+                                const item = items[itemIdx];
+                                if (item.image) {
+                                    targetImage = item.image;
+                                    imgW = item.imgWidth;
+                                    imgH = item.imgHeight;
+                                }
+                            }
+                        }
+                    }
+                    const newText = processText(v);
+                    if (targetImage) {
+                        cell.value = ''; 
+                        const imageId = workbook.addImage({ base64: targetImage, extension: 'jpeg' });
+                        const pos = calculateImagePosition(worksheet, cell, imgW, imgH, options);
+                        worksheet.addImage(imageId, pos);
+                    } else if (newText !== v) {
+                        cell.value = newText;
+                    }
+                }
+            });
+        }
+    };
+
+    const verifyWorkbookLayout = async (buffer, logs) => {
+        const wb = new ExcelJS.Workbook();
+        await wb.xlsx.load(buffer);
+        const sheet1 = wb.worksheets.find(s => s.name.includes('写真帳-1')) || wb.worksheets[0];
+        const sheet2 = wb.worksheets.find(s => s.name.includes('写真帳-2'));
+        if (!sheet1 || !sheet2) {
+            logs.push({ type: 'info', msg: '比較対象のシート(1ページ目/2ページ目)が見つかりません。2ページ以上ある場合のみ検証されます。' });
+            return;
+        }
+        logs.push({ type: 'info', msg: `検証開始: ${sheet1.name} vs ${sheet2.name}` });
+        const stats = {
+            rowHeight: { match: 0, mismatch: 0 },
+            colWidth: { match: 0, mismatch: 0 },
+            borders: { match: 0, mismatch: 0, top:0, bottom:0, left:0, right:0 },
+            merges: { match: 0, mismatch: 0 }
+        };
+        const maxRow = Math.max(sheet1.rowCount, sheet2.rowCount);
+        const maxCol = Math.max(sheet1.columnCount, sheet2.columnCount, 26);
+        for(let r=1; r<=maxRow; r++) {
+            const h1 = sheet1.getRow(r).height || 15;
+            const h2 = sheet2.getRow(r).height || 15;
+            if (Math.abs(h1 - h2) > 0.1) stats.rowHeight.mismatch++; else stats.rowHeight.match++;
+        }
+        for(let c=1; c<=maxCol; c++) {
+            const w1 = sheet1.getColumn(c).width || 8.43;
+            const w2 = sheet2.getColumn(c).width || 8.43;
+            if (Math.abs(w1 - w2) > 0.01) stats.colWidth.mismatch++; else stats.colWidth.match++;
+        }
+        const getSortedMerges = (sheet) => (sheet.model.merges || []).sort();
+        const merges1 = getSortedMerges(sheet1);
+        const merges2 = getSortedMerges(sheet2);
+        const set1 = new Set(merges1); const set2 = new Set(merges2);
+        merges1.forEach(m => { if(!set2.has(m)) stats.merges.mismatch++; else stats.merges.match++; });
+        merges2.forEach(m => { if(!set1.has(m)) stats.merges.mismatch++; });
+        for(let r=1; r<=maxRow; r++) {
+            for(let c=1; c<=maxCol; c++) {
+                const c1 = sheet1.getCell(r, c); const c2 = sheet2.getCell(r, c);
+                const b1 = c1.border || {}; const b2 = c2.border || {};
+                let bMismatch = false;
+                ['top', 'left', 'bottom', 'right'].forEach(dir => {
+                    const s1 = b1[dir] ? b1[dir].style : 'none';
+                    const s2 = b2[dir] ? b2[dir].style : 'none';
+                    if (s1 !== s2) { bMismatch = true; stats.borders[dir]++; }
+                });
+                if (bMismatch) stats.borders.mismatch++; else stats.borders.match++;
+            }
+        }
+        logs.push({ 
+            type: (stats.rowHeight.mismatch + stats.merges.mismatch + stats.borders.mismatch) === 0 ? 'success' : 'warn',
+            msg: `📊 検証結果: 行高不一致:${stats.rowHeight.mismatch}, 結合不一致:${stats.merges.mismatch}, 罫線不一致:${stats.borders.mismatch}`
+        });
+    };
+
+    const calculateImagePositionForDefault = (worksheet, startCell, imageW, imageH, options = {}, mergedRect = null) => {
+        let top, left, bottom, right;
+        if (mergedRect) {
+            top = mergedRect.top; left = mergedRect.left; bottom = mergedRect.bottom; right = mergedRect.right;
+        } else {
+            top = startCell.row; left = startCell.col; bottom = startCell.row; right = startCell.col;
+            const cell = worksheet.getCell(top, left);
+            if (cell.isMerged && cell.master) {
+                const masterAddr = cell.master.address;
+                if (worksheet.model && worksheet.model.merges) {
+                     const rangeStr = worksheet.model.merges.find(str => str.startsWith(masterAddr + ":") || str === masterAddr); 
+                     if (rangeStr) {
+                         const parts = rangeStr.split(':');
+                         if (parts.length === 2) {
+                             const end = parts[1];
+                             const getColNum = (colStr) => {
+                                 let num = 0;
+                                 for(let i=0; i<colStr.length; i++) num = num * 26 + (colStr.charCodeAt(i) - 64);
+                                 return num;
+                             };
+                             right = getColNum(end.replace(/[0-9]/g, ''));
+                             bottom = parseInt(end.replace(/[A-Z]/g, ''));
+                         }
+                     }
+                }
+            }
+        }
+        let cellW = 0;
+        for (let c = left; c <= right; c++) {
+            const colProps = worksheet.getColumn(c);
+            const wVal = colProps.width !== undefined ? colProps.width : 8.38;
+            cellW += wVal * 7.2; 
+        }
+        let cellH = 0;
+        for (let r = top; r <= bottom; r++) {
+            const rowProps = worksheet.getRow(r);
+            const hVal = rowProps.height !== undefined ? rowProps.height : 15;
+            cellH += hVal * 1.33; 
+        }
+        if (cellW === 0) cellW = 100;
+        if (cellH === 0) cellH = 100;
+        let targetW = cellW, targetH = cellH;
+        let hOffset = 0, vOffset = 0; 
+        const fitToMerge = options.imgFit === 'merge' || !options.imgFit;
+        const keepRatio = !!options.keepRatio;
+        if (fitToMerge && !keepRatio) {
+            targetW = cellW; targetH = cellH;
+            hOffset = 0; vOffset = 0;
+        } else {
+            const cellRatio = cellW / cellH;
+            const imgRatio = imageW / imageH;
+            if (imgRatio > cellRatio) { targetH = cellW / imgRatio; vOffset = (cellH - targetH) / 2; } 
+            else { targetW = cellH * imgRatio; hOffset = (cellW - targetW) / 2; }
+        }
+        const getAnchor = (startIdx, pixelOffset, isCol) => {
+            let currentIdx = startIdx;
+            let remainingPx = pixelOffset;
+            let loopCount = 0;
+            while (true) {
+                if (loopCount++ > 1000) return startIdx; 
+                let size = 0;
+                if (isCol) {
+                    const col = worksheet.getColumn(currentIdx);
+                    size = (col.width !== undefined ? col.width : 8.38) * 7.2;
+                } else {
+                    const row = worksheet.getRow(currentIdx);
+                    size = (row.height !== undefined ? row.height : 15) * 1.33;
+                }
+                if (size <= 0.1) size = 10; 
+                if (remainingPx < size) return currentIdx - 1 + (remainingPx / size);
+                remainingPx -= size;
+                currentIdx++;
+            }
+        };
+        return {
+            tl: { col: getAnchor(left, hOffset, true), row: getAnchor(top, vOffset, false) },
+            br: { col: getAnchor(left, hOffset + targetW, true), row: getAnchor(top, vOffset + targetH, false) },
+            editAs: 'oneCell' 
+        };
+    };
+
+    const createCoverSheet = (workbook, info, pattern = 'standard') => {
+         const cover = workbook.addWorksheet('表紙', { 
+            pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: false, fitToWidth: 1, fitToHeight: 0 } 
+         });
+         const periodStr = `自 ${info.periodStart}  至 ${info.periodEnd}`;
+         const fields = [ 
+             { l: "工 事 番 号", v: info.constructionNumber },
+             { l: "工 事 名", v: info.title }, 
+             { l: "工 事 場 所", v: info.location }, 
+             { l: "工 期", v: periodStr }, 
+             { l: "発 注 者", v: info.client }, 
+             { l: "施 工 業 者", v: info.contractor }, 
+             { l: "作 成 日", v: info.date } 
+         ];
+         if (pattern === 'table') {
+             cover.columns = [{ width: 4 }, { width: 25 }, { width: 50 }, { width: 4 }];
+             cover.mergeCells('B3:C4');
+             const titleCell = cover.getCell('B3');
+             titleCell.value = "工　事　写　真　台　帳";
+             titleCell.font = { name: 'Meiryo UI', size: 24, bold: true };
+             titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+             titleCell.border = { bottom: { style: 'double' } };
+             if (info.logo) {
+                 const logoId = workbook.addImage({ base64: info.logo, extension: 'png' });
+                 cover.addImage(logoId, { tl: { col: 1, row: 5 }, ext: { width: 120, height: 50 } });
+             }
+             const startRow = 10;
+             fields.forEach((f, i) => {
+                 const r = startRow + i * 2;
+                 cover.mergeCells(`B${r}:B${r+1}`);
+                 const label = cover.getCell(`B${r}`);
+                 label.value = f.l;
+                 label.font = { name: 'Meiryo UI', size: 11, bold: true };
+                 label.alignment = { horizontal: 'center', vertical: 'middle' };
+                 label.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+                 label.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                 cover.mergeCells(`C${r}:C${r+1}`);
+                 const val = cover.getCell(`C${r}`);
+                 val.value = f.v;
+                 val.font = { name: 'Meiryo UI', size: 11 };
+                 val.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
+                 val.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+             });
+             const endR = startRow + fields.length * 2 - 1;
+             cover.getCell(`B${startRow}`).border.top = { style: 'medium' };
+             cover.getCell(`C${startRow}`).border.top = { style: 'medium' };
+             cover.getCell(`B${endR}`).border.bottom = { style: 'medium' };
+             cover.getCell(`C${endR}`).border.bottom = { style: 'medium' };
+             for(let r=startRow; r<=endR; r++) {
+                 cover.getCell(`B${r}`).border.left = { style: 'medium' };
+                 cover.getCell(`C${r}`).border.right = { style: 'medium' };
+             }
+         } else if (pattern === 'modern') {
+             cover.columns = [{ width: 5 }, { width: 25 }, { width: 50 }, { width: 5 }];
+             cover.mergeCells('A2:D4');
+             const header = cover.getCell('A2');
+             header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } }; 
+             cover.mergeCells('B3:C3');
+             const title = cover.getCell('B3');
+             title.value = "CONSTRUCTION PHOTO LEDGER";
+             title.font = { name: 'Arial', size: 16, color: { argb: 'FFFFFFFF' }, bold: true };
+             title.alignment = { horizontal: 'left', vertical: 'middle' };
+             cover.mergeCells('B8:C10');
+             const mainTitle = cover.getCell('B8');
+             mainTitle.value = info.title;
+             mainTitle.font = { name: 'Meiryo UI', size: 28, bold: true, color: { argb: 'FF333333' } };
+             mainTitle.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+             if (info.logo) {
+                 const logoId = workbook.addImage({ base64: info.logo, extension: 'png' });
+                 cover.addImage(logoId, { tl: { col: 2, row: 1 }, ext: { width: 100, height: 100 }, editAs: 'absolute' });
+             }
+             let r = 14;
+             fields.filter(f => f.l !== '工 事 名').forEach(f => {
+                 cover.mergeCells(`B${r}:B${r}`);
+                 const l = cover.getCell(`B${r}`);
+                 l.value = f.l;
+                 l.font = { name: 'Meiryo UI', size: 10, color: { argb: 'FF888888' } };
+                 l.alignment = { horizontal: 'left', vertical: 'bottom' };
+                 l.border = { bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } } };
+                 cover.mergeCells(`C${r}:C${r}`);
+                 const v = cover.getCell(`C${r}`);
+                 v.value = f.v;
+                 v.font = { name: 'Meiryo UI', size: 12 };
+                 v.alignment = { horizontal: 'left', vertical: 'bottom', indent: 1 };
+                 v.border = { bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } } };
+                 r += 2;
+             });
+         } else {
+             cover.columns = [{ width: 5 }, { width: 25 }, { width: 50 }, { width: 5 }];
+             cover.mergeCells('B6:C7');
+             const titleCell = cover.getCell('B6');
+             titleCell.value = "工 事 写 真 台 帳";
+             titleCell.font = { name: 'Meiryo UI', size: 28, bold: true, underline: true };
+             titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+             if (info.logo) {
+                 const logoId = workbook.addImage({ base64: info.logo, extension: 'png' });
+                 cover.addImage(logoId, { tl: { col: 1, row: 1 }, ext: { width: 150, height: 60 } });
+             }
+             const startRow = 12;
+             fields.forEach((f, i) => {
+                 const r = startRow + (i * 3);
+                 cover.mergeCells(`B${r}:B${r+1}`); cover.getCell(`B${r}`).value = f.l;
+                 cover.getCell(`B${r}`).font = { name: 'Meiryo UI', size: 12, bold: true };
+                 cover.getCell(`B${r}`).alignment = { horizontal: 'center', vertical: 'middle' };
+                 cover.getCell(`B${r}`).border = { top: {style:'medium'}, left: {style:'medium'}, bottom: {style:'medium'}, right: {style:'thin'} };
+                 cover.getCell(`B${r}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+                 cover.mergeCells(`C${r}:C${r+1}`); cover.getCell(`C${r}`).value = f.v;
+                 cover.getCell(`C${r}`).font = { name: 'Meiryo UI', size: 12 };
+                 cover.getCell(`C${r}`).alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
+                 cover.getCell(`C${r}`).border = { top: {style:'medium'}, left: {style:'thin'}, bottom: {style:'medium'}, right: {style:'medium'} };
+             });
+         }
+         return cover;
+    };
+
+    const generateDefaultExcel = (workbook, pages, info, options) => {
+        createCoverSheet(workbook, info, options.coverPattern || 'standard');
+        const sheet = workbook.addWorksheet('写真帳', { 
+            pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: false, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0, footer: 0 } },
+            headerFooter: { oddFooter: { right: 'Page &P' } } 
+        });
+        const layoutType = pages.length > 0 ? pages[0].layout : 'standard-3';
+        const safeLayout = DEFAULT_LAYOUT_DEFS[layoutType] ? layoutType : 'standard-3';
+        const isGrid = DEFAULT_LAYOUT_DEFS[safeLayout].type === 'grid';
+        if (isGrid) {
+            sheet.columns = [{ width: 2 }, { width: 43 }, { width: 2 }, { width: 43 }, { width: 2 }];
+        } else {
+            sheet.columns = [{ width: 2 }, { width: 63 }, { width: 6 }, { width: 19 }, { width: 2 }];
+        }
+        let r = 2;
+        const placeItemStandardLike = (item, startR, endR) => {
+            sheet.mergeCells(`B${startR}:B${endR}`);
+            const photoCell = sheet.getCell(`B${startR}`);
+            photoCell.border = { top: {style:'medium'}, left: {style:'medium'}, bottom: {style:'medium'}, right: {style:'medium'} };
+            
+            const photoRect = { top: startR, left: 2, bottom: endR, right: 2 };
+
+            if (item.image) {
+                const imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
+                const imgW = item.imgWidth || 100; const imgH = item.imgHeight || 100;
+                const pos = calculateImagePositionForDefault(sheet, photoCell, imgW, imgH, options, photoRect);
+                sheet.addImage(imgId, pos);
+            } else { 
+                photoCell.value = "（写真なし）"; 
+                photoCell.alignment = { horizontal: 'center', vertical: 'middle' }; 
+            }
+            sheet.mergeCells(`C${startR}:D${startR+2}`);
+            const headerCell = sheet.getCell(`C${startR}`);
+            const noStr = item.number ? `No.${item.number}` : "No.";
+            headerCell.value = { 
+                richText: [
+                    { font: { size: 12, bold: true, name: 'Meiryo UI' }, text: noStr + "  " },
+                    { font: { size: 11, name: 'Meiryo UI' }, text: item.title }
+                ] 
+            };
+            headerCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 };
+            headerCell.border = { top: {style:'medium'}, left: {style:'thin'}, right: {style:'medium'}, bottom: {style:'dotted'} };
+            headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFAFAFA' } };
+            sheet.mergeCells(`C${startR+3}:D${endR}`);
+            const descVal = sheet.getCell(`C${startR+3}`);
+            let descText = item.description || '';
+            if (item.description2) descText += `\n${item.description2}`;
+            descVal.value = descText;
+            descVal.font = { name: 'Meiryo UI', size: 10 };
+            descVal.alignment = { horizontal: 'left', vertical: 'top', wrapText: true, indent: 1 };
+            descVal.border = { top: {style:'dotted'}, left: {style:'thin'}, right: {style:'medium'}, bottom: {style:'medium'} };
+        };
+        const placeGridItem = (item, topR, colIdx, photoH, textH) => {
+             const photoEndR = topR + photoH - 1;
+             sheet.mergeCells(topR, colIdx, photoEndR, colIdx);
+             const photoCell = sheet.getCell(topR, colIdx);
+             photoCell.border = { top: {style:'thin'}, left: {style:'thin'}, right: {style:'thin'}, bottom: {style:'dotted'} };
+             const photoRect = { top: topR, left: colIdx, bottom: photoEndR, right: colIdx };
+             if (item.image) {
+                 const imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
+                 const imgW = item.imgWidth || 100; const imgH = item.imgHeight || 100;
+                 const pos = calculateImagePositionForDefault(sheet, photoCell, imgW, imgH, options, photoRect);
+                 sheet.addImage(imgId, pos);
+             } else {
+                 photoCell.value = "（写真なし）";
+                 photoCell.alignment = { horizontal: 'center', vertical: 'middle' };
+             }
+             const textStartR = topR + photoH;
+             const textEndR = textStartR + textH - 1;
+             sheet.mergeCells(textStartR, colIdx, textEndR, colIdx);
+             const textCell = sheet.getCell(textStartR, colIdx);
+             let fullText = "";
+             if (item.number) fullText += `No.${item.number} `;
+             if (item.title) fullText += `${item.title}\n`;
+             if (item.description) fullText += `${item.description}\n`;
+             if (item.description2) fullText += `${item.description2}`;
+             textCell.value = fullText.trim();
+             textCell.font = { name: 'Meiryo UI', size: 9 };
+             textCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+             textCell.border = { top: {style:'dotted'}, left: {style:'thin'}, right: {style:'thin'}, bottom: {style:'thin'} };
+        };
+        pages.forEach((page, pIdx) => {
+            const maxCol = isGrid ? 'D' : 'D'; 
+            sheet.mergeCells(`B${r}:${maxCol}${r}`);
+            const header = sheet.getCell(`B${r}`);
+            header.value = `${info.title}  (Page ${pIdx + 1})`;
+            header.font = { name: 'Meiryo UI', size: 10, italic: true, color: { argb: 'FF555555' } };
+            header.border = { bottom: { style: 'thin' } };
+            r += 2;
+            if (safeLayout === 'standard-3') {
+                page.items.forEach(item => {
+                    const startR = r; const endR = r + 18; 
+                    placeItemStandardLike(item, startR, endR);
+                    r = endR + 2;
+                });
+            } else if (safeLayout === 'large-2') {
+                page.items.forEach(item => {
+                    const startR = r; const endR = r + 27;
+                    placeItemStandardLike(item, startR, endR);
+                    r = endR + 2;
+                });
+            } else { 
+                const rows = safeLayout === 'grid-4' ? 2 : 3;
+                const photoH = 15; const textH = 6;
+                let itemIdx = 0;
+                for(let row=0; row<rows; row++) {
+                    const topR = r;
+                    const itemL = page.items[itemIdx];
+                    if (itemL) placeGridItem(itemL, topR, 2, photoH, textH);
+                    const itemR = page.items[itemIdx+1];
+                    if (itemR) placeGridItem(itemR, topR, 4, photoH, textH);
+                    r += photoH + textH + 1;
+                    itemIdx += 2;
+                }
+            }
+            sheet.getRow(r).addPageBreak(); r += 1;
+        });
+    };
+
+    const processTemplateCloneStrategy = async (workbook, pages, projectInfo, importOptions) => {
+        const logs = [];
+        let coverSheet = null;
+        let patternSheet = null;
+        let maxCapacity = 0;
+        let forceInsertCoverSheet = null;
+        
+        workbook.eachSheet(sheet => {
+            let isCover = false;
+            let itemCount = 0;
+            const processedImageMasters = new Set();
+            sheet.eachRow((row) => {
+                row.eachCell({ includeEmpty: true }, (cell) => {
+                    const v = getCellValue(cell);
+                    if (v.includes('{%img')) {
+                         if (!processedImageMasters.has(cell.isMerged ? cell.master.address : cell.address)) {
+                             processedImageMasters.add(cell.isMerged ? cell.master.address : cell.address);
+                             itemCount++;
+                         }
+                    }
+                    if (v.includes('{%title}')) isCover = true;
+                });
+            });
+            if (isCover && !coverSheet) coverSheet = sheet;
+            if (itemCount > maxCapacity) {
+                maxCapacity = itemCount;
+                patternSheet = sheet;
+            }
+        });
+
+        if (importOptions.forceCoverInsert) {
+             logs.push({ type: 'info', msg: `表紙自動生成モード: パターン [${importOptions.coverPattern}]` });
+             if (coverSheet) {
+                 logs.push({ type: 'warn', msg: `テンプレート内の表紙シート [${coverSheet.name}] をスキップします。` });
+                 workbook.removeWorksheet(coverSheet.id);
+                 coverSheet = null; 
+             }
+             forceInsertCoverSheet = createCoverSheet(workbook, projectInfo, importOptions.coverPattern);
+        } else {
+             if (coverSheet) {
+                logs.push({ type: 'info', msg: `テンプレート表紙処理: ${coverSheet.name}` });
+                replaceMarkersOrdered(workbook, coverSheet, [], 0, projectInfo, 999, importOptions);
+            }
+        }
+
+        if (patternSheet) {
+            const capacity = maxCapacity > 0 ? maxCapacity : 1;
+            const allItems = pages.reduce((acc, page) => acc.concat(page.items), []);
+            const totalSheetsNeeded = Math.ceil(allItems.length / capacity);
+            logs.push({ type: 'info', msg: `台帳作成: ${totalSheetsNeeded}シート必要` });
+            
+            const templateSheetId = patternSheet.id;
+            patternSheet.name = "Original_Template_Source"; 
+            patternSheet.state = 'hidden'; 
+
+            if (totalSheetsNeeded > 0) {
+                for (let i = 0; i < totalSheetsNeeded; i++) {
+                    const sheetName = `写真帳-${i + 1}`;
+                    const newSheet = cloneSheetDetailed(workbook, patternSheet, sheetName);
+                    const startIdx = i * capacity;
+                    const endIdx = startIdx + capacity;
+                    const sheetItems = allItems.slice(startIdx, endIdx);
+                    replaceMarkersOrdered(workbook, newSheet, sheetItems, startIdx, projectInfo, capacity, importOptions);
+                }
+            } else {
+                 const sheetName = `写真帳-1`;
+                 const newSheet = cloneSheetDetailed(workbook, patternSheet, sheetName);
+                 replaceMarkersOrdered(workbook, newSheet, [], 0, projectInfo, capacity, importOptions);
+            }
+            workbook.removeWorksheet(patternSheet.id);
+            
+            workbook.worksheets.sort((a, b) => {
+                if (forceInsertCoverSheet && a.id === forceInsertCoverSheet.id) return -1;
+                if (forceInsertCoverSheet && b.id === forceInsertCoverSheet.id) return 1;
+                if (coverSheet && a.id === coverSheet.id) return -1;
+                if (coverSheet && b.id === coverSheet.id) return 1;
+                if (a.name === '表紙') return -1;
+                if (b.name === '表紙') return 1;
+                const getNum = (name) => {
+                    const m = name.match(/写真帳-(\d+)/);
+                    return m ? parseInt(m[1]) : 9999;
+                };
+                return getNum(a.name) - getNum(b.name);
+            });
+        }
+        return logs;
+    };
+
+    const LogModal = ({ logs, onClose }) => {
+        return (
+            <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4 animate-fadeIn">
+                <div className="bg-white rounded-lg shadow-2xl w-full max-w-4xl flex flex-col max-h-[85vh]">
+                    <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                            <Icons.Terminal className="w-5 h-5 text-slate-500"/> 処理ログ / 差分検証レポート
+                        </h3>
+                        <button onClick={onClose}><Icons.X className="w-5 h-5 text-slate-400 hover:text-red-500"/></button>
+                    </div>
+                    <div className="p-4 overflow-y-auto font-mono text-xs space-y-2 flex-1 bg-slate-900 text-slate-300">
+                        {logs.length === 0 && <div className="text-center text-slate-500 py-8">ログはありません</div>}
+                        {logs.map((log, idx) => (
+                            <div key={idx} className={`p-2 rounded border-l-4 ${
+                                log.type === 'error' ? 'border-red-500 bg-red-900/20 text-red-200' :
+                                log.type === 'warn' ? 'border-yellow-500 bg-yellow-900/20 text-yellow-200' :
+                                log.type === 'success' ? 'border-green-500 bg-green-900/20 text-green-200' :
+                                'border-slate-500 bg-slate-800 text-slate-300'
+                            }`}>
+                                <div className="font-bold flex items-center gap-2">
+                                    {log.type === 'error' ? '❌ ERROR' : log.type === 'warn' ? '⚠️ WARNING' : log.type === 'success' ? '✅ PASS' : 'ℹ️ INFO'} 
+                                </div>
+                                <div className="pl-5 mt-1 whitespace-pre-wrap font-mono">{log.msg}</div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="p-3 border-t border-slate-200 flex justify-end gap-2 bg-slate-50 rounded-b-lg">
+                        <button onClick={onClose} className="px-4 py-2 bg-slate-800 text-white text-xs font-bold rounded hover:bg-slate-700">閉じる</button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const PreviewItemList = ({ item }) => (
+        <div className="flex h-64 border border-slate-800 mb-4 bg-white shadow-sm">
+            <div className="w-[65%] border-r border-slate-800 relative flex items-center justify-center bg-slate-50 p-1">
+                {item.image ? (
+                    <img src={item.image} className="max-w-full max-h-full object-contain shadow-sm" />
+                ) : <div className="text-slate-400 text-xs flex flex-col items-center gap-1"><Icons.ImageIcon className="w-6 h-6"/>(写真なし)</div>}
+                {item.number && <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded font-mono">{item.number}</div>}
+            </div>
+            <div className="w-[35%] flex flex-col">
+                <div className="h-10 border-b border-dotted border-slate-800 flex items-center px-3 bg-slate-50">
+                    <span className="font-bold text-base mr-3 text-slate-900">
+                        No.{item.number}
+                    </span>
+                    <span className="font-bold text-sm text-slate-800 flex-1 truncate">
+                        {item.title}
+                    </span>
+                </div>
+                <div className="flex-1 p-3 text-sm bg-white overflow-y-auto leading-relaxed text-slate-700">
+                    <div dangerouslySetInnerHTML={formatTextToHtml(item.description)} />
+                    <div className="mt-1" dangerouslySetInnerHTML={formatTextToHtml(item.description2)} />
+                </div>
+            </div>
+        </div>
+    );
+
+    const TagsList = ({ onCopy }) => {
+        const items = [
+            { tag: "{%noN}", desc: "No. (番号)" },
+            { tag: "{%imgN}", desc: "写真画像" },
+            { tag: "{%titleN}", desc: "施工名" },
+            { tag: "{%textN_1}", desc: "詳細 (上段)" },
+            { tag: "{%textN_2}", desc: "詳細 (下段)" },
+            // UPDATED: Added all basic info tags
+            { tag: "{%constructionNumber}", desc: "基本: 工事番号" }, 
+            { tag: "{%title}", desc: "基本: 工事名" },
+            { tag: "{%location}", desc: "基本: 工事場所" },
+            { tag: "{%date}", desc: "基本: 作成日" },
+            { tag: "{%client}", desc: "基本: 発注者" }, 
+            { tag: "{%contractor}", desc: "基本: 施工業者" }, 
+            { tag: "{%period}", desc: "基本: 工期 (自～至)" }, 
+        ];
+        return (
+            <div className="flex flex-col gap-1 text-xs font-mono">
+                {items.map(i => (
+                    <button key={i.tag} onClick={() => onCopy(i.tag)} className="flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded hover:bg-brand-50 hover:border-brand-300 transition-colors text-left group">
+                        <span className="flex items-center gap-2">
+                            <span className="font-bold text-brand-700 bg-brand-50 px-1 rounded">{i.tag}</span>
+                            <span className="text-slate-500 text-[10px]">{i.desc}</span>
+                        </span>
+                        <Icons.Copy className="w-3 h-3 text-slate-300 group-hover:text-brand-500"/>
+                    </button>
+                ))}
+            </div>
+        );
+    };
+
+    const ContextMenu = ({ x, y, options, onClose, onSelect, onDelete, onAdd, currentText }) => {
+        const menuRef = useRef(null);
+        useEffect(() => {
+            const handleClick = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) onClose(); };
+            document.addEventListener('mousedown', handleClick);
+            return () => document.removeEventListener('mousedown', handleClick);
+        }, [onClose]);
+
+        if (x === null || y === null) return null;
+        const style = { top: y, left: x };
+        if (window.innerHeight - y < 300) style.top = y - 300;
+        if (window.innerWidth - x < 250) style.left = x - 250;
+
+        return (
+            <div ref={menuRef} className="fixed z-50 bg-white border border-slate-200 shadow-2xl rounded-lg w-64 overflow-hidden text-sm flex flex-col max-h-[320px]" style={style}>
+                <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 font-bold text-slate-600 flex justify-between items-center">
+                    <span>定型文を選択</span>
+                    <button onClick={onClose}><Icons.X className="w-4 h-4 hover:text-red-500"/></button>
+                </div>
+                <div className="overflow-y-auto flex-1 p-1 bg-white">
+                    {options.length === 0 && <div className="p-4 text-slate-400 text-center text-xs">定型文がありません。<br/>サイドバーで追加してください。</div>}
+                    {options.map((opt, idx) => (
+                        <div key={idx} className="group flex items-center justify-between px-2 py-2 hover:bg-brand-50 rounded cursor-pointer transition-colors">
+                            <span className="flex-1 truncate text-slate-700" onClick={() => onSelect(opt)}>{opt}</span>
+                            <button onClick={(e) => { e.stopPropagation(); onDelete(opt); }} className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100">
+                                <Icons.Trash2 className="w-3 h-3"/>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+                {currentText && !options.includes(currentText) && (
+                    <div className="border-t border-slate-200 p-2 bg-slate-50">
+                        <button onClick={() => onAdd(currentText)} className="w-full flex items-center justify-center gap-2 bg-white border border-slate-300 rounded py-1.5 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 transition-colors text-xs font-bold text-slate-600">
+                            <Icons.Plus className="w-3 h-3"/> 「{currentText.slice(0,8)}...」を登録
+                        </button>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    function PhotoLedgerApp() {
+      const KEY_INFO = 'pl_info_v1';
+      const KEY_PAGES = 'pl_pages_v1';
+      const KEY_TITLES = 'pl_titles';
+      const KEY_DESCS = 'pl_descs';
+      const KEY_OPTIONS = 'pl_options_v2_hybrid';
+
+      const initialInfo = {
+        title: '令和7年度 外構改修工事',
+        location: '東京都世田谷区〇〇邸',
+        constructionNumber: '', 
+        periodStart: '令和7年4月1日', 
+        periodEnd: '令和7年4月30日',   
+        client: '〇〇様',
+        contractor: '株式会社 エクステリア建設',
+        date: new Date().toISOString().split('T')[0],
+        logo: null
+      };
+      
+      const createEmptyItem = (id) => ({
+        id, image: null, imgWidth: 0, imgHeight: 0, number: '', title: '', description: '', description2: ''
+      });
+
+      const initialPages = [
+        { id: 'page-1', layout: 'standard-3', items: Array(3).fill(null).map((_, i) => createEmptyItem(`p1-${i}`)) }
+      ];
+
+      const [projectInfo, setProjectInfo] = useState(() => {
+          try {
+              const saved = localStorage.getItem(KEY_INFO);
+              return saved ? { ...initialInfo, ...JSON.parse(saved) } : initialInfo;
+          } catch(e) { return initialInfo; }
+      });
+
+      const [pages, setPages] = useState(() => {
+          try {
+              const saved = localStorage.getItem(KEY_PAGES);
+              return saved ? JSON.parse(saved) : initialPages;
+          } catch(e) { return initialPages; }
+      });
+      
+      const [layoutDefs, setLayoutDefs] = useState(DEFAULT_LAYOUT_DEFS);
+
+      const [importOptions, setImportOptions] = useState(() => {
+          try {
+              const saved = localStorage.getItem(KEY_OPTIONS);
+              return saved ? JSON.parse(saved) : { 
+                  mode: 'clone', 
+                  imgFit: 'merge', 
+                  keepRatio: false,
+                  forceCoverInsert: false,
+                  coverPattern: 'standard' 
+              };
+          } catch(e) { 
+              return { mode: 'clone', imgFit: 'merge', keepRatio: false, forceCoverInsert: false, coverPattern: 'standard' }; 
+          }
+      });
+      
+      const [storageError, setStorageError] = useState(false);
+
+      const saveToStorage = (key, data) => {
+          try {
+              localStorage.setItem(key, JSON.stringify(data));
+              setStorageError(false);
+          } catch (e) {
+              if (e.name === 'QuotaExceededError' || e.code === 22) {
+                  setStorageError(true);
+              }
+          }
+      };
+
+      useEffect(() => { saveToStorage(KEY_INFO, projectInfo); }, [projectInfo]);
+      useEffect(() => { saveToStorage(KEY_PAGES, pages); }, [pages]);
+      useEffect(() => { saveToStorage(KEY_OPTIONS, importOptions); }, [importOptions]);
+
+      const [titleTemplates, setTitleTemplates] = useState([
+        "着工前状況", "掘削状況", "路盤工 転圧状況", "境界ブロック積 完了", "フェンス基礎 設置状況", 
+        "土間コンクリート 打設状況", "土間コンクリート 完了", "カーポート 組立状況", "植栽工 完了", "完了全景", "是正箇所確認"
+      ]);
+      const [descTemplates, setDescTemplates] = useState([
+        "清掃状況よし", "寸法確認よし", "材料検収", "全景", "近景", "是正完了", "t=100", "D=300", "L=2000"
+      ]);
+
+      const [newTemplateText, setNewTemplateText] = useState("");
+      const [newTemplateType, setNewTemplateType] = useState("title");
+
+      useEffect(() => {
+          const savedTitles = localStorage.getItem(KEY_TITLES);
+          const savedDescs = localStorage.getItem(KEY_DESCS);
+          if (savedTitles) setTitleTemplates(JSON.parse(savedTitles));
+          if (savedDescs) setDescTemplates(JSON.parse(savedDescs));
+      }, []);
+
+      const saveTemplates = (titles, descs) => {
+          try {
+            localStorage.setItem('pl_titles', JSON.stringify(titles));
+            localStorage.setItem('pl_descs', JSON.stringify(descs));
+          } catch(e) {}
+      };
+
+      const [activeTab, setActiveTab] = useState('info');
+      const [lastFocusedInput, setLastFocusedInput] = useState(null);
+      const [isExporting, setIsExporting] = useState(false);
+      const [exportStage, setExportStage] = useState('');
+      const [isWebPreview, setIsWebPreview] = useState(false);
+      const [copyFeedback, setCopyFeedback] = useState(null);
+      
+      const [contextMenu, setContextMenu] = useState({ x: null, y: null, type: null, pageId: null, itemId: null, targetField: null });
+      const closeContextMenu = () => setContextMenu({ x: null, y: null, type: null, pageId: null, itemId: null, targetField: null });
+
+      const [templateFile, setTemplateFile] = useState(null);
+      const [templateFileName, setTemplateFileName] = useState(null);
+      const [analysisResult, setAnalysisResult] = useState(null); 
+      const [placeholders, setPlaceholders] = useState([]);
+      
+      const [logs, setLogs] = useState([]);
+      const [showLogModal, setShowLogModal] = useState(false);
+
+      const handleResetAll = () => {
+          if(!window.confirm("全データをリセットしますか？")) return;
+          localStorage.removeItem(KEY_INFO);
+          localStorage.removeItem(KEY_PAGES);
+          setProjectInfo(initialInfo);
+          setPages(initialPages);
+          setPages([{ id: 'page-1', layout: 'standard-3', items: Array(3).fill(null).map((_, i) => createEmptyItem(`p1-${i}`)) }]);
+          setStorageError(false);
+          alert("リセットしました。");
+      };
+
+      const changePageLayout = (pageId, newLayout) => handleReflowLayout(newLayout);
+
+      const handleReflowLayout = (targetLayout) => {
+        const itemsPerPage = layoutDefs[targetLayout] ? layoutDefs[targetLayout].itemCount : 3;
+        const allItems = [];
+        pages.forEach(p => {
+            p.items.forEach(item => {
+                if (item.image || item.title || item.description || item.description2 || item.number) allItems.push(item);
+            });
+        });
+        const newPages = [];
+        let itemIndex = 0;
+        const rnd = () => Math.random().toString(36).substr(2, 5);
+        while (itemIndex < allItems.length) {
+            const newPageId = `page-${Date.now()}-${newPages.length}`;
+            const pageItems = [];
+            for (let i = 0; i < itemsPerPage; i++) {
+                if (itemIndex < allItems.length) {
+                    const oldItem = allItems[itemIndex];
+                    pageItems.push({ ...oldItem, id: `${newPageId}-${i}-${rnd()}` });
+                    itemIndex++;
+                } else {
+                    pageItems.push(createEmptyItem(`${newPageId}-${i}-${rnd()}`));
+                }
+            }
+            newPages.push({ id: newPageId, layout: targetLayout, items: pageItems });
+        }
+        if (newPages.length === 0) {
+            const newPageId = `page-${Date.now()}-0`;
+            const pageItems = Array(itemsPerPage).fill(null).map((_, i) => createEmptyItem(`${newPageId}-${i}-${rnd()}`));
+            newPages.push({ id: newPageId, layout: targetLayout, items: pageItems });
+        }
+        setPages(newPages);
+      };
+
+      const handleBatchImageUpload = async (e, startPageId, startItemId) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+        const compressedImages = await Promise.all(files.map(file => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    if (ev.target?.result) resolve(await compressImage(ev.target.result)); else resolve(null);
+                };
+                reader.readAsDataURL(file);
+            });
+        }));
+        const validImages = compressedImages.filter(img => img !== null);
+        if (validImages.length === 0) return;
+        setPages(prevPages => {
+            const newPages = JSON.parse(JSON.stringify(prevPages));
+            let currentImgIdx = 0;
+            let recording = false;
+            let maxNum = 0;
+            newPages.forEach(p => p.items.forEach(i => {
+                const n = parseInt(i.number);
+                if (!isNaN(n) && n > maxNum) maxNum = n;
+            }));
+            let nextNum = maxNum + 1;
+            for (let pIdx = 0; pIdx < newPages.length; pIdx++) {
+                const page = newPages[pIdx];
+                for (let iIdx = 0; iIdx < page.items.length; iIdx++) {
+                    const item = page.items[iIdx];
+                    if (page.id === startPageId && item.id === startItemId) recording = true;
+                    if (recording && currentImgIdx < validImages.length) {
+                        const imgData = validImages[currentImgIdx];
+                        item.image = imgData.data; item.imgWidth = imgData.width; item.imgHeight = imgData.height;
+                        if (!item.number) { item.number = nextNum.toString(); nextNum++; }
+                        currentImgIdx++;
+                    }
+                }
+            }
+            while (currentImgIdx < validImages.length) {
+                const lastPage = newPages[newPages.length - 1];
+                const layout = lastPage.layout;
+                const itemCount = layoutDefs[layout] ? layoutDefs[layout].itemCount : 3;
+                const newPageId = `page-${Date.now()}-${newPages.length}`;
+                const newItems = Array(itemCount).fill(null).map((_, i) => createEmptyItem(`${newPageId}-${i}`));
+                for (let i = 0; i < newItems.length && currentImgIdx < validImages.length; i++) {
+                    const imgData = validImages[currentImgIdx];
+                    newItems[i].image = imgData.data; newItems[i].imgWidth = imgData.width; newItems[i].imgHeight = imgData.height;
+                    newItems[i].number = nextNum.toString(); nextNum++;
+                    currentImgIdx++;
+                }
+                newPages.push({ id: newPageId, layout, items: newItems });
+            }
+            return newPages;
+        });
+        e.target.value = '';
+      };
+
+      const handleLogoUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          if (event.target?.result) {
+            const compressed = await compressImage(event.target.result, 300);
+            setProjectInfo(prev => ({ ...prev, logo: compressed.data }));
+          }
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+      };
+
+      const updateItem = (pageId, itemId, dataOrFn) => {
+        setPages(prev => prev.map(page => {
+          if (page.id !== pageId) return page;
+          return { ...page, items: page.items.map(item => {
+              if (item.id !== itemId) return item;
+              const data = typeof dataOrFn === 'function' ? dataOrFn(item) : dataOrFn;
+              return { ...item, ...data };
+          })};
+        }));
+      };
+
+      const handleAddTemplate = () => {
+          if (!newTemplateText.trim()) return;
+          if (newTemplateType === 'title') {
+              const newTitles = [...titleTemplates, newTemplateText];
+              setTitleTemplates(newTitles);
+              saveTemplates(newTitles, descTemplates);
+          } else {
+              const newDescs = [...descTemplates, newTemplateText];
+              setDescTemplates(newDescs);
+              saveTemplates(titleTemplates, newDescs);
+          }
+          setNewTemplateText("");
+      };
+
+      const handleMenuDelete = (text, type) => {
+          if(!window.confirm(`「${text}」を削除しますか？`)) return;
+          if(type === 'title') {
+              const newTitles = titleTemplates.filter(t => t !== text);
+              setTitleTemplates(newTitles);
+              saveTemplates(newTitles, descTemplates);
+          } else {
+              const newDescs = descTemplates.filter(t => t !== text);
+              setDescTemplates(newDescs);
+              saveTemplates(titleTemplates, newDescs);
+          }
+      };
+
+      const handleContextMenu = (e, type, pageId, itemId, targetField = null) => {
+          e.preventDefault();
+          setContextMenu({ x: e.clientX, y: e.clientY, type, pageId, itemId, targetField });
+      };
+      
+      const handleMenuSelect = (text) => {
+          const { pageId, itemId, type, targetField } = contextMenu;
+          updateItem(pageId, itemId, (item) => {
+              const field = type === 'title' ? 'title' : (targetField || 'description');
+              const current = item[field] || '';
+              const spacer = (field === 'description' || field === 'description2') ? '\n' : ' ';
+              return { [field]: current ? current + spacer + text : text };
+          });
+          closeContextMenu();
+      };
+      
+      const handleMenuAdd = (text) => {
+          if(!text) return;
+          if(contextMenu.type === 'title') {
+              const newTitles = [...titleTemplates, text];
+              setTitleTemplates(newTitles);
+              saveTemplates(newTitles, descTemplates);
+          } else {
+              const newDescs = [...descTemplates, text];
+              setDescTemplates(newDescs);
+              saveTemplates(titleTemplates, newDescs);
+          }
+      };
+
+      const insertTemplate = (text) => {
+        if (!lastFocusedInput) {
+          alert("挿入したい入力欄をクリックしてからボタンを押してください。");
+          return;
+        }
+        const { pageId, itemId, field } = lastFocusedInput;
+        const page = pages.find(p => p.id === pageId);
+        const item = page?.items.find(i => i.id === itemId);
+        if (item) {
+          const currentVal = item[field] || '';
+          const spacer = (field === 'description' || field === 'description2') ? '\n' : ' ';
+          updateItem(pageId, itemId, { [field]: currentVal ? currentVal + spacer + text : text });
+        }
+      };
+
+      const analyzeTemplate = async (file) => {
+          try {
+              if (!window.ExcelJS) return;
+              const wb = new ExcelJS.Workbook();
+              const reader = new FileReader();
+              reader.onload = async (e) => {
+                  if(!e.target.result) return;
+                  await wb.xlsx.load(e.target.result);
+                  const report = [];
+                  const foundPlaceholders = new Map();
+                  let hasMacro = false;
+                  let detectedImgCount = 0;
+                  if (file.name.endsWith('.xlsm') || file.name.endsWith('.docm')) hasMacro = true;
+                  wb.eachSheet(sheet => {
+                      const markers = new Set();
+                      let imgCount = 0;
+                      const processedMasters = new Set();
+                      const processedImageMasters = new Set();
+                      sheet.eachRow((row) => {
+                          row.eachCell({ includeEmpty: true }, (cell) => {
+                              if (cell.isMerged && cell.master.address !== cell.address) return;
+                              if (processedMasters.has(cell.address)) return;
+                              processedMasters.add(cell.address);
+                              const v = getCellValue(cell);
+                              if(typeof v === 'string' && v.includes('{%')) {
+                                  const matches = v.match(/\{%([a-zA-Z0-9_]+)\}/g);
+                                  if(matches) matches.forEach(m => {
+                                      markers.add(m);
+                                      if (!foundPlaceholders.has(m)) foundPlaceholders.set(m, { tag: m, count: 1, sample: v });
+                                      else foundPlaceholders.get(m).count++;
+                                  });
+                                  if(/\{%img(N|\d+)\}/.test(v)) {
+                                      if (!processedImageMasters.has(cell.address)) {
+                                          processedImageMasters.add(cell.address);
+                                          imgCount++; 
+                                      }
+                                  }
+                              }
+                          });
+                      });
+                      let role = 'その他';
+                      if(Array.from(markers).some(m => m.includes('title}'))) role = '表紙(候補)';
+                      if(imgCount > 0) {
+                          role = '写真帳パターン';
+                          if (imgCount > detectedImgCount) detectedImgCount = imgCount;
+                      }
+                      report.push({ name: sheet.name, role, imgCount, markers: Array.from(markers) });
+                  });
+                  setAnalysisResult(report);
+                  setPlaceholders(Array.from(foundPlaceholders.values()));
+                  if (detectedImgCount > 0) {
+                      const newLayoutId = 'detected-layout';
+                      setLayoutDefs(prev => ({
+                          ...prev,
+                          [newLayoutId]: { label: `検出されたレイアウト (${detectedImgCount}枚/頁)`, itemCount: detectedImgCount, type: 'list' }
+                      }));
+                      setTimeout(() => { handleReflowLayout(newLayoutId); }, 100);
+                  }
+                  if (hasMacro) alert("警告：マクロ付きファイル(.xlsm)が検出されました。");
+              };
+              reader.readAsArrayBuffer(file);
+          } catch(err) {
+              setAnalysisResult([{ name: 'エラー', role: '解析失敗', imgCount: 0, markers: [err.message] }]);
+          }
+      };
+
+      const handleTemplateUpload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setTemplateFileName(file.name);
+        analyzeTemplate(file);
+        const reader = new FileReader();
+        reader.onload = (event) => { if (event.target?.result) setTemplateFile(event.target.result); };
+        reader.readAsArrayBuffer(file);
+      };
+
+      const clearTemplate = () => { 
+          setTemplateFile(null); 
+          setTemplateFileName(null); 
+          setAnalysisResult(null);
+          setPlaceholders([]);
+      };
+
+      const addPage = () => {
+        const rnd = () => Math.random().toString(36).substr(2, 5);
+        const defaultLayout = pages.length > 0 ? pages[pages.length - 1].layout : 'standard-3';
+        const itemCount = layoutDefs[defaultLayout] ? layoutDefs[defaultLayout].itemCount : 3;
+        const newPageId = `page-${Date.now()}`;
+        const newItems = Array(itemCount).fill(null).map((_, i) => createEmptyItem(`${newPageId}-${i}`));
+        setPages([...pages, { id: newPageId, layout: defaultLayout, items: newItems }]);
+      };
+
+      const copyToClipboard = (text) => {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        textArea.style.top = "0";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                setCopyFeedback(text);
+                setTimeout(() => setCopyFeedback(null), 2000);
+            }
+        } catch (err) {}
+        document.body.removeChild(textArea);
+      };
+
+      const handleSaveProject = () => {
+          const data = {
+              version: '2.8',
+              info: projectInfo,
+              pages: pages,
+              layoutDefs: layoutDefs,
+              options: importOptions,
+              templates: { title: titleTemplates, desc: descTemplates }
+          };
+          const jsonString = JSON.stringify(data, null, 2);
+          const blob = new Blob([jsonString], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `写真台帳プロジェクト_${projectInfo.title}_${new Date().toISOString().slice(0,10)}.json`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+      };
+
+      const handleLoadProject = (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (event) => {
+              try {
+                  const data = JSON.parse(event.target.result);
+                  if (data.info) setProjectInfo(data.info);
+                  if (data.pages) setPages(data.pages);
+                  if (data.layoutDefs) setLayoutDefs(data.layoutDefs);
+                  if (data.options) setImportOptions(data.options);
+                  if (data.templates) {
+                      setTitleTemplates(data.templates.title || []);
+                      setDescTemplates(data.templates.desc || []);
+                  }
+                  alert("プロジェクトを読み込みました。");
+              } catch(err) {
+                  alert("ファイル読み込みエラー: " + err.message);
+              }
+          };
+          reader.readAsText(file);
+          e.target.value = '';
+      };
+
+      const handleExportExcel = async () => {
+        setIsExporting(true);
+        setExportStage('初期化中...');
+        setLogs([]);
+        setShowLogModal(false);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        try {
+          if (!window.ExcelJS) throw new Error("ExcelJS not loaded");
+          let workbook;
+          let newLogs = [];
+          
+          if (templateFile) {
+              setExportStage('テンプレート読込中...');
+              workbook = new ExcelJS.Workbook();
+              await workbook.xlsx.load(templateFile);
+              newLogs.push({ type: 'info', msg: 'テンプレートロード完了' });
+              
+              setExportStage('ページ生成中...');
+              await new Promise(resolve => setTimeout(resolve, 50)); 
+              const cloneLogs = await processTemplateCloneStrategy(workbook, pages, projectInfo, importOptions);
+              newLogs = [...newLogs, ...cloneLogs];
+              
+              setExportStage('ファイル作成中...');
+              const buffer = await workbook.xlsx.writeBuffer();
+              newLogs.push({ type: 'info', msg: '検証フェーズ: 出力ファイルを再読み込みして検証中...' });
+              try { await verifyWorkbookLayout(buffer, newLogs); } catch(e) { newLogs.push({ type: 'error', msg: `検証エラー: ${e.message}` }); }
+              setLogs(newLogs);
+              setShowLogModal(true);
+              
+              const blob = new Blob([buffer], { type: 'application/octet-stream' });
+              const url = window.URL.createObjectURL(blob);
+              setIsExporting(false);
+              setExportStage('');
+              
+              const anchor = document.createElement('a');
+              anchor.href = url;
+              anchor.download = `写真台帳_${projectInfo.title}.xlsx`;
+              anchor.style.display = 'none';
+              document.body.appendChild(anchor);
+              anchor.click();
+              setTimeout(() => {
+                  document.body.removeChild(anchor);
+                  window.URL.revokeObjectURL(url);
+              }, 5000);
+          } else {
+              setExportStage('デフォルトレイアウト生成中...');
+              workbook = new ExcelJS.Workbook();
+              generateDefaultExcel(workbook, pages, projectInfo, importOptions);
+              
+              setExportStage('ファイル作成中...');
+              const buffer = await workbook.xlsx.writeBuffer();
+              const blob = new Blob([buffer], { type: 'application/octet-stream' });
+              const url = window.URL.createObjectURL(blob);
+              setIsExporting(false);
+              setExportStage('');
+              
+              const anchor = document.createElement('a');
+              anchor.href = url;
+              anchor.download = `写真台帳_${projectInfo.title}.xlsx`;
+              anchor.style.display = 'none';
+              document.body.appendChild(anchor);
+              anchor.click();
+              setTimeout(() => {
+                  document.body.removeChild(anchor);
+                  window.URL.revokeObjectURL(url);
+              }, 5000);
+          }
+        } catch (error) {
+          setLogs(prev => [...prev, { type: 'error', msg: `Excel出力失敗: ${error.message}` }]);
+          setShowLogModal(true);
+          setIsExporting(false);
+          setExportStage('');
+        }
+      };
+
+      return (
+        <div className="flex h-screen bg-slate-100 font-sans text-slate-800 overflow-hidden" onClick={closeContextMenu}>
+          {copyFeedback && (
+              <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full shadow-xl text-sm z-50 flex items-center gap-2 animate-bounce">
+                  <Icons.Check className="w-4 h-4 text-green-400"/> コピーしました: <span className="font-mono font-bold">{copyFeedback}</span>
+              </div>
+          )}
+          
+          {showLogModal && <LogModal logs={logs} onClose={() => setShowLogModal(false)} />}
+
+          {contextMenu.x !== null && (
+              <ContextMenu 
+                  x={contextMenu.x} y={contextMenu.y} 
+                  options={contextMenu.type === 'title' ? titleTemplates : descTemplates}
+                  currentText={pages.find(p=>p.id===contextMenu.pageId)?.items.find(i=>i.id===contextMenu.itemId)?.[contextMenu.type === 'title' ? 'title' : (contextMenu.targetField || 'description')] || ''}
+                  onClose={closeContextMenu} onSelect={handleMenuSelect} onDelete={(txt)=>handleMenuDelete(txt, contextMenu.type)} onAdd={handleMenuAdd}
+              />
+          )}
+
+          <div className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-xl z-20 shrink-0 no-print">
+            <div className="p-5 bg-brand-700 text-white font-bold flex items-center gap-3 shadow-sm">
+              <div className="bg-white/20 p-1.5 rounded-lg"><Icons.Settings className="w-5 h-5" /></div>
+              <span>工事写真台帳メーカー</span>
+            </div>
+            
+            <div className="flex border-b border-slate-200 bg-slate-50">
+              {['info', 'template', 'excel-template'].map(tab => (
+                  <button key={tab} onClick={() => setActiveTab(tab)} 
+                    className={`flex-1 py-3 text-xs font-bold transition-all relative
+                    ${activeTab === tab ? 'text-brand-600 bg-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
+                    {tab === 'info' && '基本情報'}
+                    {tab === 'template' && '定型文'}
+                    {tab === 'excel-template' && 'Excel設定'}
+                    {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-600"></div>}
+                  </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+               {activeTab === 'info' && (
+                <div className="space-y-5">
+                  <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <label className="block text-xs font-bold text-slate-500 mb-2 flex items-center gap-1"><Icons.ImageIcon className="w-3 h-3"/> 会社ロゴ</label>
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-slate-100 border border-slate-200 rounded flex items-center justify-center overflow-hidden">
+                            {projectInfo.logo ? <img src={projectInfo.logo} className="w-full h-full object-contain" /> : <Icons.ImageIcon className="text-slate-300 w-6 h-6"/>}
+                        </div>
+                        <label className="flex-1 cursor-pointer bg-white border border-slate-300 px-3 py-2 rounded text-xs font-bold text-slate-600 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 transition-colors flex items-center justify-center gap-2">
+                            {projectInfo.logo ? "画像を変更" : "画像を選択"} <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                        </label>
+                    </div>
+                    
+                    <label className="block text-xs font-bold text-slate-500 mb-2 flex items-center gap-1"><Icons.LayoutTemplate className="w-3 h-3"/> 表紙スタイル</label>
+                    <select className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs bg-slate-50 outline-none" value={importOptions.coverPattern} onChange={e => setImportOptions({...importOptions, coverPattern: e.target.value})}>
+                        <option value="standard">標準 (シンプル)</option>
+                        <option value="table">表形式 (罫線あり)</option>
+                        <option value="modern">モダン (アクセント付)</option>
+                    </select>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
+                    <div><label className="block text-xs font-bold text-slate-500 mb-1">工事番号</label><input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo.constructionNumber} onChange={e => setProjectInfo({ ...projectInfo, constructionNumber: e.target.value })} /></div>
+                    {Object.entries({ title:'工事名', location:'工事場所', client:'発注者', contractor:'施工業者' }).map(([key, label]) => (
+                        <div key={key}><label className="block text-xs font-bold text-slate-500 mb-1">{label}</label><input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo[key]} onChange={e => setProjectInfo({ ...projectInfo, [key]: e.target.value })} /></div>
+                    ))}
+                    <div className="grid grid-cols-2 gap-2">
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">工期 (自)</label><input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo.periodStart} onChange={e => setProjectInfo({ ...projectInfo, periodStart: e.target.value })} /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">工期 (至)</label><input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo.periodEnd} onChange={e => setProjectInfo({ ...projectInfo, periodEnd: e.target.value })} /></div>
+                    </div>
+                    <div><label className="block text-xs font-bold text-slate-500 mb-1">作成日</label><input type="date" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo.date} onChange={e => setProjectInfo({ ...projectInfo, date: e.target.value })} /></div>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'template' && (
+                <div className="space-y-6">
+                  {/* Template settings */}
+                  <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                      <label className="block text-xs font-bold text-brand-600 mb-2 flex items-center gap-1"><Icons.Plus className="w-3 h-3"/> 新しい定型文を追加</label>
+                      <div className="flex flex-col gap-2">
+                          <input type="text" className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm outline-none" placeholder="テキストを入力..." value={newTemplateText} onChange={e => setNewTemplateText(e.target.value)} />
+                          <div className="flex gap-2">
+                              <select className="text-xs border border-slate-300 rounded px-2 bg-slate-50 outline-none" value={newTemplateType} onChange={e => setNewTemplateType(e.target.value)}>
+                                  <option value="title">施工名用</option><option value="desc">詳細用</option>
+                              </select>
+                              <button onClick={handleAddTemplate} disabled={!newTemplateText} className="flex-1 bg-brand-600 text-white text-xs font-bold py-1.5 rounded hover:bg-brand-700 disabled:opacity-50">追加する</button>
+                          </div>
+                      </div>
+                  </div>
+                  <div>
+                      <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2"><Icons.List className="w-3 h-3"/> 施工名リスト</h4>
+                      <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                        {titleTemplates.map((text, idx) => (
+                            <div key={idx} className="flex items-center gap-1 group">
+                                <button onClick={() => insertTemplate(text)} className="flex-1 text-left px-3 py-2 bg-white hover:bg-brand-50 border border-slate-200 rounded text-xs truncate">{text}</button>
+                                <button onClick={() => handleMenuDelete(text, 'title')} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"><Icons.Trash2 className="w-3 h-3"/></button>
+                            </div>
+                        ))}
+                      </div>
+                  </div>
+                  <div>
+                      <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-2"><Icons.FileText className="w-3 h-3"/> 詳細リスト</h4>
+                      <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                        {descTemplates.map((text, idx) => (
+                            <div key={idx} className="flex items-center gap-1 group">
+                                <button onClick={() => insertTemplate(text)} className="flex-1 text-left px-3 py-2 bg-white hover:bg-green-50 border border-slate-200 rounded text-xs truncate">{text}</button>
+                                <button onClick={() => handleMenuDelete(text, 'desc')} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"><Icons.Trash2 className="w-3 h-3"/></button>
+                            </div>
+                        ))}
+                      </div>
+                  </div>
+                </div>
+              )}
+              {activeTab === 'excel-template' && (
+                 <div className="space-y-5">
+                     <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                        <h3 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><Icons.FileSpreadsheet className="w-4 h-4 text-brand-500"/> テンプレート読み込み</h3>
+                        
+                        <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 mb-4 border border-yellow-200 flex gap-2">
+                             <Icons.AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/>
+                             <div>
+                                <b>注意：</b> アップロードした元ファイルは<b>変更されません</b>。内部で複製を作成して処理を行います。
+                             </div>
+                        </div>
+
+                        {!templateFile ? (
+                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                <Icons.FileSpreadsheet className="w-8 h-8 text-slate-300 mb-2"/><span className="text-xs font-bold text-slate-500">Excelファイルをドラッグ＆ドロップ</span><input type="file" accept=".xlsx,.xlsm" className="hidden" onChange={handleTemplateUpload} />
+                            </label>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2 overflow-hidden"><div className="bg-brand-100 p-1.5 rounded"><Icons.FileSpreadsheet className="w-4 h-4 text-brand-600"/></div><span className="text-xs font-bold text-brand-800 truncate">{templateFileName}</span></div>
+                                    <button onClick={clearTemplate} className="text-slate-400 hover:text-red-500 p-1 hover:bg-red-50 rounded"><Icons.Trash2 className="w-4 h-4"/></button>
+                                </div>
+                                
+                                <div className="border-t border-slate-200 pt-3">
+                                    <label className="text-xs font-bold text-slate-500 mb-2 block">写真挿入オプション</label>
+                                    <div className="grid grid-cols-2 gap-2 mb-3">
+                                        <select className="text-xs border border-slate-300 rounded p-1" value={importOptions.imgFit} onChange={(e)=>setImportOptions({...importOptions, imgFit:e.target.value})}>
+                                            <option value="merge">セル結合にフィット</option>
+                                            <option value="contain">枠内に収める</option>
+                                        </select>
+                                        <label className="flex items-center gap-2 text-xs">
+                                            <input type="checkbox" checked={importOptions.keepRatio} onChange={(e)=>setImportOptions({...importOptions, keepRatio:e.target.checked})} />
+                                            縦横比を維持
+                                        </label>
+                                    </div>
+                                    
+                                    <div className="mt-4 pt-3 border-t border-slate-100">
+                                        <label className="block text-xs font-bold text-slate-500 mb-2 flex items-center gap-1">
+                                            <Icons.LayoutTemplate className="w-3 h-3"/> 表紙設定 (ハイブリッド運用)
+                                        </label>
+                                        
+                                        <label className="flex items-center gap-2 text-xs cursor-pointer mb-2 p-2 rounded bg-slate-50 hover:bg-slate-100 border border-slate-200">
+                                            <input type="checkbox" checked={importOptions.forceCoverInsert} onChange={(e)=>setImportOptions({...importOptions, forceCoverInsert:e.target.checked})} />
+                                            <span className="font-bold text-slate-700">テンプレートの表紙を無視して自動生成する</span>
+                                        </label>
+                                        
+                                        {importOptions.forceCoverInsert && (
+                                            <div className="pl-6 animate-fadeIn">
+                                                <p className="text-[10px] text-slate-400 mb-1">デザインを選択してください:</p>
+                                                <div className="flex flex-col gap-1">
+                                                    {['standard', 'table', 'modern'].map(pat => (
+                                                        <label key={pat} className="flex items-center gap-2 text-xs cursor-pointer">
+                                                            <input type="radio" name="coverPattern" value={pat} checked={importOptions.coverPattern === pat} onChange={(e)=>setImportOptions({...importOptions, coverPattern:e.target.value})} />
+                                                            <span>{pat === 'standard' ? '標準 (シンプル)' : pat === 'table' ? '表形式 (罫線あり)' : 'モダン (アクセント付)'}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {analysisResult && (
+                                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
+                                        <div className="font-bold text-slate-600 mb-2 flex items-center justify-between">
+                                            <span className="flex items-center gap-1"><Icons.Terminal className="w-3 h-3"/> プレースホルダ解析</span>
+                                            {logs.length > 0 && <button onClick={()=>setShowLogModal(true)} className="text-brand-600 underline">ログを表示</button>}
+                                        </div>
+                                        <div className="max-h-32 overflow-y-auto space-y-1 bg-white border border-slate-200 rounded p-1">
+                                            <table className="w-full text-[10px] text-left">
+                                                <thead className="bg-slate-100 text-slate-500"><tr><th className="p-1">タグ</th><th className="p-1">個数</th><th className="p-1">状態</th></tr></thead>
+                                                <tbody>
+                                                    {placeholders.map((p, i) => (
+                                                        <tr key={i} className="border-t border-slate-100">
+                                                            <td className="p-1 font-mono text-brand-600">{p.tag}</td>
+                                                            <td className="p-1">{p.count}</td>
+                                                            <td className="p-1 text-green-600"><Icons.Check className="w-3 h-3 inline"/></td>
+                                                        </tr>
+                                                    ))}
+                                                    {placeholders.length === 0 && <tr><td colSpan="3" className="p-2 text-center text-slate-400">タグが見つかりません</td></tr>}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
+                        <div className="mt-4 pt-4 border-t border-slate-200">
+                            <p className="text-[10px] font-bold text-slate-400 mb-2">クリップボードにタグをコピー</p>
+                            <TagsList onCopy={copyToClipboard} />
+                        </div>
+                     </div>
+                 </div>
+              )}
+            </div>
+            
+            <div className="p-4 border-t border-slate-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+               {storageError && (
+                   <div className="mb-2 p-2 bg-red-100 border border-red-300 text-red-700 text-[10px] rounded flex items-center gap-2 animate-fadeIn">
+                       <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
+                       <div>
+                           <b>容量エラー:</b> ブラウザの保存容量を超えました。自動保存されません。不要なページを削除してください。
+                       </div>
+                   </div>
+               )}
+               
+               <div className="grid grid-cols-2 gap-2 mb-2">
+                   <button onClick={handleSaveProject} className="py-2 text-[10px] font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded border border-brand-200 flex items-center justify-center gap-1 transition-colors" title="プロジェクトをファイルに保存">
+                       <Icons.FolderDown className="w-3 h-3"/> プロジェクト保存
+                   </button>
+                   <label className="py-2 text-[10px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors cursor-pointer" title="ファイルから読み込み">
+                       <Icons.FolderUp className="w-3 h-3"/> プロジェクト読込
+                       <input type="file" accept=".json" className="hidden" onChange={handleLoadProject} />
+                   </label>
+               </div>
+
+               <button onClick={handleResetAll} className="w-full mb-2 py-2 text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex items-center justify-center gap-1"><Icons.RotateCcw className="w-3 h-3"/> 全データをリセット</button>
+               <button onClick={handleExportExcel} disabled={isExporting} className={`w-full py-3 rounded-lg shadow-md flex items-center justify-center gap-2 transition-all font-bold text-sm text-white ${isExporting ? 'bg-slate-400 cursor-wait' : templateFile ? 'bg-brand-600 hover:bg-brand-700' : 'bg-green-600 hover:bg-green-700'}`}>
+                 {isExporting ? <Icons.RefreshCw className="w-4 h-4 animate-spin"/> : <Icons.Download className="w-4 h-4" />}
+                 {isExporting ? (exportStage || '生成中...') : (templateFile ? 'テンプレート合成出力' : 'Excel出力')}
+               </button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto bg-slate-200/50 p-8 flex flex-col items-center">
+            
+            <div className="fixed top-6 right-8 z-40 bg-white rounded-full shadow-lg p-1 border border-slate-200 flex gap-1 no-print">
+                <button onClick={() => setIsWebPreview(false)} className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all ${!isWebPreview ? 'bg-brand-600 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}><Icons.Edit3 className="w-3 h-3"/> 編集</button>
+                <button onClick={() => setIsWebPreview(true)} className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all ${isWebPreview ? 'bg-pink-500 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}><Icons.Eye className="w-3 h-3"/> プレビュー</button>
+            </div>
+
+            {pages.map((page, pageIndex) => (
+              <div key={page.id} className="mb-10 relative group max-w-full">
+                <div className="absolute -top-8 left-0 right-0 flex justify-between items-center px-1 no-print">
+                    <span className="font-bold text-slate-500 text-sm">Page {pageIndex + 1}</span>
+                    {!isWebPreview && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500 font-bold">{templateFile ? '1ページの枚数:' : 'レイアウト:'}</span>
+                            <select className="text-xs border border-slate-300 rounded px-2 py-1 shadow-sm bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 outline-none" value={page.layout} onChange={(e) => changePageLayout(page.id, e.target.value)}>
+                                {Object.keys(layoutDefs).map(key => {
+                                    const def = layoutDefs[key];
+                                    return <option key={key} value={key}>{def.label}</option>;
+                                })}
+                            </select>
+                        </div>
+                    )}
+                </div>
+
+                <div className="a4-paper transform transition-transform">
+                  <div className="border-b-2 border-slate-800 pb-2 mb-6 flex justify-between items-end h-16 opacity-70">
+                    <div className="flex items-center gap-4">
+                      {projectInfo.logo && <img src={projectInfo.logo} className="h-12 object-contain" alt="Logo" />}
+                      <div><h1 className="text-xl font-bold text-slate-900 leading-tight font-serif">{projectInfo.title}</h1></div>
+                    </div>
+                    <div className="text-right text-xs text-slate-500 font-mono"><p>{projectInfo.date}</p></div>
+                  </div>
+
+                  {/* プレビュー表示ロジック (Unified List) */}
+                  {isWebPreview ? (
+                      <div className="flex flex-col gap-0">
+                          {page.items.map((item) => (
+                            <PreviewItemList 
+                                key={item.id} 
+                                item={item} 
+                            />
+                          ))}
+                      </div>
+                  ) : (
+                      // 編集モード (Unified List)
+                      <div className="flex-1 grid gap-6 grid-cols-1">
+                        {page.items.map((item, itemIdx) => (
+                          <div key={item.id} className="border border-slate-200 bg-white p-3 rounded-lg shadow-sm hover:shadow-md hover:border-brand-300 transition-all flex gap-4 flex-row h-60">
+                            {!isWebPreview && templateFile && <div className="absolute top-0 left-0 bg-brand-600 text-white text-[10px] px-2 py-0.5 rounded-br-lg rounded-tl-lg z-10 font-mono no-print shadow">Tag: {`{%img${itemIdx + 1}}`}</div>}
+                            
+                            {/* Photo Area */}
+                            <div className="bg-slate-50 border-2 border-dashed border-slate-300 relative flex items-center justify-center overflow-hidden rounded-lg group/img w-[40%] h-full">
+                              {item.image ? (
+                                <>
+                                  <img src={item.image} className="max-w-full max-h-full object-contain" />
+                                  {!isWebPreview && (
+                                      <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity gap-3">
+                                        <label className="cursor-pointer bg-white text-slate-800 px-4 py-2 rounded-full shadow-lg text-xs font-bold hover:bg-brand-50 hover:text-brand-600 transition-colors flex items-center gap-2">
+                                            <Icons.Edit3 className="w-3 h-3"/> 変更 <input type="file" accept="image/*" className="hidden" onChange={(e) => handleBatchImageUpload(e, page.id, item.id)} />
+                                        </label>
+                                        <button onClick={() => updateItem(page.id, item.id, { image: null })} className="bg-red-500 text-white px-4 py-2 rounded-full shadow-lg text-xs font-bold hover:bg-red-600 transition-colors flex items-center gap-2">
+                                            <Icons.Trash2 className="w-3 h-3"/> 削除
+                                        </button>
+                                      </div>
+                                  )}
+                                </>
+                              ) : (
+                                !isWebPreview ? (
+                                    <label className="cursor-pointer flex flex-col items-center justify-center w-full h-full text-slate-400 hover:text-brand-500 hover:bg-brand-50/50 transition-all text-center px-4">
+                                    <Icons.Camera className="w-10 h-10 mb-2 opacity-50" />
+                                    <span className="text-sm font-bold">写真を追加</span>
+                                    <span className="text-[10px] opacity-70 mt-1">ドラッグ＆ドロップ可</span>
+                                    <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleBatchImageUpload(e, page.id, item.id)} />
+                                    </label>
+                                ) : (<div className="flex items-center justify-center w-full h-full text-slate-300 text-xs">NO IMAGE</div>)
+                              )}
+                            </div>
+
+                            {/* Text Area */}
+                            <div className="w-[60%] flex flex-col gap-3">
+                                <>
+                                    <div className="flex gap-2">
+                                        <div className="w-16 flex flex-col">
+                                            <span className="text-[10px] font-bold text-slate-400 mb-0.5 ml-1">No.</span>
+                                            <input type="text" className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm text-center font-bold focus:ring-2 focus:ring-brand-500 outline-none" placeholder="1" value={item.number} onChange={(e) => updateItem(page.id, item.id, { number: e.target.value })} />
+                                        </div>
+                                        <div className="flex-1 flex flex-col">
+                                            <span className="text-[10px] font-bold text-slate-400 mb-0.5 ml-1">施工名 <span className="font-normal text-slate-300">(右クリックで定型文)</span></span>
+                                            <input 
+                                                type="text" 
+                                                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none placeholder:font-normal" 
+                                                placeholder="例：着工前状況" 
+                                                value={item.title} 
+                                                onChange={(e) => updateItem(page.id, item.id, { title: e.target.value })} 
+                                                onContextMenu={(e) => handleContextMenu(e, 'title', page.id, item.id)}
+                                                onFocus={() => setLastFocusedInput({ pageId: page.id, itemId: item.id, field: 'title' })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 flex flex-col gap-1">
+                                        <span className="text-[10px] font-bold text-slate-400 ml-1">詳細</span>
+                                        <textarea 
+                                            className="flex-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none" 
+                                            placeholder="詳細を入力..." 
+                                            value={item.description} 
+                                            onChange={(e) => updateItem(page.id, item.id, { description: e.target.value })} 
+                                            onContextMenu={(e) => handleContextMenu(e, 'desc', page.id, item.id, 'description')}
+                                            onFocus={() => setLastFocusedInput({ pageId: page.id, itemId: item.id, field: 'description' })}
+                                        />
+                                        <textarea 
+                                            className="flex-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none" 
+                                            placeholder="詳細2 (任意)" 
+                                            value={item.description2} 
+                                            onChange={(e) => updateItem(page.id, item.id, { description2: e.target.value })} 
+                                            onContextMenu={(e) => handleContextMenu(e, 'desc', page.id, item.id, 'description2')}
+                                            onFocus={() => setLastFocusedInput({ pageId: page.id, itemId: item.id, field: 'description2' })}
+                                        />
+                                    </div>
+                                  </>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                  )}
+                  <div className="mt-8 pt-4 border-t border-slate-200 text-center text-xs text-slate-400 font-mono">- {pageIndex + 1} -</div>
+                </div>
+
+                {!isWebPreview && pages.length > 1 && (
+                  <button onClick={() => setPages(pages.filter(p => p.id !== page.id))} className="absolute top-0 right-[-60px] bg-white p-3 rounded-full shadow-md text-slate-400 hover:text-red-500 hover:shadow-lg transition-all no-print tooltip" title="ページを削除">
+                      <Icons.Trash2 className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            
+            {!isWebPreview && (
+                <button onClick={addPage} className="mb-20 flex items-center gap-2 bg-brand-600 px-8 py-4 rounded-full shadow-xl text-white font-bold hover:bg-brand-700 hover:scale-105 transition-all no-print">
+                <Icons.Plus className="w-5 h-5" /> 新しいページを追加
+                </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<PhotoLedgerApp />);
+  </script>
+</body>
+</html>
