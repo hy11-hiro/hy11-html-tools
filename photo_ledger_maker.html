@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>工事写真台帳作成ツール (v3.4 - Auto Compact & Renumber)</title>
+  <title>工事写真台帳作成ツール (v3.5 - Global Item Compaction)</title>
   
   <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -421,6 +421,7 @@
             row.eachCell({ includeEmpty: true }, (cell) => {
                 const v = getCellValue(cell);
                 if (!v || (typeof v !== 'string' && !v.richText)) return;
+                
                 const processText = (text) => {
                     let processed = text;
                     processed = processed.replace(/\{%title\}/g, info.title || '')
@@ -430,6 +431,7 @@
                                  .replace(/\{%contractor\}/g, info.contractor || '')
                                  .replace(/\{%constructionNumber\}/g, info.constructionNumber || '')
                                  .replace(/\{%period\}/g, `自 ${info.periodStart}  至 ${info.periodEnd}`);
+                    
                     processed = processed.replace(/\{%([a-zA-Z0-9_]+)(\d+|N)(_(\d+))?\}/g, (match, type, numStr, _, subIdx) => {
                         let itemIdx = -1;
                         if (numStr === 'N') itemIdx = effectiveIndexForN - 1;
@@ -1332,39 +1334,73 @@
               return { ...page, items: newItems };
           });
       };
+      
+      // --- Global Compaction Logic (v3.5) ---
+      const compactItemsGlobally = (currentPages, startPageId, startItemId = null) => {
+          // 1. Flatten all items from start point forward
+          let allItems = [];
+          let startIndexFound = false;
+          let globalIndex = 0;
+          let startGlobalIndex = 0;
+          
+          currentPages.forEach(page => {
+              page.items.forEach(item => {
+                  if (page.id === startPageId && (startItemId === null || item.id === startItemId)) {
+                      startIndexFound = true;
+                      startGlobalIndex = globalIndex;
+                  }
+                  allItems.push(item);
+                  globalIndex++;
+              });
+          });
+
+          if (startItemId) {
+               // "Remove and shift": Remove specific item, shift everything after
+               // Filter out the item to delete
+               const itemToRemove = allItems[startGlobalIndex];
+               allItems.splice(startGlobalIndex, 1);
+               // Add empty item at end to maintain length if needed, or just let pages refill
+          } else {
+               // "Compact Page": Shift valid items forward starting from this page's start index
+               // Extract items from startGlobalIndex onwards
+               const tailItems = allItems.slice(startGlobalIndex);
+               const validTailItems = tailItems.filter(i => i.image || (i.title && i.title.trim()) || (i.description && i.description.trim()));
+               const emptyCount = tailItems.length - validTailItems.length;
+               
+               // Reassemble
+               const headItems = allItems.slice(0, startGlobalIndex);
+               allItems = [...headItems, ...validTailItems];
+               // Append empties to end
+               for(let i=0; i<emptyCount; i++) {
+                   allItems.push(createEmptyItem(`global-empty-${Date.now()}-${i}`));
+               }
+          }
+
+          // 2. Reflow back into pages
+          let currentItemIdx = 0;
+          const newPages = currentPages.map(page => {
+              const capacity = layoutDefs[page.layout] ? layoutDefs[page.layout].itemCount : 3;
+              const newItems = [];
+              for (let i = 0; i < capacity; i++) {
+                  if (currentItemIdx < allItems.length) {
+                      newItems.push(allItems[currentItemIdx]);
+                      currentItemIdx++;
+                  } else {
+                      newItems.push(createEmptyItem(`${page.id}-refill-${i}`));
+                  }
+              }
+              return { ...page, items: newItems };
+          });
+          
+          return renumberAllItems(newPages);
+      };
 
       const handleRemoveItem = (pageId, itemId) => {
-          setPages(prev => {
-              const newPages = prev.map(page => {
-                  if (page.id !== pageId) return page;
-                  const remainingItems = page.items.filter(i => i.id !== itemId);
-                  const itemsNeeded = page.items.length - remainingItems.length;
-                  const newItems = [...remainingItems];
-                  for(let i=0; i<itemsNeeded; i++) {
-                      newItems.push(createEmptyItem(`${page.id}-new-${Date.now()}-${i}`));
-                  }
-                  return { ...page, items: newItems };
-              });
-              // Auto Renumber after removal
-              return renumberAllItems(newPages);
-          });
+          setPages(prev => compactItemsGlobally(prev, pageId, itemId));
       };
 
       const handleCompactPage = (pageId) => {
-          setPages(prev => {
-              const newPages = prev.map(page => {
-                  if (page.id !== pageId) return page;
-                  const validItems = page.items.filter(i => i.image || (i.title && i.title.trim()) || (i.description && i.description.trim()));
-                  const needed = page.items.length - validItems.length;
-                  const newItems = [...validItems];
-                  for(let i=0; i<needed; i++) {
-                      newItems.push(createEmptyItem(`${page.id}-compact-${Date.now()}-${i}`));
-                  }
-                  return { ...page, items: newItems };
-              });
-              // Auto Renumber after compaction
-              return renumberAllItems(newPages);
-          });
+          setPages(prev => compactItemsGlobally(prev, pageId, null));
       };
 
       const handleAddTemplate = () => {
