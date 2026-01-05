@@ -743,15 +743,22 @@
     }
     
     // --- PORTED FUNCTION START: Export Site Report ---
-    // genba_cost_v25.html から移植されたExcel出力機能
+// ▼▼▼ 追加・修正開始：Excel出力機能 (v25より移植) ▼▼▼
+
+    // 追加: Excel出力用にパーセント値を正規化する関数
+    function normalizePercentForExcel(val) {
+        if (val === null || val === undefined || val === '') return null;
+        let s = String(val).trim().replace('%','').replace(/,/g,'');
+        const n = Number(s);
+        if (isNaN(n)) return null;
+        // 1以下ならそのまま(0.726)、1より大きければパーセント値(72.6)とみなして100で割る
+        return Math.abs(n) <= 1 ? n : n / 100;
+    }
+
+    // 修正: v25のロジックを適用したExcelレポート出力関数
     window.exportSiteReport = async function() {
         if (!currentSiteData) { alert("出力するデータがありません。現場を検索してください。"); return; }
         
-        // Calculate Margin
-        const marginVal = parseFloat(currentSiteData.sales.replace(/[^0-9.-]+/g,"")) !== 0 
-            ? (parseFloat(currentSiteData.profit.replace(/[^0-9.-]+/g,"")) / parseFloat(currentSiteData.sales.replace(/[^0-9.-]+/g,"")) * 100).toFixed(1) + '%' 
-            : '0.0%';
-
         const wb = new ExcelJS.Workbook();
         const ws = wb.addWorksheet('現場詳細レポート');
 
@@ -760,17 +767,43 @@
         ws.getCell('A3').value = '現場コード'; ws.getCell('B3').value = currentSiteData.code;
         ws.getCell('A4').value = '現場名'; ws.getCell('B4').value = currentSiteData.name;
         ws.getCell('A5').value = '施工主'; ws.getCell('B5').value = currentSiteData.owner;
+        ws.getCell('A6').value = '得意先'; ws.getCell('B6').value = currentSiteData.customer; 
+        
         ws.getCell('D3').value = '担当者'; ws.getCell('E3').value = currentSiteData.manager;
         ws.getCell('D4').value = '拠点'; ws.getCell('E4').value = currentSiteData.branch;
         ws.getCell('D5').value = '工期'; ws.getCell('E5').value = `${currentSiteData.start} ～ ${currentSiteData.end}`;
+        ws.getCell('D6').value = '納期'; ws.getCell('E6').value = currentSiteData.delivery;
         
         ws.getRow(3).font = { bold: true };
         
-        ws.getCell('A7').value = '売上累計(税抜)'; ws.getCell('B7').value = currentSiteData.sales;
-        ws.getCell('A8').value = '原価累計'; ws.getCell('B8').value = currentSiteData.cost;
-        ws.getCell('A9').value = '粗利益'; ws.getCell('B9').value = currentSiteData.profit;
-        ws.getCell('A10').value = '粗利率'; ws.getCell('B10').value = marginVal; 
+        ws.getCell('A8').value = '売上累計(税抜)'; ws.getCell('B8').value = currentSiteData.sales;
+        ws.getCell('A9').value = '原価累計'; ws.getCell('B9').value = currentSiteData.cost;
+        ws.getCell('A10').value = '粗利益'; ws.getCell('B10').value = currentSiteData.profit;
         
+        // --- 修正箇所: 粗利率の再計算と書き込み (v25ロジック) ---
+        ws.getCell('A11').value = '粗利率';
+        
+        // 既存の margin 文字列は丸め誤差を含む可能性があるため、金額から再計算した正確な値を使用する
+        let calcMargin = currentSiteData.margin;
+        const sVal = parseFloat(String(currentSiteData.sales).replace(/[^0-9.-]/g, ''));
+        const pVal = parseFloat(String(currentSiteData.profit).replace(/[^0-9.-]/g, ''));
+        
+        // 売上が0でなければ再計算 (例: 0.726...)
+        if (!isNaN(sVal) && sVal !== 0 && !isNaN(pVal)) {
+            calcMargin = pVal / sVal; 
+        }
+
+        const gpDecimal = normalizePercentForExcel(calcMargin);
+        if (gpDecimal === null) {
+            ws.getCell('B11').value = currentSiteData.margin;
+        } else {
+            const cell = ws.getCell('B11');
+            cell.value = gpDecimal;
+            cell.numFmt = '0.0%'; // Excelの書式設定でパーセント表示
+        }
+        // -------------------------------------------
+        
+        // Add Charts if available
         if (chartTrend) {
             const trendImg = chartTrend.toBase64Image();
             const imageId1 = wb.addImage({ base64: trendImg, extension: 'png' });
@@ -782,7 +815,7 @@
             ws.addImage(imageId2, 'M3:R15');
         }
 
-        let row = 17;
+        let row = 18;
         ws.getCell(`A${row}`).value = '■ 売上明細'; ws.getCell(`A${row}`).font = { bold: true, size: 12 };
         row++;
         ws.getRow(row).values = ['日付', '得意先', '金額(税抜)', '金額(税込)'];
@@ -809,8 +842,7 @@
         const buffer = await wb.xlsx.writeBuffer();
         saveAs(new Blob([buffer]), `現場詳細_${currentSiteData.code}_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
-    // --- PORTED FUNCTION END ---
-
+    // ▲▲▲ 追加・修正終了 ▲▲▲
     // 6. Search & Ranking Logic
     window.initSiteSearch = async function() { 
         const masters = await db.masters.toArray(); 
