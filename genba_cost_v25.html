@@ -876,6 +876,7 @@
         multiCompareData = [];
     }
 
+// 修正: 現場検索機能 (サブコード表示ロジックを現場チェック.htmlに合わせて修正)
     window.searchSite = async function() { 
         try {
             const inputCode = document.getElementById('search-input').value.trim(); if (!inputCode) return; 
@@ -920,15 +921,27 @@
             document.getElementById('res-end').textContent = master ? master.endDate : '-'; 
             document.getElementById('res-delivery').textContent = master ? master.delivery : '-';
             
+            // ▼▼▼▼▼ 修正箇所: 紐づくサブコード (現場チェック.htmlのロジックを適用・調整) ▼▼▼▼▼
             const subCont = document.getElementById('res-subcodes-container');
             const subList = document.getElementById('res-subcodes-list');
             if(subCont && subList) {
                 subCont.classList.add('hidden'); subList.innerHTML = ''; 
                 if (master && master.subCodes && master.subCodes.length > 0) { 
                     subCont.classList.remove('hidden'); 
-                    master.subCodes.forEach(s => { const span = document.createElement('span'); span.className = "bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-100"; span.textContent = `${s.code}: ${s.name}`; subList.appendChild(span); }); 
+                    master.subCodes.forEach(s => { 
+                        const span = document.createElement('span'); 
+                        span.className = "bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded border border-blue-100"; 
+                        // データ構造の違いを吸収:
+                        // 本システム(v25/44)のDBでは 'subCode'、現場チェックのDBでは 'code' に子コードが入る可能性があります。
+                        // どちらが入っていても正しく表示されるよう、OR条件で取得します。
+                        const dCode = s.subCode || s.code;
+                        const dName = s.subName || s.name;
+                        span.textContent = `${dCode}: ${dName}`; 
+                        subList.appendChild(span); 
+                    }); 
                 }
             }
+            // ▲▲▲▲▲ 修正終了 ▲▲▲▲▲
             
             const salesTotal = cost ? cost.salesTotal : 0; const costTotal = cost ? cost.costTotal : 0; const profitTotal = cost ? cost.profitTotal : 0; const margin = salesTotal !== 0 ? (profitTotal / salesTotal * 100) : 0; 
             document.getElementById('res-sales').textContent = window.formatCurrency(salesTotal); document.getElementById('res-cost').textContent = window.formatCurrency(costTotal); document.getElementById('res-profit').textContent = window.formatCurrency(profitTotal); document.getElementById('res-margin').textContent = margin.toFixed(1) + '%'; document.getElementById('res-margin-bar').style.width = Math.min(Math.max(margin, 0), 100) + '%'; 
@@ -940,7 +953,6 @@
             window.renderCharts(sales, purchases);
         } catch(e) { console.error("Search Error:", e); alert("エラーが発生しました: " + e.message); }
     }
-
     window.initCostSearch = async function() { 
         const purchases = await db.purchases.toArray(); 
         const vendorCounts = {}; 
