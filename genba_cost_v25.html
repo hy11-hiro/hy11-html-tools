@@ -339,6 +339,7 @@
                             <div class="check-group"><input type="checkbox" id="chk-end" checked class="check-input"><label for="chk-end" class="check-label">完了日</label></div>
                             <div class="check-group"><input type="checkbox" id="chk-delivery" checked class="check-input"><label for="chk-delivery" class="check-label">納期</label></div>
                             <div class="check-group"><input type="checkbox" id="chk-subname" class="check-input"><label for="chk-subname" class="check-label">現場サブ名称</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-init-sales" class="check-input"><label for="chk-init-sales" class="check-label">開始時売上済</label></div>
                         </div>
                         <p class="text-[10px] text-orange-600">※チェックONにした項目が「空欄」または「0」の場合に不備としてリストアップします。</p>
                     </div>
@@ -619,6 +620,7 @@
                         branch: r[55],    
                         startDate: r[43], 
                         endDate: r[45],   
+                        initialSales: r[16]
                     };
                     
                     if (!mastersMap.has(code)) {
@@ -638,6 +640,7 @@
                             existing.branch = rowObj.branch;
                             existing.startDate = rowObj.startDate;
                             existing.endDate = rowObj.endDate;
+                            existing.initialSales = rowObj.initialSales;
                         } else { 
                             if (!rowObj.name || rowObj.name.trim() === '') {
                                 rowObj.name = existing.name; 
@@ -1396,7 +1399,7 @@
         window.showPage('dashboard');
     });
 
-    // --- Export Master Check Report ---
+// --- Export Master Check Report ---
     window.exportMasterCheck = async function() {
         try {
             if ((await db.masters.count()) === 0) { alert("現場マスターデータがありません。"); return; }
@@ -1414,7 +1417,8 @@
                 start: getChecked('chk-start'),
                 end: getChecked('chk-end'),
                 delivery: getChecked('chk-delivery'),
-                subname: getChecked('chk-subname')
+                subname: getChecked('chk-subname'), // ★ここにカンマを追加しました
+                initSales: getChecked('chk-init-sales')
             };
 
             if (!Object.values(checks).includes(true)) { alert("少なくとも1つのチェック項目を選択してください。"); return; }
@@ -1433,22 +1437,25 @@
             const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFED7D31' } }, alignment: { horizontal: 'center' } };
 
             ws.columns = [
-                { header: '親コード', key: 'code', width: 12 },
-                { header: 'サブコード', key: 'subCode', width: 12 },
-                { header: '現場名', key: 'name', width: 35 },
-                { header: '現場サブ名称', key: 'subName', width: 25 },
                 { header: '判定', key: 'result', width: 10 },
                 { header: '未入力項目', key: 'missing', width: 40 },
-                { header: '得意先', key: 'customer', width: 15 },
+                { header: '親コード', key: 'code', width: 12 },
+                { header: 'サブコード', key: 'subCode', width: 12 },
                 { header: '施工主', key: 'owner', width: 15 },
+                { header: '現場名', key: 'name', width: 35 },
+                { header: '現場サブ名称', key: 'subName', width: 25 },
+                { header: '得意先', key: 'customer', width: 15 },
                 { header: '担当者', key: 'manager', width: 12 },
                 { header: '拠点', key: 'branch', width: 10 },
                 { header: '着手日', key: 'start', width: 12 },
                 { header: '完了日', key: 'end', width: 12 },
-                { header: '納期', key: 'delivery', width: 12 }
+                { header: '納期', key: 'delivery', width: 12 }, // ★ここにカンマを追加しました
+                { header: '開始時売上', key: 'initialSales', width: 15 }
             ];
             
-            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            ws.getRow(1).eachCell((cell) => { 
+            cell.style = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFED7D31' } }, alignment: { horizontal: 'center' } }; 
+        });
 
             const masters = await db.masters.toArray();
             let errorCount = 0;
@@ -1494,6 +1501,7 @@
                 if (checks.start && !checkItem(rec.startDate)) missing.push('着手日');
                 if (checks.end && !checkItem(rec.endDate)) missing.push('完了日');
                 if (checks.delivery && !checkItem(rec.delivery)) missing.push('納期');
+                if (checks.initSales && !checkItem(rec.initialSales)) missing.push('開始時売上');
 
                 const isNG = missing.length > 0;
                 if(isNG) errorCount++;
@@ -1505,6 +1513,7 @@
                     subName: rec.subName || '',
                     result: isNG ? '不備あり' : 'OK',
                     missing: missing.join(', '),
+                    initialSales: rec.initialSales, // 追加: 出力データ
                     customer: rec.customer,
                     owner: rec.owner,
                     manager: rec.manager,
@@ -1545,91 +1554,99 @@
         }
     }
 
-    // --- Export Cost Data Integrity Check ---
-    window.exportCostCheck = async function() {
-        try {
-            if ((await db.costs.count()) === 0) { alert("原価データがありません。"); return; }
+// 変更箇所: JS (exportCostCheck関数全体を置き換え)
+window.exportCostCheck = async function() {
+    try {
+        if ((await db.costs.count()) === 0) { alert("原価データがありません。"); return; }
+        
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet('原価整合性チェック');
+
+        const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } }, alignment: { horizontal: 'center' } };
+
+        // ▼ カラム定義の変更（施工主、担当者、拠点を追加）
+        ws.columns = [
+            { header: '工番', key: 'code', width: 12 },
+            { header: '現場名', key: 'name', width: 35 },
+            { header: '施工主', key: 'owner', width: 15 },   // 追加
+            { header: '担当者', key: 'manager', width: 12 }, // 追加
+            { header: '拠点', key: 'branch', width: 10 },    // 追加
+            { header: '完了日', key: 'end', width: 12 },
+            { header: '売上累計(税抜)', key: 'sales', width: 15 },
+            { header: '原価累計', key: 'cost', width: 15 },
+            { header: '判定コメント', key: 'comment', width: 25 },
+        ];
+        
+        ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+
+        const costs = await db.costs.toArray();
+        const masters = await db.masters.toArray();
+        const masterMap = new Map();
+        masters.forEach(m => masterMap.set(m.code, m));
+
+        let alertCount = 0;
+
+        costs.forEach(c => {
+            const m = masterMap.get(c.code) || {};
+            const rawEndDate = m.endDate;
             
-            const wb = new ExcelJS.Workbook();
-            const ws = wb.addWorksheet('原価整合性チェック');
-
-            const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } }, alignment: { horizontal: 'center' } };
-
-            ws.columns = [
-                { header: '工番', key: 'code', width: 12 },
-                { header: '現場名', key: 'name', width: 35 },
-                { header: '完了日', key: 'end', width: 12 },
-                { header: '売上累計(税抜)', key: 'sales', width: 15 },
-                { header: '原価累計', key: 'cost', width: 15 },
-                { header: '判定コメント', key: 'comment', width: 25 },
-            ];
+            let isCompleted = false;
+            if (rawEndDate) {
+                const sDate = String(rawEndDate).trim();
+                if (sDate.length === 8 && sDate !== '0') {
+                    isCompleted = true;
+                }
+            }
             
-            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            const sales = c.salesTotal || 0;
+            const cost = c.costTotal || 0;
+            
+            // 判定ロジック
+            if (sales === 0 || cost === 0) {
+                alertCount++;
+                let comment = '';
+                let isCritical = false;
 
-            const costs = await db.costs.toArray();
-            const masters = await db.masters.toArray();
-            const masterMap = new Map();
-            masters.forEach(m => masterMap.set(m.code, m));
-
-            let alertCount = 0;
-
-            costs.forEach(c => {
-                const m = masterMap.get(c.code) || {};
-                const rawEndDate = m.endDate;
-                
-                let isCompleted = false;
-                if (rawEndDate) {
-                    const sDate = String(rawEndDate).trim();
-                    if (sDate.length === 8 && sDate !== '0') {
-                        isCompleted = true;
-                    }
+                if (isCompleted) {
+                    comment = '【要注意】完了済だが0円';
+                    isCritical = true;
+                } else {
+                    comment = '進行中・未計上';
                 }
                 
-                const sales = c.salesTotal || 0;
-                const cost = c.costTotal || 0;
-                
-                if (sales === 0 || cost === 0) {
-                    alertCount++;
-                    let comment = '';
-                    let isCritical = false;
+                if (sales === 0 && cost === 0) comment += ' (売上・原価共に0)';
+                else if (sales === 0) comment += ' (売上0)';
+                else if (cost === 0) comment += ' (原価0)';
 
-                    if (isCompleted) {
-                        comment = '【要注意】完了済だが0円';
-                        isCritical = true;
-                    } else {
-                        comment = '進行中・未計上';
-                    }
-                    
-                    if (sales === 0 && cost === 0) comment += ' (売上・原価共に0)';
-                    else if (sales === 0) comment += ' (売上0)';
-                    else if (cost === 0) comment += ' (原価0)';
+                const newRow = ws.addRow({
+                    code: c.code,
+                    name: c.name,
+                    owner: m.owner || '-',     // 追加: マスターから取得
+                    manager: m.manager || '-', // 追加: マスターから取得
+                    branch: m.branch || '-',   // 追加: マスターから取得
+                    end: rawEndDate || '-',
+                    sales: sales,
+                    cost: cost,
+                    comment: comment
+                });
 
-                    const newRow = ws.addRow({
-                        code: c.code,
-                        name: c.name,
-                        end: rawEndDate || '-',
-                        sales: sales,
-                        cost: cost,
-                        comment: comment
-                    });
-
-                    if (isCritical) {
-                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; }); 
-                        newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
-                    } else {
-                         newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFE0' } }; }); 
-                    }
+                if (isCritical) {
+                    newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; }); 
+                    newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
+                } else {
+                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFE0' } }; }); 
                 }
-            });
+            }
+        });
 
-            const buffer = await wb.xlsx.writeBuffer();
-            saveAs(new Blob([buffer]), `原価整合性チェック_${new Date().toISOString().slice(0,10)}.xlsx`);
-            alert(`出力完了: ${alertCount}件の該当データが見つかりました。`);
-        } catch (e) {
-            console.error(e);
-            alert("エクスポート中にエラーが発生しました: " + e.message);
-        }
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `原価整合性チェック_${new Date().toISOString().slice(0,10)}.xlsx`);
+        alert(`出力完了: ${alertCount}件の該当データが見つかりました。`);
+    } catch (e) {
+        console.error(e);
+        alert("エクスポート中にエラーが発生しました: " + e.message);
     }
+}
 
     // --- Multi-Site Comparison Logic ---
     window.switchViewMode = function(mode) {
