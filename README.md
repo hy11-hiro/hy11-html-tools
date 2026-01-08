@@ -139,12 +139,12 @@ GitHub Pagesを通じて公開され、黒板作成・原価管理・画像編�
   - **Excel出力**：チェック結果と集計データをそのまま XLSX 形式でエクスポート
   - **利用シーン**：月次決算時の売上計上漏れ確認、マスタ登録不備の監査作業
  
-  - [AI-OCR Invoice Processor.html](https://hy11-hiro.github.io/hy11-html-tools/AI-OCR%20Invoice%20Processor.html)  
+- [AI-OCR Invoice Processor.html](https://hy11-hiro.github.io/hy11-html-tools/AI-OCR%20Invoice%20Processor.html)  
   請求書画像・PDFをAIが解析し、品名・数量・金額などを自動抽出する軽量AI-OCRツール。  
   **主な機能**：AI解析、レイアウト非依存抽出、CSV出力、スマホ対応、HTML単体で動作  
   **利用シーン**：個人の請求書整理、AI-OCRの検証、Excel集計前の前処理  
-  **注意事項**：解析にはGoogle Gemini APIを使用するため、画像は外部サーバーへ送信されます（個人利用・検証向け）
-
+  **重要**：解析には Google Gemini API を使用するため、画像データは外部サーバーへ送信されます。  
+  **個人利用専用ツールです。会社の請求書・機密情報には使用しないでください。**
 
 ---
 
