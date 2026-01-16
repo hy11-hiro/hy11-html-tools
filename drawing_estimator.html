@@ -1578,101 +1578,102 @@
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
 
-        function createExportCanvas() {
-            if (!App.bgImage) {
-                alert("図面が読み込まれていません");
-                return null;
+function createExportCanvas() {
+    if (!App.bgImage) return null;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = App.bgImage.width;
+    tempCanvas.height = App.bgImage.height;
+    const tCtx = tempCanvas.getContext('2d');
+
+    // 背景画像（図面）の描画
+    tCtx.drawImage(App.bgImage, 0, 0);
+
+    const exportFontSize = (App.fontSize || 14) * 2.5; // 出力用に少し大きく
+
+    App.shapes.forEach(shape => {
+        const color = shape.settings.color;
+        const lw = shape.settings.lineWidth * 1.5;
+
+        // 図形本体の描画
+        tCtx.beginPath();
+        tCtx.strokeStyle = color;
+        tCtx.lineWidth = lw;
+        if (shape.type === 'area') {
+            tCtx.moveTo(shape.points[0].x, shape.points[0].y);
+            for (let i = 1; i < shape.points.length; i++) {
+                tCtx.lineTo(shape.points[i].x, shape.points[i].y);
             }
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = App.bgImage.width;
-            tempCanvas.height = App.bgImage.height;
-            const tCtx = tempCanvas.getContext('2d');
-            tCtx.drawImage(App.bgImage, 0, 0);
-            
-            const exportFontSize = (App.fontSize || 14) * 2;
-
-            App.shapes.forEach(shape => {
-                const color = shape.settings.color;
-                const isSub = shape.settings.isSubtractive;
-                const lw = (shape.settings.lineWidth || 2) * 2; 
-                
-                if (shape.type === 'count') {
-                    const p = shape.points[0];
-                    tCtx.fillStyle = color;
-                    tCtx.beginPath();
-                    tCtx.arc(p.x, p.y, (4 + (shape.settings.lineWidth||2))*2, 0, Math.PI * 2);
-                    tCtx.fill();
-                    tCtx.strokeStyle = "#fff";
-                    tCtx.lineWidth = 2;
-                    tCtx.stroke();
-                } else if (shape.type === 'line') {
-                    for (let i = 0; i < shape.points.length - 1; i++) {
-                        const p1 = shape.points[i];
-                        const p2 = shape.points[i+1];
-                        tCtx.beginPath();
-                        tCtx.moveTo(p1.x, p1.y);
-                        tCtx.lineTo(p2.x, p2.y);
-                        tCtx.strokeStyle = color;
-                        tCtx.lineWidth = lw;
-                        tCtx.stroke();
-                    }
-                    shape.points.forEach(p => {
-                        tCtx.fillStyle = color;
-                        tCtx.fillRect(p.x - lw, p.y - lw, lw*2, lw*2);
-                    });
-                } else if (shape.type === 'area') {
-                    tCtx.save();
-                    tCtx.beginPath();
-                    tCtx.moveTo(shape.points[0].x, shape.points[0].y);
-                    for (let i = 1; i < shape.points.length; i++) {
-                        tCtx.lineTo(shape.points[i].x, shape.points[i].y);
-                    }
-                    tCtx.closePath();
-                    if (isSub) {
-                        tCtx.fillStyle = "rgba(255, 0, 0, 0.3)";
-                        tCtx.strokeStyle = "#ff0000";
-                        tCtx.setLineDash([10, 10]);
-                    } else {
-                        tCtx.fillStyle = hexToRgba(color, 0.3);
-                        tCtx.strokeStyle = color;
-                    }
-                    tCtx.lineWidth = lw;
-                    tCtx.fill();
-                    tCtx.stroke();
-                    tCtx.restore();
-                }
-                if(document.getElementById('showLabels').checked && shape.points.length > 0) {
-                    const val = calculateMetric(shape);
-                    let text = `${shape.settings.name}`;
-                    const mult = shape.settings.multiplier || 1;
-                    if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
-                    else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
-                    if (mult > 1) text += ` x${mult}`;
-                    let pos = shape.points[0];
-                    if (shape.type === 'area') {
-                        let sx=0, sy=0;
-                        shape.points.forEach(p => { sx+=p.x; sy+=p.y; });
-                        pos = {x: sx/shape.points.length, y: sy/shape.points.length};
-                    } else if (shape.type === 'line') {
-                        pos = shape.points[Math.floor(shape.points.length/2)];
-                    }
-                    
-                    tCtx.font = `bold ${exportFontSize}px sans-serif`; 
-                    tCtx.fillStyle = color; 
-                    
-                    const showBg = document.getElementById('showLabelBackground').checked;
-                    if(showBg) {
-                        const metrics = tCtx.measureText(text);
-                        tCtx.fillStyle = "rgba(0,0,0,0.7)";
-                        tCtx.fillRect(pos.x, pos.y - exportFontSize, metrics.width + 20, exportFontSize * 1.2);
-                        tCtx.fillStyle = "#ffffff";
-                    }
-
-                    tCtx.fillText(text, pos.x + 10, pos.y);
-                }
-            });
-            return tempCanvas;
+            tCtx.closePath();
+            tCtx.fillStyle = color + '44'; // 半透明
+            tCtx.fill();
+            tCtx.stroke();
+        } else if (shape.type === 'line') {
+            tCtx.moveTo(shape.points[0].x, shape.points[0].y);
+            for (let i = 1; i < shape.points.length; i++) {
+                tCtx.lineTo(shape.points[i].x, shape.points[i].y);
+            }
+            tCtx.stroke();
+        } else if (shape.type === 'count') {
+            const p = shape.points[0];
+            tCtx.fillStyle = color;
+            tCtx.arc(p.x, p.y, lw * 2, 0, Math.PI * 2);
+            tCtx.fill();
+            tCtx.stroke();
         }
+
+        // --- ラベルと引き出し線の描画 ---
+        if (document.getElementById('showLabels').checked && shape.points.length > 0) {
+            const val = calculateMetric(shape);
+            let text = `${shape.settings.name}`;
+            const mult = shape.settings.multiplier || 1;
+            if (shape.type === 'line') text += ` L=${val.toFixed(1)}m`;
+            else if (shape.type === 'area') text += ` ${Math.abs(val).toFixed(1)}㎡`;
+            if (mult > 1) text += ` x${mult}`;
+
+            // 1. 図形の中心（引き出し線の始点）を計算
+            let anchor = shape.points[0];
+            if (shape.type === 'area') {
+                let sx = 0, sy = 0;
+                shape.points.forEach(p => { sx += p.x; sy += p.y; });
+                anchor = { x: sx / shape.points.length, y: sy / shape.points.length };
+            } else if (shape.type === 'line') {
+                anchor = shape.points[Math.floor(shape.points.length / 2)];
+            }
+
+            // 2. ラベルの描画位置を決定
+            let pos = shape.labelPosition || anchor;
+
+            // 3. 【追加】ラベルが移動されている場合のみ引き出し線を描画
+            if (shape.labelPosition) {
+                tCtx.beginPath();
+                tCtx.moveTo(anchor.x, anchor.y);
+                tCtx.lineTo(pos.x, pos.y);
+                tCtx.strokeStyle = color;
+                tCtx.lineWidth = 1.5;
+                tCtx.setLineDash([8, 8]); // 点線
+                tCtx.stroke();
+                tCtx.setLineDash([]);    // 点線リセット
+            }
+
+            // 4. ラベル（テキスト）の描画
+            tCtx.font = `bold ${exportFontSize}px sans-serif`;
+            tCtx.fillStyle = color;
+            const showBg = document.getElementById('showLabelBackground').checked;
+            
+            const metrics = tCtx.measureText(text);
+            const textX = pos.x + 10;
+            const textY = pos.y;
+
+            if (showBg) {
+                tCtx.fillStyle = "rgba(0,0,0,0.7)";
+                tCtx.fillRect(textX - 5, textY - exportFontSize, metrics.width + 10, exportFontSize * 1.2);
+                tCtx.fillStyle = "#ffffff";
+            }
+            tCtx.fillText(text, textX, textY);
+        }
+    });
+    return tempCanvas;
+}
 
         function saveCanvasAsImage() {
             const canvas = createExportCanvas();
