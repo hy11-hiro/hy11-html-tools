@@ -3,71 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>吉野家ルーレットチャレンジ</title>
+    <title>吉野家ルーレット 2026最新版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap');
         body { font-family: 'Noto Sans JP', sans-serif; background-color: #f3f4f6; }
         .yoshinoya-orange { background-color: #ff8c00; }
-        .yoshinoya-orange-text { color: #ff8c00; }
-        .yoshinoya-dark { background-color: #333; }
         .point-badge { background-color: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #ff8c00; border-radius: 10px; }
+        .limited-tag { background: #ef4444; color: white; font-size: 10px; padding: 1px 4px; border-radius: 4px; margin-left: 4px; }
+        
+        /* カスタムチェックボックスのスタイル */
+        .filter-chip input[type="checkbox"] { display: none; }
+        .filter-chip span {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 2px solid #fb923c;
+            color: #fb923c;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+        .filter-chip input[type="checkbox"]:checked + span {
+            background: #fb923c;
+            color: white;
+        }
     </style>
 </head>
 <body class="p-4 md:p-8">
     <div class="max-w-md mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-orange-500">
-        <!-- Header -->
         <div class="yoshinoya-orange p-6 text-white text-center">
             <h1 class="text-2xl font-black mb-1 text-black">吉野家ルーレット</h1>
-            <p class="text-sm opacity-90 text-black font-bold italic">2人分・期間限定メニュー対応版</p>
+            <p class="text-sm opacity-90 text-black font-bold italic">2026.01.22 価格改訂対応版</p>
         </div>
 
         <div class="p-6">
-            <!-- Settings Grid -->
+            <!-- Basic Settings -->
             <div class="grid grid-cols-2 gap-4 mb-4">
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 mb-1">食べ方</label>
-                    <select onchange="setTaxMode(this.value)" class="w-full p-2 rounded-lg bg-gray-100 font-bold text-sm outline-none border-b-2 border-orange-500">
-                        <option value="takeout">テイクアウト(8%)</option>
-                        <option value="eat-in">店内飲食(10%)</option>
+                    <select id="tax-mode" onchange="updateSettings()" class="w-full p-2 rounded-lg bg-gray-100 font-bold text-sm outline-none border-b-2 border-orange-500">
+                        <option value="1.10">店内飲食 (10%)</option>
+                        <option value="1.08">テイクアウト (8%)</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-[10px] font-bold text-gray-500 mb-1">クーポン</label>
-                    <select onchange="setDiscount(this.value)" class="w-full p-2 rounded-lg bg-gray-100 font-bold text-sm outline-none border-b-2 border-red-500">
+                    <select id="discount-mode" onchange="updateSettings()" class="w-full p-2 rounded-lg bg-gray-100 font-bold text-sm outline-none border-b-2 border-red-500">
                         <option value="0">割引なし</option>
                         <option value="200">200円引きを使う</option>
                     </select>
                 </div>
             </div>
 
-            <!-- Mode Selector -->
+            <!-- Multi-Select Mood Filter (Revised Rule) -->
+            <div class="mb-6">
+                <label class="block text-[10px] font-bold text-gray-500 mb-2">今日の気分（複数選択可）</label>
+                <div class="flex flex-wrap gap-2" id="filter-container">
+                    <label class="filter-chip">
+                        <input type="checkbox" name="cat" value="don" checked onchange="updateSettings()">
+                        <span>丼・皿</span>
+                    </label>
+                    <label class="filter-chip">
+                        <input type="checkbox" name="cat" value="karaage" checked onchange="updateSettings()">
+                        <span>唐揚げ</span>
+                    </label>
+                    <label class="filter-chip">
+                        <input type="checkbox" name="cat" value="set" onchange="updateSettings()">
+                        <span>定食・鍋</span>
+                    </label>
+                    <label class="filter-chip">
+                        <input type="checkbox" name="cat" value="morning" onchange="updateSettings()">
+                        <span>朝食</span>
+                    </label>
+                </div>
+                <p class="text-[9px] text-gray-400 mt-1">※未選択の場合は自動的に「丼・皿」と「唐揚げ」が選ばれます</p>
+            </div>
+
             <div class="mb-6">
                 <label class="block text-[10px] font-bold text-gray-500 mb-1">人数設定</label>
                 <div class="flex bg-gray-200 p-1 rounded-xl">
                     <button onclick="setPartySize(1)" id="party-1" class="flex-1 py-2 rounded-lg font-bold transition-all bg-white shadow-sm text-orange-600 text-sm">1人分</button>
-                    <button onclick="setPartySize(2)" id="party-2" class="flex-1 py-2 rounded-lg font-bold transition-all text-gray-500 text-sm">2人分 (メイン2品)</button>
+                    <button onclick="setPartySize(2)" id="party-2" class="flex-1 py-2 rounded-lg font-bold transition-all text-gray-500 text-sm">2人分</button>
                 </div>
             </div>
 
-            <!-- Budget Selector -->
             <div class="mb-6">
-                <label class="block text-sm font-bold text-gray-700 mb-2 text-center">1人あたりの支払目標</label>
+                <label class="block text-sm font-bold text-gray-700 mb-2 text-center">支払目標 (割引後)</label>
                 <div class="grid grid-cols-4 gap-1">
-                    <button onclick="setBudget(500)" id="btn-500" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">500円~</button>
-                    <button onclick="setBudget(1000)" id="btn-1000" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">1000円~</button>
-                    <button onclick="setBudget(1500)" id="btn-1500" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">1500円~</button>
-                    <button onclick="setBudget(2000)" id="btn-2000" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">2000円~</button>
+                    <button onclick="setBudget(500)" id="btn-500" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">500~</button>
+                    <button onclick="setBudget(1000)" id="btn-1000" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">1000~</button>
+                    <button onclick="setBudget(1500)" id="btn-1500" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">1500~</button>
+                    <button onclick="setBudget(2000)" id="btn-2000" class="py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 text-xs hover:bg-orange-50 transition-colors">2000~</button>
                 </div>
             </div>
 
-            <!-- Display Area -->
-            <div id="result-container" class="bg-gray-50 rounded-2xl p-4 min-h-[250px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 relative overflow-hidden">
-                <div id="status-text" class="text-gray-500 font-bold z-10 text-center">設定を選んでスタート！<br><span class="text-xs font-normal">メイン料理を人数分必ず選びます</span></div>
+            <div id="result-container" class="bg-gray-50 rounded-2xl p-4 min-h-[300px] flex flex-col items-center justify-center border-2 border-dashed border-gray-300 relative">
+                <div id="status-text" class="text-gray-500 font-bold z-10 text-center">条件を選んでスタート！</div>
                 
-                <div id="menu-list" class="w-full space-y-2 mt-4 hidden z-10">
-                    <!-- Items will appear here -->
-                </div>
+                <div id="menu-list" class="w-full space-y-2 mt-2 hidden z-10 text-black max-h-[350px] overflow-y-auto custom-scroll px-1"></div>
 
                 <div id="result-details" class="w-full mt-4 pt-4 border-t border-gray-200 hidden z-10">
                     <div id="discount-row" class="flex justify-between text-red-600 font-bold text-sm hidden">
@@ -75,17 +114,12 @@
                         <span id="discount-val">-0円</span>
                     </div>
                     <div class="flex justify-between items-end">
-                        <div id="point-info" class="point-badge px-2 py-1 rounded text-[10px] font-bold">
-                            0 ポイント獲得
-                        </div>
-                        <div id="total-price" class="text-3xl font-black text-orange-600">
-                            0円
-                        </div>
+                        <div id="point-info" class="point-badge px-2 py-1 rounded text-[10px] font-bold">0 pt 獲得</div>
+                        <div id="total-price" class="text-3xl font-black text-orange-600">0円</div>
                     </div>
                 </div>
             </div>
 
-            <!-- Action Button -->
             <button id="spin-btn" disabled onclick="startChallenge()" class="w-full mt-6 py-4 rounded-full bg-gray-400 text-white text-xl font-black shadow-lg transition-transform active:scale-95">
                 ルーレットを回す！
             </button>
@@ -93,68 +127,64 @@
     </div>
 
     <script>
-        const rawMenuData = {
+        const menuData = {
             main: [
-                ["牛丼(並)", 453], ["牛丼(アタマ大盛)", 613], ["牛丼(大盛)", 673], ["牛丼(特盛)", 853],
-                ["ねぎ玉牛丼", 583], ["唐揚げ丼(並)", 518], ["鰻重(一枚小盛)", 1058],
-                ["鉄板牛カルビ定食", 658], ["牛サラダ", 578], ["チーズ黒カレー", 588], ["から揚げ定食", 653],
-                ["Ｗ定食(牛皿・から揚げ)", 878], ["牛カルビ丼", 598]
-            ],
-            seasonal: [
-                ["牛すき鍋膳(並)", 748], ["牛すき丼(並)", 598], ["麻辣牛鍋膳", 798], ["牛の焼肉定食", 658]
+                // 丼・皿系 (don)
+                { name: "牛丼(小盛)", base: 423, cat: "don" }, { name: "牛丼(並盛)", base: 453, cat: "don" }, { name: "牛丼(アタマ大盛)", base: 576, cat: "don" },
+                { name: "牛丼(大盛)", base: 635, cat: "don" }, { name: "牛丼(特盛)", base: 817, cat: "don" }, { name: "牛丼(超特盛)", base: 963, cat: "don" },
+                { name: "ねぎ玉牛丼(並)", base: 601, cat: "don" }, { name: "チーズ牛丼(並)", base: 601, cat: "don" }, { name: "キムチ牛丼(並)", base: 601, cat: "don" },
+                { name: "豚丼(並)", base: 423, cat: "don" }, { name: "牛カルビ丼(並)", base: 598, cat: "don" },
+                
+                // 定食・鍋系 (set)
+                { name: "牛皿定食", base: 717, cat: "set" }, { name: "牛カルビ定食", base: 753, cat: "set" },
+                { name: "牛すき鍋膳", base: 908, cat: "set" }, { name: "牛すき鍋(単品)", base: 808, cat: "set" },
+                { name: "とんこつ醤油牛鍋膳", base: 1280, cat: "set", limited: true }, { name: "牛肉玉ラーメン鍋膳", base: 1350, cat: "set", limited: true },
+                { name: "鰻重(一枚盛)", base: 1098, cat: "set" }, { name: "鰻重(二枚盛)", base: 1898, cat: "set" },
+
+                // 唐揚げ系 (karaage)
+                { name: "唐揚げ丼(並)", base: 508, cat: "karaage" }, { name: "タルタル南蛮唐揚げ丼(並)", base: 508, cat: "karaage", limited: true },
+                { name: "唐揚げ定食", base: 653, cat: "karaage" }, { name: "タルタル南蛮唐揚げ定食", base: 653, cat: "karaage", limited: true },
+
+                // 朝食系 (morning)
+                { name: "牛小鉢定食", base: 417, cat: "morning" }, { name: "納豆定食", base: 362, cat: "morning" }, { name: "焼魚定食(鮭)", base: 580, cat: "morning" }
             ],
             side: [
-                ["生卵", 88], ["半熟玉子", 108], ["みそ汁", 77], ["とん汁", 208],
-                ["お新香", 128], ["キムチ", 128], ["サラダ", 148], ["牛小皿", 188],
-                ["唐揚げ(1個)", 138], ["ポテトサラダ", 168], ["あさり汁", 188], ["冷豆腐", 128]
+                { name: "みそ汁", base: 88 }, { name: "とん汁", base: 228 }, { name: "あさり汁", base: 208 },
+                { name: "お新香", base: 148 }, { name: "納豆", base: 118 }, { name: "玉子", base: 108 },
+                { name: "生野菜サラダ", base: 148 }, { name: "ポテトサラダ", base: 178 },
+                { name: "チーズ", base: 148 }, { name: "キムチ", base: 148 },
+                { name: "唐揚げ(1個)", base: 148 }, { name: "牛小鉢", base: 202 },
+                { name: "ご飯(並)", base: 148 }, { name: "ご飯(大盛)", base: 198 }
             ]
         };
 
-        let currentBudget = 0;
-        let taxRate = 1.08;
-        let discountAmount = 0;
-        let partySize = 1;
-        let isSpinning = false;
+        let currentBudget = 0, taxRate = 1.10, discountAmount = 0, partySize = 1, isSpinning = false;
 
-        function setTaxMode(val) {
-            taxRate = val === 'takeout' ? 1.08 : 1.10;
-            if (currentBudget > 0) resetDisplay();
-        }
-
-        function setDiscount(val) {
-            discountAmount = parseInt(val);
-            if (currentBudget > 0) resetDisplay();
+        function updateSettings() {
+            taxRate = parseFloat(document.getElementById('tax-mode').value);
+            discountAmount = parseInt(document.getElementById('discount-mode').value);
+            if (currentBudget > 0) setBudget(currentBudget);
         }
 
         function setPartySize(size) {
             partySize = size;
-            document.getElementById('party-1').className = size === 1 
-                ? 'flex-1 py-2 rounded-lg font-bold transition-all bg-white shadow-sm text-orange-600 text-sm' 
-                : 'flex-1 py-2 rounded-lg font-bold transition-all text-gray-500 text-sm';
-            document.getElementById('party-2').className = size === 2 
-                ? 'flex-1 py-2 rounded-lg font-bold transition-all bg-white shadow-sm text-orange-600 text-sm' 
-                : 'flex-1 py-2 rounded-lg font-bold transition-all text-gray-500 text-sm';
-            if (currentBudget > 0) resetDisplay();
+            document.getElementById('party-1').className = size === 1 ? 'flex-1 py-2 rounded-lg font-bold bg-white shadow-sm text-orange-600 text-sm' : 'flex-1 py-2 rounded-lg font-bold text-gray-500 text-sm';
+            document.getElementById('party-2').className = size === 2 ? 'flex-1 py-2 rounded-lg font-bold bg-white shadow-sm text-orange-600 text-sm' : 'flex-1 py-2 rounded-lg font-bold text-gray-500 text-sm';
+            if (currentBudget > 0) setBudget(currentBudget);
         }
 
         function setBudget(amount) {
             if (isSpinning) return;
             currentBudget = amount;
-            
             [500, 1000, 1500, 2000].forEach(a => {
-                const btn = document.getElementById(`btn-${a}`);
-                btn.className = (a === amount) 
-                    ? 'py-2 rounded-lg font-bold border-2 border-orange-500 yoshinoya-orange text-white text-xs' 
-                    : 'py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 hover:bg-orange-50 text-xs';
+                document.getElementById(`btn-${a}`).className = (a === amount) ? 'py-2 rounded-lg font-bold border-2 border-orange-500 yoshinoya-orange text-white text-xs' : 'py-2 rounded-lg font-bold border-2 border-orange-500 text-orange-600 hover:bg-orange-50 text-xs';
             });
-
             const spinBtn = document.getElementById('spin-btn');
             spinBtn.disabled = false;
-            spinBtn.className = 'w-full mt-6 py-4 rounded-full yoshinoya-orange text-white text-xl font-black shadow-lg transition-transform active:scale-95';
-            
+            spinBtn.className = 'w-full mt-6 py-4 rounded-full yoshinoya-orange text-white text-xl font-black shadow-lg';
             resetDisplay();
-            const target = partySize === 1 ? amount : amount * 2;
-            document.getElementById('status-text').innerHTML = `支払額 <span class="text-orange-600">${target}円〜${target+(100*partySize)}円</span><br>で構成します！`;
+            const target = partySize * amount;
+            document.getElementById('status-text').innerHTML = `予算：<span class="text-orange-600">${target}円〜</span>`;
         }
 
         function resetDisplay() {
@@ -163,94 +193,81 @@
             document.getElementById('status-text').classList.remove('hidden');
         }
 
-        function getPrice(rawPrice) {
-            return Math.floor(rawPrice * taxRate);
-        }
-
         async function startChallenge() {
             if (isSpinning) return;
             isSpinning = true;
-
-            const menuList = document.getElementById('menu-list');
-            const resultDetails = document.getElementById('result-details');
-            const statusText = document.getElementById('status-text');
-            const spinBtn = document.getElementById('spin-btn');
-
-            spinBtn.innerText = "オーダー確認中...";
-            spinBtn.disabled = true;
-            statusText.innerText = "最適な組み合わせを探しています...";
-            resetDisplay();
-
-            await new Promise(resolve => setTimeout(resolve, 800));
-
+            const menuList = document.getElementById('menu-list'), resultDetails = document.getElementById('result-details'), statusText = document.getElementById('status-text'), spinBtn = document.getElementById('spin-btn');
+            
+            spinBtn.innerText = "抽選中..."; spinBtn.disabled = true;
+            statusText.innerText = "具材を煮込んでいます...";
+            menuList.classList.add('hidden'); resultDetails.classList.add('hidden');
+            
+            await new Promise(r => setTimeout(r, 800));
+            
             const result = selectMenuLogic();
+            if (!result) {
+                statusText.innerText = "予算に合う組み合わせが見つかりませんでした。条件を変えてみてください。";
+                spinBtn.disabled = false; spinBtn.innerText = "条件を変えてリトライ";
+                isSpinning = false;
+                return;
+            }
 
             menuList.innerHTML = '';
             result.items.forEach(item => {
                 const div = document.createElement('div');
                 div.className = "flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border-l-4 border-orange-500 mb-2 text-sm";
-                div.innerHTML = `<span class="font-bold text-gray-800">${item.name}</span><span class="text-orange-600 font-bold">${item.price}円</span>`;
+                div.innerHTML = `<div><span class="font-bold text-gray-800">${item.name}</span>${item.limited ? '<span class="limited-tag">限定</span>' : ''}</div><span class="text-orange-600 font-bold">${item.price}円</span>`;
                 menuList.appendChild(div);
             });
-
+            
             document.getElementById('discount-row').classList.toggle('hidden', discountAmount === 0);
             document.getElementById('discount-val').innerText = `-${discountAmount}円`;
             document.getElementById('total-price').innerText = `${result.finalTotal}円`;
+            document.getElementById('point-info').innerText = `${Math.floor(result.finalTotal / 500)} pt 獲得`;
             
-            const pts = Math.floor(result.finalTotal / 500);
-            document.getElementById('point-info').innerText = `吉野家ポイント： ${pts} pt 獲得`;
-
-            statusText.innerText = partySize === 1 ? `🎯 ぴったりの注文が決まりました` : `🎯 2人分の注文が決まりました`;
-            menuList.classList.remove('hidden');
-            resultDetails.classList.remove('hidden');
-            
-            spinBtn.innerText = "もう一度回す！";
-            spinBtn.disabled = false;
-            isSpinning = false;
+            statusText.innerText = `🎯 これで決まり！`;
+            menuList.classList.remove('hidden'); resultDetails.classList.remove('hidden');
+            spinBtn.innerText = "もう一度回す！"; spinBtn.disabled = false; isSpinning = false;
         }
 
         function selectMenuLogic() {
-            // メインと季節限定を統合
-            const allMains = [...rawMenuData.main, ...rawMenuData.seasonal].map(m => ({ name: m[0], price: getPrice(m[1]) }));
-            const sideOptions = rawMenuData.side.map(s => ({ name: s[0], price: getPrice(s[1]) }));
+            const calc = (base) => Math.floor(base * taxRate);
             
+            // チェックボックスから選択されたカテゴリーを取得
+            const selectedCats = Array.from(document.querySelectorAll('input[name="cat"]:checked')).map(cb => cb.value);
+            
+            // 優先カテゴリーが何も選ばれていない場合はデフォルトを設定
+            const finalCats = selectedCats.length > 0 ? selectedCats : ['don', 'karaage'];
+            
+            // メインメニューの絞り込み
+            let mains = menuData.main.filter(m => finalCats.includes(m.cat));
+
+            const sides = menuData.side.map(s => ({ ...s, price: calc(s.base) }));
             const targetMin = currentBudget * partySize;
-            const targetMax = targetMin + (100 * partySize);
+            let bestSet = null, minOver = Infinity;
 
-            let bestSet = null;
-            let minOver = Infinity;
-
-            for(let i=0; i<100; i++) {
-                let selected = [];
-                let subtotal = 0;
-                
-                // 人数分のメインを選ぶ
+            for(let i=0; i<1000; i++) {
+                let selected = [], subtotal = 0;
                 for(let p=0; p < partySize; p++) {
-                    const main = allMains[Math.floor(Math.random() * allMains.length)];
-                    selected.push(main);
-                    subtotal += main.price;
+                    const mOrig = mains[Math.floor(Math.random() * mains.length)];
+                    const m = { ...mOrig, price: calc(mOrig.base) };
+                    selected.push(m); subtotal += m.price;
                 }
-
-                // 予算に届くまでサイドを追加
-                let innerAttempts = 0;
-                while ((subtotal - discountAmount) < targetMin && innerAttempts < 15) {
-                    const side = sideOptions[Math.floor(Math.random() * sideOptions.length)];
-                    selected.push(side);
-                    subtotal += side.price;
-                    innerAttempts++;
+                let attempts = 0;
+                while ((subtotal - discountAmount) < targetMin && attempts < 15) {
+                    const s = sides[Math.floor(Math.random() * sides.length)];
+                    selected.push(s); subtotal += s.price;
+                    attempts++;
                 }
-
                 const final = subtotal - discountAmount;
-                const overAmount = final - targetMin;
-
-                if (final >= targetMin && overAmount < minOver) {
-                    minOver = overAmount;
+                const over = final - targetMin;
+                if (final >= targetMin && over < minOver) {
+                    minOver = over;
                     bestSet = { items: [...selected], finalTotal: final };
-                    if (overAmount <= 40) break; // 良い組み合わせが見つかったら即終了
+                    if (over <= 10) break;
                 }
             }
-
-            return bestSet || { items: [], finalTotal: 0 };
+            return bestSet;
         }
     </script>
 </body>
