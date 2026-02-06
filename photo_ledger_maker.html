@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>工事写真台帳作成ツール (v3.5 - Global Item Compaction)</title>
+  <title>工事写真台帳作成ツール (v3.5.1 - Excel Fit Fix)</title>
   
   <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -739,8 +739,21 @@
 
     const generateDefaultExcel = (workbook, pages, info, options) => {
         createCoverSheet(workbook, info, options.coverPattern || 'standard');
+        
+        // Calculate number of pages to force fit
+        const totalPages = Math.max(1, pages.length);
+
         const sheet = workbook.addWorksheet('写真帳', { 
-            pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: false, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0, footer: 0 } },
+            pageSetup: { 
+                paperSize: 9, 
+                orientation: 'portrait', 
+                // --- FIX START: Force Fit to Page ---
+                fitToPage: true,      // Enable scaling
+                fitToWidth: 1,        // Fit to 1 page wide
+                fitToHeight: totalPages, // Fit to exactly N pages tall
+                margins: { left: 0.4, right: 0.4, top: 0.4, bottom: 0.4, header: 0, footer: 0 } // Reduce margins slightly
+                // --- FIX END ---
+            },
             headerFooter: { oddFooter: { right: 'Page &P' } } 
         });
         const layoutType = pages.length > 0 ? pages[0].layout : 'standard-3';
@@ -852,7 +865,12 @@
                     itemIdx += 2;
                 }
             }
-            sheet.getRow(r).addPageBreak(); r += 1;
+            // --- FIX START: Do not add page break after the last page ---
+            if (pIdx < pages.length - 1) {
+                sheet.getRow(r).addPageBreak(); 
+            }
+            // --- FIX END ---
+            r += 1;
         });
     };
 
