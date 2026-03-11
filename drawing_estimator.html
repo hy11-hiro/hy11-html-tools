@@ -461,7 +461,7 @@
 
         let loadedMaterials = [];
 
-        const App = {
+const App = {
             canvas: document.getElementById('mainCanvas'),
             ctx: null,
             width: 0,
@@ -481,8 +481,9 @@
             shapes: [],
             manualItems: [], 
             fontSize: 14, 
-            listFontSize: 16, // NEW: Default list font size
+            listFontSize: 16,
             draggingLabelShape: null, 
+            cursorWorldPos: null, // ★追加: キー入力時の方向計算用
             currentSettings: {
                 name: '未設定',
                 masterName: '', 
@@ -846,12 +847,45 @@
             document.getElementById('additionalItemSelect').addEventListener('change', addAdditionalItem);
             document.getElementById('addManualItemBtn').addEventListener('click', addManualItem);
             
+// ★修正ポイント：handleManualEnter の重複宣言を削除しました
             const handleManualEnter = (e) => {
                 if (e.key === 'Enter') addManualItem();
             };
             document.getElementById('manualItemName').addEventListener('keypress', handleManualEnter);
             document.getElementById('manualItemPrice').addEventListener('keypress', handleManualEnter);
-        }
+
+            // ★追加: 数値入力による距離指定
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                
+                if ((App.currentTool === 'line' || App.currentTool === 'area') && App.drawingPoints.length > 0) {
+                    if (App.pixelsPerMeter === 0) return;
+                    
+                    if (/^[0-9]$/.test(e.key) || e.key === '.') {
+                        const inputLen = prompt("長さを指定してください (m):", e.key);
+                        if (inputLen !== null) {
+                            const len = parseFloat(inputLen);
+                            if (!isNaN(len) && len > 0 && App.cursorWorldPos) {
+                                const lastPoint = App.drawingPoints[App.drawingPoints.length - 1];
+                                const dx = App.cursorWorldPos.x - lastPoint.x;
+                                const dy = App.cursorWorldPos.y - lastPoint.y;
+                                const currentDistPx = Math.hypot(dx, dy);
+                                
+                                if (currentDistPx > 0) {
+                                    const targetPx = len * App.pixelsPerMeter;
+                                    const ratio = targetPx / currentDistPx;
+                                    const newPoint = {
+                                        x: lastPoint.x + dx * ratio,
+                                        y: lastPoint.y + dy * ratio
+                                    };
+                                    App.drawingPoints.push(newPoint);
+                                    render(App.cursorWorldPos);
+                                }
+                            }
+                        }
+                    }
+                }
+            });        }
 
         // --- Core Functions ---
         function switchView(viewName) {
@@ -1311,11 +1345,14 @@
             render();
         }
 
-        function onMouseMove(e) {
+function onMouseMove(e) {
             const rect = App.canvas.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             const worldPos = screenToWorld(mouseX, mouseY);
+            
+            App.cursorWorldPos = worldPos; // ★追加: 常に最新の座標を保持
+            
             document.getElementById('cursorPos').textContent = `X: ${Math.round(worldPos.x)}, Y: ${Math.round(worldPos.y)}`;
 
             if (App.draggingLabelShape) {
@@ -1422,7 +1459,7 @@
         }
 
         // --- Render ---
-        function render(cursorWorldPos = null) {
+function render(cursorWorldPos = null) {
             const ctx = App.ctx;
             if (App.width === 0 || App.height === 0) return;
             const dpr = window.devicePixelRatio || 1;
@@ -1434,13 +1471,13 @@
                 ctx.translate(App.offsetX, App.offsetY);
                 ctx.scale(App.scale, App.scale);
                 ctx.drawImage(App.bgImage, 0, 0);
-                
-                const exportFontSize = (App.fontSize || 14) * 2;
                 ctx.restore();
             }
+
             App.shapes.forEach(shape => drawShape(ctx, shape));
             const color = App.currentSettings.color;
             const lw = App.currentSettings.lineWidth;
+            
             if (App.currentTool === 'scale') {
                 App.calibrationPoints.forEach(p => drawMarker(ctx, p, '#ff00ff'));
                 if (App.calibrationPoints.length === 1 && cursorWorldPos) {
@@ -1448,9 +1485,28 @@
                 }
             } else if (App.drawingPoints.length > 0) {
                 App.drawingPoints.forEach(p => drawMarker(ctx, p, color, 3));
-                if (App.drawingPoints.length > 0 && cursorWorldPos) {
+                
+                if (cursorWorldPos) {
                      drawLine(ctx, App.drawingPoints[App.drawingPoints.length-1], cursorWorldPos, color, true, lw);
+
+                     // ★追加: カーソル横に現在の距離を表示
+                     if (App.pixelsPerMeter > 0 && (App.currentTool === 'line' || App.currentTool === 'area')) {
+                         const lastP = App.drawingPoints[App.drawingPoints.length-1];
+                         const distM = (Math.hypot(cursorWorldPos.x - lastP.x, cursorWorldPos.y - lastP.y) / App.pixelsPerMeter).toFixed(2);
+                         const sCursor = worldToScreen(cursorWorldPos.x, cursorWorldPos.y);
+                         
+                         ctx.save();
+                         ctx.font = "bold 14px sans-serif";
+                         const text = `${distM}m`;
+                         const metrics = ctx.measureText(text);
+                         ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                         ctx.fillRect(sCursor.x + 15, sCursor.y - 15, metrics.width + 10, 20);
+                         ctx.fillStyle = "#00ffff"; // 視認性の高いシアン色
+                         ctx.fillText(text, sCursor.x + 20, sCursor.y);
+                         ctx.restore();
+                     }
                 }
+                // ...（以下、既存の描画ロジック）...                
                 for (let i = 0; i < App.drawingPoints.length - 1; i++) {
                     drawLine(ctx, App.drawingPoints[i], App.drawingPoints[i+1], color, false, lw);
                 }
