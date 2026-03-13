@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v44</title>
+    <title>G-Ledger | 現場原価管理台帳システム v49</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -55,6 +55,18 @@
 
         .pagination-btn { @apply px-3 py-1 border border-slate-300 bg-white text-slate-600 rounded text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors; }
         .pagination-btn.active { @apply bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700; }
+        /* cost-search tabs */
+        .cs-tab-btn.cs-tab-active { border-bottom-color: #2563eb !important; color: #1d4ed8 !important; font-weight: 800; }
+        /* cross table */
+        .cross-td { padding: 5px 10px; text-align: right; font-size: 11px; white-space: nowrap; border: 1px solid #e2e8f0; }
+        .cross-th { padding: 5px 10px; font-size: 11px; font-weight: 700; background: #f1f5f9; border: 1px solid #e2e8f0; white-space: nowrap; }
+        .cross-total-row td, .cross-total-col { background: #eff6ff !important; font-weight: 700; }
+        .cross-zero { color: #cbd5e1; }
+        /* detail sort indicator */
+        .cs-th.cs-sort-asc .cs-sort-icon::after  { content: '↑'; color: #2563eb; font-weight: 900; }
+        .cs-th.cs-sort-desc .cs-sort-icon::after { content: '↓'; color: #2563eb; font-weight: 900; }
+        .cs-th.cs-sort-asc .cs-sort-icon, .cs-th.cs-sort-desc .cs-sort-icon { opacity: 0; }
+        .cs-th.cs-sort-asc::after, .cs-th.cs-sort-desc::after { margin-left: 4px; font-size: 10px; }
     </style>
 </head>
 <body class="text-slate-800 h-screen flex overflow-hidden">
@@ -63,18 +75,19 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v44</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v49</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
                 <li><button onclick="window.showPage('dashboard')" id="nav-dashboard" class="sidebar-link active w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-magnifying-glass-chart"></i> 現場照会・分析</button></li>
+                <li><button onclick="window.showPage('browse')" id="nav-browse" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-table-list"></i> 現場一覧・絞り込み</button></li>
                 <li><button onclick="window.showPage('cost-search')" id="nav-cost-search" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-magnifying-glass-dollar"></i> 原価検索</button></li>
                 <li><button onclick="window.showPage('ranking')" id="nav-ranking" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-chart-pie"></i> 集計・ランキング</button></li>
                 <li><button onclick="window.showPage('check')" id="nav-check" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-list-check"></i> データチェック</button></li>
                 <li><button onclick="window.showPage('import')" id="nav-import" class="sidebar-link w-full text-left px-6 py-3 hover:bg-slate-800 transition-colors flex items-center gap-3"><i class="fa-solid fa-database"></i> データ取込・管理</button></li>
             </ul>
         </nav>
-        <div class="p-4 border-t border-slate-800 text-xs text-slate-500"><div class="flex items-center gap-2 mb-2"><div class="w-2 h-2 rounded-full bg-green-500"></div>IndexedDB Active</div><p>&copy; 2025 Construction Cost Mgt.</p></div>
+        <div class="p-4 border-t border-slate-800 text-xs text-slate-500"><div class="flex items-center gap-2 mb-2"><div class="w-2 h-2 rounded-full bg-green-500"></div>IndexedDB Active</div><p>&copy; 2025-2026 Construction Cost Mgt.</p></div>
     </aside>
 
     <!-- Main Content -->
@@ -88,6 +101,209 @@
         </header>
 
         <div class="flex-1 overflow-auto p-6 relative">
+
+            <!-- ★ BROWSE PAGE (現場一覧・絞り込み) -->
+            <div id="page-browse" class="page-content hidden space-y-4">
+
+                <!-- フィルターパネル -->
+                <div class="glass-panel rounded-xl p-5 border-t-4 border-teal-500">
+                    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <h3 class="text-base font-bold text-slate-700 flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-teal-500"></i> 絞り込み条件
+                        </h3>
+
+                        <!-- ★ データ基準トグル -->
+                        <div class="flex items-center gap-3 bg-slate-100 rounded-xl p-1.5">
+                            <span class="text-xs font-bold text-slate-500 ml-1">表示基準:</span>
+                            <button onclick="window.setBrowseBasis('cost')" id="browse-basis-cost"
+                                class="browse-basis-btn active flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all bg-indigo-600 text-white shadow-sm">
+                                <i class="fa-solid fa-file-invoice-dollar"></i> 原価集計データ
+                            </button>
+                            <button onclick="window.setBrowseBasis('master')" id="browse-basis-master"
+                                class="browse-basis-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-500 hover:bg-white">
+                                <i class="fa-solid fa-database"></i> 現場マスター全件
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <span id="browse-count-badge" class="text-xs bg-teal-100 text-teal-700 font-bold px-3 py-1 rounded-full border border-teal-200">0 件</span>
+                            <button onclick="window.resetBrowseFilter()" class="text-xs text-slate-500 hover:text-slate-700 underline flex items-center gap-1"><i class="fa-solid fa-eraser"></i> クリア</button>
+                        </div>
+                    </div>
+
+                    <!-- 基準説明バナー -->
+                    <div id="browse-basis-banner-cost" class="mb-3 flex items-center gap-2 text-xs bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg px-3 py-2">
+                        <i class="fa-solid fa-circle-info text-indigo-400"></i>
+                        <span><strong>原価集計基準：</strong>取り込んだ原価集計データに存在する工番のみを対象にしています。期間内に動いている現場の絞り込みに適しています。</span>
+                    </div>
+                    <div id="browse-basis-banner-master" class="mb-3 hidden flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-700 rounded-lg px-3 py-2">
+                        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                        <span><strong>マスター全件基準：</strong>現場マスターに登録されている全工番を対象にしています。原価集計期間外の現場も含まれます。</span>
+                    </div>
+
+                    <!-- 検索タイプ切り替えタブ -->
+                    <div class="flex gap-1 mb-4 bg-slate-100 p-1 rounded-lg w-fit">
+                        <button onclick="window.setBrowseTab('keyword')" id="btab-keyword" class="browse-tab-btn active px-4 py-2 rounded-md text-sm font-bold transition-all bg-white text-teal-700 shadow-sm">
+                            <i class="fa-solid fa-magnifying-glass mr-1"></i> キーワード
+                        </button>
+                        <button onclick="window.setBrowseTab('manager')" id="btab-manager" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-solid fa-user-tie mr-1"></i> 担当者
+                        </button>
+                        <button onclick="window.setBrowseTab('customer')" id="btab-customer" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-solid fa-building mr-1"></i> 得意先
+                        </button>
+                        <button onclick="window.setBrowseTab('date')" id="btab-date" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-regular fa-calendar mr-1"></i> 着手日
+                        </button>
+                        <button onclick="window.setBrowseTab('branch')" id="btab-branch" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-solid fa-location-dot mr-1"></i> 拠点
+                        </button>
+                    </div>
+
+                    <!-- キーワード検索パネル -->
+                    <div id="browse-panel-keyword" class="browse-filter-panel">
+                        <div class="flex gap-3 items-center">
+                            <div class="relative flex-1">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                                <input type="text" id="browse-keyword-input" placeholder="現場名・施工主名・得意先名・担当者名など..." 
+                                    class="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                                    oninput="window.applyBrowseFilter()">
+                            </div>
+                            <button onclick="window.applyBrowseFilter()" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 transition-colors">
+                                <i class="fa-solid fa-search"></i> 検索
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 担当者選択パネル -->
+                    <div id="browse-panel-manager" class="browse-filter-panel hidden">
+                        <div class="mb-2 flex items-center justify-between">
+                            <span class="text-xs text-slate-500 font-bold">担当者を選択してください</span>
+                            <button onclick="window.clearBrowseSelection('manager')" class="text-xs text-slate-400 hover:text-slate-600 underline">全選択解除</button>
+                        </div>
+                        <div id="browse-manager-buttons" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- 得意先選択パネル -->
+                    <div id="browse-panel-customer" class="browse-filter-panel hidden">
+                        <div class="mb-2 flex items-center justify-between">
+                            <span class="text-xs text-slate-500 font-bold">得意先を選択してください</span>
+                            <button onclick="window.clearBrowseSelection('customer')" class="text-xs text-slate-400 hover:text-slate-600 underline">全選択解除</button>
+                        </div>
+                        <div class="relative mb-3">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                            <input type="text" id="browse-customer-filter" placeholder="得意先名で絞り込み..." 
+                                class="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+                                oninput="window.filterCustomerButtons()">
+                        </div>
+                        <div id="browse-customer-buttons" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto"></div>
+                    </div>
+
+                    <!-- 着手日絞り込みパネル -->
+                    <div id="browse-panel-date" class="browse-filter-panel hidden">
+                        <div class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-slate-600">着手日:</span>
+                                <input type="date" id="browse-date-start" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                                <span class="text-slate-400">～</span>
+                                <input type="date" id="browse-date-end" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="window.setDatePreset('thisYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">今年</button>
+                                <button onclick="window.setDatePreset('lastYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">昨年</button>
+                                <button onclick="window.setDatePreset('last3')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">直近3年</button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2">※ 現場マスターの着手日を基準に絞り込みます。</p>
+                    </div>
+
+                    <!-- 拠点選択パネル -->
+                    <div id="browse-panel-branch" class="browse-filter-panel hidden">
+                        <div class="mb-2">
+                            <span class="text-xs text-slate-500 font-bold">拠点を選択してください</span>
+                        </div>
+                        <div id="browse-branch-buttons" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- 追加フィルター（共通） -->
+                    <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-4">
+                        <span class="text-xs font-bold text-slate-500">追加絞り込み:</span>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
+                            <input type="checkbox" id="browse-chk-subcodes" class="w-3.5 h-3.5 text-teal-600 rounded" onchange="window.applyBrowseFilter()">
+                            <span>サブコードありのみ</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
+                            <input type="checkbox" id="browse-chk-has-cost" class="w-3.5 h-3.5 text-teal-600 rounded" onchange="window.applyBrowseFilter()">
+                            <span>原価データありのみ</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
+                            <input type="checkbox" id="browse-chk-no-end" class="w-3.5 h-3.5 text-orange-500 rounded" onchange="window.applyBrowseFilter()">
+                            <span>完了日なし（進行中）</span>
+                        </label>
+                        <div class="ml-auto flex items-center gap-2">
+                            <span class="text-xs text-slate-500">並び順:</span>
+                            <select id="browse-sort" onchange="window.applyBrowseFilter()" class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white font-bold text-slate-700 focus:outline-none">
+                                <option value="code_asc">工番 昇順</option>
+                                <option value="code_desc">工番 降順</option>
+                                <option value="start_desc">着手日 新しい順</option>
+                                <option value="start_asc">着手日 古い順</option>
+                                <option value="name_asc">現場名 昇順</option>
+                                <option value="sales_desc">売上 高い順</option>
+                                <option value="margin_asc">粗利率 低い順</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 結果一覧テーブル -->
+                <div class="glass-panel rounded-xl overflow-hidden">
+                    <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <h4 class="font-bold text-slate-700 text-sm">現場一覧</h4>
+                            <span id="browse-result-count" class="text-xs text-slate-400">検索条件を選択してください</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="window.exportBrowseExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow transition-colors">
+                                <i class="fa-solid fa-file-excel"></i> Excel出力
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left border-collapse">
+                            <thead class="bg-slate-100 text-slate-600 text-xs uppercase sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-24">工番</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold">現場名</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-28">担当者</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-32">得意先</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-28">施工主</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-20">拠点</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-24">着手日</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-24">完了日</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-28 browse-cost-col">売上(税抜)</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-24 browse-cost-col">粗利率</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-20">原価</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-24">サブコード</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-16">詳細</th>
+                                </tr>
+                            </thead>
+                            <tbody id="browse-tbody" class="bg-white divide-y divide-slate-100">
+                                <tr><td colspan="11" class="px-4 py-12 text-center text-slate-400 text-sm">
+                                    <i class="fa-solid fa-filter text-3xl mb-3 block text-slate-300"></i>
+                                    上の条件から絞り込んでください
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- ページネーション -->
+                    <div id="browse-pagination" class="px-5 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50 hidden">
+                        <span id="browse-page-info" class="text-xs text-slate-500"></span>
+                        <div class="flex gap-1" id="browse-page-buttons"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- ★ END BROWSE PAGE -->
+
             <!-- 1. DASHBOARD PAGE -->
             <div id="page-dashboard" class="page-content space-y-6">
                 <!-- Single Search -->
@@ -95,9 +311,9 @@
                     <h3 class="text-lg font-bold mb-4 text-slate-600 text-center">現場検索</h3>
                     <div class="flex flex-col md:flex-row gap-6 justify-center">
                         <div class="relative w-full md:w-1/3">
-                            <label class="block text-xs font-bold text-slate-400 mb-1 ml-1">現場コード検索</label>
+                            <label class="block text-xs font-bold text-slate-400 mb-1 ml-1">現場コード検索 <span class="text-slate-300 font-normal">(数字5桁 または 英数字)</span></label>
                             <div class="flex items-center">
-                                <input type="text" id="search-input" placeholder="例: 01, 100" class="w-full pl-4 pr-12 py-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-lg bg-white">
+                                <input type="text" id="search-input" placeholder="例: 00001, 12345" class="w-full pl-4 pr-12 py-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-inner text-lg bg-white">
                                 <button onclick="window.searchSite()" class="absolute right-1 top-7 bottom-1 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors h-10 my-auto"><i class="fa-solid fa-arrow-right"></i></button>
                             </div>
                         </div>
@@ -117,7 +333,7 @@
                             <i class="fa-solid fa-eraser"></i> 検索条件と結果をクリア
                         </button>
                     </div>
-                    <p class="text-xs text-center text-slate-400 mt-3">※コード「01」と「1」は別扱いです。サブコードがある場合はここに表示されます。</p>
+                    <p class="text-xs text-center text-slate-400 mt-3">※コード「00001」と「1」は別扱いです。サブコードがある場合はここに表示されます。</p>
                 </div>
 
                 <!-- Multi-Site Comparison -->
@@ -136,7 +352,7 @@
                         <div class="bg-indigo-50 p-4 rounded-lg mb-4">
                             <p class="text-xs text-indigo-800 mb-2 font-bold">工番入力 (複数可)</p>
                             <!-- UPDATED: Added placeholder for better guidance -->
-                            <textarea id="multi-code-input" rows="3" class="w-full p-3 border border-indigo-200 rounded bg-white text-sm font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="工番を入力してください。&#13;&#10;貼り付けると自動的にスペース区切りに変換されます。&#13;&#10;例: 0001 0002 0003"></textarea>
+                            <textarea id="multi-code-input" rows="3" class="w-full p-3 border border-indigo-200 rounded bg-white text-sm font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="工番を入力してください。&#13;&#10;貼り付けると自動的にスペース区切りに変換されます。&#13;&#10;例: 00001 00002 00003"></textarea>
                             <div class="flex justify-between items-center mt-2">
                                 <div class="flex items-center gap-4">
                                     <div class="bg-indigo-200 p-1 rounded-md flex">
@@ -228,10 +444,264 @@
                 </div>
             </div>
             
-            <!-- 2. COST SEARCH PAGE -->
-            <div id="page-cost-search" class="page-content hidden space-y-6">
-                <div class="glass-panel p-8 rounded-xl"><h3 class="text-xl font-bold mb-4 text-slate-700 flex items-center"><i class="fa-solid fa-search mr-2"></i> 原価検索 (業者・明細検索)</h3><div class="flex flex-col md:flex-row gap-4 items-start"><div class="relative w-full md:w-1/2"><div class="flex items-center border border-slate-300 rounded-lg bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-500"><i class="fa-solid fa-magnifying-glass text-slate-400 ml-3"></i><input type="text" id="cost-search-input" placeholder="業者名を入力 (例: 〇〇建材, 鈴木...)" class="w-full p-3 focus:outline-none rounded-r-lg" autocomplete="off"></div><div id="cost-autocomplete-list" class="autocomplete-list hidden"></div></div><div class="w-full md:w-auto flex gap-2"><select id="cost-search-branch" class="p-3 border border-slate-300 rounded-lg bg-white text-sm font-bold"><option value="ALL">全拠点</option></select></div></div><p class="text-xs text-slate-400 mt-2 ml-1">※ スペース区切りで複数キーワード可。Enterキーで検索。</p></div>
-                <div id="cost-search-result" class="hidden space-y-6"><div class="grid grid-cols-1 md:grid-cols-3 gap-6"><div class="md:col-span-1 glass-panel p-6 rounded-xl border-l-4 border-green-500"><h4 class="text-sm text-slate-500 font-bold mb-1">選択中の業者</h4><h2 id="cs-vendor-name" class="text-2xl font-bold text-slate-800 mb-4">-</h2><div class="grid grid-cols-2 gap-4 mb-4"><div><span class="text-xs text-slate-400 block">発生総額(税抜)</span><span id="cs-total-amount" class="text-xl font-bold text-slate-700">¥0</span></div><div><span class="text-xs text-slate-400 block">取引件数</span><span id="cs-total-count" class="text-xl font-bold text-slate-700">0件</span></div></div><div><span class="text-xs text-slate-400 block mb-1">主な品目カテゴリ</span><div id="cs-top-items" class="flex flex-wrap gap-1"></div></div></div><div class="md:col-span-2 glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4">月別 発生額推移</h4><div class="h-64"><canvas id="chart-cost-trend"></canvas></div></div></div><div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4">月別集計表</h4><div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50"><tr><th class="px-4 py-2">年月</th><th class="px-4 py-2 text-right">発生額(税抜)</th><th class="px-4 py-2 text-center">件数</th><th class="px-4 py-2 text-center">構成比</th></tr></thead><tbody id="cs-table-monthly" class="bg-white border-b hover:bg-slate-50"></tbody></table></div></div><div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4">関連する工番一覧 (ソート可能)</h4><div class="overflow-x-auto max-h-96"><table class="w-full text-sm text-left text-slate-500"><thead class="text-xs text-slate-700 uppercase bg-slate-50 sticky top-0"><tr><th class="px-4 py-2 sortable" onclick="window.sortCostDetails('date')">発生日(月)</th><th class="px-4 py-2 sortable" onclick="window.sortCostDetails('code')">工番</th><th class="px-4 py-2 sortable" onclick="window.sortCostDetails('name')">現場名</th><th class="px-4 py-2 sortable" onclick="window.sortCostDetails('branch')">拠点</th><th class="px-4 py-2 sortable" onclick="window.sortCostDetails('item')">品目・備考</th><th class="px-4 py-2 sortable text-right" onclick="window.sortCostDetails('amount')">金額</th></tr></thead><tbody id="cs-table-details" class="bg-white border-b hover:bg-slate-50"></tbody></table></div></div></div>
+            <!-- 2. COST SEARCH PAGE (v49) -->
+            <div id="page-cost-search" class="page-content hidden space-y-4">
+
+                <!-- ══ 業者一覧パネル ══ -->
+                <div id="cs-vendor-list-panel" class="space-y-4">
+
+                    <!-- フィルターパネル -->
+                    <div class="glass-panel rounded-xl p-5 border-t-4 border-blue-500">
+                        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                            <h3 class="text-base font-bold text-slate-700 flex items-center gap-2">
+                                <i class="fa-solid fa-building-columns text-blue-500"></i> 業者一覧・絞り込み
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <span id="cs-vendor-count-badge" class="text-xs bg-blue-100 text-blue-700 font-bold px-3 py-1 rounded-full border border-blue-200">0 件</span>
+                                <button onclick="window.resetVendorFilter()" class="text-xs text-slate-500 hover:text-slate-700 underline flex items-center gap-1"><i class="fa-solid fa-eraser"></i> クリア</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 block mb-1">業者名キーワード</label>
+                                <div class="flex items-center border border-slate-300 rounded-lg bg-white shadow-sm focus-within:ring-2 focus-within:ring-blue-400">
+                                    <i class="fa-solid fa-magnifying-glass text-slate-400 ml-3 text-xs"></i>
+                                    <input type="text" id="csv-keyword" placeholder="業者名で絞り込み..."
+                                        class="w-full p-2.5 text-sm focus:outline-none rounded-r-lg"
+                                        oninput="window.applyVendorFilter()">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 block mb-1">拠点</label>
+                                <select id="csv-branch" onchange="window.applyVendorFilter()"
+                                    class="w-full p-2.5 border border-slate-300 rounded-lg bg-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-blue-400">
+                                    <option value="ALL">全拠点</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-400 block mb-1">発生期間（年月）</label>
+                                <div class="flex items-center gap-1">
+                                    <input type="month" id="csv-month-start"
+                                        class="flex-1 p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        onchange="window.applyVendorFilter()">
+                                    <span class="text-slate-400 text-xs font-bold">〜</span>
+                                    <input type="month" id="csv-month-end"
+                                        class="flex-1 p-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                        onchange="window.applyVendorFilter()">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between flex-wrap gap-2">
+                            <p class="text-xs text-slate-400">※ 業者名をクリックすると詳細分析を表示します</p>
+                            <div class="flex items-center gap-2">
+                                <label class="text-xs text-slate-500 font-bold">並び順:</label>
+                                <select id="csv-sort" onchange="window.applyVendorFilter()"
+                                    class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white font-bold focus:outline-none">
+                                    <option value="amount_desc">発生額 高い順</option>
+                                    <option value="amount_asc">発生額 低い順</option>
+                                    <option value="count_desc">件数 多い順</option>
+                                    <option value="sites_desc">取引現場数 多い順</option>
+                                    <option value="name_asc">業者名 昇順</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 業者一覧テーブル -->
+                    <div class="glass-panel rounded-xl overflow-hidden">
+                        <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                            <span id="cs-vendor-result-count" class="text-xs text-slate-400"></span>
+                            <button onclick="window.exportVendorListExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow transition-colors">
+                                <i class="fa-solid fa-file-excel"></i> Excel出力
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm border-collapse">
+                                <thead class="bg-slate-100 text-slate-600 text-xs uppercase sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-left cursor-pointer hover:bg-slate-200 select-none" onclick="window.setVendorSort('name_asc')">業者名 <span id="csv-si-name" class="text-slate-400 font-normal ml-1">↕</span></th>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-right cursor-pointer hover:bg-slate-200 select-none whitespace-nowrap" onclick="window.setVendorSort('amount_desc')">発生総額（税抜） <span id="csv-si-amount" class="text-blue-500 font-normal ml-1">↓</span></th>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-center cursor-pointer hover:bg-slate-200 select-none whitespace-nowrap" onclick="window.setVendorSort('count_desc')">取引件数 <span id="csv-si-count" class="text-slate-400 font-normal ml-1">↕</span></th>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-center cursor-pointer hover:bg-slate-200 select-none whitespace-nowrap" onclick="window.setVendorSort('sites_desc')">取引現場数 <span id="csv-si-sites" class="text-slate-400 font-normal ml-1">↕</span></th>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-center whitespace-nowrap">最終発生月</th>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-20">現場一覧</th>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-16">詳細</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cs-vendor-tbody" class="bg-white divide-y divide-slate-100">
+                                    <tr><td colspan="7" class="px-4 py-12 text-center text-slate-400 text-sm">
+                                        <i class="fa-solid fa-building-columns text-3xl mb-3 block text-slate-300"></i>
+                                        データを読み込み中...
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="cs-vendor-pagination" class="px-5 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50 hidden">
+                            <span id="cs-vendor-page-info" class="text-xs text-slate-500"></span>
+                            <div class="flex gap-1" id="cs-vendor-page-btns"></div>
+                        </div>
+                    </div>
+                </div><!-- /cs-vendor-list-panel -->
+
+                <!-- ══ 業者詳細パネル ══ -->
+                <div id="cs-vendor-detail-panel" class="hidden space-y-4">
+
+                    <!-- 戻るヘッダー -->
+                    <div class="glass-panel px-5 py-3 rounded-xl flex items-center justify-between flex-wrap gap-3">
+                        <button onclick="window.closeVendorDetail()" class="flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors">
+                            <i class="fa-solid fa-arrow-left"></i> 業者一覧に戻る
+                        </button>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <label class="text-xs font-bold text-slate-400">発生期間絞込:</label>
+                            <input type="month" id="cs-filter-month-start" class="p-1.5 border border-slate-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                            <span class="text-slate-400 text-xs">〜</span>
+                            <input type="month" id="cs-filter-month-end" class="p-1.5 border border-slate-300 rounded text-xs bg-white focus:outline-none focus:ring-1 focus:ring-blue-400">
+                            <button onclick="window.reExecCostSearch()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded transition-colors">
+                                <i class="fa-solid fa-rotate-right mr-1"></i>再集計
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- サマリーカード -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="glass-panel p-4 rounded-xl border-l-4 border-blue-500">
+                            <div class="text-xs text-slate-400 font-bold mb-1">業者名</div>
+                            <div id="cs-vendor-name" class="text-base font-black text-slate-800 truncate">-</div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl border-l-4 border-emerald-500">
+                            <div class="text-xs text-slate-400 font-bold mb-1">発生総額（税抜）</div>
+                            <div id="cs-total-amount" class="text-base font-black text-emerald-700">¥0</div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl border-l-4 border-indigo-400">
+                            <div class="text-xs text-slate-400 font-bold mb-1">取引件数</div>
+                            <div id="cs-total-count" class="text-base font-black text-slate-700">0件</div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl border-l-4 border-orange-400">
+                            <div class="text-xs text-slate-400 font-bold mb-1">主な品目</div>
+                            <div id="cs-top-items" class="flex flex-wrap gap-1 mt-1"></div>
+                        </div>
+                    </div>
+
+                    <!-- 内部タブ -->
+                    <div class="flex gap-0 border-b-2 border-slate-200 overflow-x-auto">
+                        <button onclick="window.switchCsTab('trend')"       id="cstab-trend"       class="cs-tab-btn cs-tab-active px-5 py-2.5 text-sm font-bold border-b-2 border-blue-600 text-blue-700 bg-white whitespace-nowrap transition-colors"><i class="fa-solid fa-chart-line mr-1.5 text-xs"></i>月次推移</button>
+                        <button onclick="window.switchCsTab('branch')"      id="cstab-branch"      class="cs-tab-btn px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 bg-white whitespace-nowrap hover:text-slate-700 transition-colors"><i class="fa-solid fa-map-location-dot mr-1.5 text-xs"></i>拠点別原価</button>
+                        <button onclick="window.switchCsTab('branchmonth')" id="cstab-branchmonth" class="cs-tab-btn px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 bg-white whitespace-nowrap hover:text-slate-700 transition-colors"><i class="fa-solid fa-table-cells mr-1.5 text-xs"></i>拠点×月別</button>
+                        <button onclick="window.switchCsTab('details')"     id="cstab-details"     class="cs-tab-btn px-5 py-2.5 text-sm font-bold border-b-2 border-transparent text-slate-500 bg-white whitespace-nowrap hover:text-slate-700 transition-colors"><i class="fa-solid fa-list mr-1.5 text-xs"></i>工番明細一覧</button>
+                    </div>
+
+                    <!-- ①月次推移 -->
+                    <div id="cs-panel-trend" class="cs-tab-panel space-y-4">
+                        <div class="glass-panel p-5 rounded-xl">
+                            <h4 class="font-bold text-slate-600 text-sm mb-3">月別 発生額推移</h4>
+                            <div class="h-64"><canvas id="chart-cost-trend"></canvas></div>
+                        </div>
+                        <div class="glass-panel p-5 rounded-xl">
+                            <h4 class="font-bold text-slate-600 text-sm mb-3">月別集計表</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="text-xs text-slate-500 uppercase bg-slate-50">
+                                        <tr>
+                                            <th class="px-4 py-2 font-bold">年月</th>
+                                            <th class="px-4 py-2 font-bold text-right">発生額（税抜）</th>
+                                            <th class="px-4 py-2 font-bold text-center">件数</th>
+                                            <th class="px-4 py-2 font-bold text-center">構成比</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cs-table-monthly" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ②拠点別原価 -->
+                    <div id="cs-panel-branch" class="cs-tab-panel hidden space-y-4">
+                        <div class="glass-panel p-5 rounded-xl">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="font-bold text-slate-600 text-sm"><i class="fa-solid fa-map-location-dot text-blue-500 mr-1.5"></i>拠点別 発生原価集計</h4>
+                                <button onclick="window.exportCsBranchExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow"><i class="fa-solid fa-file-excel"></i> Excel出力</button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+                                <div class="h-60"><canvas id="chart-cs-branch-bar"></canvas></div>
+                                <div class="h-60"><canvas id="chart-cs-branch-pie"></canvas></div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="text-xs text-slate-500 uppercase bg-slate-50">
+                                        <tr>
+                                            <th class="px-4 py-2.5 font-bold">拠点</th>
+                                            <th class="px-4 py-2.5 font-bold text-right">発生額（税抜）</th>
+                                            <th class="px-4 py-2.5 font-bold text-center">件数</th>
+                                            <th class="px-4 py-2.5 font-bold text-center">構成比</th>
+                                            <th class="px-4 py-2.5 font-bold text-right">平均単価/件</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cs-table-branch" class="divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ③拠点×月別クロス -->
+                    <div id="cs-panel-branchmonth" class="cs-tab-panel hidden space-y-4">
+                        <div class="glass-panel p-5 rounded-xl">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="font-bold text-slate-600 text-sm"><i class="fa-solid fa-table-cells text-indigo-500 mr-1.5"></i>拠点 × 月別 発生原価クロス集計</h4>
+                                <button onclick="window.exportCsBranchMonthExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow"><i class="fa-solid fa-file-excel"></i> Excel出力</button>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table id="cs-table-branchmonth" class="w-full text-xs border-collapse"></table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ④工番明細一覧 -->
+                    <div id="cs-panel-details" class="cs-tab-panel hidden">
+                        <div class="glass-panel rounded-xl overflow-hidden">
+                            <div class="bg-slate-50 px-4 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
+                                <div class="flex items-center gap-2 flex-1 min-w-52">
+                                    <i class="fa-solid fa-filter text-slate-400 text-xs"></i>
+                                    <input type="text" id="cs-detail-filter"
+                                        placeholder="工番・現場名・拠点・担当者・品目で絞り込み..."
+                                        class="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white"
+                                        oninput="window.applyDetailFilter()">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <label class="text-xs text-slate-500 font-bold whitespace-nowrap">拠点:</label>
+                                    <select id="cs-detail-branch-filter" onchange="window.applyDetailFilter()"
+                                        class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none">
+                                        <option value="ALL">全拠点</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-3 ml-auto">
+                                    <span id="cs-detail-count" class="text-xs text-slate-400 whitespace-nowrap"></span>
+                                    <button onclick="window.exportCsDetailsExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow transition-colors"><i class="fa-solid fa-file-excel"></i> Excel出力</button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm border-collapse">
+                                    <thead class="bg-slate-100 text-slate-600 text-xs sticky top-0 z-10">
+                                        <tr>
+                                            <th class="cs-th px-4 py-2.5 border-b border-slate-200 font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap" data-col="date" onclick="window.sortDetails('date')">発生日 <span class="cs-sort-icon ml-1 text-slate-400 font-normal">↕</span></th>
+                                            <th class="cs-th px-4 py-2.5 border-b border-slate-200 font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap w-24" data-col="code" onclick="window.sortDetails('code')">工番 <span class="cs-sort-icon ml-1 text-slate-400 font-normal">↕</span></th>
+                                            <th class="cs-th px-4 py-2.5 border-b border-slate-200 font-bold cursor-pointer select-none hover:bg-slate-200" data-col="name" onclick="window.sortDetails('name')">現場名 <span class="cs-sort-icon ml-1 text-slate-400 font-normal">↕</span></th>
+                                            <th class="cs-th px-4 py-2.5 border-b border-slate-200 font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap w-20" data-col="branch" onclick="window.sortDetails('branch')">拠点 <span class="cs-sort-icon ml-1 text-slate-400 font-normal">↕</span></th>
+                                            <th class="cs-th px-4 py-2.5 border-b border-slate-200 font-bold cursor-pointer select-none hover:bg-slate-200 whitespace-nowrap" data-col="manager" onclick="window.sortDetails('manager')">担当者 <span class="cs-sort-icon ml-1 text-slate-400 font-normal">↕</span></th>
+                                            <th class="cs-th px-4 py-2.5 border-b border-slate-200 font-bold cursor-pointer select-none hover:bg-slate-200" data-col="item" onclick="window.sortDetails('item')">品目・備考 <span class="cs-sort-icon ml-1 text-slate-400 font-normal">↕</span></th>
+                                            <th class="cs-th px-4 py-2.5 border-b border-slate-200 font-bold cursor-pointer select-none hover:bg-slate-200 text-right whitespace-nowrap" data-col="amount" onclick="window.sortDetails('amount')">金額（税抜） <span class="cs-sort-icon ml-1 text-slate-400 font-normal">↕</span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cs-table-details" class="bg-white divide-y divide-slate-100"></tbody>
+                                </table>
+                            </div>
+                            <div id="cs-detail-pagination" class="px-4 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50 hidden">
+                                <span id="cs-detail-page-info" class="text-xs text-slate-500"></span>
+                                <div class="flex gap-1" id="cs-detail-page-btns"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /cs-vendor-detail-panel -->
             </div>
 
             <!-- 3. RANKING PAGE -->
@@ -378,7 +848,7 @@
 
 <script>
     // 1. DB Config
-    const db = new Dexie("ConstructionLedgerDB_System_v44_MultiInputFix"); 
+    const db = new Dexie("ConstructionLedgerDB_System_v45_5DigitCode"); 
     db.version(1).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, date', meta: 'key' });
     
     // 2. Global Vars
@@ -879,18 +1349,38 @@
         multiCompareData = [];
     }
 
-// 修正: 現場検索機能 (サブコード表示ロジックを現場チェック.htmlに合わせて修正)
+// 修正: 現場検索機能 (数字5桁コード対応・ゼロ埋め自動補完機能追加)
     window.searchSite = async function() { 
         try {
-            const inputCode = document.getElementById('search-input').value.trim(); if (!inputCode) return; 
-            const master = await db.masters.get(inputCode); const cost = await db.costs.get(inputCode); 
-            const sales = await db.sales.where('siteCode').equals(inputCode).toArray(); 
-            const purchases = await db.purchases.where('siteCode').equals(inputCode).toArray(); 
+            let inputCode = document.getElementById('search-input').value.trim(); 
+            if (!inputCode) return; 
+            
+            // コード正規化: 全角→半角変換
+            inputCode = inputCode.replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+
+            let master = await db.masters.get(inputCode); 
+            let cost = await db.costs.get(inputCode);
+            let resolvedCode = inputCode;
+            
+            // 数字のみの場合、5桁ゼロ埋めを試みる
+            if (!master && !cost && /^\d+$/.test(inputCode)) {
+                const padded = inputCode.padStart(5, '0');
+                if (padded !== inputCode) {
+                    const mPadded = await db.masters.get(padded);
+                    const cPadded = await db.costs.get(padded);
+                    if (mPadded || cPadded) {
+                        master = mPadded; cost = cPadded; resolvedCode = padded;
+                    }
+                }
+            }
+            
+            const sales = await db.sales.where('siteCode').equals(resolvedCode).toArray(); 
+            const purchases = await db.purchases.where('siteCode').equals(resolvedCode).toArray(); 
             
             if (!master && !cost) { alert("見つかりませんでした。コードを確認してください: " + inputCode); return; } 
             
             currentSiteData = {
-                code: inputCode,
+                code: resolvedCode,
                 name: master ? master.name : (cost ? cost.name : '-'),
                 owner: master ? master.owner : '-',
                 manager: master ? master.manager : '-',
@@ -908,7 +1398,7 @@
             };
 
             document.getElementById('search-result').classList.remove('hidden'); 
-            document.getElementById('res-code').textContent = inputCode; 
+            document.getElementById('res-code').textContent = resolvedCode; 
             document.getElementById('res-name').textContent = master ? master.name : (cost ? cost.name : '-'); 
             
             const subNameEl = document.getElementById('res-sub-name');
@@ -956,70 +1446,644 @@
             window.renderCharts(sales, purchases);
         } catch(e) { console.error("Search Error:", e); alert("エラーが発生しました: " + e.message); }
     }
-    window.initCostSearch = async function() { 
-        const purchases = await db.purchases.toArray(); 
-        const vendorCounts = {}; 
-        purchases.forEach(p => { if(p.vendor) vendorCounts[p.vendor] = (vendorCounts[p.vendor] || 0) + 1; }); 
-        cachedVendors = Object.entries(vendorCounts).sort((a,b) => b[1] - a[1]).map(e => e[0]); 
-        const masters = await db.masters.toArray(); 
-        const brSet = new Set(masters.map(m => m.branch).filter(Boolean)); 
-        const sel = document.getElementById('cost-search-branch'); 
-        if(sel && sel.options.length === 1) Array.from(brSet).sort().forEach(b => sel.add(new Option(b,b))); 
+    // ══════════════════════════════════════════════════════
+    // ★ COST SEARCH – 業者一覧 + 詳細分析 (v49)
+    // ══════════════════════════════════════════════════════
+    let csVendorAllData   = [];   // [{name, amount, count, sites, lastMonth}]
+    let csVendorFiltered  = [];
+    let csVendorPage      = 1;
+    const CS_VENDOR_PAGE_SIZE = 50;
+    let csVendorSortKey   = 'amount_desc';
+
+    // ── ページ初期化 ──
+    window.initCostSearch = async function() {
+        const purchases = await db.purchases.toArray();
+        const masters   = await db.masters.toArray();
+        const masterMap = new Map(masters.map(m => [m.code, m]));
+
+        // 拠点セレクト
+        const branches = [...new Set(masters.map(m=>m.branch).filter(Boolean))].sort();
+        const selBranch = document.getElementById('csv-branch');
+        if(selBranch && selBranch.options.length === 1) branches.forEach(b => selBranch.add(new Option(b,b)));
+        const selDetail = document.getElementById('cs-detail-branch-filter');
+        if(selDetail && selDetail.options.length === 1) branches.forEach(b => selDetail.add(new Option(b,b)));
+
+        // 業者集計（全データ）
+        window._csAllPurchases = purchases;
+        window._csMasterMap    = masterMap;
+        window._buildVendorData();
+        window.applyVendorFilter();
     }
 
-    window.executeCostSearch = async function(vendorName) { 
-        currentCostVendor = vendorName; 
-        const targetBranch = document.getElementById('cost-search-branch').value; 
-        let purchases = await db.purchases.where('vendor').equals(vendorName).toArray(); 
-        const masters = await db.masters.toArray(); 
-        const masterMap = new Map(); 
-        masters.forEach(m => masterMap.set(m.code, m)); 
-        if(targetBranch !== 'ALL') purchases = purchases.filter(p => { const m = masterMap.get(p.siteCode); return m && m.branch === targetBranch; }); 
-        document.getElementById('cost-search-result').classList.remove('hidden'); 
-        document.getElementById('cs-vendor-name').textContent = vendorName; 
-        const totalAmt = purchases.reduce((sum, p) => sum + p.amount, 0); 
-        document.getElementById('cs-total-amount').textContent = window.formatCurrency(totalAmt); 
-        document.getElementById('cs-total-count').textContent = purchases.length + '件'; 
-        const catCounts = {}; 
-        purchases.forEach(p => { let cat = 'その他'; if(p.item && p.item.length < 15) cat = p.item; catCounts[cat] = (catCounts[cat]||0)+1; }); 
-        const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]); 
-        document.getElementById('cs-top-items').innerHTML = topCats.map(c => `<span class="px-2 py-1 bg-slate-100 text-xs rounded text-slate-600">${c}</span>`).join(''); 
-        const monthly = {}; 
-        purchases.forEach(p => { const m = p.date ? p.date.substring(0,6) : '不明'; if(!monthly[m]) monthly[m] = {amt:0, cnt:0}; monthly[m].amt += p.amount; monthly[m].cnt++; }); 
-        const labels = Object.keys(monthly).sort().filter(k=>k!=='不明'); 
-        chartCostTrend = window.destroyChart(chartCostTrend); 
-        chartCostTrend = new Chart(document.getElementById('chart-cost-trend'), { type: 'bar', data: { labels: labels.map(l=>l.slice(0,4)+'/'+l.slice(4)), datasets: [{ label:'発生額', data:labels.map(l=>monthly[l].amt), backgroundColor:'#3b82f6' }] }, options:{ maintainAspectRatio:false } }); 
-        const tbodyM = document.getElementById('cs-table-monthly'); tbodyM.innerHTML = ''; 
-        labels.reverse().forEach(m => { const d = monthly[m]; const ratio = totalAmt ? (d.amt/totalAmt*100) : 0; tbodyM.innerHTML += `<tr class="border-b"><td class="px-4 py-2">${m}</td><td class="px-4 py-2 text-right font-mono">${window.formatCurrency(d.amt)}</td><td class="px-4 py-2 text-center">${d.cnt}</td><td class="px-4 py-2 text-center">${ratio.toFixed(1)}%</td></tr>`; }); 
-        currentCostDetails = purchases.map(p => { const m = masterMap.get(p.siteCode) || {}; return { date: p.date || '-', code: p.siteCode, name: m.name || '-', branch: m.branch || '-', item: p.item, amount: p.amount }; }); 
-        window.renderCostDetailsTable(); 
-    }
-    
-    // RESTORED: Cost Details Table Rendering
-    window.sortCostDetails = function(key) { 
-        if (costSortState.key === key) costSortState.order = costSortState.order === 'asc' ? 'desc' : 'asc'; 
-        else { costSortState.key = key; costSortState.order = 'desc'; } 
-        window.renderCostDetailsTable(); 
+    window._buildVendorData = function() {
+        const purchases = window._csAllPurchases || [];
+        const masterMap = window._csMasterMap || new Map();
+        const map = {};
+        purchases.forEach(p => {
+            const v = p.vendor; if(!v) return;
+            const m   = masterMap.get(p.siteCode) || {};
+            const br  = m.branch || '';
+            const ym  = (p.date||'').substring(0,6);
+            if(!map[v]) map[v] = { name:v, amount:0, count:0, sites:new Set(), lastMonth:'', branches:new Set() };
+            map[v].amount += p.amount;
+            map[v].count++;
+            map[v].sites.add(p.siteCode);
+            if(br) map[v].branches.add(br);
+            if(ym && ym > map[v].lastMonth) map[v].lastMonth = ym;
+        });
+        csVendorAllData = Object.values(map).map(d => ({
+            name: d.name,
+            amount: d.amount,
+            count: d.count,
+            sites: d.sites.size,
+            lastMonth: d.lastMonth,
+            branches: [...d.branches]
+        }));
+        // autocomplete用にキャッシュ
+        cachedVendors = csVendorAllData.sort((a,b)=>b.amount-a.amount).map(d=>d.name);
     }
 
-    window.renderCostDetailsTable = function() { 
-        const { key, order } = costSortState; 
-        const sorted = [...currentCostDetails].sort((a,b) => { 
-            let valA = a[key]; let valB = b[key]; 
-            if(key === 'amount') { valA = parseFloat(valA); valB = parseFloat(valB); } 
-            if (valA < valB) return order === 'asc' ? -1 : 1; 
-            if (valA > valB) return order === 'asc' ? 1 : -1; 
-            return 0; 
-        }); 
-        const tbody = document.getElementById('cs-table-details'); 
-        if(tbody) {
-            tbody.innerHTML = ''; 
-            sorted.slice(0, 500).forEach(p => { 
-                tbody.innerHTML += `<tr class="border-b hover:bg-slate-50"><td class="px-4 py-2">${p.date}</td><td class="px-4 py-2 font-mono text-xs">${p.code}</td><td class="px-4 py-2 text-xs truncate max-w-[150px]">${p.name}</td><td class="px-4 py-2 text-xs">${p.branch}</td><td class="px-4 py-2 text-xs truncate max-w-[150px]">${p.item}</td><td class="px-4 py-2 text-right font-mono">${window.formatCurrency(p.amount)}</td></tr>`; 
-            }); 
+    window.applyVendorFilter = function() {
+        const kw      = window.normalizeStr(document.getElementById('csv-keyword')?.value || '');
+        const branch  = document.getElementById('csv-branch')?.value || 'ALL';
+        const mStart  = (document.getElementById('csv-month-start')?.value || '').replace('-','');
+        const mEnd    = (document.getElementById('csv-month-end')?.value   || '').replace('-','');
+        const sortVal = document.getElementById('csv-sort')?.value || 'amount_desc';
+        csVendorSortKey = sortVal;
+
+        // 期間・拠点フィルタは生の purchases から再集計
+        const purchases = window._csAllPurchases || [];
+        const masterMap = window._csMasterMap    || new Map();
+        const map = {};
+        purchases.forEach(p => {
+            const v = p.vendor; if(!v) return;
+            const ym = (p.date||'').substring(0,6);
+            if(mStart && ym < mStart) return;
+            if(mEnd   && ym > mEnd)   return;
+            const m = masterMap.get(p.siteCode) || {};
+            const br = m.branch || '';
+            if(branch !== 'ALL' && br !== branch) return;
+            if(!map[v]) map[v] = { name:v, amount:0, count:0, sites:new Set(), lastMonth:'' };
+            map[v].amount += p.amount;
+            map[v].count++;
+            map[v].sites.add(p.siteCode);
+            if(ym && ym > map[v].lastMonth) map[v].lastMonth = ym;
+        });
+        let filtered = Object.values(map).map(d => ({
+            name: d.name, amount: d.amount, count: d.count,
+            sites: d.sites.size, lastMonth: d.lastMonth
+        }));
+
+        // キーワード絞り込み
+        if(kw) filtered = filtered.filter(d => window.normalizeStr(d.name).includes(kw));
+
+        // ソート
+        filtered.sort((a,b) => {
+            if(sortVal==='amount_desc') return b.amount - a.amount;
+            if(sortVal==='amount_asc')  return a.amount - b.amount;
+            if(sortVal==='count_desc')  return b.count  - a.count;
+            if(sortVal==='sites_desc')  return b.sites  - a.sites;
+            if(sortVal==='name_asc')    return a.name.localeCompare(b.name,'ja');
+            return 0;
+        });
+
+        csVendorFiltered = filtered;
+        csVendorPage = 1;
+
+        const badge = document.getElementById('cs-vendor-count-badge');
+        if(badge) badge.textContent = filtered.length + ' 件';
+
+        // ソートアイコン更新
+        const icons = { name:'csv-si-name', amount:'csv-si-amount', count:'csv-si-count', sites:'csv-si-sites' };
+        Object.entries(icons).forEach(([key, id]) => {
+            const el = document.getElementById(id); if(!el) return;
+            const isActive = sortVal.startsWith(key);
+            const isDesc   = sortVal.endsWith('_desc');
+            el.textContent = isActive ? (isDesc ? '↓' : '↑') : '↕';
+            el.style.color  = isActive ? '#2563eb' : '#94a3b8';
+        });
+
+        window.renderVendorTable();
+    }
+
+    window.setVendorSort = function(key) {
+        const sel = document.getElementById('csv-sort');
+        if(sel) { sel.value = key; window.applyVendorFilter(); }
+    }
+
+    window.renderVendorTable = function() {
+        const total      = csVendorFiltered.length;
+        const totalPages = Math.ceil(total / CS_VENDOR_PAGE_SIZE) || 1;
+        if(csVendorPage > totalPages) csVendorPage = totalPages;
+        const start    = (csVendorPage-1) * CS_VENDOR_PAGE_SIZE;
+        const pageData = csVendorFiltered.slice(start, start + CS_VENDOR_PAGE_SIZE);
+
+        const countEl = document.getElementById('cs-vendor-result-count');
+        if(countEl) countEl.textContent = total===0 ? '該当なし' : `${start+1}〜${Math.min(start+CS_VENDOR_PAGE_SIZE,total)} 件 / 全 ${total} 件`;
+
+        const tbody = document.getElementById('cs-vendor-tbody');
+        if(!tbody) return;
+
+        if(total === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-10 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-info mr-2"></i>該当なし</td></tr>';
+            document.getElementById('cs-vendor-pagination')?.classList.add('hidden');
+            return;
+        }
+
+        const totalAmt = csVendorFiltered.reduce((s,d)=>s+d.amount, 0);
+        tbody.innerHTML = pageData.map((d,idx) => {
+            const eid  = 'vsi-' + (start+idx);
+            const lm   = d.lastMonth ? d.lastMonth.slice(0,4)+'/'+d.lastMonth.slice(4) : '-';
+            const ratio = totalAmt ? (d.amount/totalAmt*100) : 0;
+            const nameSafe = d.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+            return `<tr id="vrow-${eid}" class="vendor-main-row hover:bg-blue-50/30 transition-colors border-b border-slate-100">
+                <td class="px-4 py-2.5">
+                    <button onclick="window.openVendorDetail('${nameSafe}')"
+                        class="font-bold text-sm text-blue-700 hover:text-blue-900 hover:underline text-left">${d.name}</button>
+                </td>
+                <td class="px-4 py-2.5 text-right">
+                    <div class="flex items-center justify-end gap-2">
+                        <div class="w-20 bg-slate-100 rounded-full h-1.5 overflow-hidden hidden md:block"><div class="bg-blue-400 h-1.5 rounded-full" style="width:${Math.min(ratio,100)}%"></div></div>
+                        <span class="font-mono text-sm font-bold text-slate-700">${window.formatCurrency(d.amount)}</span>
+                    </div>
+                </td>
+                <td class="px-4 py-2.5 text-center text-sm text-slate-600">${d.count.toLocaleString()}</td>
+                <td class="px-4 py-2.5 text-center text-sm text-slate-600">${d.sites}</td>
+                <td class="px-4 py-2.5 text-center font-mono text-xs text-slate-500">${lm}</td>
+                <td class="px-4 py-2.5 text-center">
+                    <button onclick="window.toggleVendorSites('${eid}','${nameSafe}')"
+                        id="vsi-btn-${eid}"
+                        class="bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 text-xs font-bold py-1 px-2.5 rounded-md flex items-center gap-1 mx-auto transition-colors">
+                        <i class="fa-solid fa-list text-[10px]"></i> 現場一覧
+                    </button>
+                </td>
+                <td class="px-4 py-2.5 text-center">
+                    <button onclick="window.openVendorDetail('${nameSafe}')"
+                        class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">詳細</button>
+                </td>
+            </tr>
+            <tr id="vsi-row-${eid}" class="hidden">
+                <td colspan="7" class="p-0 bg-indigo-50/60 border-b border-indigo-100">
+                    <div id="vsi-content-${eid}" class="px-6 py-3 text-xs text-slate-500">読み込み中...</div>
+                </td>
+            </tr>`;
+        }).join('');
+
+        // ページネーション
+        const pagi = document.getElementById('cs-vendor-pagination');
+        const info = document.getElementById('cs-vendor-page-info');
+        const btns = document.getElementById('cs-vendor-page-btns');
+        if(pagi) {
+            if(totalPages > 1) {
+                pagi.classList.remove('hidden');
+                if(info) info.textContent = `${csVendorPage} / ${totalPages} ページ`;
+                if(btns) {
+                    let h = `<button class="pagination-btn" onclick="window.csVendorGoPage(${csVendorPage-1})" ${csVendorPage===1?'disabled':''}>‹</button>`;
+                    const range=[];
+                    for(let i=Math.max(1,csVendorPage-2);i<=Math.min(totalPages,csVendorPage+2);i++) range.push(i);
+                    if(range[0]>1) h+=`<button class="pagination-btn" onclick="window.csVendorGoPage(1)">1</button>${range[0]>2?'<span class="px-1 text-xs text-slate-400">…</span>':''}`;
+                    range.forEach(i => { h+=`<button class="pagination-btn ${i===csVendorPage?'active':''}" onclick="window.csVendorGoPage(${i})">${i}</button>`; });
+                    if(range[range.length-1]<totalPages) h+=`${range[range.length-1]<totalPages-1?'<span class="px-1 text-xs text-slate-400">…</span>':''}<button class="pagination-btn" onclick="window.csVendorGoPage(${totalPages})">${totalPages}</button>`;
+                    h+=`<button class="pagination-btn" onclick="window.csVendorGoPage(${csVendorPage+1})" ${csVendorPage===totalPages?'disabled':''}>›</button>`;
+                    btns.innerHTML = h;
+                }
+            } else { pagi.classList.add('hidden'); }
         }
     }
-    
+
+    window.csVendorGoPage = function(p) {
+        const totalPages = Math.ceil(csVendorFiltered.length / CS_VENDOR_PAGE_SIZE)||1;
+        if(p<1||p>totalPages) return;
+        csVendorPage = p;
+        window.renderVendorTable();
+    }
+
+    // ── 現場一覧インライン展開 ──
+    window.toggleVendorSites = async function(eid, vendorName) {
+        const row     = document.getElementById('vsi-row-' + eid);
+        const content = document.getElementById('vsi-content-' + eid);
+        const btn     = document.getElementById('vsi-btn-' + eid);
+        if(!row) return;
+
+        const isOpen = !row.classList.contains('hidden');
+        if(isOpen) {
+            row.classList.add('hidden');
+            btn.innerHTML = '<i class="fa-solid fa-list text-[10px]"></i> 現場一覧';
+            btn.classList.remove('bg-indigo-200');
+            return;
+        }
+
+        row.classList.remove('hidden');
+        btn.innerHTML = '<i class="fa-solid fa-chevron-up text-[10px]"></i> 閉じる';
+        btn.classList.add('bg-indigo-200');
+
+        // フィルタ条件を取得
+        const mStart = (document.getElementById('csv-month-start')?.value || '').replace('-','');
+        const mEnd   = (document.getElementById('csv-month-end')?.value   || '').replace('-','');
+        const branch = document.getElementById('csv-branch')?.value || 'ALL';
+
+        // purchases から業者の現場別集計
+        const masterMap = window._csMasterMap || new Map();
+        let purchases = (window._csAllPurchases || []).filter(p => p.vendor === vendorName);
+        if(mStart) purchases = purchases.filter(p => (p.date||'').substring(0,6) >= mStart);
+        if(mEnd)   purchases = purchases.filter(p => (p.date||'').substring(0,6) <= mEnd);
+        if(branch !== 'ALL') purchases = purchases.filter(p => (masterMap.get(p.siteCode)||{}).branch === branch);
+
+        // 現場別集計
+        const siteMap = {};
+        purchases.forEach(p => {
+            const code = p.siteCode || '-';
+            const m    = masterMap.get(code) || {};
+            if(!siteMap[code]) siteMap[code] = { code, name: m.name||'-', customer: m.customer||'-', branch: m.branch||'-', manager: m.manager||'-', amount: 0, count: 0 };
+            siteMap[code].amount += p.amount;
+            siteMap[code].count++;
+        });
+        const sites = Object.values(siteMap).sort((a,b) => b.amount - a.amount);
+
+        if(sites.length === 0) {
+            content.innerHTML = '<p class="py-3 text-slate-400">該当なし</p>';
+            return;
+        }
+
+        const totalSiteAmt = sites.reduce((s,d) => s+d.amount, 0);
+        content.innerHTML = `
+            <div class="flex items-center justify-between mb-2">
+                <span class="font-bold text-indigo-700 text-xs"><i class="fa-solid fa-map-pin mr-1"></i>${vendorName} — 取引現場 ${sites.length} 件</span>
+                <button onclick="window.exportVendorSitesExcel('${vendorName.replace(/'/g,"&#39;")}')" class="bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold py-1 px-2.5 rounded flex items-center gap-1 transition-colors"><i class="fa-solid fa-file-excel text-[10px]"></i> Excel</button>
+            </div>
+            <div class="overflow-x-auto rounded border border-indigo-100">
+            <table class="w-full text-xs border-collapse bg-white">
+                <thead class="bg-indigo-100 text-indigo-800 font-bold">
+                    <tr>
+                        <th class="px-3 py-2 text-left whitespace-nowrap">工番</th>
+                        <th class="px-3 py-2 text-left">現場名</th>
+                        <th class="px-3 py-2 text-left whitespace-nowrap">得意先</th>
+                        <th class="px-3 py-2 text-left whitespace-nowrap">拠点</th>
+                        <th class="px-3 py-2 text-left whitespace-nowrap">担当者</th>
+                        <th class="px-3 py-2 text-right whitespace-nowrap">発生額（税抜）</th>
+                        <th class="px-3 py-2 text-center whitespace-nowrap">件数</th>
+                        <th class="px-3 py-2 text-center whitespace-nowrap">構成比</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-indigo-50">
+                    ${sites.map(s => {
+                        const ratio = totalSiteAmt ? (s.amount/totalSiteAmt*100) : 0;
+                        return `<tr class="hover:bg-indigo-50/50 transition-colors">
+                            <td class="px-3 py-1.5 font-mono font-bold text-slate-700 whitespace-nowrap">
+                                <button class="hover:text-blue-600 hover:underline" onclick="window.browseJumpToSite('${s.code}')">${s.code}</button>
+                            </td>
+                            <td class="px-3 py-1.5 text-slate-700 max-w-[180px] truncate" title="${s.name}">${s.name}</td>
+                            <td class="px-3 py-1.5 text-slate-600 max-w-[120px] truncate whitespace-nowrap" title="${s.customer}">${s.customer}</td>
+                            <td class="px-3 py-1.5 text-slate-600 whitespace-nowrap">${s.branch}</td>
+                            <td class="px-3 py-1.5 text-slate-600 whitespace-nowrap">${s.manager}</td>
+                            <td class="px-3 py-1.5 text-right font-mono font-bold text-slate-700">${window.formatCurrency(s.amount)}</td>
+                            <td class="px-3 py-1.5 text-center text-slate-500">${s.count}</td>
+                            <td class="px-3 py-1.5">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="flex-1 bg-indigo-100 rounded-full h-1.5 overflow-hidden"><div class="bg-indigo-400 h-1.5 rounded-full" style="width:${Math.min(ratio,100)}%"></div></div>
+                                    <span class="text-slate-500 w-9 text-right">${ratio.toFixed(1)}%</span>
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('')}
+                    <tr class="bg-indigo-50 font-bold">
+                        <td colspan="5" class="px-3 py-1.5 text-right text-indigo-700">合計</td>
+                        <td class="px-3 py-1.5 text-right font-mono text-indigo-800">${window.formatCurrency(totalSiteAmt)}</td>
+                        <td class="px-3 py-1.5 text-center text-indigo-700">${sites.reduce((s,d)=>s+d.count,0)}</td>
+                        <td></td>
+                    </tr>
+                </tbody>
+            </table>
+            </div>`;
+
+        // Excel出力用にキャッシュ
+        window._vendorSitesCache = window._vendorSitesCache || {};
+        window._vendorSitesCache[vendorName] = sites;
+    }
+
+    window.exportVendorSitesExcel = function(vendorName) {
+        const sites = (window._vendorSitesCache || {})[vendorName];
+        if(!sites || !sites.length) { alert('データがありません'); return; }
+        const rows = sites.map(s => ({
+            '工番': s.code, '現場名': s.name, '得意先': s.customer,
+            '拠点': s.branch, '担当者': s.manager,
+            '発生額（税抜）': s.amount, '取引件数': s.count
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '現場一覧');
+        XLSX.writeFile(wb, `現場一覧_${vendorName}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    window.resetVendorFilter = function() {
+        ['csv-keyword','csv-month-start','csv-month-end'].forEach(id => {
+            const el = document.getElementById(id); if(el) el.value='';
+        });
+        const br = document.getElementById('csv-branch'); if(br) br.value='ALL';
+        const so = document.getElementById('csv-sort');   if(so) so.value='amount_desc';
+        window.applyVendorFilter();
+    }
+
+    window.exportVendorListExcel = function() {
+        if(!csVendorFiltered.length) { alert('出力するデータがありません。'); return; }
+        const rows = csVendorFiltered.map(d => ({
+            '業者名': d.name,
+            '発生総額（税抜）': d.amount,
+            '取引件数': d.count,
+            '取引現場数': d.sites,
+            '最終発生月': d.lastMonth ? d.lastMonth.slice(0,4)+'/'+d.lastMonth.slice(4) : '-'
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, '業者一覧');
+        XLSX.writeFile(wb, `業者一覧_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    // ── 業者詳細を開く ──
+    window.openVendorDetail = function(vendorName) {
+        document.getElementById('cs-vendor-list-panel').classList.add('hidden');
+        document.getElementById('cs-vendor-detail-panel').classList.remove('hidden');
+        window.executeCostSearch(vendorName);
+        // タブをリセット
+        window.switchCsTab('trend');
+    }
+
+    window.closeVendorDetail = function() {
+        document.getElementById('cs-vendor-detail-panel').classList.add('hidden');
+        document.getElementById('cs-vendor-list-panel').classList.remove('hidden');
+    }
+
+    // 再集計
+    window.reExecCostSearch = function() {
+        if(currentCostVendor) window.executeCostSearch(currentCostVendor);
+    }
+
+    // ── コストサーチ内部タブ切り替え ──
+    window.switchCsTab = function(tab) {
+        document.querySelectorAll('.cs-tab-btn').forEach(b => {
+            b.classList.remove('cs-tab-active');
+            b.style.borderBottomColor = 'transparent';
+            b.style.color = '';
+        });
+        document.querySelectorAll('.cs-tab-panel').forEach(p => p.classList.add('hidden'));
+        const btn   = document.getElementById('cstab-' + tab);
+        const panel = document.getElementById('cs-panel-' + tab);
+        if(btn)   { btn.classList.add('cs-tab-active'); btn.style.borderBottomColor='#2563eb'; btn.style.color='#1d4ed8'; }
+        if(panel) panel.classList.remove('hidden');
+        if(tab==='branch')      window.renderCsBranchTab();
+        if(tab==='branchmonth') window.renderCsBranchMonthTab();
+    }
+
+    // ── メイン実行（業者名で全明細取得・集計）──
+    window.executeCostSearch = async function(vendorName) {
+        currentCostVendor = vendorName;
+        const filterMonthStart = (document.getElementById('cs-filter-month-start')?.value || '').replace('-','');
+        const filterMonthEnd   = (document.getElementById('cs-filter-month-end')?.value   || '').replace('-','');
+
+        let purchases = await db.purchases.where('vendor').equals(vendorName).toArray();
+        const masters = await db.masters.toArray();
+        const masterMap = new Map(masters.map(m => [m.code, m]));
+
+        // 期間フィルター
+        if(filterMonthStart) purchases = purchases.filter(p => (p.date||'').substring(0,6) >= filterMonthStart);
+        if(filterMonthEnd)   purchases = purchases.filter(p => (p.date||'').substring(0,6) <= filterMonthEnd);
+
+        document.getElementById('cs-vendor-name').textContent  = vendorName;
+        const totalAmt = purchases.reduce((s,p) => s+p.amount, 0);
+        document.getElementById('cs-total-amount').textContent = window.formatCurrency(totalAmt);
+        document.getElementById('cs-total-count').textContent  = purchases.length + '件';
+
+        // 品目TOP3
+        const catC = {};
+        purchases.forEach(p => { const c=(p.item&&p.item.length<15)?p.item:'その他'; catC[c]=(catC[c]||0)+1; });
+        document.getElementById('cs-top-items').innerHTML = Object.entries(catC).sort((a,b)=>b[1]-a[1]).slice(0,3)
+            .map(([c])=>`<span class="px-1.5 py-0.5 bg-slate-100 text-[11px] rounded text-slate-600">${c}</span>`).join('');
+
+        // 月次推移
+        const monthly = {};
+        purchases.forEach(p => {
+            const ym = p.date ? p.date.substring(0,6) : '不明';
+            if(!monthly[ym]) monthly[ym]={amt:0,cnt:0};
+            monthly[ym].amt += p.amount; monthly[ym].cnt++;
+        });
+        const labels = Object.keys(monthly).sort().filter(k=>k!=='不明');
+        chartCostTrend = window.destroyChart(chartCostTrend);
+        chartCostTrend = new Chart(document.getElementById('chart-cost-trend'), {
+            type:'bar',
+            data:{ labels: labels.map(l=>l.slice(0,4)+'/'+l.slice(4)),
+                   datasets:[{ label:'発生額', data:labels.map(l=>monthly[l].amt), backgroundColor:'#3b82f6', borderRadius:3 }] },
+            options:{ maintainAspectRatio:false, plugins:{legend:{display:false}},
+                      scales:{ y:{ ticks:{ callback: v=>'¥'+Math.floor(v/10000)+'万' } } } }
+        });
+        const tbodyM = document.getElementById('cs-table-monthly'); tbodyM.innerHTML='';
+        [...labels].reverse().forEach(m => {
+            const d=monthly[m]; const ratio=totalAmt?(d.amt/totalAmt*100):0;
+            tbodyM.innerHTML += `<tr class="hover:bg-slate-50">
+                <td class="px-4 py-2 text-sm">${m.slice(0,4)}/${m.slice(4)}</td>
+                <td class="px-4 py-2 text-right font-mono text-sm">${window.formatCurrency(d.amt)}</td>
+                <td class="px-4 py-2 text-center text-sm">${d.cnt}</td>
+                <td class="px-4 py-2 text-center">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden"><div class="bg-blue-400 h-1.5 rounded-full" style="width:${Math.min(ratio,100)}%"></div></div>
+                        <span class="text-xs text-slate-500 w-10 text-right">${ratio.toFixed(1)}%</span>
+                    </div>
+                </td>
+            </tr>`;
+        });
+
+        // 明細キャッシュ
+        currentCostDetails = purchases.map(p => {
+            const m = masterMap.get(p.siteCode) || {};
+            return { date:p.date||'-', code:p.siteCode||'-', name:m.name||'-', branch:m.branch||'-', manager:m.manager||'-', item:p.item||'-', amount:p.amount||0 };
+        });
+        // 明細拠点フィルタ更新
+        const brs = [...new Set(currentCostDetails.map(d=>d.branch).filter(b=>b&&b!=='-'))].sort();
+        const sel2 = document.getElementById('cs-detail-branch-filter');
+        if(sel2) { sel2.innerHTML='<option value="ALL">全拠点</option>'; brs.forEach(b=>sel2.add(new Option(b,b))); }
+
+        csDetailSort = { key:'date', order:'desc' };
+        csDetailPage = 1;
+        window.applyDetailFilter();
+
+        const activeTab = document.querySelector('.cs-tab-btn.cs-tab-active')?.id?.replace('cstab-','');
+        if(activeTab==='branch')      window.renderCsBranchTab();
+        if(activeTab==='branchmonth') window.renderCsBranchMonthTab();
+    }
+
+    // ── 拠点別原価タブ ──
+    let chartCsBranchBar = null, chartCsBranchPie = null;
+    window.renderCsBranchTab = function() {
+        const data = _buildBranchData();
+        const totalAmt = data.reduce((s,d)=>s+d.amt,0);
+        chartCsBranchBar = window.destroyChart(chartCsBranchBar);
+        chartCsBranchPie = window.destroyChart(chartCsBranchPie);
+        const colors=['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316','#84cc16'];
+        chartCsBranchBar = new Chart(document.getElementById('chart-cs-branch-bar'), {
+            type:'bar', data:{ labels:data.map(d=>d.branch), datasets:[{ label:'発生額', data:data.map(d=>d.amt), backgroundColor:colors.slice(0,data.length), borderRadius:4 }] },
+            options:{ maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{ ticks:{ callback:v=>'¥'+Math.floor(v/10000)+'万' } } } }
+        });
+        chartCsBranchPie = new Chart(document.getElementById('chart-cs-branch-pie'), {
+            type:'doughnut', data:{ labels:data.map(d=>d.branch), datasets:[{ data:data.map(d=>d.amt), backgroundColor:colors.slice(0,data.length) }] },
+            options:{ maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:11}, boxWidth:12 } } } }
+        });
+        const tbody = document.getElementById('cs-table-branch'); tbody.innerHTML='';
+        data.forEach(d => {
+            const ratio=totalAmt?(d.amt/totalAmt*100):0; const avg=d.cnt?d.amt/d.cnt:0;
+            tbody.innerHTML += `<tr class="hover:bg-slate-50">
+                <td class="px-4 py-2.5 font-bold text-sm">${d.branch}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-sm">${window.formatCurrency(d.amt)}</td>
+                <td class="px-4 py-2.5 text-center text-sm">${d.cnt}</td>
+                <td class="px-4 py-2.5 text-center">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden"><div class="bg-blue-400 h-1.5 rounded-full" style="width:${Math.min(ratio,100)}%"></div></div>
+                        <span class="text-xs text-slate-500 w-10 text-right">${ratio.toFixed(1)}%</span>
+                    </div>
+                </td>
+                <td class="px-4 py-2.5 text-right font-mono text-sm text-slate-500">${window.formatCurrency(avg)}</td>
+            </tr>`;
+        });
+    }
+    function _buildBranchData() {
+        const map={};
+        currentCostDetails.forEach(d=>{ const br=d.branch||'不明'; if(!map[br]) map[br]={branch:br,amt:0,cnt:0}; map[br].amt+=d.amount; map[br].cnt++; });
+        return Object.values(map).sort((a,b)=>b.amt-a.amt);
+    }
+
+    // ── 拠点×月別クロスタブ ──
+    window.renderCsBranchMonthTab = function() {
+        const branches=[...new Set(currentCostDetails.map(d=>d.branch).filter(Boolean))].sort();
+        const months  =[...new Set(currentCostDetails.map(d=>(d.date||'').substring(0,6)).filter(m=>m))].sort();
+        const matrix={}, rowTotal={}, colTotal={};
+        branches.forEach(b=>{ matrix[b]={}; rowTotal[b]=0; });
+        months.forEach(m=>{ colTotal[m]=0; });
+        currentCostDetails.forEach(d=>{
+            const br=d.branch||'不明'; const ym=(d.date||'').substring(0,6); if(!ym) return;
+            if(!matrix[br]) { matrix[br]={}; rowTotal[br]=0; }
+            if(!colTotal[ym]) colTotal[ym]=0;
+            matrix[br][ym]=(matrix[br][ym]||0)+d.amount;
+            rowTotal[br]+=d.amount; colTotal[ym]+=d.amount;
+        });
+        const grand=Object.values(rowTotal).reduce((s,v)=>s+v,0);
+        let html='<thead><tr><th class="cross-th text-left">拠点</th>';
+        months.forEach(m=>{ html+=`<th class="cross-th">${m.slice(0,4)}/${m.slice(4)}</th>`; });
+        html+='<th class="cross-th" style="background:#dbeafe">合計</th></tr></thead><tbody>';
+        branches.forEach(br=>{
+            html+=`<tr><td class="cross-th text-left">${br}</td>`;
+            months.forEach(m=>{ const v=matrix[br]?.[m]||0; html+=v?`<td class="cross-td">${window.formatCurrency(v)}</td>`:`<td class="cross-td cross-zero">-</td>`; });
+            html+=`<td class="cross-td" style="background:#dbeafe;font-weight:700">${window.formatCurrency(rowTotal[br])}</td></tr>`;
+        });
+        html+='<tr><td class="cross-th text-left" style="background:#dbeafe">合計</td>';
+        months.forEach(m=>{ html+=`<td class="cross-td" style="background:#dbeafe;font-weight:700">${window.formatCurrency(colTotal[m]||0)}</td>`; });
+        html+=`<td class="cross-td" style="background:#bfdbfe;font-weight:900">${window.formatCurrency(grand)}</td></tr></tbody>`;
+        const tbl=document.getElementById('cs-table-branchmonth'); if(tbl) tbl.innerHTML=html;
+    }
+
+    // ── 工番明細ソート・フィルタ・ページング ──
+    let csDetailSort    = { key:'date', order:'desc' };
+    let csDetailFiltered = [];
+    let csDetailPage    = 1;
+    const CS_DETAIL_PAGE_SIZE = 100;
+
+    window.sortDetails = function(col) {
+        csDetailSort.order = (csDetailSort.key===col && csDetailSort.order==='asc') ? 'desc' : (csDetailSort.key===col ? 'asc' : (col==='amount'?'desc':'asc'));
+        csDetailSort.key   = col;
+        csDetailPage = 1;
+        window.renderDetailsTable();
+    }
+
+    window.applyDetailFilter = function() {
+        const kw     = window.normalizeStr(document.getElementById('cs-detail-filter')?.value||'');
+        const branch = document.getElementById('cs-detail-branch-filter')?.value||'ALL';
+        csDetailFiltered = currentCostDetails.filter(d => {
+            if(branch!=='ALL' && d.branch!==branch) return false;
+            if(kw) { const hay=window.normalizeStr([d.code,d.name,d.branch,d.manager,d.item].join(' ')); if(!hay.includes(kw)) return false; }
+            return true;
+        });
+        csDetailPage=1; window.renderDetailsTable();
+    }
+
+    window.renderDetailsTable = function() {
+        const {key,order} = csDetailSort;
+        const sorted = [...csDetailFiltered].sort((a,b)=>{
+            let va=a[key],vb=b[key];
+            if(key==='amount'){va=Number(va);vb=Number(vb);}
+            if(va<vb) return order==='asc'?-1:1;
+            if(va>vb) return order==='asc'?1:-1;
+            return 0;
+        });
+        document.querySelectorAll('.cs-th').forEach(th=>{
+            const col=th.dataset.col; th.classList.remove('cs-sort-asc','cs-sort-desc');
+            const icon=th.querySelector('.cs-sort-icon'); if(!icon) return;
+            if(col===key){ th.classList.add(order==='asc'?'cs-sort-asc':'cs-sort-desc'); icon.textContent=order==='asc'?'↑':'↓'; icon.style.color='#2563eb'; }
+            else { icon.textContent='↕'; icon.style.color='#94a3b8'; }
+        });
+        const total=sorted.length; const totalPages=Math.ceil(total/CS_DETAIL_PAGE_SIZE)||1;
+        if(csDetailPage>totalPages) csDetailPage=totalPages;
+        const start=(csDetailPage-1)*CS_DETAIL_PAGE_SIZE;
+        const pageData=sorted.slice(start,start+CS_DETAIL_PAGE_SIZE);
+        const countEl=document.getElementById('cs-detail-count');
+        if(countEl) countEl.textContent=total===0?'該当なし':`${start+1}〜${Math.min(start+CS_DETAIL_PAGE_SIZE,total)} 件 / 全 ${total} 件`;
+        const tbody=document.getElementById('cs-table-details'); if(!tbody) return;
+        if(total===0) { tbody.innerHTML='<tr><td colspan="7" class="px-4 py-10 text-center text-slate-400 text-sm">該当なし</td></tr>'; }
+        else { tbody.innerHTML=pageData.map(p=>`<tr class="hover:bg-blue-50/30 transition-colors">
+            <td class="px-4 py-2 text-xs font-mono whitespace-nowrap text-slate-500">${p.date}</td>
+            <td class="px-4 py-2 font-mono text-xs font-bold text-slate-800 whitespace-nowrap"><button class="hover:text-blue-600 hover:underline" onclick="window.browseJumpToSite('${p.code}')">${p.code}</button></td>
+            <td class="px-4 py-2 text-xs text-slate-700 max-w-[200px] truncate" title="${p.name}">${p.name}</td>
+            <td class="px-4 py-2 text-xs text-slate-600 whitespace-nowrap">${p.branch}</td>
+            <td class="px-4 py-2 text-xs text-slate-600 whitespace-nowrap">${p.manager}</td>
+            <td class="px-4 py-2 text-xs text-slate-600 max-w-[160px] truncate" title="${p.item}">${p.item}</td>
+            <td class="px-4 py-2 text-right font-mono text-sm font-bold text-slate-700 whitespace-nowrap">${window.formatCurrency(p.amount)}</td>
+        </tr>`).join(''); }
+        const pagi=document.getElementById('cs-detail-pagination');
+        const info=document.getElementById('cs-detail-page-info');
+        const btns=document.getElementById('cs-detail-page-btns');
+        if(pagi) {
+            if(totalPages>1) {
+                pagi.classList.remove('hidden');
+                if(info) info.textContent=`${csDetailPage} / ${totalPages} ページ`;
+                if(btns) {
+                    let h=`<button class="pagination-btn" onclick="window.csDetailGoPage(${csDetailPage-1})" ${csDetailPage===1?'disabled':''}>‹</button>`;
+                    const range=[]; for(let i=Math.max(1,csDetailPage-2);i<=Math.min(totalPages,csDetailPage+2);i++) range.push(i);
+                    if(range[0]>1) h+=`<button class="pagination-btn" onclick="window.csDetailGoPage(1)">1</button>${range[0]>2?'<span class="px-1 text-xs text-slate-400">…</span>':''}`;
+                    range.forEach(i=>{h+=`<button class="pagination-btn ${i===csDetailPage?'active':''}" onclick="window.csDetailGoPage(${i})">${i}</button>`;});
+                    if(range[range.length-1]<totalPages) h+=`${range[range.length-1]<totalPages-1?'<span class="px-1 text-xs text-slate-400">…</span>':''}<button class="pagination-btn" onclick="window.csDetailGoPage(${totalPages})">${totalPages}</button>`;
+                    h+=`<button class="pagination-btn" onclick="window.csDetailGoPage(${csDetailPage+1})" ${csDetailPage===totalPages?'disabled':''}>›</button>`;
+                    btns.innerHTML=h;
+                }
+            } else { pagi.classList.add('hidden'); }
+        }
+    }
+    window.csDetailGoPage = function(p) { const tp=Math.ceil(csDetailFiltered.length/CS_DETAIL_PAGE_SIZE)||1; if(p<1||p>tp) return; csDetailPage=p; window.renderDetailsTable(); }
+
+    window.exportCsBranchExcel = function() {
+        const data=_buildBranchData(); const totalAmt=data.reduce((s,d)=>s+d.amt,0);
+        const rows=data.map(d=>({'拠点':d.branch,'発生額（税抜）':d.amt,'件数':d.cnt,'構成比(%)':totalAmt?+(d.amt/totalAmt*100).toFixed(2):0,'平均単価/件':d.cnt?Math.round(d.amt/d.cnt):0}));
+        const ws=XLSX.utils.json_to_sheet(rows); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'拠点別原価');
+        XLSX.writeFile(wb,`拠点別原価_${currentCostVendor}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+    window.exportCsBranchMonthExcel = function() {
+        const branches=[...new Set(currentCostDetails.map(d=>d.branch).filter(Boolean))].sort();
+        const months  =[...new Set(currentCostDetails.map(d=>(d.date||'').substring(0,6)).filter(m=>m))].sort();
+        const matrix={}; branches.forEach(b=>matrix[b]={});
+        currentCostDetails.forEach(d=>{ const br=d.branch||'不明';const ym=(d.date||'').substring(0,6);if(!ym)return;if(!matrix[br])matrix[br]={};matrix[br][ym]=(matrix[br][ym]||0)+d.amount; });
+        const rows=branches.map(br=>{const row={'拠点':br};months.forEach(m=>{row[m.slice(0,4)+'/'+m.slice(4)]=matrix[br][m]||0;});row['合計']=Object.values(matrix[br]).reduce((s,v)=>s+v,0);return row;});
+        const totalRow={'拠点':'合計'};months.forEach(m=>{totalRow[m.slice(0,4)+'/'+m.slice(4)]=branches.reduce((s,br)=>s+(matrix[br][m]||0),0);});totalRow['合計']=branches.reduce((s,br)=>s+Object.values(matrix[br]).reduce((ss,v)=>ss+v,0),0);rows.push(totalRow);
+        const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'拠点月別クロス');
+        XLSX.writeFile(wb,`拠点月別クロス_${currentCostVendor}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+    window.exportCsDetailsExcel = function() {
+        if(!csDetailFiltered.length){alert('出力するデータがありません。');return;}
+        const {key,order}=csDetailSort;
+        const sorted=[...csDetailFiltered].sort((a,b)=>{let va=a[key],vb=b[key];if(key==='amount'){va=Number(va);vb=Number(vb);}if(va<vb)return order==='asc'?-1:1;if(va>vb)return order==='asc'?1:-1;return 0;});
+        const rows=sorted.map(d=>({'発生日':d.date,'工番':d.code,'現場名':d.name,'拠点':d.branch,'担当者':d.manager,'品目・備考':d.item,'金額（税抜）':d.amount}));
+        const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'工番明細');
+        XLSX.writeFile(wb,`工番明細_${currentCostVendor}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+    // 旧関数エイリアス
+    window.sortCostDetails    = (key) => { csDetailSort.key=key; window.applyDetailFilter(); }
+    window.renderCostDetailsTable = () => window.renderDetailsTable();
+    // ══ END COST SEARCH ══
+
     // --- RANKING LOGIC ---
     window.switchRankingTab = function(tab) {
         try {
@@ -1259,13 +2323,14 @@
         document.getElementById(`page-${p}`).classList.remove('hidden');
         document.querySelectorAll('.sidebar-link').forEach(el=>el.classList.remove('active'));
         document.getElementById(`nav-${p}`).classList.add('active');
-        const titles = { 'dashboard': '現場照会・分析', 'cost-search': '原価検索', 'ranking': '集計・ランキング', 'import': 'データ取込・管理', 'check': 'データ不備・整合性チェック' };
+        const titles = { 'dashboard': '現場照会・分析', 'browse': '現場一覧・絞り込み', 'cost-search': '原価検索', 'ranking': '集計・ランキング', 'import': 'データ取込・管理', 'check': 'データ不備・整合性チェック' };
         document.getElementById('page-title').textContent = titles[p] || 'G-Ledger';
         
         if(p==='import') window.updateDBStats();
         if(p==='ranking') window.switchRankingTab('owner');
         if(p==='cost-search') window.initCostSearch();
         if(p==='dashboard') window.initSiteSearch();
+        if(p==='browse') window.initBrowsePage();
     }
 
     // --- DOMContentLoaded EVENT LISTENERS ---
@@ -1398,6 +2463,489 @@
         window.updateDBStats();
         window.showPage('dashboard');
     });
+
+// ============================================================
+    // ★ BROWSE PAGE LOGIC (現場一覧・絞り込み) v2 - 原価集計基準対応
+    // ============================================================
+    let browseAllData = [];        // 結合済みデータ（原価+マスター）
+    let browseFiltered = [];       // 絞り込み後
+    let browseCurrentBasis = 'cost'; // 'cost' | 'master'
+    let browseCurrentTab = 'keyword';
+    let browseSelectedManagers = new Set();
+    let browseSelectedCustomers = new Set();
+    let browseSelectedBranches = new Set();
+    const BROWSE_PAGE_SIZE = 50;
+    let browseCurrentPage = 1;
+
+    // データ基準切り替え
+    window.setBrowseBasis = function(basis) {
+        browseCurrentBasis = basis;
+        // ボタンスタイル
+        document.querySelectorAll('.browse-basis-btn').forEach(b => {
+            b.classList.remove('bg-indigo-600','text-white','shadow-sm','bg-amber-500');
+            b.classList.add('text-slate-500');
+        });
+        const activeBtn = document.getElementById('browse-basis-' + basis);
+        if (activeBtn) {
+            if (basis === 'cost') { activeBtn.classList.add('bg-indigo-600','text-white','shadow-sm'); }
+            else { activeBtn.classList.add('bg-amber-500','text-white','shadow-sm'); }
+            activeBtn.classList.remove('text-slate-500');
+        }
+        // バナー切替
+        const bannerCost = document.getElementById('browse-basis-banner-cost');
+        const bannerMaster = document.getElementById('browse-basis-banner-master');
+        if (bannerCost) bannerCost.classList.toggle('hidden', basis !== 'cost');
+        if (bannerMaster) bannerMaster.classList.toggle('hidden', basis !== 'master');
+        // 売上・粗利列の表示切替（原価基準のときのみ表示）
+        document.querySelectorAll('.browse-cost-col').forEach(el => {
+            el.classList.toggle('hidden', basis !== 'cost');
+        });
+        // データ再構築 → フィルター再適用
+        window.buildBrowseData();
+        window.resetBrowseSelections();
+        window.buildBrowseButtons();
+        window.applyBrowseFilter();
+    }
+
+    // データ構築：基準に応じて browseAllData を作り直す
+    window.buildBrowseData = function() {
+        const { costs, masters } = window._browseRawData || {};
+        if (!costs || !masters) return;
+
+        const masterMap = new Map(masters.map(m => [m.code, m]));
+        const costMap = new Map(costs.map(c => [c.code, c]));
+
+        if (browseCurrentBasis === 'cost') {
+            // 原価集計に存在する工番が主役。マスター情報を付加
+            browseAllData = costs.map(c => {
+                const m = masterMap.get(c.code) || {};
+                const margin = c.salesTotal > 0 ? (c.profitTotal / c.salesTotal * 100) : null;
+                return {
+                    code: c.code,
+                    name: m.name || c.name || '',
+                    subName: m.subName || '',
+                    subCodes: m.subCodes || [],
+                    subCodeCount: (m.subCodes || []).length,
+                    manager: m.manager || '',
+                    customer: m.customer || '',
+                    owner: m.owner || '',
+                    branch: m.branch || '',
+                    startDate: String(m.startDate || ''),
+                    endDate: String(m.endDate || ''),
+                    delivery: m.delivery || '',
+                    hasCost: true,
+                    hasMaster: !!masterMap.has(c.code),
+                    salesTotal: c.salesTotal || 0,
+                    costTotal: c.costTotal || 0,
+                    profitTotal: c.profitTotal || 0,
+                    margin: margin
+                };
+            });
+        } else {
+            // マスター全件が主役。原価データを付加
+            browseAllData = masters.map(m => {
+                const c = costMap.get(m.code) || {};
+                const margin = c.salesTotal > 0 ? (c.profitTotal / c.salesTotal * 100) : null;
+                return {
+                    code: m.code,
+                    name: m.name || '',
+                    subName: m.subName || '',
+                    subCodes: m.subCodes || [],
+                    subCodeCount: (m.subCodes || []).length,
+                    manager: m.manager || '',
+                    customer: m.customer || '',
+                    owner: m.owner || '',
+                    branch: m.branch || '',
+                    startDate: String(m.startDate || ''),
+                    endDate: String(m.endDate || ''),
+                    delivery: m.delivery || '',
+                    hasCost: !!costMap.has(m.code),
+                    hasMaster: true,
+                    salesTotal: c.salesTotal || 0,
+                    costTotal: c.costTotal || 0,
+                    profitTotal: c.profitTotal || 0,
+                    margin: margin
+                };
+            });
+        }
+    }
+
+    window.initBrowsePage = async function() {
+        // 生データ取得（キャッシュ）
+        const costs = await db.costs.toArray();
+        const masters = await db.masters.toArray();
+        window._browseRawData = { costs, masters };
+
+        // データ構築
+        window.buildBrowseData();
+
+        // 選択リセット
+        window.resetBrowseSelections();
+
+        // ボタン生成
+        window.buildBrowseButtons();
+
+        // 初期表示
+        const badge = document.getElementById('browse-count-badge');
+        if (badge) badge.textContent = browseAllData.length + ' 件';
+
+        browseFiltered = [...browseAllData];
+        window.applyBrowseFilter();
+    }
+
+    window.resetBrowseSelections = function() {
+        browseSelectedManagers.clear();
+        browseSelectedCustomers.clear();
+        browseSelectedBranches.clear();
+    }
+
+    window.buildBrowseButtons = function() {
+        // 担当者
+        const managers = [...new Set(browseAllData.map(d => d.manager).filter(Boolean))].sort();
+        const mContainer = document.getElementById('browse-manager-buttons');
+        if (mContainer) {
+            mContainer.innerHTML = '';
+            managers.forEach(mgr => {
+                const cnt = browseAllData.filter(d => d.manager === mgr).length;
+                const btn = document.createElement('button');
+                btn.className = 'browse-sel-btn px-3 py-1.5 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-teal-50 hover:border-teal-400 hover:text-teal-700 transition-all flex items-center gap-1';
+                btn.innerHTML = `${mgr} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
+                btn.dataset.value = mgr;
+                btn.dataset.group = 'manager';
+                btn.onclick = () => window.toggleBrowseButton(btn, 'manager');
+                mContainer.appendChild(btn);
+            });
+        }
+
+        // 得意先
+        const customers = [...new Set(browseAllData.map(d => d.customer).filter(Boolean))].sort();
+        const cContainer = document.getElementById('browse-customer-buttons');
+        if (cContainer) {
+            cContainer.innerHTML = '';
+            customers.forEach(cust => {
+                const cnt = browseAllData.filter(d => d.customer === cust).length;
+                const btn = document.createElement('button');
+                btn.className = 'browse-sel-btn px-3 py-1.5 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-teal-50 hover:border-teal-400 hover:text-teal-700 transition-all flex items-center gap-1';
+                btn.innerHTML = `${cust} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
+                btn.dataset.value = cust;
+                btn.dataset.group = 'customer';
+                btn.onclick = () => window.toggleBrowseButton(btn, 'customer');
+                cContainer.appendChild(btn);
+            });
+        }
+
+        // 拠点
+        const branches = [...new Set(browseAllData.map(d => d.branch).filter(Boolean))].sort();
+        const bContainer = document.getElementById('browse-branch-buttons');
+        if (bContainer) {
+            bContainer.innerHTML = '';
+            branches.forEach(br => {
+                const cnt = browseAllData.filter(d => d.branch === br).length;
+                const btn = document.createElement('button');
+                btn.className = 'browse-sel-btn px-3 py-1.5 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-teal-50 hover:border-teal-400 hover:text-teal-700 transition-all flex items-center gap-1';
+                btn.innerHTML = `${br} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
+                btn.dataset.value = br;
+                btn.dataset.group = 'branch';
+                btn.onclick = () => window.toggleBrowseButton(btn, 'branch');
+                bContainer.appendChild(btn);
+            });
+        }
+    }
+
+    window.setBrowseTab = function(tab) {
+        browseCurrentTab = tab;
+        document.querySelectorAll('.browse-tab-btn').forEach(b => {
+            b.classList.remove('active', 'bg-white', 'text-teal-700', 'shadow-sm');
+            b.classList.add('text-slate-500');
+        });
+        const activeBtn = document.getElementById('btab-' + tab);
+        if (activeBtn) {
+            activeBtn.classList.add('active', 'bg-white', 'text-teal-700', 'shadow-sm');
+            activeBtn.classList.remove('text-slate-500');
+        }
+        document.querySelectorAll('.browse-filter-panel').forEach(p => p.classList.add('hidden'));
+        const panel = document.getElementById('browse-panel-' + tab);
+        if (panel) panel.classList.remove('hidden');
+    }
+
+    window.toggleBrowseButton = function(btn, group) {
+        const val = btn.dataset.value;
+        const setMap = { manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches };
+        const sel = setMap[group];
+        if (sel.has(val)) {
+            sel.delete(val);
+            btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
+            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
+        } else {
+            sel.add(val);
+            btn.classList.add('bg-teal-500', 'border-teal-500', 'text-white');
+            btn.classList.remove('bg-white', 'border-slate-300', 'text-slate-600');
+        }
+        window.applyBrowseFilter();
+    }
+
+    window.clearBrowseSelection = function(group) {
+        const setMap = { manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches };
+        setMap[group].clear();
+        document.querySelectorAll(`[data-group="${group}"]`).forEach(btn => {
+            btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
+            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
+        });
+        window.applyBrowseFilter();
+    }
+
+    window.filterCustomerButtons = function() {
+        const val = window.normalizeStr(document.getElementById('browse-customer-filter').value || '');
+        document.querySelectorAll('[data-group="customer"]').forEach(btn => {
+            btn.style.display = val === '' || window.normalizeStr(btn.dataset.value).includes(val) ? '' : 'none';
+        });
+    }
+
+    window.setDatePreset = function(preset) {
+        const now = new Date();
+        const y = now.getFullYear();
+        let start, end;
+        if (preset === 'thisYear') { start = `${y}-01-01`; end = `${y}-12-31`; }
+        else if (preset === 'lastYear') { start = `${y-1}-01-01`; end = `${y-1}-12-31`; }
+        else if (preset === 'last3') { start = `${y-2}-01-01`; end = `${y}-12-31`; }
+        const s = document.getElementById('browse-date-start');
+        const e = document.getElementById('browse-date-end');
+        if (s) s.value = start;
+        if (e) e.value = end;
+        window.applyBrowseFilter();
+    }
+
+    window.parseDateStr8 = function(str) {
+        if (!str) return null;
+        const s = String(str).trim().replace(/\D/g,'');
+        if (s.length === 8 && s !== '00000000') {
+            return new Date(s.slice(0,4), parseInt(s.slice(4,6))-1, parseInt(s.slice(6,8)));
+        }
+        return null;
+    }
+
+    window.applyBrowseFilter = function() {
+        browseCurrentPage = 1;
+        const keyword = window.normalizeStr((document.getElementById('browse-keyword-input') || {}).value || '');
+        const dateStart = (document.getElementById('browse-date-start') || {}).value || '';
+        const dateEnd = (document.getElementById('browse-date-end') || {}).value || '';
+        const chkSub = document.getElementById('browse-chk-subcodes')?.checked;
+        const chkCost = document.getElementById('browse-chk-has-cost')?.checked;
+        const chkNoEnd = document.getElementById('browse-chk-no-end')?.checked;
+        const sortVal = document.getElementById('browse-sort')?.value || 'code_asc';
+
+        browseFiltered = browseAllData.filter(d => {
+            // キーワードフィルター（キーワードタブ選択中のみ）
+            if (browseCurrentTab === 'keyword' && keyword) {
+                const haystack = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.code, d.branch].join(' '));
+                if (!haystack.includes(keyword)) return false;
+            }
+            // 担当者フィルター
+            if (browseSelectedManagers.size > 0 && !browseSelectedManagers.has(d.manager)) return false;
+            // 得意先フィルター
+            if (browseSelectedCustomers.size > 0 && !browseSelectedCustomers.has(d.customer)) return false;
+            // 拠点フィルター
+            if (browseSelectedBranches.size > 0 && !browseSelectedBranches.has(d.branch)) return false;
+            // 着手日フィルター
+            if (dateStart || dateEnd) {
+                const dt = window.parseDateStr8(d.startDate);
+                if (!dt) return false;
+                if (dateStart && dt < new Date(dateStart)) return false;
+                if (dateEnd && dt > new Date(dateEnd)) return false;
+            }
+            // 追加フィルター
+            if (chkSub && d.subCodeCount === 0) return false;
+            if (chkCost && !d.hasCost) return false;
+            const hasEndDate = d.endDate && d.endDate.replace(/\D/g,'').length === 8 && d.endDate.replace(/\D/g,'') !== '00000000';
+            if (chkNoEnd && hasEndDate) return false;
+            return true;
+        });
+
+        // ソート
+        browseFiltered.sort((a, b) => {
+            if (sortVal === 'code_asc') return a.code.localeCompare(b.code);
+            if (sortVal === 'code_desc') return b.code.localeCompare(a.code);
+            if (sortVal === 'start_desc') return (b.startDate||'').localeCompare(a.startDate||'');
+            if (sortVal === 'start_asc') return (a.startDate||'').localeCompare(b.startDate||'');
+            if (sortVal === 'name_asc') return (a.name||'').localeCompare(b.name||'', 'ja');
+            if (sortVal === 'sales_desc') return (b.salesTotal||0) - (a.salesTotal||0);
+            if (sortVal === 'margin_asc') return (a.margin ?? 999) - (b.margin ?? 999);
+            return 0;
+        });
+
+        const badge = document.getElementById('browse-count-badge');
+        if (badge) badge.textContent = browseFiltered.length + ' 件';
+
+        window.renderBrowseTable();
+    }
+
+    window.renderBrowseTable = function() {
+        const tbody = document.getElementById('browse-tbody');
+        if (!tbody) return;
+
+        const total = browseFiltered.length;
+        const totalPages = Math.ceil(total / BROWSE_PAGE_SIZE) || 1;
+        if (browseCurrentPage > totalPages) browseCurrentPage = totalPages;
+        const start = (browseCurrentPage - 1) * BROWSE_PAGE_SIZE;
+        const pageData = browseFiltered.slice(start, start + BROWSE_PAGE_SIZE);
+
+        const countEl = document.getElementById('browse-result-count');
+        if (countEl) countEl.textContent = total === 0 ? '該当なし' : `${start+1}〜${Math.min(start+BROWSE_PAGE_SIZE, total)} 件 / 全 ${total} 件`;
+
+        const isCostBasis = browseCurrentBasis === 'cost';
+
+        if (total === 0) {
+            tbody.innerHTML = `<tr><td colspan="${isCostBasis?13:11}" class="px-4 py-10 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-info mr-2"></i>該当する現場が見つかりませんでした</td></tr>`;
+            document.getElementById('browse-pagination')?.classList.add('hidden');
+            return;
+        }
+
+        let html = '';
+        pageData.forEach(d => {
+            const hasEnd = d.endDate && d.endDate.replace(/\D/g,'').length === 8 && d.endDate.replace(/\D/g,'') !== '00000000';
+            const statusDot = hasEnd
+                ? '<span class="w-2 h-2 rounded-full bg-slate-300 inline-block mr-1 flex-shrink-0" title="完了"></span>'
+                : '<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block mr-1 flex-shrink-0 animate-pulse" title="進行中"></span>';
+
+            // 原価フラグバッジ
+            const costBadge = d.hasCost
+                ? '<span class="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">有</span>'
+                : '<span class="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded">-</span>';
+
+            // マスターなし警告（原価基準のとき）
+            const noMasterWarn = isCostBasis && !d.hasMaster
+                ? '<span class="ml-1 text-[9px] bg-orange-100 text-orange-600 border border-orange-200 px-1 py-0.5 rounded font-bold">M無</span>'
+                : '';
+
+            // サブコードバッジ
+            let subBadge = '<span class="text-[10px] text-slate-300">-</span>';
+            if (d.subCodeCount > 0) {
+                const subList = d.subCodes.map(s => `<span class='font-mono text-[10px] bg-blue-50 text-blue-600 border border-blue-200 px-1 rounded'>${s.subCode||''}</span>`).join(' ');
+                subBadge = `<div class="flex flex-wrap gap-1 items-center"><span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-200">${d.subCodeCount}件</span><div class="flex flex-wrap gap-1">${subList}</div></div>`;
+            }
+
+            // 売上・粗利セル（原価基準のみ）
+            let salesCell = '';
+            let marginCell = '';
+            if (isCostBasis) {
+                salesCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs text-slate-600 browse-cost-col">${d.salesTotal ? window.formatCurrency(d.salesTotal) : '-'}</td>`;
+                const marginColor = d.margin === null ? 'text-slate-300' : d.margin < 10 ? 'text-red-500 font-bold' : d.margin < 20 ? 'text-orange-500 font-bold' : 'text-emerald-600 font-bold';
+                marginCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs browse-cost-col ${marginColor}">${d.margin !== null ? d.margin.toFixed(1)+'%' : '-'}</td>`;
+            }
+
+            html += `<tr class="hover:bg-teal-50/40 transition-colors cursor-pointer" onclick="window.browseJumpToSite('${d.code}')">
+                <td class="px-4 py-2.5 font-mono text-sm font-black text-slate-800 border-b border-slate-100 bg-slate-50/60 whitespace-nowrap">${d.code}${noMasterWarn}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100">
+                    <div class="flex items-center gap-1">${statusDot}<span class="font-bold text-slate-800 text-sm truncate max-w-[200px]" title="${d.name}">${d.name || '-'}</span></div>
+                    ${d.subName ? `<div class="text-xs text-slate-400 mt-0.5 pl-3 truncate max-w-[200px]">${d.subName}</div>` : ''}
+                </td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-sm text-slate-600 whitespace-nowrap">${d.manager || '-'}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-600 max-w-[110px] truncate" title="${d.customer}">${d.customer || '-'}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-600 max-w-[100px] truncate" title="${d.owner}">${d.owner || '-'}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-xs text-center text-slate-600 whitespace-nowrap">${d.branch || '-'}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-xs font-mono text-slate-500 text-center whitespace-nowrap">${d.startDate || '-'}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-xs font-mono text-center whitespace-nowrap ${hasEnd ? 'text-slate-400' : 'text-emerald-600 font-bold'}">${hasEnd ? d.endDate : '進行中'}</td>
+                ${salesCell}${marginCell}
+                <td class="px-4 py-2.5 border-b border-slate-100 text-center">${costBadge}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100">${subBadge}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-center">
+                    <button onclick="event.stopPropagation(); window.browseJumpToSite('${d.code}')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">照会</button>
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+
+        // ページネーション
+        const pagination = document.getElementById('browse-pagination');
+        const pageInfo = document.getElementById('browse-page-info');
+        const pageButtons = document.getElementById('browse-page-buttons');
+        if (pagination) {
+            if (totalPages > 1) {
+                pagination.classList.remove('hidden');
+                if (pageInfo) pageInfo.textContent = `${browseCurrentPage} / ${totalPages} ページ`;
+                if (pageButtons) {
+                    let btnHtml = `<button class="pagination-btn" onclick="window.browsePage(${browseCurrentPage-1})" ${browseCurrentPage===1?'disabled':''}>‹</button>`;
+                    const range = [];
+                    for (let i = Math.max(1, browseCurrentPage-2); i <= Math.min(totalPages, browseCurrentPage+2); i++) range.push(i);
+                    if (range[0] > 1) btnHtml += `<button class="pagination-btn" onclick="window.browsePage(1)">1</button>${range[0]>2?'<span class="px-1 text-slate-400 text-xs">…</span>':''}`;
+                    range.forEach(i => { btnHtml += `<button class="pagination-btn ${i===browseCurrentPage?'active':''}" onclick="window.browsePage(${i})">${i}</button>`; });
+                    if (range[range.length-1] < totalPages) btnHtml += `${range[range.length-1]<totalPages-1?'<span class="px-1 text-slate-400 text-xs">…</span>':''}<button class="pagination-btn" onclick="window.browsePage(${totalPages})">${totalPages}</button>`;
+                    btnHtml += `<button class="pagination-btn" onclick="window.browsePage(${browseCurrentPage+1})" ${browseCurrentPage===totalPages?'disabled':''}>›</button>`;
+                    pageButtons.innerHTML = btnHtml;
+                }
+            } else {
+                pagination.classList.add('hidden');
+            }
+        }
+    }
+
+    window.browsePage = function(p) {
+        const totalPages = Math.ceil(browseFiltered.length / BROWSE_PAGE_SIZE) || 1;
+        if (p < 1 || p > totalPages) return;
+        browseCurrentPage = p;
+        window.renderBrowseTable();
+        document.getElementById('page-browse')?.scrollTo(0, 0);
+    }
+
+    window.browseJumpToSite = function(code) {
+        window.showPage('dashboard');
+        const inp = document.getElementById('search-input');
+        if (inp) { inp.value = code; window.searchSite(); }
+    }
+
+    window.resetBrowseFilter = function() {
+        window.resetBrowseSelections();
+        document.querySelectorAll('.browse-sel-btn').forEach(btn => {
+            btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
+            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
+        });
+        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-customer-filter'];
+        ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+        window.filterCustomerButtons();
+        ['browse-chk-subcodes','browse-chk-has-cost','browse-chk-no-end'].forEach(id => {
+            const el = document.getElementById(id); if(el) el.checked = false;
+        });
+        browseFiltered = [...browseAllData];
+        browseCurrentPage = 1;
+        const badge = document.getElementById('browse-count-badge');
+        if (badge) badge.textContent = browseAllData.length + ' 件';
+        window.renderBrowseTable();
+    }
+
+    window.exportBrowseExcel = function() {
+        if (!browseFiltered || browseFiltered.length === 0) { alert("出力するデータがありません。"); return; }
+        const exportData = browseFiltered.map(d => {
+            const row = {
+                "工番": d.code,
+                "現場名": d.name,
+                "現場サブ名称": d.subName,
+                "担当者": d.manager,
+                "得意先": d.customer,
+                "施工主": d.owner,
+                "拠点": d.branch,
+                "着手日": d.startDate,
+                "完了日": d.endDate,
+                "原価データ": d.hasCost ? '有' : '無',
+                "サブコード数": d.subCodeCount,
+                "サブコード一覧": d.subCodes.map(s => s.subCode || '').join(', ')
+            };
+            if (browseCurrentBasis === 'cost') {
+                row["売上累計(税抜)"] = d.salesTotal || 0;
+                row["原価累計"] = d.costTotal || 0;
+                row["粗利益"] = d.profitTotal || 0;
+                row["粗利率"] = d.margin !== null ? d.margin.toFixed(1) + '%' : '-';
+            }
+            return row;
+        });
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "現場一覧");
+        const basis = browseCurrentBasis === 'cost' ? '原価集計基準' : 'マスター全件';
+        XLSX.writeFile(wb, `現場一覧_${basis}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+    // ============================================================
+    // ★ END BROWSE PAGE LOGIC
+    // ============================================================
 
 // --- Export Master Check Report ---
     window.exportMasterCheck = async function() {
@@ -1669,7 +3217,9 @@ window.exportCostCheck = async function() {
     window.compareSites = async function() {
         const input = document.getElementById('multi-code-input').value;
         if (!input.trim()) { alert("工番を入力してください。"); return; }
-        const codes = input.split(/[\s,]+/).filter(c => c.trim() !== '');
+        // 全角→半角変換してからコード分割
+        const normalized = input.replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+        const codes = normalized.split(/[\s,]+/).filter(c => c.trim() !== '');
         if (codes.length === 0) return;
 
         try {
@@ -1677,11 +3227,26 @@ window.exportCostCheck = async function() {
             const contentArea = document.getElementById('multi-content-area');
             contentArea.innerHTML = '<div class="text-center py-6"><div class="loader mx-auto"></div></div>';
 
-            const masters = await Promise.all(codes.map(c => db.masters.get(c)));
-            const costs = await Promise.all(codes.map(c => db.costs.get(c)));
+            // 各コードについて、まず直接検索、見つからなければ5桁ゼロ埋めを試みる
+            const resolvedCodes = await Promise.all(codes.map(async c => {
+                let m = await db.masters.get(c);
+                let cost = await db.costs.get(c);
+                if (!m && !cost && /^\d+$/.test(c)) {
+                    const padded = c.padStart(5, '0');
+                    if (padded !== c) {
+                        const mp = await db.masters.get(padded);
+                        const cp = await db.costs.get(padded);
+                        if (mp || cp) return padded;
+                    }
+                }
+                return c;
+            }));
+
+            const masters = await Promise.all(resolvedCodes.map(c => db.masters.get(c)));
+            const costs = await Promise.all(resolvedCodes.map(c => db.costs.get(c)));
             multiCompareData = [];
             
-            codes.forEach((code, index) => {
+            resolvedCodes.forEach((code, index) => {
                 const m = masters[index] || {};
                 const c = costs[index] || {};
                 const name = m.name || c.name || '-';
