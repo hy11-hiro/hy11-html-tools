@@ -1346,6 +1346,10 @@ async function openLiveCamera() {
 
   // Populate live panel with current settings
   populateLivePanel();
+  // Reset settings drawer
+  liveSettingsOpen = false;
+  const drawer = document.getElementById('liveSettingsDrawer');
+  if (drawer) drawer.classList.add('drawer-hidden');
 
   // Try to lock landscape orientation
   try {
@@ -1455,6 +1459,25 @@ async function switchLiveCamera() {
   } catch(e) { alert('カメラ切り替え失敗: ' + e.message); }
 }
 
+let liveSettingsOpen = false;
+function toggleLiveSettings() {
+  liveSettingsOpen = !liveSettingsOpen;
+  const drawer = document.getElementById('liveSettingsDrawer');
+  const iconWrap = document.getElementById('liveSettingsIconWrap');
+  drawer.classList.toggle('drawer-hidden', !liveSettingsOpen);
+  if (iconWrap) {
+    iconWrap.style.background = liveSettingsOpen ? 'rgba(37,99,235,0.7)' : '';
+    iconWrap.style.borderColor = liveSettingsOpen ? 'rgba(96,165,250,0.8)' : '';
+  }
+}
+
+function toggleLiveBoardPos() {
+  S.boardPos = S.boardPos === 'right' ? 'left' : 'right';
+  S.boardOffsetX = null; S.boardOffsetY = null;
+  const icon = document.getElementById('livePosIcon');
+  if (icon) icon.textContent = S.boardPos === 'right' ? 'align_horizontal_right' : 'align_horizontal_left';
+}
+
 // ============================================================
 // EVENT LISTENERS
 // ============================================================
@@ -1549,140 +1572,156 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 </script>
 <!-- ===== LIVE CAMERA MODAL ===== -->
+<style>
+#liveCameraModal { font-family:'M PLUS Rounded 1c',sans-serif; }
+#liveCameraModal input,#liveCameraModal textarea,#liveCameraModal select {
+  background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.28);color:#fff;
+  border-radius:7px;padding:5px 8px;font-size:12px;width:100%;box-sizing:border-box;
+  backdrop-filter:blur(6px);font-family:'M PLUS Rounded 1c',sans-serif;
+}
+#liveCameraModal input::placeholder,#liveCameraModal textarea::placeholder{color:rgba(255,255,255,0.38);}
+#liveCameraModal input:focus,#liveCameraModal textarea:focus{outline:none;border-color:rgba(96,165,250,0.85);}
+#liveSettingsDrawer{transition:transform 0.26s cubic-bezier(.4,0,.2,1);}
+#liveSettingsDrawer.drawer-hidden{transform:translateY(calc(100% + 100px));}
+@keyframes liveSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.live-spin{animation:liveSpin 1.8s linear infinite}
+.lsp{padding:3px 9px;border-radius:999px;border:1.5px solid rgba(255,255,255,0.32);
+     font-size:11px;font-weight:700;color:rgba(255,255,255,0.78);cursor:pointer;
+     background:rgba(0,0,0,0.38);transition:.1s;white-space:nowrap;}
+.lsp.lsp-on{background:#2563eb;border-color:#60a5fa;color:#fff;}
+</style>
+
 <div id="liveCameraModal" class="hidden fixed inset-0 z-[9999] bg-black" style="touch-action:none">
 
-  <!-- Landscape hint (portrait時に表示) -->
-  <div id="liveRotateHint" class="hidden absolute inset-0 z-50 bg-black flex-col items-center justify-center gap-4">
-    <span class="material-icons text-white text-6xl" style="animation:spin 2s linear infinite">screen_rotation</span>
-    <p class="text-white font-bold text-lg text-center">端末を横向きにしてください<br><span class="text-sm font-normal opacity-70">横向き撮影モードです</span></p>
-    <button onclick="closeLiveCamera()" class="mt-4 bg-white/20 text-white px-6 py-2 rounded-xl font-bold">閉じる</button>
+  <!-- Portrait warning -->
+  <div id="liveRotateHint" class="hidden absolute inset-0 z-50 bg-black/92 flex-col items-center justify-center gap-5">
+    <span class="material-icons text-white live-spin" style="font-size:64px">screen_rotation</span>
+    <p class="text-white font-bold text-lg text-center">端末を横向きにしてください</p>
+    <button onclick="closeLiveCamera()" class="mt-1 border border-white/30 text-white/80 px-5 py-2 rounded-xl text-sm font-bold bg-white/10">閉じる</button>
   </div>
-  <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
 
-  <!-- Main landscape layout: left=controls, right=viewfinder -->
-  <div class="flex w-full h-full">
+  <!-- Full-screen video + overlay canvas -->
+  <video id="liveVideo" autoplay playsinline muted
+    class="absolute inset-0 w-full h-full object-cover"></video>
+  <canvas id="liveOverlay" class="absolute inset-0 w-full h-full" style="pointer-events:none"></canvas>
+  <div id="liveFlash" class="absolute inset-0 bg-white pointer-events-none"
+       style="opacity:0;transition:opacity 0.18s"></div>
 
-    <!-- ===== Left panel: controls ===== -->
-    <div class="flex flex-col bg-gray-900 text-white z-10 overflow-y-auto" style="width:min(280px,38vw);min-width:220px;flex-shrink:0">
+  <!-- ── TOP BAR ── thin, gradient -->
+  <div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-2"
+       style="background:linear-gradient(to bottom,rgba(0,0,0,0.6) 0%,transparent 100%)">
+    <button onclick="closeLiveCamera()"
+      class="flex items-center gap-1 text-white text-xs font-bold bg-black/40 backdrop-blur-sm px-2.5 py-1.5 rounded-lg active:scale-95 border border-white/20">
+      <span class="material-icons text-sm">close</span>閉じる
+    </button>
+    <div class="flex items-center gap-1.5 bg-black/35 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-white/20">
+      <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse block"></span>
+      <span class="text-white text-xs font-bold tracking-widest">LIVE</span>
+    </div>
+    <button onclick="switchLiveCamera()"
+      class="flex items-center gap-1 text-white text-xs font-bold bg-black/40 backdrop-blur-sm px-2.5 py-1.5 rounded-lg active:scale-95 border border-white/20">
+      <span class="material-icons text-sm">flip_camera_ios</span>切替
+    </button>
+  </div>
 
-      <!-- Header -->
-      <div class="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
-        <button onclick="closeLiveCamera()" class="flex items-center gap-1 bg-white/15 px-2 py-1.5 rounded-lg font-bold text-xs active:scale-95">
-          <span class="material-icons text-sm">close</span>閉じる
-        </button>
-        <div class="flex items-center gap-1 text-xs font-bold text-red-400">
-          <span class="material-icons text-sm animate-pulse">fiber_manual_record</span>LIVE
-        </div>
-        <button onclick="switchLiveCamera()" class="flex items-center gap-1 bg-white/15 px-2 py-1.5 rounded-lg font-bold text-xs active:scale-95">
-          <span class="material-icons text-sm">flip_camera_ios</span>切替
-        </button>
+  <!-- ── BOTTOM BAR ── always visible -->
+  <div class="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-3 px-4 pb-3 pt-6"
+       style="background:linear-gradient(to top,rgba(0,0,0,0.65) 0%,transparent 100%)">
+
+    <!-- Settings button -->
+    <button id="liveSettingsToggleBtn" onclick="toggleLiveSettings()"
+      class="flex flex-col items-center gap-0.5 active:scale-90 flex-shrink-0">
+      <div id="liveSettingsIconWrap"
+        class="w-9 h-9 rounded-full bg-black/45 backdrop-blur-sm border border-white/25 flex items-center justify-center text-white">
+        <span class="material-icons text-lg">tune</span>
       </div>
+      <span class="text-white text-[10px] font-bold opacity-75">設定</span>
+    </button>
 
-      <!-- Settings form -->
-      <div class="flex-1 p-3 space-y-3 overflow-y-auto">
+    <!-- Size pills — horizontal scroll -->
+    <div class="flex gap-1.5 overflow-x-auto flex-1" style="scrollbar-width:none">
+      <button onclick="setLiveBoardSize('xs')" data-lsize="xs" class="lsp flex-shrink-0">極小</button>
+      <button onclick="setLiveBoardSize('s')"  data-lsize="s"  class="lsp flex-shrink-0">小</button>
+      <button onclick="setLiveBoardSize('sm')" data-lsize="sm" class="lsp flex-shrink-0">小＋</button>
+      <button onclick="setLiveBoardSize('m')"  data-lsize="m"  class="lsp lsp-on flex-shrink-0">中</button>
+      <button onclick="setLiveBoardSize('ml')" data-lsize="ml" class="lsp flex-shrink-0">中＋</button>
+      <button onclick="setLiveBoardSize('l')"  data-lsize="l"  class="lsp flex-shrink-0">大</button>
+    </div>
+
+    <!-- SHUTTER — iPhone camera style -->
+    <button onclick="captureFromLive()"
+      class="flex-shrink-0 w-14 h-14 rounded-full flex items-center justify-center active:scale-90 transition-transform"
+      style="background:transparent;border:3px solid rgba(255,255,255,0.9);box-shadow:0 0 0 2px rgba(255,255,255,0.2)">
+      <div class="w-11 h-11 rounded-full bg-white"></div>
+    </button>
+
+    <!-- Position toggle -->
+    <button onclick="toggleLiveBoardPos()"
+      class="flex flex-col items-center gap-0.5 active:scale-90 flex-shrink-0">
+      <div class="w-9 h-9 rounded-full bg-black/45 backdrop-blur-sm border border-white/25 flex items-center justify-center text-white">
+        <span id="livePosIcon" class="material-icons text-lg">align_horizontal_right</span>
+      </div>
+      <span class="text-white text-[10px] font-bold opacity-75">位置</span>
+    </button>
+
+  </div><!-- /bottom bar -->
+
+  <!-- ── SETTINGS DRAWER ── slides up above bottom bar -->
+  <div id="liveSettingsDrawer" class="drawer-hidden absolute left-2 right-2 z-30"
+       style="bottom:80px">
+    <div class="rounded-2xl overflow-hidden"
+         style="background:rgba(8,8,16,0.80);backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,0.13)">
+      <!-- Handle -->
+      <div class="flex justify-center pt-2 pb-0.5">
+        <div class="w-8 h-1 rounded-full bg-white/25"></div>
+      </div>
+      <!-- 2-col grid form -->
+      <div class="grid grid-cols-2 gap-x-3 gap-y-2.5 px-3 pb-3 pt-1.5">
 
         <!-- 工事件名 -->
         <div>
-          <label class="block text-xs font-bold text-gray-400 mb-1">工事件名</label>
-          <textarea id="liveInputProject" rows="2" placeholder="例: ○○マンション新築工事"
-            class="w-full p-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-white resize-none focus:border-blue-400 focus:outline-none"
-            oninput="S.text.project=this.value;syncLiveToMain('inputProject',this.value);"></textarea>
+          <div class="text-[10px] font-bold text-white/50 mb-1">工事件名</div>
+          <input type="text" id="liveInputProject" placeholder="○○新築工事"
+            oninput="S.text.project=this.value;syncLiveToMain('inputProject',this.value);" />
         </div>
 
         <!-- 工事場所 -->
         <div>
-          <label class="block text-xs font-bold text-gray-400 mb-1">工事場所</label>
-          <textarea id="liveInputWorkType" rows="2" placeholder="例: 1階 エントランス"
-            class="w-full p-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-white resize-none focus:border-blue-400 focus:outline-none"
-            oninput="S.text.workType=this.value;syncLiveToMain('inputWorkType',this.value);"></textarea>
+          <div class="text-[10px] font-bold text-white/50 mb-1">工事場所</div>
+          <input type="text" id="liveInputWorkType" placeholder="1階 エントランス"
+            oninput="S.text.workType=this.value;syncLiveToMain('inputWorkType',this.value);" />
         </div>
 
         <!-- 備考 -->
         <div>
-          <label class="block text-xs font-bold text-gray-400 mb-1">備考・内容</label>
-          <textarea id="liveInputMemo" rows="3" placeholder="例: 埋設ガラ状況"
-            class="w-full p-2 bg-gray-800 border border-gray-600 rounded-lg text-sm text-white resize-none focus:border-blue-400 focus:outline-none"
-            oninput="S.text.memo=this.value;syncLiveToMain('inputMemo',this.value);"></textarea>
+          <div class="text-[10px] font-bold text-white/50 mb-1">備考・内容</div>
+          <input type="text" id="liveInputMemo" placeholder="埋設ガラ状況"
+            oninput="S.text.memo=this.value;syncLiveToMain('inputMemo',this.value);" />
         </div>
 
-        <!-- 日付・時刻 -->
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block text-xs font-bold text-gray-400 mb-1">日付</label>
+        <!-- 日付+時刻+今ボタン -->
+        <div class="flex items-end gap-1.5">
+          <div class="flex-1">
+            <div class="text-[10px] font-bold text-white/50 mb-1">日付</div>
             <input type="date" id="liveInputDate"
-              class="w-full p-1.5 bg-gray-800 border border-gray-600 rounded-lg text-xs text-white focus:border-blue-400 focus:outline-none"
               oninput="S.text.date=this.value.replace(/-/g,'/');syncLiveToMain('inputDate',this.value);" />
           </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-400 mb-1">時刻</label>
+          <div style="width:64px">
+            <div class="text-[10px] font-bold text-white/50 mb-1">時刻</div>
             <input type="time" id="liveInputTime"
-              class="w-full p-1.5 bg-gray-800 border border-gray-600 rounded-lg text-xs text-white focus:border-blue-400 focus:outline-none"
               oninput="S.text.time=this.value;syncLiveToMain('inputTime',this.value);" />
           </div>
+          <button onclick="setTodayLive()"
+            class="flex-shrink-0 text-white text-[11px] font-bold border border-white/25 bg-white/12 rounded-lg px-2 py-1 active:scale-95 mb-px">
+            今
+          </button>
         </div>
 
-        <!-- 今の時刻ボタン -->
-        <button onclick="setTodayLive()" class="w-full bg-gray-700 hover:bg-gray-600 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1">
-          <span class="material-icons text-sm">update</span>現在時刻を設定
-        </button>
-
-        <!-- 黒板色 -->
-        <div>
-          <label class="block text-xs font-bold text-gray-400 mb-1">黒板の色</label>
-          <select onchange="S.boardColor=this.value;"
-            class="w-full p-1.5 bg-gray-800 border border-gray-600 rounded-lg text-xs text-white focus:outline-none">
-            <option value="green">緑（標準）</option>
-            <option value="black">黒板（黒）</option>
-            <option value="white">ホワイトボード</option>
-            <option value="blue">青（現場用）</option>
-          </select>
-        </div>
-
-        <!-- 黒板サイズ -->
-        <div>
-          <label class="block text-xs font-bold text-gray-400 mb-1">黒板の大きさ</label>
-          <div class="grid grid-cols-3 gap-1">
-            <button onclick="setLiveBoardSize('xs')" data-lsize="xs" class="live-size-btn bg-gray-700 text-xs py-1 rounded-lg font-bold">極小</button>
-            <button onclick="setLiveBoardSize('s')"  data-lsize="s"  class="live-size-btn bg-gray-700 text-xs py-1 rounded-lg font-bold">小</button>
-            <button onclick="setLiveBoardSize('sm')" data-lsize="sm" class="live-size-btn bg-gray-700 text-xs py-1 rounded-lg font-bold">小＋</button>
-            <button onclick="setLiveBoardSize('m')"  data-lsize="m"  class="live-size-btn bg-blue-600 text-xs py-1 rounded-lg font-bold">中</button>
-            <button onclick="setLiveBoardSize('ml')" data-lsize="ml" class="live-size-btn bg-gray-700 text-xs py-1 rounded-lg font-bold">中＋</button>
-            <button onclick="setLiveBoardSize('l')"  data-lsize="l"  class="live-size-btn bg-gray-700 text-xs py-1 rounded-lg font-bold">大</button>
-          </div>
-        </div>
-
-        <!-- 黒板位置 -->
-        <div>
-          <label class="block text-xs font-bold text-gray-400 mb-1">黒板の位置</label>
-          <div class="grid grid-cols-2 gap-1">
-            <button onclick="S.boardPos='left';S.boardOffsetX=null;S.boardOffsetY=null;" class="bg-gray-700 hover:bg-gray-600 text-xs py-1.5 rounded-lg font-bold">◀ 左下</button>
-            <button onclick="S.boardPos='right';S.boardOffsetX=null;S.boardOffsetY=null;" class="bg-gray-700 hover:bg-gray-600 text-xs py-1.5 rounded-lg font-bold">右下 ▶</button>
-          </div>
-        </div>
-
-      </div><!-- /settings form -->
-
-      <!-- Shutter area at bottom of left panel -->
-      <div class="p-3 border-t border-gray-700 bg-gray-800 flex items-center justify-center">
-        <button onclick="captureFromLive()"
-          class="w-16 h-16 rounded-full bg-white border-4 border-gray-300 shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
-          style="box-shadow:0 0 0 5px rgba(255,255,255,0.2)">
-          <span class="material-icons text-3xl text-gray-800">camera</span>
-        </button>
       </div>
-
-    </div><!-- /left panel -->
-
-    <!-- ===== Right: Viewfinder ===== -->
-    <div class="flex-1 relative bg-black overflow-hidden flex items-center justify-center">
-      <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-contain"></video>
-      <canvas id="liveOverlay" class="absolute inset-0 w-full h-full" style="pointer-events:none"></canvas>
-      <div id="liveFlash" class="absolute inset-0 bg-white pointer-events-none" style="opacity:0;transition:opacity 0.25s"></div>
-      <div class="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded font-bold">黒板オーバーレイ表示中</div>
     </div>
+  </div><!-- /drawer -->
 
-  </div><!-- /flex layout -->
-</div><!-- /modal -->
+</div><!-- /liveCameraModal -->
 
 </body>
 </html>
