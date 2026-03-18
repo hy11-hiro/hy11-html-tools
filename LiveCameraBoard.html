@@ -29,15 +29,15 @@
     #canvasWrap.drag-mode #mainCanvas{cursor:grab}
     #canvasWrap.drag-mode #mainCanvas:active{cursor:grabbing}
     /* バッチリスト */
-    #batchListContainer{max-height:240px;overflow-y:auto}
-    #batchListContainer table{width:100%;border-collapse:collapse;font-size:.78rem}
-    #batchListContainer th{background:#f8fafc;position:sticky;top:0;z-index:1;padding:4px 5px;border-bottom:2px solid #e2e8f0;text-align:left;font-size:.72rem}
-    #batchListContainer td{padding:3px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    #batchListContainer{max-height:240px;overflow-y:auto;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    #batchListContainer table{border-collapse:collapse;font-size:.78rem;min-width:480px;width:100%}
+    #batchListContainer th{background:#f8fafc;position:sticky;top:0;z-index:1;padding:4px 5px;border-bottom:2px solid #e2e8f0;text-align:left;font-size:.72rem;white-space:nowrap}
+    #batchListContainer td{padding:3px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle;white-space:nowrap}
     #batchListContainer tr.active-row td{background:#dbeafe}
     .bin{padding:2px 6px;font-size:.72rem;border-radius:4px;cursor:pointer;border:0;font-weight:bold}
     /* グループ行 */
-    .grp-row{display:flex;gap:4px;align-items:center;background:white;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;margin-bottom:4px}
-    .grp-row input[type=date]{padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:.8rem;font-weight:bold}
+    .grp-row{display:flex;gap:4px;align-items:center;background:white;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;margin-bottom:4px;flex-wrap:nowrap;min-width:0}
+    .grp-row input[type=date]{padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:.8rem;font-weight:bold;min-width:0;flex:1}
     .grp-row input[type=time]{
       padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;
       font-size:.85rem;font-weight:bold;
@@ -502,10 +502,10 @@
         <div class="mt-2 bg-white rounded-lg p-2 border border-gray-200">
           <div class="text-xs font-bold text-gray-600 mb-1.5">⏱ 間隔（分）— ランダム範囲</div>
           <div class="flex items-center gap-2">
-            <input type="number" id="intervalMin" value="40" min="1" class="flex-1 p-1.5 border border-gray-300 rounded text-sm font-bold text-center" />
-            <span class="text-gray-500 font-bold text-sm">〜</span>
-            <input type="number" id="intervalMax" value="45" min="1" class="flex-1 p-1.5 border border-gray-300 rounded text-sm font-bold text-center" />
-            <span class="text-gray-400 text-xs">分</span>
+            <input type="number" id="intervalMin" value="40" min="1" class="w-0 flex-1 p-1.5 border border-gray-300 rounded text-sm font-bold text-center min-w-0" />
+            <span class="text-gray-500 font-bold text-sm flex-shrink-0">〜</span>
+            <input type="number" id="intervalMax" value="45" min="1" class="w-0 flex-1 p-1.5 border border-gray-300 rounded text-sm font-bold text-center min-w-0" />
+            <span class="text-gray-400 text-xs flex-shrink-0">分</span>
           </div>
           <div class="text-xs text-gray-400 mt-1">同じ値=固定間隔</div>
         </div>
@@ -597,14 +597,17 @@ function getBoardColors() {
 // ★ 6段階サイズ
 const SIZE_RATIOS = {xs:.26, s:.31, sm:.37, m:.44, ml:.50, l:.56};
 
-function getBoardDimensions() {
-  const cw = canvas.width, ch = canvas.height;
+function getBoardDimensions(overrideW, overrideH) {
+  // overrideW/H を渡すとライブカメラ用に使う（canvas を汚さない）
+  const cw = overrideW ?? canvas.width;
+  const ch = overrideH ?? canvas.height;
   const r  = SIZE_RATIOS[S.boardSize] ?? .44;
-  const bw = cw * r, bh = ch * r;
+  // 黒板の幅は写真幅の r 倍、高さは常に 4:3 固定（伸びない）
+  const bw = cw * r;
+  const bh = bw * 0.75;   // ← 常に 4:3
 
   let bx, by;
-  if (S.boardOffsetX !== null && S.boardOffsetY !== null) {
-    // ドラッグ位置（境界クランプ）
+  if (overrideW == null && S.boardOffsetX !== null && S.boardOffsetY !== null) {
     bx = Math.max(0, Math.min(cw - bw, S.boardOffsetX));
     by = Math.max(0, Math.min(ch - bh, S.boardOffsetY));
   } else {
@@ -1321,11 +1324,8 @@ function drawBoardOnLiveCanvas(liveOverlay, liveCtx) {
   const vh = liveOverlay.height;
   liveCtx.clearRect(0, 0, vw, vh);
   if (!S.showBoard) return;
-  // Temporarily set canvas dimensions for getBoardDimensions() calculation
-  const savedW = canvas.width, savedH = canvas.height;
-  canvas.width = vw; canvas.height = vh;
-  const {bx, by, bw, bh} = getBoardDimensions();
-  canvas.width = savedW; canvas.height = savedH;
+  // canvas を汚さずに overrideW/H で黒板位置を計算
+  const {bx, by, bw, bh} = getBoardDimensions(vw, vh);
   const c = getBoardColors();
   drawBlackboard(liveCtx, bx, by, bw, bh, c);
   drawTextOnBoard(liveCtx, bx, by, bw, bh, c);
@@ -1410,31 +1410,42 @@ function closeLiveCamera() {
 
 function captureFromLive() {
   const {liveVideo} = getLiveCameraElements();
-  const vw = liveVideo.videoWidth || 1280;
-  const vh = liveVideo.videoHeight || 720;
+  // 出力を4:3固定にする（プレビューと同じ比率）
+  const liveInner = document.getElementById('liveVideoInner');
+  const rect = liveInner ? liveInner.getBoundingClientRect() : null;
+  const outW = rect ? Math.round(rect.width * (window.devicePixelRatio || 2)) : 1920;
+  const outH = Math.round(outW * 3 / 4);
+
   const capCanvas = document.createElement('canvas');
-  capCanvas.width = vw; capCanvas.height = vh;
+  capCanvas.width = outW; capCanvas.height = outH;
   const capCtx = capCanvas.getContext('2d');
-  capCtx.drawImage(liveVideo, 0, 0, vw, vh);
+
+  // 動画を4:3にトリム（object-fit:cover と同じ）
+  const vw = liveVideo.videoWidth || 1280, vh = liveVideo.videoHeight || 720;
+  const srcR = vw / vh, dstR = outW / outH;
+  let sx = 0, sy = 0, sw = vw, sh = vh;
+  if (srcR > dstR) { sw = vh * dstR; sx = (vw - sw) / 2; }
+  else             { sh = vw / dstR; sy = (vh - sh) / 2; }
+  capCtx.drawImage(liveVideo, sx, sy, sw, sh, 0, 0, outW, outH);
+
+  // 黒板を描画（overrideW/Hで計算するので canvas を汚さない）
   if (S.showBoard) {
-    const savedW = canvas.width, savedH = canvas.height;
-    canvas.width = vw; canvas.height = vh;
-    const {bx, by, bw, bh} = getBoardDimensions();
-    canvas.width = savedW; canvas.height = savedH;
+    const {bx, by, bw, bh} = getBoardDimensions(outW, outH);
     const c = getBoardColors();
     drawBlackboard(capCtx, bx, by, bw, bh, c);
     drawTextOnBoard(capCtx, bx, by, bw, bh, c);
   }
+
   // Flash
   const flash = document.getElementById('liveFlash');
   flash.style.opacity = '1';
-  setTimeout(() => { flash.style.opacity = '0'; }, 250);
+  setTimeout(() => { flash.style.opacity = '0'; }, 160);
 
   capCanvas.toBlob(blob => {
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
-      canvas.width = vw; canvas.height = vh;
+      canvas.width = outW; canvas.height = outH;
       S.image = img;
       S.boardOffsetX = null; S.boardOffsetY = null;
       draw();
@@ -1613,21 +1624,24 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 /*
   ── VIDEO WRAPPER ──
-  Top bar ≈ 36px, bottom bar ≈ 48px → available height = 100vh - 84px
-  Inner box: height = available, width = height * 4/3
-  Capped at 100vw to never overflow horizontally.
+  Top 36px + Bottom 48px = 84px consumed by bars.
+  Inner box: always 4:3, fits within remaining space.
 */
 #liveVideoWrap {
-  position: absolute; inset: 0;
+  position: absolute;
+  top: 36px; bottom: 48px; left: 0; right: 0;
   display: flex; align-items: center; justify-content: center;
   background: #000;
 }
 #liveVideoInner {
   position: relative;
-  height: calc(100vh - 84px);
-  width: calc((100vh - 84px) * 4 / 3);
-  max-width: 100vw;
-  max-height: calc(100vw * 3 / 4);
+  aspect-ratio: 4 / 3;
+  /* Height-limited: shrink to fit vertically */
+  height: 100%;
+  width: auto;
+  /* Width-limited: never exceed screen width */
+  max-width: 100%;
+  max-height: 100%;
   overflow: hidden;
   background: #000;
 }
