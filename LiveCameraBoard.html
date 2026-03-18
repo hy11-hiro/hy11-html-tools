@@ -1578,63 +1578,71 @@ document.addEventListener('DOMContentLoaded',()=>{
   setToday();
 });
 </script>
-<!-- ===== LIVE CAMERA MODAL ===== -->
+<!-- ===== LIVE CAMERA MODAL v16 ===== -->
 <style>
 #liveCameraModal { font-family:'M PLUS Rounded 1c',sans-serif; }
 
-/* ── inputs in drawer ── */
-#liveCameraModal .lci {
-  background:rgba(255,255,255,0.10);
-  border:1px solid rgba(255,255,255,0.22);
-  color:#fff; border-radius:6px; padding:4px 7px;
-  font-size:13px; box-sizing:border-box; width:100%;
+/* ── tiny drawer inputs ── */
+.lci {
+  background:rgba(255,255,255,0.12);
+  border:1px solid rgba(255,255,255,0.2);
+  color:#fff; border-radius:5px;
+  padding:3px 6px; font-size:12px;
+  box-sizing:border-box; width:100%;
   font-family:'M PLUS Rounded 1c',sans-serif;
-  -webkit-appearance:none;
+  -webkit-appearance:none; height:26px;
 }
-#liveCameraModal .lci::placeholder { color:rgba(255,255,255,0.35); }
-#liveCameraModal .lci:focus { outline:none; border-color:rgba(96,165,250,0.9); background:rgba(255,255,255,0.15); }
+.lci::placeholder { color:rgba(255,255,255,0.3); }
+.lci:focus { outline:none; border-color:rgba(96,165,250,0.9); background:rgba(255,255,255,0.18); }
 
 /* ── drawer slide ── */
-#liveSettingsDrawer { transition:transform 0.24s cubic-bezier(.4,0,.2,1); }
-#liveSettingsDrawer.drawer-hidden { transform:translateY(calc(100% + 120px)); }
+#liveSettingsDrawer { transition:transform 0.22s cubic-bezier(.4,0,.2,1); }
+#liveSettingsDrawer.drawer-hidden { transform:translateY(200px); pointer-events:none; }
 
-/* ── board size pills ── */
-.lsp { padding:3px 8px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.3);
-       font-size:11px; font-weight:700; color:rgba(255,255,255,0.75); cursor:pointer;
-       background:rgba(0,0,0,0.35); white-space:nowrap; flex-shrink:0; }
+/* ── size pills ── */
+.lsp { padding:2px 7px; border-radius:999px;
+       border:1.5px solid rgba(255,255,255,0.28);
+       font-size:10px; font-weight:700;
+       color:rgba(255,255,255,0.72); cursor:pointer;
+       background:rgba(0,0,0,0.38); white-space:nowrap; flex-shrink:0; }
 .lsp.lsp-on { background:#1d4ed8; border-color:#60a5fa; color:#fff; }
 
-/* ── rotate hint spin ── */
+/* ── rotate spin ── */
 @keyframes lspin { from{transform:rotate(0)} to{transform:rotate(360deg)} }
 .live-spin { animation:lspin 1.8s linear infinite; }
 
-/* ── video wrapper: 4:3 box centered ── */
+/*
+  ── VIDEO WRAPPER ──
+  Top bar ≈ 36px, bottom bar ≈ 48px → available height = 100vh - 84px
+  Inner box: height = available, width = height * 4/3
+  Capped at 100vw to never overflow horizontally.
+*/
 #liveVideoWrap {
-  position:absolute; inset:0;
-  display:flex; align-items:center; justify-content:center;
-  background:#000;
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: #000;
 }
 #liveVideoInner {
-  position:relative;
-  /* 4:3 aspect ratio, fits within the screen */
-  aspect-ratio: 4/3;
-  width:100%; height:100%;
-  max-width: calc(100vh * 4 / 3);
+  position: relative;
+  height: calc(100vh - 84px);
+  width: calc((100vh - 84px) * 4 / 3);
+  max-width: 100vw;
   max-height: calc(100vw * 3 / 4);
-  overflow:hidden;
-  flex-shrink:0;
+  overflow: hidden;
+  background: #000;
 }
-#liveVideo { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+#liveVideo   { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
 #liveOverlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 </style>
 
 <div id="liveCameraModal" class="hidden fixed inset-0 z-[9999] bg-black" style="touch-action:none">
 
-  <!-- Portrait warning -->
-  <div id="liveRotateHint" class="hidden absolute inset-0 z-50 bg-black/92 flex-col items-center justify-center gap-5">
-    <span class="material-icons text-white live-spin" style="font-size:60px">screen_rotation</span>
+  <!-- Portrait hint -->
+  <div id="liveRotateHint" class="hidden absolute inset-0 z-50 bg-black/93 flex-col items-center justify-center gap-4">
+    <span class="material-icons text-white live-spin" style="font-size:56px">screen_rotation</span>
     <p class="text-white font-bold text-base text-center">端末を横向きにしてください</p>
-    <button onclick="closeLiveCamera()" class="mt-1 border border-white/30 text-white/80 px-5 py-2 rounded-xl text-sm font-bold bg-white/10">閉じる</button>
+    <button onclick="closeLiveCamera()"
+      class="mt-1 border border-white/30 text-white/80 px-5 py-2 rounded-xl text-sm font-bold bg-white/10">閉じる</button>
   </div>
 
   <!-- 4:3 video box -->
@@ -1647,37 +1655,38 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   <!-- Flash -->
   <div id="liveFlash" class="absolute inset-0 bg-white pointer-events-none z-40"
-       style="opacity:0;transition:opacity 0.18s"></div>
+       style="opacity:0;transition:opacity 0.16s"></div>
 
-  <!-- ── TOP BAR ── -->
-  <div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3 py-2"
-       style="background:linear-gradient(to bottom,rgba(0,0,0,0.55) 0%,transparent 100%)">
+  <!-- ── TOP BAR (height≈36px) ── -->
+  <div class="absolute top-0 left-0 right-0 z-20 flex items-center justify-between px-3"
+       style="height:36px;background:linear-gradient(to bottom,rgba(0,0,0,0.6),transparent)">
     <button onclick="closeLiveCamera()"
-      class="flex items-center gap-1 text-white text-xs font-bold bg-black/40 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-white/20 active:scale-95">
-      <span class="material-icons text-sm">close</span>閉じる
+      class="flex items-center gap-0.5 text-white font-bold bg-black/40 px-2 py-1 rounded-lg border border-white/20 active:scale-95"
+      style="font-size:11px">
+      <span class="material-icons" style="font-size:14px">close</span>閉じる
     </button>
-    <div class="flex items-center gap-1.5 bg-black/35 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-white/20">
+    <div class="flex items-center gap-1 bg-black/35 px-2 py-1 rounded-lg border border-white/20">
       <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse block"></span>
-      <span class="text-white text-xs font-bold tracking-widest">LIVE</span>
+      <span class="text-white font-bold tracking-widest" style="font-size:10px">LIVE</span>
     </div>
     <button onclick="switchLiveCamera()"
-      class="flex items-center gap-1 text-white text-xs font-bold bg-black/40 backdrop-blur-sm px-2.5 py-1.5 rounded-lg border border-white/20 active:scale-95">
-      <span class="material-icons text-sm">flip_camera_ios</span>切替
+      class="flex items-center gap-0.5 text-white font-bold bg-black/40 px-2 py-1 rounded-lg border border-white/20 active:scale-95"
+      style="font-size:11px">
+      <span class="material-icons" style="font-size:14px">flip_camera_ios</span>切替
     </button>
   </div>
 
-  <!-- ── BOTTOM BAR ── -->
-  <div class="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-2.5 px-3 pb-2 pt-5"
-       style="background:linear-gradient(to top,rgba(0,0,0,0.6) 0%,transparent 100%)">
+  <!-- ── BOTTOM BAR (height≈48px) ── -->
+  <div class="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-2 px-3"
+       style="height:48px;background:linear-gradient(to top,rgba(0,0,0,0.65),transparent)">
 
-    <!-- Settings toggle -->
-    <button onclick="toggleLiveSettings()"
-      class="flex flex-col items-center gap-0.5 active:scale-90 flex-shrink-0">
+    <!-- ⚙ Settings -->
+    <button onclick="toggleLiveSettings()" class="flex flex-col items-center active:scale-90 flex-shrink-0" style="gap:2px">
       <div id="liveSettingsIconWrap"
-        class="w-8 h-8 rounded-full bg-black/45 backdrop-blur-sm border border-white/25 flex items-center justify-center text-white">
-        <span class="material-icons" style="font-size:18px">tune</span>
+        class="w-7 h-7 rounded-full bg-black/45 border border-white/25 flex items-center justify-center text-white">
+        <span class="material-icons" style="font-size:15px">tune</span>
       </div>
-      <span class="text-white font-bold opacity-75" style="font-size:9px">設定</span>
+      <span class="text-white font-bold opacity-70" style="font-size:8px">設定</span>
     </button>
 
     <!-- Size pills -->
@@ -1690,90 +1699,93 @@ document.addEventListener('DOMContentLoaded',()=>{
       <button onclick="setLiveBoardSize('l')"  data-lsize="l"  class="lsp">大</button>
     </div>
 
-    <!-- SHUTTER -->
-    <button onclick="captureFromLive()"
-      class="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-      style="border:3px solid rgba(255,255,255,0.9);box-shadow:0 0 0 2px rgba(255,255,255,0.2)">
-      <div class="w-9 h-9 rounded-full bg-white"></div>
+    <!-- Shutter -->
+    <button onclick="captureFromLive()" class="flex-shrink-0 rounded-full active:scale-90 transition-transform"
+      style="width:44px;height:44px;border:3px solid rgba(255,255,255,0.88);box-shadow:0 0 0 2px rgba(255,255,255,0.18)">
+      <div class="w-full h-full rounded-full bg-white" style="transform:scale(0.74)"></div>
     </button>
 
-    <!-- Pos toggle -->
-    <button onclick="toggleLiveBoardPos()"
-      class="flex flex-col items-center gap-0.5 active:scale-90 flex-shrink-0">
-      <div class="w-8 h-8 rounded-full bg-black/45 backdrop-blur-sm border border-white/25 flex items-center justify-center text-white">
-        <span id="livePosIcon" class="material-icons" style="font-size:18px">align_horizontal_right</span>
+    <!-- Pos -->
+    <button onclick="toggleLiveBoardPos()" class="flex flex-col items-center active:scale-90 flex-shrink-0" style="gap:2px">
+      <div class="w-7 h-7 rounded-full bg-black/45 border border-white/25 flex items-center justify-center text-white">
+        <span id="livePosIcon" class="material-icons" style="font-size:15px">align_horizontal_right</span>
       </div>
-      <span class="text-white font-bold opacity-75" style="font-size:9px">位置</span>
+      <span class="text-white font-bold opacity-70" style="font-size:8px">位置</span>
     </button>
-
   </div>
 
-  <!-- ── SETTINGS DRAWER ── compact single-row layout -->
-  <div id="liveSettingsDrawer" class="drawer-hidden absolute left-0 right-0 z-30"
-       style="bottom:52px">
-    <div style="margin:0 6px;border-radius:14px;overflow:hidden;background:rgba(5,5,15,0.82);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.12)">
+  <!-- ── SETTINGS DRAWER ── super compact, sits just above bottom bar ── -->
+  <div id="liveSettingsDrawer" class="drawer-hidden absolute left-0 right-0 z-30" style="bottom:48px">
+    <div style="margin:0 6px 4px;border-radius:12px;
+                background:rgba(8,8,20,0.88);backdrop-filter:blur(18px);
+                border:1px solid rgba(255,255,255,0.13);overflow:hidden">
 
-      <!-- Header row: title + 完了ボタン -->
-      <div class="flex items-center justify-between px-3 py-2 border-b" style="border-color:rgba(255,255,255,0.1)">
-        <div class="flex items-center gap-1.5">
-          <div class="w-6 h-0.5 rounded-full bg-white/25 mx-auto"></div>
-          <span class="text-white/60 text-xs font-bold">黒板テキスト</span>
+      <!-- Drawer header: label left, 完了+閉じる right -->
+      <div class="flex items-center justify-between px-3"
+           style="height:34px;border-bottom:1px solid rgba(255,255,255,0.09)">
+        <span class="text-white font-bold" style="font-size:10px;opacity:.55">黒板テキスト編集</span>
+        <div class="flex items-center gap-2">
+          <!-- 完了: キーボード閉じる -->
+          <button onclick="dismissLiveKeyboard()"
+            class="text-blue-400 font-bold px-2.5 py-0.5 rounded-md border border-blue-500/35 bg-blue-600/15 active:scale-95"
+            style="font-size:11px">完了</button>
+          <!-- ✕ 設定ドロワーを閉じる -->
+          <button onclick="toggleLiveSettings()"
+            class="flex items-center gap-0.5 text-white/70 font-bold px-2 py-0.5 rounded-md border border-white/20 bg-white/10 active:scale-95"
+            style="font-size:11px">
+            <span class="material-icons" style="font-size:12px">close</span>閉じる
+          </button>
         </div>
-        <!-- 完了ボタン: キーボード閉じる -->
-        <button onclick="dismissLiveKeyboard()"
-          class="text-blue-400 text-sm font-bold px-3 py-1 rounded-lg bg-blue-500/15 border border-blue-500/30 active:scale-95">
-          完了
-        </button>
       </div>
 
-      <!-- 1行レイアウト: 全フィールドを横並び -->
-      <div class="flex items-end gap-2 px-3 py-2.5">
+      <!-- Single row of fields -->
+      <div class="flex items-center gap-2 px-3" style="padding-top:6px;padding-bottom:8px">
 
         <!-- 工事件名 -->
-        <div style="flex:2">
-          <div class="text-white/45 mb-1" style="font-size:9px;font-weight:700">工事件名</div>
+        <div style="flex:2.2">
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:2px">工事件名</div>
           <input type="text" id="liveInputProject" placeholder="○○新築工事" class="lci"
             oninput="S.text.project=this.value;syncLiveToMain('inputProject',this.value);" />
         </div>
 
         <!-- 工事場所 -->
-        <div style="flex:2">
-          <div class="text-white/45 mb-1" style="font-size:9px;font-weight:700">工事場所</div>
+        <div style="flex:2.2">
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:2px">工事場所</div>
           <input type="text" id="liveInputWorkType" placeholder="1階エントランス" class="lci"
             oninput="S.text.workType=this.value;syncLiveToMain('inputWorkType',this.value);" />
         </div>
 
         <!-- 備考 -->
-        <div style="flex:2">
-          <div class="text-white/45 mb-1" style="font-size:9px;font-weight:700">備考</div>
+        <div style="flex:2.2">
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:2px">備考</div>
           <input type="text" id="liveInputMemo" placeholder="埋設ガラ状況" class="lci"
             oninput="S.text.memo=this.value;syncLiveToMain('inputMemo',this.value);" />
         </div>
 
         <!-- 日付 -->
-        <div style="flex:1.6">
-          <div class="text-white/45 mb-1" style="font-size:9px;font-weight:700">日付</div>
+        <div style="flex:1.8">
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:2px">日付</div>
           <input type="date" id="liveInputDate" class="lci"
             oninput="S.text.date=this.value.replace(/-/g,'/');syncLiveToMain('inputDate',this.value);" />
         </div>
 
         <!-- 時刻 -->
-        <div style="flex:1.2">
-          <div class="text-white/45 mb-1" style="font-size:9px;font-weight:700">時刻</div>
+        <div style="flex:1.3">
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:2px">時刻</div>
           <input type="time" id="liveInputTime" class="lci"
             oninput="S.text.time=this.value;syncLiveToMain('inputTime',this.value);" />
         </div>
 
         <!-- 今ボタン -->
         <button onclick="setTodayLive()"
-          class="flex-shrink-0 text-white text-xs font-bold border border-white/25 rounded-lg px-2 active:scale-95"
-          style="background:rgba(255,255,255,0.1);padding-top:5px;padding-bottom:5px;align-self:flex-end;margin-bottom:0">
+          class="flex-shrink-0 text-white font-bold border border-white/22 rounded-md active:scale-95"
+          style="font-size:10px;background:rgba(255,255,255,0.1);padding:3px 7px;align-self:flex-end;margin-bottom:0">
           今
         </button>
 
       </div>
     </div>
-  </div><!-- /drawer -->
+  </div>
 
 </div><!-- /liveCameraModal -->
 
