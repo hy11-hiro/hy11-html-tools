@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>OHD Blackboard Editor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&family=Kosugi+Maru&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    body { font-family:'M PLUS Rounded 1c',sans-serif; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+    .canvas-bg {
+      background-image:repeating-linear-gradient(45deg,#e5e7eb 25%,transparent 25%,transparent 75%,#e5e7eb 75%,#e5e7eb),
+                       repeating-linear-gradient(45deg,#e5e7eb 25%,#f3f4f6 25%,#f3f4f6 75%,#e5e7eb 75%,#e5e7eb);
+      background-position:0 0,10px 10px; background-size:20px 20px;
+    }
+    input[type=range]{height:34px;-webkit-appearance:none;width:100%;background:transparent;cursor:pointer}
+    input[type=range]::-webkit-slider-runnable-track{height:8px;background:#cbd5e1;border-radius:4px}
+    input[type=range]::-webkit-slider-thumb{height:26px;width:26px;border-radius:50%;background:#2563eb;-webkit-appearance:none;margin-top:-9px;box-shadow:0 2px 4px rgba(0,0,0,.4);border:2px solid white}
+    .tab-active{background-color:#1e40af!important;color:white!important}
+    .btn-pos-active{background-color:#d1fae5!important;border-color:#059669!important;color:#065f46!important;font-weight:bold}
+    button:active{transform:scale(0.96)}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+    .sr-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;opacity:0}
+    /* drag hint */
+    #canvasWrap.drag-mode #mainCanvas{cursor:grab}
+    #canvasWrap.drag-mode #mainCanvas:active{cursor:grabbing}
+    /* バッチリスト */
+    #batchListContainer{max-height:240px;overflow-y:auto}
+    #batchListContainer table{width:100%;border-collapse:collapse;font-size:.78rem}
+    #batchListContainer th{background:#f8fafc;position:sticky;top:0;z-index:1;padding:4px 5px;border-bottom:2px solid #e2e8f0;text-align:left;font-size:.72rem}
+    #batchListContainer td{padding:3px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    #batchListContainer tr.active-row td{background:#dbeafe}
+    .bin{padding:2px 6px;font-size:.72rem;border-radius:4px;cursor:pointer;border:0;font-weight:bold}
+    /* グループ行 */
+    .grp-row{display:flex;gap:4px;align-items:center;background:white;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;margin-bottom:4px}
+    .grp-row input[type=date]{padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;font-size:.8rem;font-weight:bold}
+    .grp-row input[type=time]{
+      padding:4px 6px;border:1px solid #cbd5e1;border-radius:5px;
+      font-size:.85rem;font-weight:bold;
+      width:82px;min-width:82px;flex-shrink:0;
+      /* ブラウザの⌚アイコンを非表示 */
+      -webkit-appearance:none;
+    }
+    .grp-row input[type=time]::-webkit-calendar-picker-indicator{display:none}
+    .grp-row input[type=number]{width:48px;padding:4px 4px;border:1px solid #cbd5e1;border-radius:5px;font-size:.8rem;font-weight:bold;text-align:center}
+    /* サイズ選択 pill */
+    .size-pill{display:inline-flex;align-items:center;padding:5px 10px;border:2px solid #cbd5e1;border-radius:999px;cursor:pointer;font-size:.78rem;font-weight:bold;user-select:none;transition:.12s;background:white;color:#374151}
+    .size-pill.active{border-color:#2563eb;background:#dbeafe;color:#1e40af}
+    /* 簡単入力支援サブタブ */
+    .sub-tab-active{background-color:#dbeafe!important;color:#1e40af!important;border-bottom:3px solid #2563eb!important;font-weight:bold}
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900 pb-24">
+
+<header class="bg-slate-800 text-white px-4 py-3 sticky top-0 z-50 shadow-lg flex items-center justify-between">
+  <h1 class="text-base font-bold flex items-center gap-2">
+    <span class="material-icons text-xl">construction</span>OHD Blackboard Editor
+  </h1>
+  <span id="currentFileLabel" class="text-xs bg-slate-600 px-2 py-1 rounded-full truncate max-w-[180px]">画像未選択</span>
+</header>
+
+<div class="max-w-6xl mx-auto px-3 mt-4 flex flex-col lg:flex-row gap-5">
+
+  <!-- ===== 左列: キャンバスエリア ===== -->
+  <div class="w-full lg:w-3/5 flex flex-col gap-3">
+
+    <!-- ドロップゾーン -->
+    <div id="dropZone" class="border-4 border-dashed border-gray-300 rounded-2xl p-3 bg-white relative hover:border-blue-400 transition-colors">
+      <div id="dragOverlay" class="absolute inset-0 bg-blue-50/90 hidden items-center justify-center rounded-xl z-10 pointer-events-none">
+        <span class="text-xl font-bold text-blue-600 flex items-center gap-2"><span class="material-icons text-3xl">add_photo_alternate</span>ここにドロップ</span>
+      </div>
+      <input type="file" id="fileInput"   accept="image/*" class="sr-input" multiple />
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="sr-input" />
+      <div class="grid grid-cols-2 gap-3">
+        <button id="btnCamera" type="button" class="border-4 border-blue-400 rounded-2xl p-2 flex flex-col items-center h-20 bg-white hover:bg-blue-50 shadow-md">
+          <span class="material-icons text-3xl text-blue-600">photo_camera</span>
+          <span class="font-bold text-blue-800 text-xs mt-1">カメラ</span>
+        </button>
+        <button id="btnFile" type="button" class="border-4 border-gray-300 rounded-2xl p-2 flex flex-col items-center h-20 bg-white hover:bg-gray-50 shadow-md">
+          <span class="material-icons text-3xl text-gray-500">photo_library</span>
+          <span class="font-bold text-gray-700 text-xs mt-1">アルバム/PC</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- キャンバス -->
+    <div id="canvasWrap" class="canvas-bg rounded-xl overflow-hidden border-2 border-gray-300 shadow-inner relative">
+      <div id="loading" class="hidden absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mb-2"></div>
+        <span class="font-bold text-gray-600">処理中...</span>
+      </div>
+      <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height:75vh"></canvas>
+    </div>
+
+    <!-- ドラッグモード トグル -->
+    <div class="flex items-center gap-3 bg-white rounded-xl px-4 py-2 border border-gray-200 shadow-sm">
+      <label class="flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" id="dragModeToggle" class="w-5 h-5 rounded text-blue-600" />
+        <span class="font-bold text-gray-700 text-sm flex items-center gap-1">
+          <span class="material-icons text-base text-blue-500">open_with</span>黒板をドラッグで移動
+        </span>
+      </label>
+      <button onclick="resetBoardPosition()" class="ml-auto text-xs text-gray-500 underline hover:text-gray-700">位置リセット</button>
+    </div>
+
+    <!-- 画像ナビ -->
+    <div id="imageNav" class="hidden items-center justify-between bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+      <button onclick="prevImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
+        <span class="material-icons text-base">arrow_back</span>前へ
+      </button>
+      <span class="font-bold"><span id="currentImageNum">1</span> / <span id="totalImageNum">1</span></span>
+      <button onclick="nextImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
+        次へ<span class="material-icons text-base">arrow_forward</span>
+      </button>
+    </div>
+
+    <!-- 保存・共有・一括DL -->
+    <div class="grid grid-cols-3 gap-3">
+      <button id="btnDownload" class="bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg flex flex-col items-center border-b-4 border-blue-800 hover:bg-blue-700 gap-1">
+        <span class="material-icons text-xl">download</span><span class="text-xs">端末に保存</span>
+      </button>
+      <button id="btnShare" class="bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg flex flex-col items-center border-b-4 border-green-800 hover:bg-green-700 gap-1">
+        <span class="material-icons text-xl">share</span><span class="text-xs">共有</span>
+      </button>
+      <button id="btnBulkDownload" class="bg-purple-600 text-white font-bold py-3 rounded-xl shadow-lg flex flex-col items-center border-b-4 border-purple-800 hover:bg-purple-700 gap-1">
+        <span class="material-icons text-xl">download_for_offline</span><span class="text-xs">一括保存</span>
+      </button>
+    </div>
+    <!-- 一括ZIP（サブオプション） -->
+    <div class="flex justify-end">
+      <button id="btnBulkZip" class="text-xs text-gray-400 underline hover:text-gray-600 flex items-center gap-1 py-1">
+        <span class="material-icons text-sm">folder_zip</span>ZIPでまとめてダウンロード（Windowsで警告が出る場合あり）
+      </button>
+    </div>
+    <div id="progressWrap" class="hidden">
+      <div class="text-xs text-gray-500 mb-1" id="progressLabel">処理中...</div>
+      <div class="w-full bg-gray-200 rounded-full h-2.5"><div id="progressFill" class="bg-blue-500 h-2.5 rounded-full transition-all" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- ===== 右列: 操作パネル ===== -->
+  <div class="w-full lg:w-2/5 flex flex-col gap-3">
+
+    <!-- タブ -->
+    <div class="flex rounded-xl overflow-hidden border-2 border-blue-600 bg-white shadow-md text-xs">
+      <button type="button" onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center tab-active">
+        <span class="material-icons text-lg">tune</span>設定
+      </button>
+      <button type="button" onclick="switchTab('site')" id="btn-tab-site" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300">
+        <span class="material-icons text-lg">business</span>現場
+      </button>
+      <button type="button" onclick="switchTab('content')" id="btn-tab-content" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300">
+        <span class="material-icons text-lg">edit_note</span>内容
+      </button>
+      <button type="button" onclick="switchTab('adjust')" id="btn-tab-adjust" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300">
+        <span class="material-icons text-lg">format_size</span>調整
+      </button>
+      <button type="button" onclick="switchTab('batch')" id="btn-tab-batch" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300 relative">
+        <span class="material-icons text-lg">list_alt</span>バッチ
+        <span id="batchBadge" class="hidden absolute top-0.5 right-0.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold leading-none">0</span>
+      </button>
+    </div>
+
+    <!-- ===== TAB: 設定 ===== -->
+    <div id="tab-settings" class="tab-content bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-4">
+
+      <!-- 黒板の位置 -->
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の位置</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="setBoardPos('left')"  id="pos-btn-left"  class="py-2.5 rounded-lg font-bold border-2 border-gray-300 bg-white hover:bg-gray-50 text-sm">◀ 左下</button>
+          <button type="button" onclick="setBoardPos('right')" id="pos-btn-right" class="py-2.5 rounded-lg font-bold border-2 border-gray-300 bg-white hover:bg-gray-50 text-sm btn-pos-active">右下 ▶</button>
+        </div>
+      </div>
+
+      <!-- 黒板の色 -->
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の色</label>
+        <select id="boardColor" class="w-full p-2.5 border-2 border-gray-300 rounded-lg font-bold text-gray-800 bg-gray-50 text-sm">
+          <option value="green">緑（標準）</option>
+          <option value="black">黒板（黒）</option>
+          <option value="white">ホワイトボード</option>
+          <option value="blue">青（現場用）</option>
+        </select>
+      </div>
+
+      <!-- 黒板サイズ — 6段階 pill -->
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の大きさ</label>
+        <div class="flex flex-wrap gap-2" id="sizePillGroup">
+          <span class="size-pill" data-size="xs">極小</span>
+          <span class="size-pill" data-size="s">小</span>
+          <span class="size-pill" data-size="sm">小＋</span>
+          <span class="size-pill active" data-size="m">中</span>
+          <span class="size-pill" data-size="ml">中＋</span>
+          <span class="size-pill" data-size="l">大</span>
+        </div>
+      </div>
+
+      <!-- 工種ラベル -->
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">工種ラベル</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-300 text-sm">
+            <input type="radio" name="labelType" value="worktype" class="text-blue-600"> <span class="font-bold">工種</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-300 text-sm">
+            <input type="radio" name="labelType" value="place" checked class="text-blue-600"> <span class="font-bold">工事場所</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- チェックボックス群 -->
+      <div class="space-y-2">
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" id="toggleBoard" class="w-5 h-5 rounded text-blue-600" checked />
+          <span class="font-bold text-gray-700 text-sm">黒板を表示する</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" id="showConstructor" class="w-5 h-5 rounded text-blue-600" />
+          <span class="font-bold text-gray-700 text-sm">施工者欄を表示する</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" id="showVehicleInMemo" class="w-5 h-5 rounded text-blue-600" checked />
+          <span class="font-bold text-gray-700 text-sm">備考に台数を表示</span>
+        </label>
+      </div>
+
+      <!-- ★ 日付・時間の表示場所（それぞれ独立） -->
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">日付・時間の表示設定</label>
+        <div class="space-y-3">
+
+          <!-- 日付 -->
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+            <div class="text-xs font-bold text-blue-700 mb-2">📅 日付の表示場所</div>
+            <div class="grid grid-cols-4 gap-1.5">
+              <label class="cursor-pointer">
+                <input type="radio" name="datePlace" value="right" class="hidden peer" checked />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-blue-600 peer-checked:bg-blue-100 peer-checked:text-blue-700">右下</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="datePlace" value="left" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-blue-600 peer-checked:bg-blue-100 peer-checked:text-blue-700">左下</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="datePlace" value="inline" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-blue-600 peer-checked:bg-blue-100 peer-checked:text-blue-700">備考下</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="datePlace" value="none" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-gray-500 peer-checked:bg-gray-100">なし</div>
+              </label>
+            </div>
+            <div class="mt-2">
+              <label class="block text-xs font-bold text-gray-500 mb-1">フォーマット</label>
+              <select id="dateFormatSelect" class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold bg-white">
+                <option value="md_jp"    selected>3月14日</option>
+                <option value="ymd_slash">2026/03/14</option>
+                <option value="ymd_jp"  >2026年3月14日</option>
+                <option value="md_slash">3/14</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 時間 -->
+          <div class="bg-green-50 border border-green-200 rounded-xl p-3">
+            <div class="text-xs font-bold text-green-700 mb-2">⏰ 時間の表示場所</div>
+            <div class="grid grid-cols-4 gap-1.5">
+              <label class="cursor-pointer">
+                <input type="radio" name="timePlace" value="right" class="hidden peer" checked />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">右下</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="timePlace" value="left" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">左下</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="timePlace" value="inline" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">備考下</div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="timePlace" value="none" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-gray-500 peer-checked:bg-gray-100">なし</div>
+              </label>
+            </div>
+            <div class="mt-2">
+              <label class="block text-xs font-bold text-gray-500 mb-1">フォーマット</label>
+              <select id="timeFormatSelect" class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold bg-white">
+                <option value="hm_jp"    selected>9時00分</option>
+                <option value="hm_colon" >9:00</option>
+                <option value="hm_colon0">09:00</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+        <div class="flex justify-end mt-2">
+          <button onclick="setToday()" class="bg-gray-200 px-2 py-1.5 rounded-lg text-xs hover:bg-gray-300 font-bold text-gray-700 flex items-center gap-1">
+            <span class="material-icons text-sm">update</span>現在時刻を設定
+          </button>
+        </div>
+        <div class="flex gap-2 mt-2">
+          <input type="date" id="inputDate" class="flex-1 p-2.5 border-2 border-gray-300 rounded-lg text-base font-bold text-gray-700" />
+          <input type="time" id="inputTime" class="w-24 p-2.5 border-2 border-gray-300 rounded-lg text-base font-bold text-gray-700" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: 現場 ===== -->
+    <div id="tab-site" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-3">
+      <h3 class="font-bold text-gray-800 border-b pb-2 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">business</span>現場情報
+      </h3>
+      <div>
+        <label class="block font-bold text-gray-700 mb-1 text-sm">工事件名</label>
+        <textarea id="inputProject" rows="2" placeholder="例: ○○マンション新築工事" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+      </div>
+      <div>
+        <label id="workTypeLabel" class="block font-bold text-gray-700 mb-1 text-sm">工事場所</label>
+        <textarea id="inputWorkType" rows="2" placeholder="例: 1階 エントランス" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="block font-bold text-gray-700 mb-1 text-sm">施工者名</label>
+        <input type="text" id="inputConstructor" value="ヒューマンヤード(株)" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700" />
+      </div>
+    </div>
+
+    <!-- ===== TAB: 内容 ===== -->
+    <div id="tab-content" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-3">
+      <h3 class="font-bold text-gray-800 border-b pb-2 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">edit_note</span>備考・内容
+      </h3>
+
+      <!-- ★ 簡単入力支援（参考HTMLから移植） -->
+      <div class="bg-blue-50 rounded-xl border-2 border-blue-100">
+        <button type="button" onclick="toggleEasyInput()" class="w-full p-3 text-sm font-bold text-blue-800 flex items-center justify-between">
+          <span class="flex items-center gap-1"><span class="material-icons text-sm">touch_app</span> 簡単入力支援</span>
+          <span id="easyInputIcon" class="material-icons text-blue-600">keyboard_arrow_down</span>
+        </button>
+
+        <div id="easyInputContent" class="hidden">
+          <!-- サブタブ -->
+          <div class="flex border-b border-blue-200">
+            <button type="button" onclick="switchSubTab('soil')" id="btn-sub-soil"
+              class="flex-1 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100 sub-tab-active">土砂・運搬</button>
+            <button type="button" onclick="switchSubTab('dimension')" id="btn-sub-dimension"
+              class="flex-1 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100">寸法・数値</button>
+          </div>
+
+          <!-- 土砂・運搬パネル -->
+          <div id="panel-soil" class="p-3">
+            <!-- 種類 -->
+            <div class="flex flex-wrap gap-2 mb-2">
+              <label class="flex-1 min-w-[80px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="soilType" value="残土搬出" class="hidden peer" checked />
+                <span class="text-sm font-bold text-gray-700 peer-checked:text-blue-700">残土搬出</span>
+              </label>
+              <label class="flex-1 min-w-[80px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="soilType" value="客土搬入" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-700 peer-checked:text-blue-700">客土搬入</span>
+              </label>
+              <label class="inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-gray-200 hover:bg-gray-50 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="soilType" value="" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-gray-900">なし</span>
+              </label>
+            </div>
+            <!-- 積載量 -->
+            <div class="flex flex-wrap gap-2 mb-3">
+              <span class="text-xs font-bold text-gray-600 flex items-center">積載:</span>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="2t" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">2t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="3t" class="hidden peer" checked />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">3t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="4t" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">4t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="8t" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">8t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600">なし</span>
+              </label>
+            </div>
+            <!-- 台数カウンター -->
+            <div class="flex items-center gap-2">
+              <div class="flex items-center border-2 border-gray-300 rounded-lg bg-white overflow-hidden flex-1">
+                <button type="button" onclick="changeCounter(-1)" class="px-4 py-2.5 bg-gray-50 hover:bg-gray-200 text-gray-700 border-r border-gray-200 w-14 flex justify-center">
+                  <span class="material-icons">remove</span>
+                </button>
+                <span id="counterValue" class="flex-1 py-2 font-extrabold text-2xl text-center text-gray-800">1</span>
+                <button type="button" onclick="changeCounter(1)" class="px-4 py-2.5 bg-gray-50 hover:bg-gray-200 text-gray-700 border-l border-gray-200 w-14 flex justify-center">
+                  <span class="material-icons">add</span>
+                </button>
+              </div>
+              <span class="text-base font-bold text-gray-700 whitespace-nowrap">台目</span>
+            </div>
+          </div>
+
+          <!-- 寸法・数値パネル -->
+          <div id="panel-dimension" class="p-3 hidden">
+            <div class="mb-2">
+              <span class="text-xs font-bold text-gray-500 block mb-1">記号を選択</span>
+              <div class="flex flex-wrap gap-1.5">
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="T=" class="hidden peer" checked />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">T=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="W=" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">W=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="H=" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">H=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="L=" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">L=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="@" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">@</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="φ" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">φ</span>
+                </label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <span class="text-xs font-bold text-gray-500 block mb-1">数値を入力</span>
+              <input type="number" id="dimValue" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-xl font-bold text-center mb-2" placeholder="0" />
+              <div class="grid grid-cols-4 gap-1.5">
+                <button type="button" onclick="adjustDimValue(-100)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">-100</button>
+                <button type="button" onclick="adjustDimValue(-10)"  class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">-10</button>
+                <button type="button" onclick="adjustDimValue(10)"   class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">+10</button>
+                <button type="button" onclick="adjustDimValue(100)"  class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">+100</button>
+              </div>
+            </div>
+            <button type="button" onclick="insertDimension()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg flex justify-center items-center gap-2 text-sm">
+              <span class="material-icons text-base">input</span>入力する
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 備考テキストエリア -->
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <label class="font-bold text-gray-700 text-sm">備考・内容</label>
+          <button onclick="clearMemo()" class="text-red-600 text-xs font-bold hover:text-red-800">クリア</button>
+        </div>
+        <textarea id="inputMemo" rows="5" placeholder="例: 残土搬出 10t" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+      </div>
+
+      <!-- ★ 備考と台数の間隔スライダー -->
+      <div class="bg-gray-50 rounded-xl p-3 border border-gray-200">
+        <div class="flex justify-between text-sm font-bold text-gray-700 mb-1">
+          <span>備考↔台数の間隔（空行数）</span>
+          <span id="valVehicleGap" class="bg-gray-200 px-1.5 rounded text-gray-500">0</span>
+        </div>
+        <input type="range" id="vehicleGapSlider" min="0" max="5" step="1" value="0" />
+        <div class="text-xs text-gray-400 mt-1">0=隙間なし、1〜5=空行を追加</div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: 調整 ===== -->
+    <div id="tab-adjust" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
+      <div class="bg-gray-50 p-3 border-b-2 font-bold text-gray-700 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">format_size</span>サイズ・フォント
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <label class="block font-bold text-gray-700 mb-1 text-sm">フォント</label>
+          <select id="fontFamily" class="w-full p-2.5 border-2 border-gray-300 rounded-lg font-bold text-gray-800 bg-gray-50 text-sm">
+            <option value="'M PLUS Rounded 1c', sans-serif" selected>M PLUS Rounded 1c</option>
+            <option value="'Kosugi Maru', sans-serif">Kosugi Maru</option>
+            <option value="sans-serif">ゴシック（システム）</option>
+            <option value="serif">明朝（システム）</option>
+          </select>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>工事件名 サイズ</span><span id="valScaleProject" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
+          <input type="range" id="scaleProject" min="0.3" max="2.0" step="0.1" value="1.2" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span id="adjustLabelWorkType">工事場所 サイズ</span><span id="valScaleWorkType" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
+          <input type="range" id="scaleWorkType" min="0.3" max="2.0" step="0.1" value="1.2" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>備考 サイズ</span><span id="valScaleMemo" class="bg-gray-100 px-1.5 rounded text-gray-500">1.4</span></div>
+          <input type="range" id="scaleMemo" min="0.3" max="2.0" step="0.1" value="1.4" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>日付・時間 サイズ</span><span id="valScaleDate" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
+          <input type="range" id="scaleDate" min="0.3" max="2.0" step="0.1" value="1.0" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>行間</span><span id="dispLineHeight" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
+          <input type="range" id="lineHeight" min="0.8" max="2.5" step="0.1" value="1.2" />
+        </div>
+        <div>
+          <label class="block font-bold text-gray-700 mb-1 text-sm">文字の上下微調整</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="adjustOffset(-5)" class="py-2 border-2 border-gray-300 rounded-lg font-bold text-sm hover:bg-gray-100 flex items-center justify-center gap-1">
+              <span class="material-icons text-sm">arrow_upward</span>上へ
+            </button>
+            <button onclick="adjustOffset(5)" class="py-2 border-2 border-gray-300 rounded-lg font-bold text-sm hover:bg-gray-100 flex items-center justify-center gap-1">
+              <span class="material-icons text-sm">arrow_downward</span>下へ
+            </button>
+          </div>
+        </div>
+        <button onclick="resetAll()" class="w-full text-red-600 font-bold underline hover:text-red-800 text-sm py-1">設定を全てリセット</button>
+      </div>
+    </div>
+
+    <!-- ===== TAB: バッチ ===== -->
+    <div id="tab-batch" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-3">
+      <h3 class="font-bold text-gray-800 border-b pb-2 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">list_alt</span>バッチ処理
+        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-auto font-bold"><span id="batchCount">0</span>枚読込済</span>
+      </h3>
+
+      <!-- 台数モード -->
+      <div class="bg-amber-50 border border-amber-300 rounded-xl p-3">
+        <div class="font-bold text-amber-800 mb-2 text-xs">📦 台数の振り分け方</div>
+        <div class="space-y-1.5">
+          <label class="flex items-start gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-200 text-xs">
+            <input type="radio" name="vehicleMode" value="loadOrder" class="w-4 h-4 mt-0.5 text-blue-600" checked />
+            <div><div class="font-bold">読み込み順に 1,2,3…台目</div><div class="text-gray-400">ファイル名を無視して順番で付番</div></div>
+          </label>
+          <label class="flex items-start gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-200 text-xs">
+            <input type="radio" name="vehicleMode" value="filename" class="w-4 h-4 mt-0.5 text-blue-600" />
+            <div><div class="font-bold">ファイル名の数字を使用</div><div class="text-gray-400">3.15.5134 → 中間の 15 を台数として使用</div></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- 日付グループ設定（統合型） -->
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold text-blue-800 text-xs">📅 日付グループ設定 / 時間割り当て</div>
+          <button onclick="addDateGroup()" class="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg hover:bg-blue-700 flex items-center gap-1">
+            <span class="material-icons text-sm">add</span>追加
+          </button>
+        </div>
+        <!-- ヘッダー：grp-row の各要素幅に合わせる -->
+        <div class="flex gap-1 items-center text-xs text-gray-400 font-bold mb-1 px-1">
+          <span style="width:16px;flex-shrink:0"></span><!-- 番号 -->
+          <span class="flex-1 min-w-0">日付</span>
+          <span style="width:82px;flex-shrink:0;text-align:center">開始時間</span>
+          <span style="width:48px;flex-shrink:0;text-align:center">枚数</span>
+          <span style="width:14px;flex-shrink:0"></span><!-- 枚 -->
+          <span style="width:20px;flex-shrink:0"></span><!-- 削除 -->
+        </div>
+        <div id="dateGroupList">
+          <p class="text-xs text-gray-400 text-center py-2">「追加」ボタンでグループを追加</p>
+        </div>
+        <!-- 合計表示 -->
+        <div class="flex justify-between items-center mt-2 text-xs font-bold">
+          <span class="text-gray-600">割り当て合計: <span id="groupTotal" class="text-blue-700">0</span>枚</span>
+          <span class="text-gray-400">読込済: <span id="groupTotalFiles" class="text-gray-700">0</span>枚</span>
+        </div>
+        <!-- ★ 枚数についての説明 -->
+        <div class="mt-1 bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-800">
+          💡 <strong>枚数</strong> = そのグループに割り当てるファイル数。<br>
+          上の「台数の振り分け方」で選んだ順（読み込み順 or ファイル名番号順）で先頭から数えて割り当てます。
+        </div>
+        <!-- 間隔設定 -->
+        <div class="mt-2 bg-white rounded-lg p-2 border border-gray-200">
+          <div class="text-xs font-bold text-gray-600 mb-1.5">⏱ 間隔（分）— ランダム範囲</div>
+          <div class="grid grid-cols-5 gap-1 items-center">
+            <input type="number" id="intervalMin" value="40" min="1" class="col-span-2 w-full p-1.5 border border-gray-300 rounded text-sm font-bold text-center min-w-0" />
+            <span class="text-gray-500 font-bold text-sm text-center">〜</span>
+            <input type="number" id="intervalMax" value="45" min="1" class="col-span-2 w-full p-1.5 border border-gray-300 rounded text-sm font-bold text-center min-w-0" />
+          </div>
+          <div class="text-xs text-gray-400 mt-1">同じ値=固定間隔</div>
+        </div>
+        <button onclick="applyBatchTimes()" class="w-full mt-2 bg-green-600 text-white font-bold py-2.5 rounded-lg hover:bg-green-700 flex items-center justify-center gap-1 text-sm">
+          <span class="material-icons text-base">schedule</span>時間を一括計算・ファイル一覧に反映
+        </button>
+      </div>
+
+      <!-- 読み込み済みファイル一覧（=日付グループ適用結果） -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <div class="font-bold text-gray-700 text-xs">読み込み済みファイル一覧</div>
+          <button onclick="exportCSV()" class="text-xs text-gray-400 underline hover:text-gray-600">CSV出力</button>
+        </div>
+        <div id="batchListContainer" class="border border-gray-200 rounded-lg overflow-hidden">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>台数</th>
+                <th>ナンバー</th>
+                <th>日付</th>
+                <th>時間</th>
+                <th>サイズ</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="batchTbody">
+              <tr><td colspan="7" class="text-center py-4 text-gray-400 text-xs">ファイルをドロップしてください</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /右列 -->
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const S = {
+  image:null, currentFileName:'',
+  boardPos:'right',
+  boardSize:'m',          // xs|s|sm|m|ml|l
+  boardOffsetX:null,      // null=デフォルト位置、数値=ドラッグ後の絶対X
+  boardOffsetY:null,
+  boardColor:'green',
+  showBoard:true, showConstructor:false, showVehicleInMemo:true,
+  // ★ 日付・時間それぞれの表示場所を独立制御
+  // 'none'=非表示 / 'right'=右下 / 'left'=左下 / 'inline'=備考下
+  datePlace:'right',
+  timePlace:'right',
+  dateFormat:'md_jp',    // 'md_jp' | 'ymd_slash' | 'ymd_jp' | 'md_slash'
+  timeFormat:'hm_jp',    // 'hm_jp' | 'hm_colon' | 'hm_colon0'
+  workLabelType:'place',
+  text:{project:'',workType:'',memo:'',constructorName:'ヒューマンヤード(株)',date:'',time:'',vehicleText:'',carNumber:''},
+  // ★ 工事件名・工事場所フォントスケール初期値を小さめに設定
+  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.2,fontScaleWorkType:1.2,fontScaleMemo:1.4,fontScaleDate:1.0,lineHeight:1.2,yOffset:0,vehicleGap:0},
+};
+
+let batchFiles    = [];
+let dateGroups    = [];
+let vehicleMode   = 'loadOrder';
+let currentBatchIdx = -1;
+let dragMode      = false;
+
+// ドラッグ用
+let isDragging = false, dragStartX=0, dragStartY=0, dragBoardX=0, dragBoardY=0;
+
+// ============================================================
+// CANVAS
+// ============================================================
+const canvas   = document.getElementById('mainCanvas');
+const ctx      = canvas.getContext('2d');
+const canvasWrap = document.getElementById('canvasWrap');
+
+function getBoardColors() {
+  const m = {
+    black:{bg:'#1a1a1a',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
+    white:{bg:'#fff',line:'#333',text:'#111',shadow:'rgba(0,0,0,.3)'},
+    blue: {bg:'#0d47a1',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
+    green:{bg:'#004d40',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
+  };
+  return m[S.boardColor] || m.green;
+}
+
+// ★ 6段階サイズ
+const SIZE_RATIOS = {xs:.26, s:.31, sm:.37, m:.44, ml:.50, l:.56};
+
+function getBoardDimensions() {
+  const cw = canvas.width, ch = canvas.height;
+  const r  = SIZE_RATIOS[S.boardSize] ?? .44;
+  const bw = cw * r, bh = ch * r;
+
+  let bx, by;
+  if (S.boardOffsetX !== null && S.boardOffsetY !== null) {
+    // ドラッグ位置（境界クランプ）
+    bx = Math.max(0, Math.min(cw - bw, S.boardOffsetX));
+    by = Math.max(0, Math.min(ch - bh, S.boardOffsetY));
+  } else {
+    bx = S.boardPos === 'left' ? 0 : cw - bw;
+    by = ch - bh;
+  }
+  return {bx, by, bw, bh};
+}
+
+function drawBlackboard(ctx, x, y, w, h, c) {
+  ctx.save();
+  ctx.shadowColor=c.shadow; ctx.shadowBlur=10; ctx.shadowOffsetX=5; ctx.shadowOffsetY=5;
+  ctx.fillStyle=c.bg; ctx.fillRect(x,y,w,h);
+  ctx.shadowColor='transparent';
+  ctx.strokeStyle= S.boardColor==='white' ? '#999' : '#e0e0e0';
+  ctx.lineWidth=Math.max(2,w*.005);
+  const hl=ctx.lineWidth/2;
+  ctx.strokeRect(x+hl,y+hl,w-ctx.lineWidth,h-ctx.lineWidth);
+  ctx.strokeStyle=c.line;
+  ctx.lineWidth=Math.max(1,w*.003);
+  ctx.beginPath();
+  ctx.moveTo(x, y+h*.18); ctx.lineTo(x+w, y+h*.18);
+  ctx.moveTo(x, y+h*.36); ctx.lineTo(x+w, y+h*.36);
+  ctx.moveTo(x+w*.22, y); ctx.lineTo(x+w*.22, y+h*.36);
+  if (S.showConstructor) {
+    const cH=h*.14, cY=y+h-cH;
+    ctx.moveTo(x,cY); ctx.lineTo(x+w,cY);
+    ctx.moveTo(x+w*.22,cY); ctx.lineTo(x+w*.22,y+h);
+  }
+  ctx.stroke(); ctx.restore();
+}
+
+function drawTextOnBoard(ctx, bx, by, bw, bh, c) {
+  ctx.save();
+  ctx.fillStyle=c.text;
+  ctx.beginPath(); ctx.rect(bx,by,bw,bh); ctx.clip();
+
+  // ラベル列フォント: bw*0.047
+  const labelSz = bw * 0.047;
+  const base    = bw * 0.055;   // コンテンツの基準サイズ（スケール乗算前）
+  const pad     = bw * 0.04;
+  const offY    = S.style.yOffset;
+  const font    = S.style.fontFamily;
+
+  // --- 行の上下中心 Y ---
+  // 行1(工事件名): bh*0 〜 bh*0.18  → 中心 bh*0.09
+  // 行2(工事場所): bh*0.18 〜 bh*0.36 → 中心 bh*0.27
+  const row1CY = by + bh * 0.09;
+  const row2CY = by + bh * 0.27;
+
+  // ラベル列（左22%）
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`${labelSz}px ${font}`;
+  ctx.fillText('工事件名', bx + bw * 0.11, row1CY);
+  const wlbl = S.workLabelType==='place'?'工事場所':'工種';
+  ctx.fillText(wlbl, bx + bw * 0.11, row2CY);
+  if (S.showConstructor) ctx.fillText('施工者', bx+bw*.11, by+bh-bh*.14/2);
+
+  // コンテンツ列（右78%） — textBaseline=middle で行中央に描画
+  ctx.textAlign='left';
+  ctx.textBaseline='middle';
+
+  // 工事件名コンテンツ（行1内に収まるよう scale で制御）
+  const pSz = Math.min(S.style.fontScaleProject * base, bh * 0.13);
+  ctx.font=`${pSz}px ${font}`;
+  const pLines = (S.text.project||'').split('\n').filter(Boolean);
+  if (pLines.length > 0) {
+    const pLH = pSz * S.style.lineHeight;
+    const pTotalH = pLines.length * pLH;
+    const pStartY = row1CY - pTotalH/2 + pSz/2 + offY;
+    pLines.forEach((l,i) => ctx.fillText(l, bx+bw*0.25+pad*0.3, pStartY+i*pLH));
+  }
+
+  // 工事場所コンテンツ（行2内に収まるよう scale で制御）
+  const wSz = Math.min(S.style.fontScaleWorkType * base, bh * 0.13);
+  ctx.font=`${wSz}px ${font}`;
+  const wLines = (S.text.workType||'').split('\n').filter(Boolean);
+  if (wLines.length > 0) {
+    const wLH = wSz * S.style.lineHeight;
+    const wTotalH = wLines.length * wLH;
+    const wStartY = row2CY - wTotalH/2 + wSz/2 + offY;
+    wLines.forEach((l,i) => ctx.fillText(l, bx+bw*0.25+pad*0.3, wStartY+i*wLH));
+  }
+
+  // 備考エリア（bh*0.36 以下）
+  ctx.textBaseline='top';
+  const memoY  = by + bh * 0.36 + pad * 0.4 + offY;
+  const memoSz = S.style.fontScaleMemo * base;
+  ctx.font=`${memoSz}px ${font}`;
+
+  let mlines = (S.text.memo||'').split('\n');
+  if (S.showVehicleInMemo && S.text.vehicleText) {
+    const gap = Math.max(0, Math.round(S.style.vehicleGap || 0));
+    if (mlines.some(l=>l.trim())) for(let g=0;g<gap;g++) mlines.push('');
+    mlines.push(S.text.vehicleText);
+  }
+  const mLH = memoSz * S.style.lineHeight;
+  mlines.forEach((l,i) => ctx.fillText(l, bx+pad, memoY+i*mLH));
+
+  // --- 施工者 ---
+  if (S.showConstructor) {
+    ctx.textBaseline='middle';
+    ctx.font=`${labelSz*0.9}px ${font}`;
+    ctx.fillText(S.text.constructorName, bx+bw*0.25+pad*0.3, by+bh-bh*.14/2);
+  }
+
+  // --- 日付・時間を独立配置 ---
+  // 各要素を「場所」ごとにグループ化して描画
+  const dateTxt = buildDatePart();
+  const timeTxt = buildTimePart();
+
+  // 備考下(inline)に表示する要素を収集
+  const inlineParts = [];
+  if (S.datePlace === 'inline' && dateTxt) inlineParts.push(dateTxt);
+  if (S.timePlace === 'inline' && timeTxt) inlineParts.push(timeTxt);
+  if (inlineParts.length > 0) {
+    ctx.textBaseline = 'top';
+    ctx.font = `${S.style.fontScaleDate * base}px ${font}`;
+    const ny = memoY + mlines.length * mLH + pad * 0.2;
+    ctx.fillText(inlineParts.join(' '), bx + pad, ny);
+  }
+
+  // 右下・左下に表示する要素を組み立て
+  const drawCorner = (place) => {
+    const parts = [];
+    if (S.datePlace === place && dateTxt) parts.push(dateTxt);
+    if (S.timePlace === place && timeTxt) parts.push(timeTxt);
+    if (parts.length === 0) return;
+    const txt = parts.join(' ');
+    ctx.textBaseline = 'middle';
+    ctx.font = `${S.style.fontScaleDate * base * 0.85}px ${font}`;
+    let dY = by + bh - pad * 0.8;
+    if (S.showConstructor) dY = by + bh - bh * 0.14 - pad * 0.4;
+    if (place === 'right') { ctx.textAlign = 'right'; ctx.fillText(txt, bx + bw - pad, dY); }
+    else                   { ctx.textAlign = 'left';  ctx.fillText(txt, bx + pad, dY); }
+  };
+  drawCorner('right');
+  drawCorner('left');
+
+  ctx.restore();
+}
+
+function buildDatePart() {
+  if (!S.text.date) return '';
+  const raw = S.text.date.replace(/\//g, '-');
+  const p = raw.split('-');
+  if (p.length !== 3) return S.text.date;
+  const yy=p[0], mm=parseInt(p[1]), dd=parseInt(p[2]);
+  const mm2=String(mm).padStart(2,'0'), dd2=String(dd).padStart(2,'0');
+  switch(S.dateFormat){
+    case 'ymd_slash': return `${yy}/${mm2}/${dd2}`;
+    case 'ymd_jp':    return `${yy}年${mm}月${dd}日`;
+    case 'md_slash':  return `${mm}/${dd2}`;
+    default:          return `${mm}月${dd}日`;
+  }
+}
+
+function buildTimePart() {
+  if (!S.text.time) return '';
+  const t = S.text.time.split(':');
+  if (t.length < 2) return S.text.time;
+  const hh=parseInt(t[0]), mm=parseInt(t[1]);
+  const hh2=String(hh).padStart(2,'0'), mm2=String(mm).padStart(2,'0');
+  switch(S.timeFormat){
+    case 'hm_colon':  return `${hh}:${mm2}`;
+    case 'hm_colon0': return `${hh2}:${mm2}`;
+    default:          return `${hh}時${mm2}分`;
+  }
+}
+function drawML(ctx,text,x,y,lh){ if(!text)return; text.split('\n').forEach((l,i)=>ctx.fillText(l,x,y+i*lh)); }
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  if (S.image) {
+    const img=S.image, cw=canvas.width, ch=canvas.height;
+    const ir=img.width/img.height, cr=cw/ch;
+    let dw,dh,dx,dy;
+    if(ir>cr){dh=ch;dw=dh*ir;dx=-(dw-cw)/2;dy=0;}
+    else{dw=cw;dh=dw/ir;dx=0;dy=-(dh-ch)/2;}
+    ctx.drawImage(img,dx,dy,dw,dh);
+    // ★ 画像がある場合のみ黒板を描画
+    if (S.showBoard) {
+      const {bx,by,bw,bh}=getBoardDimensions();
+      const c=getBoardColors();
+      drawBlackboard(ctx,bx,by,bw,bh,c);
+      drawTextOnBoard(ctx,bx,by,bw,bh,c);
+    }
+  } else {
+    // ★ 画像なし: プレースホルダーのみ（黒板は描画しない）
+    ctx.fillStyle='#e2e8f0'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#94a3b8'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='bold 20px sans-serif';
+    ctx.fillText('画像をドロップしてください',canvas.width/2,canvas.height/2);
+  }
+}
+
+// ============================================================
+// DRAG & DROP 黒板移動
+// ============================================================
+// canvas上のピクセル座標をキャンバス内座標に変換
+function canvasPoint(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width  / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x:(clientX-rect.left)*scaleX, y:(clientY-rect.top)*scaleY };
+}
+
+function isInsideBoard(px, py) {
+  const {bx,by,bw,bh}=getBoardDimensions();
+  return px>=bx && px<=bx+bw && py>=by && py<=by+bh;
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (!dragMode) return;
+  const p=canvasPoint(e);
+  if (!isInsideBoard(p.x,p.y)) return;
+  isDragging=true;
+  const {bx,by}=getBoardDimensions();
+  dragStartX=p.x; dragStartY=p.y;
+  dragBoardX = S.boardOffsetX!==null ? S.boardOffsetX : bx;
+  dragBoardY = S.boardOffsetY!==null ? S.boardOffsetY : by;
+  e.preventDefault();
+});
+canvas.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  const p=canvasPoint(e);
+  S.boardOffsetX = dragBoardX + (p.x-dragStartX);
+  S.boardOffsetY = dragBoardY + (p.y-dragStartY);
+  draw(); e.preventDefault();
+});
+canvas.addEventListener('mouseup', () => { isDragging=false; });
+canvas.addEventListener('mouseleave', () => { isDragging=false; });
+
+canvas.addEventListener('touchstart', e => {
+  if (!dragMode) return;
+  const p=canvasPoint(e);
+  if (!isInsideBoard(p.x,p.y)) return;
+  isDragging=true;
+  const {bx,by}=getBoardDimensions();
+  dragStartX=p.x; dragStartY=p.y;
+  dragBoardX = S.boardOffsetX!==null ? S.boardOffsetX : bx;
+  dragBoardY = S.boardOffsetY!==null ? S.boardOffsetY : by;
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener('touchmove', e => {
+  if (!isDragging) return;
+  const p=canvasPoint(e);
+  S.boardOffsetX = dragBoardX + (p.x-dragStartX);
+  S.boardOffsetY = dragBoardY + (p.y-dragStartY);
+  draw(); e.preventDefault();
+},{passive:false});
+canvas.addEventListener('touchend', () => { isDragging=false; });
+
+window.resetBoardPosition = function() {
+  S.boardOffsetX=null; S.boardOffsetY=null; draw();
+};
+
+// ============================================================
+// FILE HANDLING
+// ============================================================
+function parseFileName(name) {
+  let m = name.match(/^(\d+)\.(\d+)\.(\d{4})\./i);
+  if(m) return {vehicleIndex:parseInt(m[2],10), carNumber:m[3]};
+  m = name.match(/^(\d+)\.(\d{4})\./i);
+  if(m) return {vehicleIndex:parseInt(m[1],10), carNumber:m[2]};
+  m = name.match(/(\d{4})\./i);
+  if(m) return {vehicleIndex:0, carNumber:m[1]};
+  return {vehicleIndex:0, carNumber:''};
+}
+
+function handleFiles(files) {
+  if(!files||files.length===0) return;
+  const loading=document.getElementById('loading');
+  loading.classList.remove('hidden');
+  const newItems=[]; let done=0;
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')){ done++; return; }
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const {vehicleIndex,carNumber}=parseFileName(file.name);
+        newItems.push({img,name:file.name,vehicleIndex,carNumber,date:'',time:'',boardSize:null});
+        done++;
+        if(done===files.length){
+          const startOrder=batchFiles.length;
+          batchFiles=batchFiles.concat(newItems.map((it,i)=>({...it,loadOrder:startOrder+i+1})));
+          const nav=document.getElementById('imageNav');
+          if(batchFiles.length>1) nav.classList.replace('hidden','flex');
+          setCurrentBatch(startOrder);
+          loading.classList.add('hidden');
+          renderBatchList();
+          updateBatchBadge();
+          if(batchFiles.length>1) switchTab('batch');
+        }
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function setCurrentBatch(index) {
+  if(index<0||index>=batchFiles.length) return;
+  currentBatchIdx=index;
+  const item=batchFiles[index];
+  S.image=item.img; S.currentFileName=item.name;
+  document.getElementById('currentFileLabel').textContent=item.name;
+  const vNum=vehicleMode==='loadOrder'?item.loadOrder:item.vehicleIndex;
+  S.text.vehicleText=vNum>0?`${vNum}台目`:'';
+  S.text.carNumber=item.carNumber||'';
+  if(item.date){ S.text.date=item.date.replace(/-/g,'/'); document.getElementById('inputDate').value=item.date; }
+  if(item.time){ S.text.time=item.time; document.getElementById('inputTime').value=item.time; }
+  // ★ 写真ごとのサイズを反映（未設定ならグローバル設定を維持）
+  if(item.boardSize) {
+    S.boardSize = item.boardSize;
+    S.boardOffsetX = null; S.boardOffsetY = null;
+    // pill UI 同期
+    document.querySelectorAll('.size-pill').forEach(p=>{
+      if(p.dataset.size===item.boardSize) p.classList.add('active');
+      else p.classList.remove('active');
+    });
+  }
+  canvas.width=item.img.width; canvas.height=item.img.height;
+  document.getElementById('currentImageNum').textContent=index+1;
+  document.getElementById('totalImageNum').textContent=batchFiles.length;
+  draw(); renderBatchList();
+}
+
+window.prevImage=()=>{ if(currentBatchIdx>0) setCurrentBatch(currentBatchIdx-1); };
+window.nextImage=()=>{ if(currentBatchIdx<batchFiles.length-1) setCurrentBatch(currentBatchIdx+1); };
+
+// ============================================================
+// DATE GROUPS
+// ============================================================
+function addDateGroup() {
+  const today=new Date();
+  const yy=today.getFullYear(), mm=String(today.getMonth()+1).padStart(2,'0'), dd=String(today.getDate()).padStart(2,'0');
+  // ★ デフォルト枚数 = 未割り当てファイル数（最大 = 残り全部）
+  const assigned=dateGroups.reduce((s,g)=>s+(parseInt(g.count)||0),0);
+  const remaining=Math.max(1, batchFiles.length - assigned);
+  dateGroups.push({date:`${yy}-${mm}-${dd}`, startTime:'08:50', count:remaining});
+  renderDateGroups();
+}
+
+function removeDateGroup(i) {
+  dateGroups.splice(i,1); renderDateGroups();
+}
+
+function renderDateGroups() {
+  const el=document.getElementById('dateGroupList');
+  if(dateGroups.length===0){
+    el.innerHTML='<p class="text-xs text-gray-400 text-center py-1">「追加」ボタンでグループを追加</p>';
+    updateGroupTotals(); return;
+  }
+  el.innerHTML=dateGroups.map((g,i)=>`
+    <div class="grp-row">
+      <span class="text-xs font-bold text-gray-400 w-4 flex-shrink-0">${i+1}</span>
+      <input type="date" value="${g.date}"
+        oninput="dateGroups[${i}].date=this.value;updateGroupTotals()"
+        style="flex:1;min-width:0" />
+      <input type="time" value="${g.startTime}"
+        oninput="dateGroups[${i}].startTime=this.value"
+        style="width:68px;flex-shrink:0" />
+      <input type="number" value="${g.count}" min="1"
+        oninput="dateGroups[${i}].count=parseInt(this.value)||1;updateGroupTotals()"
+        style="flex-shrink:0" />
+      <span class="text-xs text-gray-400 flex-shrink-0">枚</span>
+      <button onclick="removeDateGroup(${i})" class="text-red-400 hover:text-red-600 flex-shrink-0">
+        <span class="material-icons text-base">delete</span>
+      </button>
+    </div>
+  `).join('');
+  updateGroupTotals();
+}
+
+function updateGroupTotals() {
+  const total=dateGroups.reduce((s,g)=>s+(parseInt(g.count)||0),0);
+  document.getElementById('groupTotal').textContent=total;
+  document.getElementById('groupTotalFiles').textContent=batchFiles.length;
+  // 枚数超過は赤表示
+  const el=document.getElementById('groupTotal');
+  el.className = total>batchFiles.length && batchFiles.length>0 ? 'text-red-600' : 'text-blue-700';
+}
+
+// ============================================================
+// BATCH TIME CALCULATION（グループの startTime を使用）
+// ============================================================
+function applyBatchTimes() {
+  if(batchFiles.length===0){alert('ファイルが読み込まれていません');return;}
+  if(dateGroups.length===0){alert('日付グループを最低1つ追加してください');return;}
+  const intMin=parseInt(document.getElementById('intervalMin').value,10)||40;
+  const intMax=parseInt(document.getElementById('intervalMax').value,10)||intMin;
+  const sorted=[...batchFiles].sort((a,b)=>
+    vehicleMode==='loadOrder'?a.loadOrder-b.loadOrder:a.vehicleIndex-b.vehicleIndex
+  );
+  let fileIdx=0;
+  for(const group of dateGroups){
+    const cnt=parseInt(group.count,10)||0;
+    const [sh,sm]=(group.startTime||'08:50').split(':').map(Number);
+    let minutes=sh*60+sm;
+    for(let i=0;i<cnt;i++){
+      if(fileIdx>=sorted.length) break;
+      const item=sorted[fileIdx];
+      const gi=batchFiles.indexOf(item);
+      batchFiles[gi].date=group.date;
+      batchFiles[gi].time=`${String(Math.floor(minutes/60)%24).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
+      if(i<cnt-1) minutes+=intMin+Math.floor(Math.random()*(intMax-intMin+1));
+      fileIdx++;
+    }
+  }
+  renderBatchList();
+  if(currentBatchIdx>=0) setCurrentBatch(currentBatchIdx);
+  alert(`✅ ${fileIdx}件に日付・時間を反映しました`);
+}
+
+// ============================================================
+// BATCH LIST
+// ============================================================
+function renderBatchList() {
+  const tbody=document.getElementById('batchTbody');
+  document.getElementById('batchCount').textContent=batchFiles.length;
+  updateGroupTotals();
+  if(batchFiles.length===0){
+    tbody.innerHTML='<tr><td colspan="7" class="text-center py-4 text-gray-400 text-xs">ファイルをドロップしてください</td></tr>';
+    return;
+  }
+  const disp=[...batchFiles].sort((a,b)=>vehicleMode==='loadOrder'?a.loadOrder-b.loadOrder:a.vehicleIndex-b.vehicleIndex);
+  tbody.innerHTML=disp.map((item,di)=>{
+    const ri=batchFiles.indexOf(item);
+    const vNum=vehicleMode==='loadOrder'?item.loadOrder:item.vehicleIndex;
+    const sz = item.boardSize || '';
+    const sizeOpts = ['','xs','s','sm','m','ml','l'].map(v=>{
+      const labels={'':'(共通)','xs':'極小','s':'小','sm':'小+','m':'中','ml':'中+','l':'大'};
+      return `<option value="${v}" ${sz===v?'selected':''}>${labels[v]||v}</option>`;
+    }).join('');
+    return `<tr data-idx="${ri}" class="${ri===currentBatchIdx?'active-row font-bold':''}">
+      <td class="text-gray-400">${di+1}</td>
+      <td>${vNum>0?vNum+'台':'-'}</td>
+      <td>${item.carNumber||'-'}</td>
+      <td style="min-width:90px"><input type="date" value="${item.date||''}" class="w-full px-1 py-0.5 border border-gray-200 rounded text-xs"
+        onchange="batchFiles[${ri}].date=this.value"/></td>
+      <td style="min-width:68px"><input type="time" value="${item.time||''}" class="w-full px-1 py-0.5 border border-gray-200 rounded text-xs"
+        onchange="batchFiles[${ri}].time=this.value"/></td>
+      <td><select class="px-1 py-0.5 border border-gray-200 rounded text-xs w-full"
+        onchange="batchFiles[${ri}].boardSize=this.value||null">${sizeOpts}</select></td>
+      <td><button class="bin bg-blue-500 text-white hover:bg-blue-700" onclick="setCurrentBatch(${ri})">読込</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function updateBatchBadge() {
+  const b=document.getElementById('batchBadge');
+  if(batchFiles.length>0){b.textContent=batchFiles.length;b.classList.remove('hidden');b.classList.add('flex');}
+  else{b.classList.add('hidden');b.classList.remove('flex');}
+}
+
+function exportCSV() {
+  if(!batchFiles.length){alert('データがありません');return;}
+  const rows=['読込順,台数(filename),ナンバー,日付,時間,ファイル名'];
+  [...batchFiles].sort((a,b)=>a.loadOrder-b.loadOrder).forEach(f=>
+    rows.push(`${f.loadOrder},${f.vehicleIndex},${f.carNumber},${f.date},${f.time},${f.name}`)
+  );
+  const blob=new Blob(['\uFEFF'+rows.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='batch.csv'; a.click();
+}
+
+// ============================================================
+// TAB
+// ============================================================
+window.switchTab=function(name){
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('tab-active'));
+  document.getElementById(`tab-${name}`).classList.remove('hidden');
+  document.getElementById(`btn-tab-${name}`).classList.add('tab-active');
+};
+
+// ============================================================
+// BOARD POS / OFFSET
+// ============================================================
+window.setBoardPos=function(pos){
+  S.boardPos=pos;
+  S.boardOffsetX=null; S.boardOffsetY=null;  // リセット
+  ['left','right'].forEach(p=>{
+    const b=document.getElementById(`pos-btn-${p}`);
+    if(p===pos)b.classList.add('btn-pos-active'); else b.classList.remove('btn-pos-active');
+  });
+  draw();
+};
+window.adjustOffset=d=>{S.style.yOffset+=d;draw();};
+window.resetAll=()=>{if(confirm('リセットしますか？'))location.reload();};
+
+// ============================================================
+// TODAY
+// ============================================================
+window.setToday=function(){
+  const n=new Date();
+  const yy=n.getFullYear(),mm=String(n.getMonth()+1).padStart(2,'0'),dd=String(n.getDate()).padStart(2,'0');
+  const hh=String(n.getHours()).padStart(2,'0'),mi=String(n.getMinutes()).padStart(2,'0');
+  document.getElementById('inputDate').value=`${yy}-${mm}-${dd}`;
+  document.getElementById('inputTime').value=`${hh}:${mi}`;
+  S.text.date=`${yy}/${mm}/${dd}`; S.text.time=`${hh}:${mi}`; draw();
+};
+
+window.clearMemo=()=>{if(confirm('備考をクリアしますか？')){document.getElementById('inputMemo').value='';S.text.memo='';draw();}};
+
+// ============================================================
+// 簡単入力支援（参考HTMLから移植）
+// ============================================================
+let counterValue = 1;
+
+window.toggleEasyInput = function() {
+  const content = document.getElementById('easyInputContent');
+  const icon    = document.getElementById('easyInputIcon');
+  content.classList.toggle('hidden');
+  icon.innerText = content.classList.contains('hidden') ? 'keyboard_arrow_down' : 'keyboard_arrow_up';
+};
+
+window.switchSubTab = function(name) {
+  ['soil','dimension'].forEach(n => {
+    document.getElementById(`btn-sub-${n}`).classList.remove('sub-tab-active');
+    document.getElementById(`panel-${n}`).classList.add('hidden');
+  });
+  document.getElementById(`btn-sub-${name}`).classList.add('sub-tab-active');
+  document.getElementById(`panel-${name}`).classList.remove('hidden');
+};
+
+window.changeCounter = function(delta) {
+  counterValue = Math.max(1, counterValue + delta);
+  document.getElementById('counterValue').innerText = counterValue;
+  updateSoilDirectly();
+};
+
+window.updateSoilDirectly = function(forceInsert = false) {
+  const soilType = document.querySelector('input[name="soilType"]:checked')?.value || '';
+  const truckCap = document.querySelector('input[name="truckCap"]:checked')?.value || '';
+  const parts = [];
+  if (soilType) parts.push(soilType);
+  if (truckCap) parts.push(truckCap);
+  parts.push(`${counterValue}台目`);
+  const newText = parts.join(' ');
+  const pattern = /(?:残土搬出|客土搬入|残土|客土)?[\s　]*(?:\d+t)?[\s　]*\d+台目/g;
+  const ta = document.getElementById('inputMemo');
+  let cur = ta.value;
+  if (pattern.test(cur) && !forceInsert) {
+    cur = cur.replace(pattern, newText);
+  } else {
+    if (cur && !cur.endsWith('\n')) cur += '\n';
+    cur += newText;
+  }
+  ta.value = cur;
+  S.text.memo = cur;
+  draw();
+};
+
+window.adjustDimValue = function(val) {
+  const inp = document.getElementById('dimValue');
+  inp.value = (parseFloat(inp.value) || 0) + val;
+};
+
+window.insertDimension = function() {
+  const prefix = document.querySelector('input[name="dimPrefix"]:checked')?.value || '';
+  const val    = document.getElementById('dimValue').value;
+  if (!val && val !== '0') return;
+  const txt = ` ${prefix}${val} `;
+  const ta  = document.getElementById('inputMemo');
+  const s   = ta.selectionStart, e = ta.selectionEnd;
+  ta.value  = ta.value.slice(0, s) + txt + ta.value.slice(e);
+  ta.setSelectionRange(s + txt.length, s + txt.length);
+  ta.focus();
+  S.text.memo = ta.value;
+  draw();
+};
+window.insertDimension=function(){
+  const unit=document.querySelector('input[name="dimUnit"]:checked')?.value||'';
+  const val=document.getElementById('dimValue').value; if(!val)return;
+  const txt=`${val}${unit}`;
+  const ta=document.getElementById('inputMemo');
+  const s=ta.selectionStart, e=ta.selectionEnd;
+  ta.value=ta.value.slice(0,s)+txt+ta.value.slice(e);
+  ta.setSelectionRange(s+txt.length,s+txt.length); ta.focus();
+  S.text.memo=ta.value; draw();
+};
+
+// ============================================================
+// DOWNLOAD / SHARE / ZIP
+// ============================================================
+function getBlobAsync(){ return new Promise(res=>canvas.toBlob(res,'image/jpeg',.95)); }
+
+document.getElementById('btnDownload').addEventListener('click',async()=>{
+  if(!S.image){alert('画像が選択されていません');return;}
+  const blob=await getBlobAsync();
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=S.currentFileName.replace(/\.[^.]+$/,'')+'.jpg'; a.click();
+});
+
+document.getElementById('btnShare').addEventListener('click',async()=>{
+  if(!S.image){alert('画像が選択されていません');return;}
+  const blob=await getBlobAsync();
+  const file=new File([blob],'photo.jpg',{type:'image/jpeg'});
+  if(navigator.share&&navigator.canShare?.({files:[file]})){
+    try{await navigator.share({files:[file],title:'工事写真'});}catch{}
+  } else alert('このブラウザは共有に対応していません。「端末に保存」をお使いください。');
+});
+
+// ============================================================
+// 一括処理 共通ロジック
+// ============================================================
+async function renderAllItems(sorted, savedBoardSize, onItem) {
+  const savedImg  = S.image, savedVT = S.text.vehicleText, savedCN = S.text.carNumber;
+  const savedDate = S.text.date,  savedTime = S.text.time;
+
+  for (let i = 0; i < sorted.length; i++) {
+    const item = sorted[i];
+    S.image = item.img;
+    canvas.width  = item.img.width;
+    canvas.height = item.img.height;
+    S.boardSize    = item.boardSize || savedBoardSize;
+    S.boardOffsetX = null; S.boardOffsetY = null;
+    const vNum = vehicleMode==='loadOrder' ? item.loadOrder : item.vehicleIndex;
+    S.text.vehicleText = vNum > 0 ? `${vNum}台目` : '';
+    S.text.carNumber   = item.carNumber || '';
+    if (item.date) S.text.date = item.date.replace(/-/g, '/');
+    if (item.time) S.text.time = item.time;
+    draw();
+    await onItem(item, i);
+  }
+
+  // 状態を戻す
+  S.image = savedImg; S.text.vehicleText = savedVT; S.text.carNumber = savedCN;
+  S.text.date = savedDate; S.text.time = savedTime; S.boardSize = savedBoardSize;
+  if (savedImg) { canvas.width = savedImg.width; canvas.height = savedImg.height; }
+  draw();
+}
+
+// ★ 一括個別ダウンロード（ZIP不使用・Windowsブロック回避）
+document.getElementById('btnBulkDownload').addEventListener('click', async () => {
+  if (!batchFiles.length) { alert('バッチファイルがありません'); return; }
+  if (!confirm(`${batchFiles.length}枚を1枚ずつ順番にダウンロードします。\nブラウザが「複数ファイルの保存を許可しますか？」と聞いてきたら「許可」を選んでください。`)) return;
+
+  const pW  = document.getElementById('progressWrap');
+  const pF  = document.getElementById('progressFill');
+  const pL  = document.getElementById('progressLabel');
+  pW.classList.remove('hidden');
+
+  const sorted       = [...batchFiles].sort((a,b) => vehicleMode==='loadOrder' ? a.loadOrder-b.loadOrder : a.vehicleIndex-b.vehicleIndex);
+  const savedBoardSize = S.boardSize;
+
+  await renderAllItems(sorted, savedBoardSize, async (item, i) => {
+    pF.style.width  = `${Math.round((i+1) / sorted.length * 100)}%`;
+    pL.textContent  = `保存中 ${i+1}/${sorted.length}  (${item.name})`;
+
+    const blob    = await getBlobAsync();
+    const url     = URL.createObjectURL(blob);
+    const a       = document.createElement('a');
+    a.href        = url;
+    a.download    = item.name.replace(/\.[^.]+$/, '') + '.jpg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // 少し待ってからURLを解放（ブラウザのDL処理が始まるまで待つ）
+    await new Promise(res => setTimeout(res, 300));
+    URL.revokeObjectURL(url);
+  });
+
+  pW.classList.add('hidden');
+  alert(`✅ ${sorted.length}枚のダウンロードを開始しました。\nブラウザのダウンロードフォルダを確認してください。`);
+});
+
+// ZIP（サブオプション）
+document.getElementById('btnBulkZip').addEventListener('click', async () => {
+  if (!batchFiles.length) { alert('バッチファイルがありません'); return; }
+  if (!confirm(`${batchFiles.length}枚をZIPにまとめてダウンロードします。\n※ Windowsでセキュリティ警告が出る場合があります。`)) return;
+
+  const zip        = new JSZip();
+  const pW         = document.getElementById('progressWrap');
+  const pF         = document.getElementById('progressFill');
+  const pL         = document.getElementById('progressLabel');
+  pW.classList.remove('hidden');
+
+  const sorted       = [...batchFiles].sort((a,b) => vehicleMode==='loadOrder' ? a.loadOrder-b.loadOrder : a.vehicleIndex-b.vehicleIndex);
+  const savedBoardSize = S.boardSize;
+
+  await renderAllItems(sorted, savedBoardSize, async (item, i) => {
+    pF.style.width  = `${Math.round(i / sorted.length * 100)}%`;
+    pL.textContent  = `処理中 ${i+1}/${sorted.length}  (${item.name})`;
+    await new Promise(res => canvas.toBlob(blob => { zip.file(item.name.replace(/\.[^.]+$/, '') + '.jpg', blob); res(); }, 'image/jpeg', .95));
+  });
+
+  pF.style.width = '100%'; pL.textContent = 'ZIP生成中...';
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `kokuban_${new Date().toISOString().slice(0,10)}.zip`;
+  a.click();
+  pW.classList.add('hidden');
+  alert(`✅ 完了（${sorted.length}件）`);
+});
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+document.addEventListener('DOMContentLoaded',()=>{
+  canvas.width=800; canvas.height=500; draw();
+  renderDateGroups();
+
+  // ドロップ
+  const dz=document.getElementById('dropZone');
+  dz.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('dragOverlay').classList.replace('hidden','flex');});
+  dz.addEventListener('dragleave',()=>document.getElementById('dragOverlay').classList.replace('flex','hidden'));
+  dz.addEventListener('drop',e=>{e.preventDefault();document.getElementById('dragOverlay').classList.replace('flex','hidden');handleFiles(e.dataTransfer.files);});
+
+  document.getElementById('btnCamera').addEventListener('click',()=>document.getElementById('cameraInput').click());
+  document.getElementById('btnFile'  ).addEventListener('click',()=>document.getElementById('fileInput').click());
+  document.getElementById('cameraInput').addEventListener('change',e=>handleFiles(e.target.files));
+  document.getElementById('fileInput'  ).addEventListener('change',e=>handleFiles(e.target.files));
+
+  // テキスト
+  ({inputProject:'project',inputWorkType:'workType',inputMemo:'memo',inputConstructor:'constructorName'}).split&&null;
+  [['inputProject','project'],['inputWorkType','workType'],['inputMemo','memo'],['inputConstructor','constructorName']].forEach(([id,key])=>{
+    document.getElementById(id)?.addEventListener('input',e=>{S.text[key]=e.target.value;draw();});
+  });
+  document.getElementById('inputDate').addEventListener('input',e=>{S.text.date=e.target.value.replace(/-/g,'/');draw();});
+  document.getElementById('inputTime').addEventListener('input',e=>{S.text.time=e.target.value;draw();});
+
+  // 設定
+  document.getElementById('boardColor').addEventListener('change',e=>{S.boardColor=e.target.value;draw();});
+  document.getElementById('toggleBoard').addEventListener('change',e=>{S.showBoard=e.target.checked;draw();});
+  document.getElementById('showConstructor').addEventListener('change',e=>{S.showConstructor=e.target.checked;draw();});
+  document.getElementById('showVehicleInMemo').addEventListener('change',e=>{S.showVehicleInMemo=e.target.checked;draw();});
+  // ★ 備考↔台数の間隔スライダー
+  document.getElementById('vehicleGapSlider').addEventListener('input',e=>{
+    S.style.vehicleGap=parseInt(e.target.value,10)||0;
+    document.getElementById('valVehicleGap').textContent=S.style.vehicleGap;
+    draw();
+  });
+  // ★ 日付・時間それぞれの表示場所
+  document.querySelectorAll('input[name="datePlace"]').forEach(r=>r.addEventListener('change',e=>{S.datePlace=e.target.value;draw();}));
+  document.querySelectorAll('input[name="timePlace"]').forEach(r=>r.addEventListener('change',e=>{S.timePlace=e.target.value;draw();}));
+  // ★ 日付・時刻フォーマット
+  document.getElementById('dateFormatSelect').addEventListener('change',e=>{S.dateFormat=e.target.value;draw();});
+  document.getElementById('timeFormatSelect').addEventListener('change',e=>{S.timeFormat=e.target.value;draw();});
+  document.querySelectorAll('input[name="labelType"]').forEach(r=>r.addEventListener('change',e=>{
+    S.workLabelType=e.target.value;
+    const lbl=e.target.value==='place'?'工事場所':'工種';
+    document.getElementById('workTypeLabel').textContent=lbl;
+    document.getElementById('adjustLabelWorkType').textContent=lbl+' サイズ';
+    draw();
+  }));
+
+  // ★ サイズ pill
+  document.getElementById('sizePillGroup').addEventListener('click',e=>{
+    const pill=e.target.closest('.size-pill');
+    if(!pill) return;
+    document.querySelectorAll('.size-pill').forEach(p=>p.classList.remove('active'));
+    pill.classList.add('active');
+    S.boardSize=pill.dataset.size;
+    S.boardOffsetX=null; S.boardOffsetY=null;
+    // 現在表示中の写真にもサイズを紐付け
+    if(currentBatchIdx>=0) batchFiles[currentBatchIdx].boardSize = S.boardSize;
+    draw();
+    renderBatchList(); // テーブルのサイズ列を更新
+  });
+
+  // ドラッグモードトグル
+  document.getElementById('dragModeToggle').addEventListener('change',e=>{
+    dragMode=e.target.checked;
+    canvasWrap.classList.toggle('drag-mode',dragMode);
+  });
+
+  // フォント・スライダー
+  document.getElementById('fontFamily').addEventListener('change',e=>{S.style.fontFamily=e.target.value;draw();});
+  function ss(id,key,did){
+    const el=document.getElementById(id);
+    el?.addEventListener('input',e=>{S.style[key]=parseFloat(e.target.value);const d=document.getElementById(did);if(d)d.textContent=parseFloat(e.target.value).toFixed(1);draw();});
+  }
+  ss('scaleProject','fontScaleProject','valScaleProject');
+  ss('scaleWorkType','fontScaleWorkType','valScaleWorkType');
+  ss('scaleMemo','fontScaleMemo','valScaleMemo');
+  ss('scaleDate','fontScaleDate','valScaleDate');
+  ss('lineHeight','lineHeight','dispLineHeight');
+
+  // 台数モード
+  document.querySelectorAll('input[name="vehicleMode"]').forEach(r=>r.addEventListener('change',e=>{
+    vehicleMode=e.target.value;
+    if(currentBatchIdx>=0)setCurrentBatch(currentBatchIdx); else renderBatchList();
+  }));
+
+  setToday();
+});
+</script>
+</body>
+</html>
