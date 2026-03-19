@@ -1,1431 +1,828 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>工事用黒板編集ツール</title>
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
-    
-    <!-- Material Icons -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-        body {
-            font-family: 'M PLUS Rounded 1c', sans-serif;
-            background-color: #f3f4f6;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-            font-size: 16px;
-        }
-        
-        .canvas-container {
-            background-image: repeating-linear-gradient(45deg, #e5e7eb 25%, transparent 25%, transparent 75%, #e5e7eb 75%, #e5e7eb), repeating-linear-gradient(45deg, #e5e7eb 25%, #f3f4f6 25%, #f3f4f6 75%, #e5e7eb 75%, #e5e7eb);
-            background-position: 0 0, 10px 10px;
-            background-size: 20px 20px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
-        }
-
-        /* スライダーを指で操作しやすく巨大化 */
-        input[type=range] {
-            height: 40px;
-            -webkit-appearance: none;
-            margin: 10px 0;
-            width: 100%;
-            background: transparent;
-        }
-        input[type=range]:focus {
-            outline: none;
-        }
-        input[type=range]::-webkit-slider-runnable-track {
-            width: 100%;
-            height: 12px;
-            cursor: pointer;
-            background: #cbd5e1;
-            border-radius: 6px;
-        }
-        input[type=range]::-webkit-slider-thumb {
-            height: 32px;
-            width: 32px;
-            border-radius: 50%;
-            background: #2563eb;
-            cursor: pointer;
-            -webkit-appearance: none;
-            margin-top: -10px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.4);
-            border: 2px solid white;
-        }
-
-        .tab-active {
-            background-color: #2563eb !important;
-            color: white !important;
-            border-color: #2563eb !important;
-        }
-
-        /* サブタブのアクティブスタイル */
-        .sub-tab-active {
-            background-color: #dbeafe !important; /* blue-100 */
-            color: #1e40af !important; /* blue-800 */
-            border-bottom: 3px solid #2563eb !important;
-            font-weight: bold;
-        }
-
-        button:active, label:active {
-            transform: scale(0.96);
-            opacity: 0.9;
-            background-color: #e0f2fe;
-        }
-
-        .pos-btn-active {
-            background-color: #dbeafe !important;
-            border-color: #2563eb !important;
-            color: #1e40af !important;
-            border-width: 2px !important;
-        }
-        
-        .sr-input {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            padding: 0;
-            margin: -1px;
-            overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            border: 0;
-            opacity: 0;
-        }
-
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: #2563eb;
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
-        }
-        textarea {
-            text-align: left;
-            vertical-align: top;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>blackboard_mobile_v1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&family=Kosugi+Maru&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family:'M PLUS Rounded 1c',sans-serif; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+    .canvas-bg {
+      background-image:repeating-linear-gradient(45deg,#e5e7eb 25%,transparent 25%,transparent 75%,#e5e7eb 75%,#e5e7eb),
+                       repeating-linear-gradient(45deg,#e5e7eb 25%,#f3f4f6 25%,#f3f4f6 75%,#e5e7eb 75%,#e5e7eb);
+      background-position:0 0,10px 10px; background-size:20px 20px;
+    }
+    input[type=range]{height:34px;-webkit-appearance:none;width:100%;background:transparent;cursor:pointer}
+    input[type=range]::-webkit-slider-runnable-track{height:8px;background:#cbd5e1;border-radius:4px}
+    input[type=range]::-webkit-slider-thumb{height:26px;width:26px;border-radius:50%;background:#2563eb;-webkit-appearance:none;margin-top:-9px;box-shadow:0 2px 4px rgba(0,0,0,.4);border:2px solid white}
+    .tab-active{background-color:#1e40af!important;color:white!important}
+    .btn-pos-active{background-color:#d1fae5!important;border-color:#059669!important;color:#065f46!important;font-weight:bold}
+    button:active{transform:scale(0.96)}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+    .sr-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;opacity:0}
+    #canvasWrap.drag-mode #mainCanvas{cursor:grab}
+    #canvasWrap.drag-mode #mainCanvas:active{cursor:grabbing}
+    .size-pill{display:inline-flex;align-items:center;padding:5px 10px;border:2px solid #cbd5e1;border-radius:999px;cursor:pointer;font-size:.78rem;font-weight:bold;user-select:none;transition:.12s;background:white;color:#374151}
+    .size-pill.active{border-color:#2563eb;background:#dbeafe;color:#1e40af}
+    .sub-tab-active{background-color:#dbeafe!important;color:#1e40af!important;border-bottom:3px solid #2563eb!important;font-weight:bold}
+  </style>
 </head>
-<body class="text-gray-900 pb-20">
+<body class="bg-gray-100 text-gray-900 pb-24">
 
-    <header class="bg-slate-800 text-white p-4 shadow-md sticky top-0 z-50 flex justify-between items-center">
-        <h1 class="text-xl font-bold flex items-center gap-2">
-            <span class="material-icons text-3xl">construction</span>
-            工事用黒板ツール
-        </h1>
-        <div id="saveStatus" class="text-sm font-bold bg-green-600 px-3 py-1 rounded-full text-white flex items-center gap-1 opacity-0 transition-opacity duration-500 shadow-lg">
-            <span class="material-icons text-base">check</span> 保存OK
-        </div>
-    </header>
+<header class="bg-slate-800 text-white px-4 py-3 sticky top-0 z-50 shadow-lg flex items-center justify-between">
+  <h1 class="text-base font-bold flex items-center gap-2">
+    <span class="material-icons text-xl">construction</span>blackboard_mobile_v1
+  </h1>
+  <span id="currentFileLabel" class="text-xs bg-slate-600 px-2 py-1 rounded-full truncate max-w-[180px]">画像未選択</span>
+</header>
 
-    <div class="container mx-auto px-4 mt-6 max-w-6xl">
-        
-        <div class="flex flex-col lg:flex-row gap-8">
+<div class="max-w-6xl mx-auto px-3 mt-4 flex flex-col lg:flex-row gap-5">
 
-            <!-- 左側: キャンバスエリア (スマホでは上部) -->
-            <div class="editor-area w-full lg:w-2/3 flex flex-col gap-6">
-                
-                <!-- 撮影ルール (文字サイズ拡大) -->
-                <div class="bg-yellow-50 border-4 border-yellow-400 p-3 rounded-xl shadow-sm">
-                    <div class="flex items-center justify-between mb-1">
-                        <div class="font-bold text-gray-800 text-lg flex items-center">
-                            <span class="material-icons text-yellow-600 mr-2 text-2xl">campaign</span> 撮影時のルール
-                        </div>
-                    </div>
-                    <div class="mt-1 grid grid-cols-1 md:grid-cols-3 gap-y-2 gap-x-4 text-base font-bold text-gray-800">
-                        <div class="flex items-center">
-                            <span class="material-icons text-blue-600 mr-2 text-xl">screen_rotation</span>
-                            <span>カメラは<span class="text-red-600 underline text-lg">横向き</span></span>
-                        </div>
-                        <div class="flex items-center">
-                            <span class="material-icons text-green-700 mr-2 text-xl">local_shipping</span>
-                            <span><span class="text-red-600 text-lg">積載量・ナンバー</span>入れる</span>
-                        </div>
-                        <div class="flex items-center">
-                            <span class="material-icons text-red-600 mr-2 text-xl">do_not_disturb_on</span>
-                            <span>アップすぎ×(全体撮る)</span>
-                        </div>
-                    </div>
-                </div>
+  <!-- ===== 左列: キャンバス ===== -->
+  <div class="w-full lg:w-3/5 flex flex-col gap-3">
 
-                <!-- 画像入力エリア (アイコン小・高さ半減) -->
-                <div id="dropZone" class="border-4 border-dashed border-gray-300 rounded-2xl p-4 transition-colors relative">
-                    <!-- オーバーレイメッセージ -->
-                    <div id="dragOverlay" class="absolute inset-0 bg-blue-50/90 hidden items-center justify-center rounded-xl z-10 pointer-events-none">
-                        <span class="text-2xl font-bold text-blue-600 flex items-center gap-2">
-                            <span class="material-icons text-4xl">add_photo_alternate</span>
-                            ここに画像をドロップ
-                        </span>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-4 relative">
-                        <input type="file" id="cameraInput" accept="image/*" capture="environment" class="sr-input">
-                        <input type="file" id="fileInput" accept="image/*" class="sr-input" multiple>
-
-                        <button type="button" id="btnCamera" class="border-4 border-blue-400 rounded-2xl p-3 text-center bg-white hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-blue-100">
-                            <span class="material-icons text-4xl text-blue-600 mb-1">photo_camera</span>
-                            <span class="text-lg font-extrabold text-blue-800">カメラを起動</span>
-                        </button>
-
-                        <button type="button" id="btnFile" class="border-4 border-gray-300 rounded-2xl p-3 text-center bg-white hover:bg-gray-50 transition-colors cursor-pointer flex flex-col items-center justify-center h-28 shadow-md select-none touch-manipulation active:bg-gray-200">
-                            <span class="material-icons text-4xl text-gray-500 mb-1">photo_library</span>
-                            <span class="text-lg font-extrabold text-gray-700">アルバムから</span>
-                        </button>
-                    </div>
-                    <!-- 文言変更 -->
-                    <p class="text-center text-xs text-gray-400 mt-2 font-bold hidden md:block">PCからはここに画像をドロップして追加できます（複数選択可能）</p>
-                </div>
-
-                <!-- キャンバス -->
-                <div class="canvas-container w-full rounded-xl overflow-hidden border-2 border-gray-300 bg-white relative shadow-inner">
-                    <div id="loading" class="hidden absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center">
-                        <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
-                        <span class="text-xl font-bold text-gray-600">処理中...</span>
-                    </div>
-                    <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height: 80vh;"></canvas>
-                </div>
-
-                <!-- 画像切り替えナビゲーション (複数画像用) -->
-                <div id="imageNav" class="hidden flex items-center justify-between bg-white p-2 rounded-xl shadow-sm border border-gray-200">
-                    <button onclick="prevImage()" class="p-3 bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-700 font-bold flex items-center gap-1 active:scale-95 touch-manipulation">
-                        <span class="material-icons">arrow_back</span> 前へ
-                    </button>
-                    <div class="text-center font-bold text-lg text-gray-800">
-                        <span id="currentImageNum">1</span> / <span id="totalImageNum">1</span>
-                    </div>
-                    <button onclick="nextImage()" class="p-3 bg-gray-100 rounded-lg hover:bg-gray-200 text-gray-700 font-bold flex items-center gap-1 active:scale-95 touch-manipulation">
-                        次へ <span class="material-icons">arrow_forward</span>
-                    </button>
-                </div>
-                
-                <!-- 保存・共有ボタン（分離版・アイコン小・高さ半減） -->
-                <div class="grid grid-cols-2 gap-4">
-                    <button id="btnDownload" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-3 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-blue-800 h-24">
-                        <span class="material-icons text-3xl">download</span>
-                        <span>端末に保存</span>
-                        <span class="text-xs font-normal opacity-80">(ダウンロード)</span>
-                    </button>
-                    <button id="btnShare" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-3 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 text-lg active:scale-95 transition-transform touch-manipulation border-b-4 border-green-800 h-24">
-                        <span class="material-icons text-3xl">share</span>
-                        <span>アプリで共有</span>
-                        <span class="text-xs font-normal opacity-80">(LINE/フォト等)</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- 右側: 操作パネル -->
-            <div class="controls w-full lg:w-1/3 flex flex-col gap-6">
-
-                <!-- タブボタン -->
-                <div class="flex rounded-xl shadow-md overflow-hidden border-2 border-blue-600 bg-white">
-                    <button type="button" onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-4 text-base md:text-lg font-bold text-blue-700 border-r-2 border-blue-600 hover:bg-blue-50 transition-colors flex flex-col md:flex-row items-center justify-center gap-1 tab-active touch-manipulation">
-                        <span class="material-icons text-xl md:text-2xl">settings</span>設定
-                    </button>
-                    <button type="button" onclick="switchTab('project')" id="btn-tab-project" class="tab-btn flex-1 py-4 text-base md:text-lg font-bold text-blue-700 border-r-2 border-blue-600 hover:bg-blue-50 transition-colors flex flex-col md:flex-row items-center justify-center gap-1 touch-manipulation">
-                        <span class="material-icons text-xl md:text-2xl">business</span>現場
-                    </button>
-                    <button type="button" onclick="switchTab('content')" id="btn-tab-content" class="tab-btn flex-1 py-4 text-base md:text-lg font-bold text-blue-700 border-r-2 border-blue-600 hover:bg-blue-50 transition-colors flex flex-col md:flex-row items-center justify-center gap-1 touch-manipulation">
-                        <span class="material-icons text-xl md:text-2xl">edit_note</span>内容
-                    </button>
-                    <button type="button" onclick="switchTab('adjust')" id="btn-tab-adjust" class="tab-btn flex-1 py-4 text-base md:text-lg font-bold text-blue-700 hover:bg-blue-50 transition-colors flex flex-col md:flex-row items-center justify-center gap-1 touch-manipulation">
-                        <span class="material-icons text-xl md:text-2xl">tune</span>調整
-                    </button>
-                </div>
-                
-                <!-- 1. タブコンテンツ: 設定 -->
-                <div id="tab-settings" class="tab-content bg-white p-5 rounded-xl shadow-md border-2 border-gray-200 space-y-6">
-                    <div>
-                        <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2 border-b-2 pb-2 text-xl">
-                            <span class="material-icons text-gray-600 text-2xl">settings</span> 黒板の設定
-                        </h3>
-                        
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <button type="button" onclick="setBoardPos('left')" id="pos-btn-left" class="bg-white hover:bg-gray-100 py-4 rounded-lg text-lg font-bold border-2 border-gray-400 touch-manipulation shadow-sm text-gray-700">
-                                左下に配置
-                            </button>
-                            <button type="button" onclick="setBoardPos('right')" id="pos-btn-right" class="bg-white hover:bg-gray-100 py-4 rounded-lg text-lg font-bold border-2 border-gray-400 touch-manipulation shadow-sm pos-btn-active text-gray-700">
-                                右下に配置
-                            </button>
-                        </div>
-
-                        <div class="grid grid-cols-1 gap-4 mb-4">
-                             <div class="flex flex-col">
-                                <label class="text-base font-bold text-gray-700 mb-2">黒板の色</label>
-                                <select id="boardColor" class="bg-gray-50 border-2 border-gray-400 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3 font-bold">
-                                    <option value="green">緑 (標準)</option>
-                                    <option value="black">黒板 (黒)</option>
-                                    <option value="white">ホワイトボード</option>
-                                    <option value="blue">青 (現場用)</option>
-                                </select>
-                            </div>
-                            <div class="flex flex-col">
-                                <label class="text-base font-bold text-gray-700 mb-2">黒板の大きさ</label>
-                                <select id="boardSize" class="bg-gray-50 border-2 border-gray-400 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3 font-bold">
-                                    <option value="small">小 (Small)</option>
-                                    <option value="medium" selected>中 (Medium)</option>
-                                    <option value="large">大 (Large)</option>
-                                    <option value="extraLarge">特大 (Ex-Large)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="text-base font-bold text-gray-700 mb-2">文字のフォント</label>
-                            <select id="fontFamily" class="bg-gray-50 border-2 border-gray-400 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3 font-bold">
-                                <option value="'M PLUS Rounded 1c', sans-serif">丸ゴシック (標準)</option>
-                                <option value="'Kosugi Maru', monospace">等幅風</option>
-                                <option value="sans-serif">標準ゴシック</option>
-                                <option value="serif">明朝体</option>
-                            </select>
-                        </div>
-
-                        <div class="border-t-2 pt-4 mb-2">
-                            <label class="text-lg font-bold text-gray-800 flex justify-between items-center mb-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
-                                <span>施工者枠を表示する</span>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="showConstructor" class="sr-only peer">
-                                    <div class="w-14 h-8 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
-                                </label>
-                            </label>
-                            <input type="text" id="inputConstructor" placeholder="ヒューマンヤード(株)" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none placeholder-gray-400">
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-between border-t-2 pt-4">
-                        <label class="text-lg font-bold text-gray-800">黒板を表示する</label>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="toggleBoard" class="sr-only peer" checked>
-                            <div class="w-14 h-8 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-600"></div>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- 2. タブコンテンツ: 案件 (工事件名・場所) -->
-                <div id="tab-project" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
-                    <div class="bg-blue-50 p-4 border-b-2 border-gray-200 font-bold text-blue-800 flex items-center gap-2 text-xl">
-                        <span class="material-icons text-blue-600">business</span> 案件の入力
-                    </div>
-                    
-                    <div class="p-5 flex flex-col gap-6">
-                        <div>
-                            <label class="block text-lg font-bold text-gray-800 mb-2">工事件名</label>
-                            <input type="text" id="inputProject" placeholder="◯◯改修工事" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none">
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between items-end mb-2">
-                                <label class="block text-lg font-bold text-gray-800" id="workTypeLabel">工事場所</label>
-                                <div class="flex bg-gray-100 rounded-lg p-1 border border-gray-300">
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="labelType" value="place" class="hidden peer" checked>
-                                        <span class="px-3 py-1 rounded text-sm font-bold text-gray-600 peer-checked:bg-white peer-checked:text-blue-600 peer-checked:shadow-sm transition-all">場所</span>
-                                    </label>
-                                    <label class="cursor-pointer">
-                                        <input type="radio" name="labelType" value="type" class="hidden peer">
-                                        <span class="px-3 py-1 rounded text-sm font-bold text-gray-600 peer-checked:bg-white peer-checked:text-blue-600 peer-checked:shadow-sm transition-all">工種</span>
-                                    </label>
-                                </div>
-                            </div>
-                            <input type="text" id="inputWorkType" placeholder="東京都〇〇区... / 配筋状況など" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 3. タブコンテンツ: 内容 (備考・日付) -->
-                <div id="tab-content" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
-                    <div class="bg-blue-50 p-4 border-b-2 border-gray-200 font-bold text-blue-800 flex items-center gap-2 text-xl">
-                        <span class="material-icons text-blue-600">edit_note</span> 内容の編集
-                    </div>
-                    
-                    <div class="p-5 flex flex-col gap-6">
-                        
-                        <div id="containerMemo">
-                            <div class="flex justify-between items-center mb-3">
-                                <label class="block text-lg font-bold text-gray-800">備考・内容</label>
-                                <button type="button" id="btnClearMemo" class="text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-2 rounded-lg flex items-center gap-1 touch-manipulation shadow-sm">
-                                    <span class="material-icons text-sm">delete_outline</span>クリア
-                                </button>
-                            </div>
-                            
-                            <textarea id="inputMemo" rows="4" placeholder="状況写真&#13;&#10;配筋D13&#13;&#10;@200" class="w-full p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none resize-y text-left align-top mb-4"></textarea>
-
-                            <!-- 簡単入力支援エリア (タブ化) -->
-                            <div class="bg-blue-50 rounded-xl border-2 border-blue-100 shadow-inner">
-                                <button type="button" onclick="toggleEasyInput()" class="w-full p-4 text-sm font-bold text-blue-800 flex items-center justify-between touch-manipulation">
-                                    <span class="flex items-center"><span class="material-icons text-sm mr-1">touch_app</span> 簡単入力支援</span>
-                                    <span id="easyInputIcon" class="material-icons text-blue-600">keyboard_arrow_down</span>
-                                </button>
-                                
-                                <div id="easyInputContent" class="hidden">
-                                    <!-- サブタブ -->
-                                    <div class="flex border-b border-blue-200">
-                                        <button type="button" onclick="switchSubTab('soil')" id="btn-sub-soil" class="flex-1 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100 sub-tab-active">土砂・運搬</button>
-                                        <button type="button" onclick="switchSubTab('dimension')" id="btn-sub-dimension" class="flex-1 py-3 text-sm font-bold text-blue-700 hover:bg-blue-100">寸法・数値</button>
-                                    </div>
-
-                                    <!-- 土砂・運搬パネル -->
-                                    <div id="panel-soil" class="p-4">
-                                        <div class="flex flex-wrap gap-2 mb-3">
-                                            <label class="flex-1 min-w-[90px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 active:bg-blue-100 select-none" onclick="updateSoilDirectly()">
-                                                <input type="radio" name="soilType" value="残土搬出" class="hidden peer" checked>
-                                                <span class="text-gray-700 font-bold peer-checked:text-blue-700">残土搬出</span>
-                                            </label>
-                                            <label class="flex-1 min-w-[90px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 active:bg-blue-100 select-none" onclick="updateSoilDirectly()">
-                                                <input type="radio" name="soilType" value="客土搬入" class="hidden peer">
-                                                <span class="text-gray-700 font-bold peer-checked:text-blue-700">客土搬入</span>
-                                            </label>
-                                            <label class="flex-none inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-gray-200 hover:bg-gray-50 active:bg-gray-100 select-none" onclick="updateSoilDirectly()">
-                                                <input type="radio" name="soilType" value="" class="hidden peer">
-                                                <span class="text-gray-500 font-bold peer-checked:text-gray-900">なし</span>
-                                            </label>
-                                        </div>
-                                        <div class="flex flex-wrap gap-2 mb-4">
-                                            <span class="text-sm font-bold text-gray-600 flex items-center">積載:</span>
-                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="2t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">2t</span></label>
-                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="3t" class="hidden peer" checked><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">3t</span></label>
-                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="4t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">4t</span></label>
-                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="8t" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">8t</span></label>
-                                            <label class="inline-flex items-center cursor-pointer bg-white px-3 py-2 rounded border border-gray-300 select-none active:bg-gray-100" onclick="updateSoilDirectly()"><input type="radio" name="truckCap" value="" class="hidden peer"><span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600">なし</span></label>
-                                        </div>
-
-                                        <div class="flex items-center gap-2">
-                                            <div class="flex items-center border-2 border-gray-300 rounded-lg bg-white overflow-hidden flex-1 shadow-sm">
-                                                <button type="button" onclick="changeCounter(-1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-r border-gray-200 touch-manipulation flex-none w-16">
-                                                    <span class="material-icons text-xl font-bold">remove</span>
-                                                </button>
-                                                <span id="counterValue" class="flex-1 px-2 py-2 font-extrabold text-2xl text-center text-gray-800">1</span>
-                                                <button type="button" onclick="changeCounter(1)" class="px-5 py-3 bg-gray-50 hover:bg-gray-200 text-gray-700 active:bg-gray-300 border-l border-gray-200 touch-manipulation flex-none w-16">
-                                                    <span class="material-icons text-xl font-bold">add</span>
-                                                </button>
-                                            </div>
-                                            <span class="text-lg text-gray-700 font-bold whitespace-nowrap mr-2">台目</span>
-                                        </div>
-                                    </div>
-
-                                    <!-- 寸法・数値パネル -->
-                                    <div id="panel-dimension" class="p-4 hidden">
-                                        <div class="mb-3">
-                                            <span class="text-xs font-bold text-gray-500 block mb-1">記号を選択</span>
-                                            <div class="flex flex-wrap gap-2">
-                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
-                                                    <input type="radio" name="dimPrefix" value="T=" class="hidden peer" checked>
-                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">T=</span>
-                                                </label>
-                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
-                                                    <input type="radio" name="dimPrefix" value="W=" class="hidden peer">
-                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">W=</span>
-                                                </label>
-                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
-                                                    <input type="radio" name="dimPrefix" value="H=" class="hidden peer">
-                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">H=</span>
-                                                </label>
-                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
-                                                    <input type="radio" name="dimPrefix" value="L=" class="hidden peer">
-                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">L=</span>
-                                                </label>
-                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
-                                                    <input type="radio" name="dimPrefix" value="@" class="hidden peer">
-                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">@</span>
-                                                </label>
-                                                <label class="flex-1 min-w-[50px] inline-flex items-center justify-center cursor-pointer bg-white px-3 py-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50 active:bg-gray-100 select-none">
-                                                    <input type="radio" name="dimPrefix" value="φ" class="hidden peer">
-                                                    <span class="text-lg font-bold text-gray-700 peer-checked:text-blue-700">φ</span>
-                                                </label>
-                                            </div>
-                                        </div>
-
-                                        <div class="mb-4">
-                                            <span class="text-xs font-bold text-gray-500 block mb-1">数値を入力</span>
-                                            <div class="flex gap-2 mb-2">
-                                                <input type="number" id="dimValue" class="flex-1 p-3 border-2 border-gray-300 rounded-lg text-xl font-bold text-center focus:ring-2 focus:ring-blue-200 outline-none" placeholder="0">
-                                            </div>
-                                            <div class="grid grid-cols-4 gap-2">
-                                                <button type="button" onclick="adjustDimValue(-100)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">-100</button>
-                                                <button type="button" onclick="adjustDimValue(-10)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">-10</button>
-                                                <button type="button" onclick="adjustDimValue(10)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">+10</button>
-                                                <button type="button" onclick="adjustDimValue(100)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded active:bg-gray-300 text-xs">+100</button>
-                                            </div>
-                                        </div>
-
-                                        <button type="button" onclick="insertDimension()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-md active:scale-95 transition-transform flex justify-center items-center gap-2">
-                                            <span class="material-icons">input</span> 入力する
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label class="block text-lg font-bold text-gray-800 mb-2">日付・時間の表示</label>
-                            
-                            <!-- 日付表示モード選択 (3択) -->
-                            <div class="grid grid-cols-3 gap-2 mb-3">
-                                <label class="cursor-pointer">
-                                    <input type="radio" name="dateMode" value="standard" class="hidden peer" checked>
-                                    <div class="p-2 border-2 border-gray-300 rounded-lg text-center bg-white hover:bg-gray-50 peer-checked:border-blue-600 peer-checked:bg-blue-50">
-                                        <div class="font-bold text-sm text-gray-700 peer-checked:text-blue-700">標準</div>
-                                        <div class="text-xs text-gray-500">枠の隅</div>
-                                    </div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="radio" name="dateMode" value="inline" class="hidden peer">
-                                    <div class="p-2 border-2 border-gray-300 rounded-lg text-center bg-white hover:bg-gray-50 peer-checked:border-blue-600 peer-checked:bg-blue-50">
-                                        <div class="font-bold text-sm text-gray-700 peer-checked:text-blue-700">備考下</div>
-                                        <div class="text-xs text-gray-500">月日時分</div>
-                                    </div>
-                                </label>
-                                <label class="cursor-pointer">
-                                    <input type="radio" name="dateMode" value="none" class="hidden peer">
-                                    <div class="p-2 border-2 border-gray-300 rounded-lg text-center bg-white hover:bg-gray-50 peer-checked:border-gray-500 peer-checked:bg-gray-100">
-                                        <div class="font-bold text-sm text-gray-700 peer-checked:text-gray-900">なし</div>
-                                        <div class="text-xs text-gray-500">表示しない</div>
-                                    </div>
-                                </label>
-                            </div>
-
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="text-sm flex items-center gap-1 cursor-pointer font-bold text-blue-700 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200 select-none"><input type="checkbox" id="toggleTime" class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5" checked>時間も表示</label>
-                                <button type="button" onclick="setToday()" class="bg-gray-200 px-3 py-2 rounded-lg text-sm hover:bg-gray-300 font-bold text-gray-700 flex items-center gap-1 touch-manipulation shadow-sm"><span class="material-icons text-base">update</span>現在</button>
-                            </div>
-                            <div class="flex gap-4">
-                                <input type="date" id="inputDate" class="flex-1 p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none font-bold text-gray-700">
-                                <input type="time" id="inputTime" class="w-32 p-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-200 outline-none font-bold text-gray-700">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 4. 調整 -->
-                <div id="tab-adjust" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
-                    <div class="bg-gray-50 p-4 border-b-2 border-gray-200 font-bold text-gray-700 flex items-center gap-2 text-xl">
-                        <span class="material-icons text-gray-500">tune</span> サイズ・位置調整
-                    </div>
-                    <div class="p-5 border-t border-gray-200 space-y-6">
-                        
-                        <!-- 個別サイズ調整 -->
-                        <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>工事件名 サイズ</span>
-                                <span id="valScaleProject" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
-                            <input type="range" id="scaleProject" min="0.5" max="2.0" step="0.1" value="1.0">
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span id="adjustLabelWorkType">工事場所 サイズ</span>
-                                <span id="valScaleWorkType" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
-                            <input type="range" id="scaleWorkType" min="0.5" max="2.0" step="0.1" value="1.0">
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>備考・内容 サイズ</span>
-                                <span id="valScaleMemo" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
-                            <input type="range" id="scaleMemo" min="0.5" max="2.0" step="0.1" value="1.0">
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>日付・時間 サイズ</span>
-                                <span id="valScaleDate" class="bg-gray-100 px-2 rounded text-gray-500">1.0</span>
-                            </div>
-                            <input type="range" id="scaleDate" min="0.5" max="2.0" step="0.1" value="1.0">
-                        </div>
-
-                        <hr class="border-gray-300 my-2">
-
-                        <div>
-                            <label class="text-base font-bold text-gray-700 mb-2 block">日付・時間の位置 (標準モード時)</label>
-                            <div class="grid grid-cols-2 gap-4 text-base">
-                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50">
-                                    <input type="radio" name="datePos" value="left" class="text-blue-600 focus:ring-blue-500 w-5 h-5">
-                                    <span class="font-bold">左下</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer bg-white p-3 rounded-lg border-2 border-gray-300 hover:bg-gray-50">
-                                    <input type="radio" name="datePos" value="right" class="text-blue-600 focus:ring-blue-500 w-5 h-5" checked>
-                                    <span class="font-bold">右下</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <hr class="border-gray-300 my-2">
-
-                        <div>
-                            <div class="flex justify-between text-base font-bold text-gray-700 mb-2">
-                                <span>行間（すきま）</span>
-                                <span id="dispLineHeight" class="bg-gray-100 px-2 rounded text-gray-500">1.2</span>
-                            </div>
-                            <input type="range" id="lineHeight" min="0.8" max="2.0" step="0.1" value="1.2">
-                        </div>
-
-                        <div>
-                            <label class="text-base font-bold text-gray-700 block mb-2">黒板の微調整 (上下)</label>
-                            <div class="grid grid-cols-2 gap-4">
-                                <button type="button" onclick="adjustOffset(-5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2">
-                                    <span class="material-icons">arrow_upward</span> 上へ
-                                </button>
-                                <button type="button" onclick="adjustOffset(5)" class="bg-white p-3 rounded-lg hover:bg-gray-100 border-2 border-gray-300 text-lg font-bold touch-manipulation flex justify-center items-center gap-2">
-                                    <span class="material-icons">arrow_downward</span> 下へ
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="text-center mt-4">
-                    <button type="button" onclick="resetAll()" class="text-base text-red-600 font-bold underline hover:text-red-800 touch-manipulation p-2">設定を全てリセット</button>
-                </div>
-
-            </div>
-        </div>
+    <!-- ドロップゾーン -->
+    <div id="dropZone" class="border-4 border-dashed border-gray-300 rounded-2xl p-3 bg-white relative hover:border-blue-400 transition-colors">
+      <div id="dragOverlay" class="absolute inset-0 bg-blue-50/90 hidden items-center justify-center rounded-xl z-10 pointer-events-none">
+        <span class="text-xl font-bold text-blue-600 flex items-center gap-2">
+          <span class="material-icons text-3xl">add_photo_alternate</span>ここにドロップ
+        </span>
+      </div>
+      <input type="file" id="fileInput"   accept="image/*" class="sr-input" multiple />
+      <input type="file" id="cameraInput" accept="image/*" capture="environment" class="sr-input" />
+      <div class="grid grid-cols-2 gap-3">
+        <button id="btnCamera" type="button" class="border-4 border-blue-400 rounded-2xl p-2 flex flex-col items-center h-20 bg-white hover:bg-blue-50 shadow-md">
+          <span class="material-icons text-3xl text-blue-600">photo_camera</span>
+          <span class="font-bold text-blue-800 text-xs mt-1">カメラ</span>
+        </button>
+        <button id="btnFile" type="button" class="border-4 border-gray-300 rounded-2xl p-2 flex flex-col items-center h-20 bg-white hover:bg-gray-50 shadow-md">
+          <span class="material-icons text-3xl text-gray-500">photo_library</span>
+          <span class="font-bold text-gray-700 text-xs mt-1">アルバム/PC</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Core Logic -->
-    <script>
-        // 関数定義を最上位で行う (Hosting & Scope対策)
-        function drawMultilineText(ctx, text, x, y, lineHeight) {
-            if(!text) return;
-            const lines = text.split('\n'); 
-            lines.forEach((line, index) => {
-                ctx.fillText(line, x, y + (index * lineHeight));
-            });
+    <!-- キャンバス -->
+    <div id="canvasWrap" class="canvas-bg rounded-xl overflow-hidden border-2 border-gray-300 shadow-inner relative">
+      <div id="loading" class="hidden absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mb-2"></div>
+        <span class="font-bold text-gray-600">処理中...</span>
+      </div>
+      <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height:75vh"></canvas>
+    </div>
+
+    <!-- ドラッグモード -->
+    <div class="flex items-center gap-3 bg-white rounded-xl px-4 py-2 border border-gray-200 shadow-sm">
+      <label class="flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" id="dragModeToggle" class="w-5 h-5 rounded text-blue-600" />
+        <span class="font-bold text-gray-700 text-sm flex items-center gap-1">
+          <span class="material-icons text-base text-blue-500">open_with</span>黒板をドラッグで移動
+        </span>
+      </label>
+      <button onclick="resetBoardPosition()" class="ml-auto text-xs text-gray-500 underline hover:text-gray-700">位置リセット</button>
+    </div>
+
+    <!-- 画像ナビ -->
+    <div id="imageNav" class="hidden items-center justify-between bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+      <button onclick="prevImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
+        <span class="material-icons text-base">arrow_back</span>前へ
+      </button>
+      <span class="font-bold"><span id="currentImageNum">1</span> / <span id="totalImageNum">1</span></span>
+      <button onclick="nextImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
+        次へ<span class="material-icons text-base">arrow_forward</span>
+      </button>
+    </div>
+
+    <!-- 保存・共有 -->
+    <div class="grid grid-cols-2 gap-3">
+      <button id="btnDownload" class="bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg flex flex-col items-center border-b-4 border-blue-800 hover:bg-blue-700 gap-1">
+        <span class="material-icons text-xl">download</span><span class="text-xs">端末に保存</span>
+      </button>
+      <button id="btnShare" class="bg-green-600 text-white font-bold py-3 rounded-xl shadow-lg flex flex-col items-center border-b-4 border-green-800 hover:bg-green-700 gap-1">
+        <span class="material-icons text-xl">share</span><span class="text-xs">共有</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ===== 右列: 操作パネル ===== -->
+  <div class="w-full lg:w-2/5 flex flex-col gap-3">
+
+    <!-- タブ（バッチなし・4タブ） -->
+    <div class="flex rounded-xl overflow-hidden border-2 border-blue-600 bg-white shadow-md text-xs">
+      <button type="button" onclick="switchTab('settings')" id="btn-tab-settings" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center tab-active">
+        <span class="material-icons text-lg">tune</span>設定
+      </button>
+      <button type="button" onclick="switchTab('site')" id="btn-tab-site" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300">
+        <span class="material-icons text-lg">business</span>現場
+      </button>
+      <button type="button" onclick="switchTab('content')" id="btn-tab-content" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300">
+        <span class="material-icons text-lg">edit_note</span>内容
+      </button>
+      <button type="button" onclick="switchTab('adjust')" id="btn-tab-adjust" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300">
+        <span class="material-icons text-lg">format_size</span>調整
+      </button>
+    </div>
+
+    <!-- ===== TAB: 設定 ===== -->
+    <div id="tab-settings" class="tab-content bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-4">
+
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の位置</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="setBoardPos('left')"  id="pos-btn-left"  class="py-2.5 rounded-lg font-bold border-2 border-gray-300 bg-white hover:bg-gray-50 text-sm">◀ 左下</button>
+          <button type="button" onclick="setBoardPos('right')" id="pos-btn-right" class="py-2.5 rounded-lg font-bold border-2 border-gray-300 bg-white hover:bg-gray-50 text-sm btn-pos-active">右下 ▶</button>
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の色</label>
+        <select id="boardColor" class="w-full p-2.5 border-2 border-gray-300 rounded-lg font-bold text-gray-800 bg-gray-50 text-sm">
+          <option value="green">緑（標準）</option>
+          <option value="black">黒板（黒）</option>
+          <option value="white">ホワイトボード</option>
+          <option value="blue">青（現場用）</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の大きさ</label>
+        <div class="flex flex-wrap gap-2" id="sizePillGroup">
+          <span class="size-pill" data-size="xs">極小</span>
+          <span class="size-pill" data-size="s">小</span>
+          <span class="size-pill" data-size="sm">小＋</span>
+          <span class="size-pill active" data-size="m">中</span>
+          <span class="size-pill" data-size="ml">中＋</span>
+          <span class="size-pill" data-size="l">大</span>
+        </div>
+      </div>
+
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">工種ラベル</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-300 text-sm">
+            <input type="radio" name="labelType" value="worktype" class="text-blue-600"> <span class="font-bold">工種</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-300 text-sm">
+            <input type="radio" name="labelType" value="place" checked class="text-blue-600"> <span class="font-bold">工事場所</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" id="toggleBoard" class="w-5 h-5 rounded text-blue-600" checked />
+          <span class="font-bold text-gray-700 text-sm">黒板を表示する</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" id="showConstructor" class="w-5 h-5 rounded text-blue-600" />
+          <span class="font-bold text-gray-700 text-sm">施工者欄を表示する</span>
+        </label>
+      </div>
+
+      <!-- 日付・時間の表示設定 -->
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">日付・時間の表示設定</label>
+        <div class="space-y-3">
+
+          <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+            <div class="text-xs font-bold text-blue-700 mb-2">📅 日付の表示場所</div>
+            <div class="grid grid-cols-4 gap-1.5">
+              <label class="cursor-pointer"><input type="radio" name="datePlace" value="right" class="hidden peer" checked />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-blue-600 peer-checked:bg-blue-100 peer-checked:text-blue-700">右下</div></label>
+              <label class="cursor-pointer"><input type="radio" name="datePlace" value="left" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-blue-600 peer-checked:bg-blue-100 peer-checked:text-blue-700">左下</div></label>
+              <label class="cursor-pointer"><input type="radio" name="datePlace" value="inline" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-blue-600 peer-checked:bg-blue-100 peer-checked:text-blue-700">備考下</div></label>
+              <label class="cursor-pointer"><input type="radio" name="datePlace" value="none" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-gray-500 peer-checked:bg-gray-100">なし</div></label>
+            </div>
+            <div class="mt-2">
+              <label class="block text-xs font-bold text-gray-500 mb-1">フォーマット</label>
+              <select id="dateFormatSelect" class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold bg-white">
+                <option value="md_jp" selected>3月14日</option>
+                <option value="ymd_slash">2026/03/14</option>
+                <option value="ymd_jp">2026年3月14日</option>
+                <option value="md_slash">3/14</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="bg-green-50 border border-green-200 rounded-xl p-3">
+            <div class="text-xs font-bold text-green-700 mb-2">⏰ 時間の表示場所</div>
+            <div class="grid grid-cols-4 gap-1.5">
+              <label class="cursor-pointer"><input type="radio" name="timePlace" value="right" class="hidden peer" checked />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">右下</div></label>
+              <label class="cursor-pointer"><input type="radio" name="timePlace" value="left" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">左下</div></label>
+              <label class="cursor-pointer"><input type="radio" name="timePlace" value="inline" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">備考下</div></label>
+              <label class="cursor-pointer"><input type="radio" name="timePlace" value="none" class="hidden peer" />
+                <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-gray-500 peer-checked:bg-gray-100">なし</div></label>
+            </div>
+            <div class="mt-2">
+              <label class="block text-xs font-bold text-gray-500 mb-1">フォーマット</label>
+              <select id="timeFormatSelect" class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold bg-white">
+                <option value="hm_jp" selected>9時00分</option>
+                <option value="hm_colon">9:00</option>
+                <option value="hm_colon0">09:00</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+        <div class="flex justify-end mt-2">
+          <button onclick="setToday()" class="bg-gray-200 px-2 py-1.5 rounded-lg text-xs hover:bg-gray-300 font-bold text-gray-700 flex items-center gap-1">
+            <span class="material-icons text-sm">update</span>現在時刻を設定
+          </button>
+        </div>
+        <div class="flex gap-2 mt-2">
+          <input type="date" id="inputDate" class="flex-1 p-2.5 border-2 border-gray-300 rounded-lg text-base font-bold text-gray-700" />
+          <input type="time" id="inputTime" class="w-24 p-2.5 border-2 border-gray-300 rounded-lg text-base font-bold text-gray-700" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TAB: 現場 ===== -->
+    <div id="tab-site" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-3">
+      <h3 class="font-bold text-gray-800 border-b pb-2 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">business</span>現場情報
+      </h3>
+      <div>
+        <label class="block font-bold text-gray-700 mb-1 text-sm">工事件名</label>
+        <textarea id="inputProject" rows="2" placeholder="例: ○○マンション新築工事" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+      </div>
+      <div>
+        <label id="workTypeLabel" class="block font-bold text-gray-700 mb-1 text-sm">工事場所</label>
+        <textarea id="inputWorkType" rows="2" placeholder="例: 1階 エントランス" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+      </div>
+      <div>
+        <label class="block font-bold text-gray-700 mb-1 text-sm">施工者名</label>
+        <input type="text" id="inputConstructor" value="ヒューマンヤード(株)" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700" />
+      </div>
+    </div>
+
+    <!-- ===== TAB: 内容 ===== -->
+    <div id="tab-content" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-3">
+      <h3 class="font-bold text-gray-800 border-b pb-2 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">edit_note</span>備考・内容
+      </h3>
+
+      <!-- 簡単入力支援 -->
+      <div class="bg-blue-50 rounded-xl border-2 border-blue-100">
+        <button type="button" onclick="toggleEasyInput()" class="w-full p-3 text-sm font-bold text-blue-800 flex items-center justify-between">
+          <span class="flex items-center gap-1"><span class="material-icons text-sm">touch_app</span> 簡単入力支援</span>
+          <span id="easyInputIcon" class="material-icons text-blue-600">keyboard_arrow_down</span>
+        </button>
+        <div id="easyInputContent" class="hidden">
+          <div class="flex border-b border-blue-200">
+            <button type="button" onclick="switchSubTab('soil')" id="btn-sub-soil" class="flex-1 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100 sub-tab-active">土砂・運搬</button>
+            <button type="button" onclick="switchSubTab('dimension')" id="btn-sub-dimension" class="flex-1 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100">寸法・数値</button>
+          </div>
+
+          <!-- 土砂・運搬 -->
+          <div id="panel-soil" class="p-3">
+            <div class="flex flex-wrap gap-2 mb-2">
+              <label class="flex-1 min-w-[80px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="soilType" value="残土搬出" class="hidden peer" checked />
+                <span class="text-sm font-bold text-gray-700 peer-checked:text-blue-700">残土搬出</span>
+              </label>
+              <label class="flex-1 min-w-[80px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2 rounded-lg border-2 border-blue-200 hover:bg-blue-50 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="soilType" value="客土搬入" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-700 peer-checked:text-blue-700">客土搬入</span>
+              </label>
+              <label class="inline-flex items-center justify-center cursor-pointer bg-white px-3 py-2 rounded-lg border-2 border-gray-200 hover:bg-gray-50 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="soilType" value="" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-gray-900">なし</span>
+              </label>
+            </div>
+            <div class="flex flex-wrap gap-2 mb-3">
+              <span class="text-xs font-bold text-gray-600 flex items-center">積載:</span>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="2t" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">2t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="3t" class="hidden peer" checked />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">3t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="4t" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">4t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="8t" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600 peer-checked:underline">8t</span>
+              </label>
+              <label class="inline-flex items-center cursor-pointer bg-white px-3 py-1.5 rounded border border-gray-300 select-none" onclick="updateSoilDirectly()">
+                <input type="radio" name="truckCap" value="" class="hidden peer" />
+                <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600">なし</span>
+              </label>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center border-2 border-gray-300 rounded-lg bg-white overflow-hidden flex-1">
+                <button type="button" onclick="changeCounter(-1)" class="px-4 py-2.5 bg-gray-50 hover:bg-gray-200 text-gray-700 border-r border-gray-200 w-14 flex justify-center">
+                  <span class="material-icons">remove</span>
+                </button>
+                <span id="counterValue" class="flex-1 py-2 font-extrabold text-2xl text-center text-gray-800">1</span>
+                <button type="button" onclick="changeCounter(1)" class="px-4 py-2.5 bg-gray-50 hover:bg-gray-200 text-gray-700 border-l border-gray-200 w-14 flex justify-center">
+                  <span class="material-icons">add</span>
+                </button>
+              </div>
+              <span class="text-base font-bold text-gray-700 whitespace-nowrap">台目</span>
+            </div>
+          </div>
+
+          <!-- 寸法・数値 -->
+          <div id="panel-dimension" class="p-3 hidden">
+            <div class="mb-2">
+              <span class="text-xs font-bold text-gray-500 block mb-1">記号を選択</span>
+              <div class="flex flex-wrap gap-1.5">
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="T=" class="hidden peer" checked />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">T=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="W=" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">W=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="H=" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">H=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="L=" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">L=</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="@" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">@</span>
+                </label>
+                <label class="flex-1 min-w-[44px] inline-flex items-center justify-center cursor-pointer bg-white px-2 py-2.5 rounded-lg border-2 border-gray-300 hover:bg-gray-50 select-none">
+                  <input type="radio" name="dimPrefix" value="φ" class="hidden peer" />
+                  <span class="text-base font-bold text-gray-700 peer-checked:text-blue-700">φ</span>
+                </label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <span class="text-xs font-bold text-gray-500 block mb-1">数値を入力</span>
+              <input type="number" id="dimValue" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-xl font-bold text-center mb-2" placeholder="0" />
+              <div class="grid grid-cols-4 gap-1.5">
+                <button type="button" onclick="adjustDimValue(-100)" class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">-100</button>
+                <button type="button" onclick="adjustDimValue(-10)"  class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">-10</button>
+                <button type="button" onclick="adjustDimValue(10)"   class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">+10</button>
+                <button type="button" onclick="adjustDimValue(100)"  class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded text-xs">+100</button>
+              </div>
+            </div>
+            <button type="button" onclick="insertDimension()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg flex justify-center items-center gap-2 text-sm">
+              <span class="material-icons text-base">input</span>入力する
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 備考テキスト -->
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <label class="font-bold text-gray-700 text-sm">備考・内容</label>
+          <button onclick="clearMemo()" class="text-red-600 text-xs font-bold hover:text-red-800">クリア</button>
+        </div>
+        <textarea id="inputMemo" rows="5" placeholder="例: 残土搬出 3t 1台目" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+      </div>
+    </div>
+
+    <!-- ===== TAB: 調整 ===== -->
+    <div id="tab-adjust" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 overflow-hidden">
+      <div class="bg-gray-50 p-3 border-b-2 font-bold text-gray-700 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">format_size</span>サイズ・フォント
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <label class="block font-bold text-gray-700 mb-1 text-sm">フォント</label>
+          <select id="fontFamily" class="w-full p-2.5 border-2 border-gray-300 rounded-lg font-bold text-gray-800 bg-gray-50 text-sm">
+            <option value="'M PLUS Rounded 1c', sans-serif" selected>M PLUS Rounded 1c</option>
+            <option value="'Kosugi Maru', sans-serif">Kosugi Maru</option>
+            <option value="sans-serif">ゴシック（システム）</option>
+            <option value="serif">明朝（システム）</option>
+          </select>
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>工事件名 サイズ</span><span id="valScaleProject" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
+          <input type="range" id="scaleProject" min="0.3" max="2.0" step="0.1" value="1.2" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span id="adjustLabelWorkType">工事場所 サイズ</span><span id="valScaleWorkType" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
+          <input type="range" id="scaleWorkType" min="0.3" max="2.0" step="0.1" value="1.2" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>備考 サイズ</span><span id="valScaleMemo" class="bg-gray-100 px-1.5 rounded text-gray-500">1.4</span></div>
+          <input type="range" id="scaleMemo" min="0.3" max="2.0" step="0.1" value="1.4" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>日付・時間 サイズ</span><span id="valScaleDate" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
+          <input type="range" id="scaleDate" min="0.3" max="2.0" step="0.1" value="1.0" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>行間</span><span id="dispLineHeight" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
+          <input type="range" id="lineHeight" min="0.8" max="2.5" step="0.1" value="1.2" />
+        </div>
+        <div>
+          <label class="block font-bold text-gray-700 mb-1 text-sm">文字の上下微調整</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="adjustOffset(-5)" class="py-2 border-2 border-gray-300 rounded-lg font-bold text-sm hover:bg-gray-100 flex items-center justify-center gap-1">
+              <span class="material-icons text-sm">arrow_upward</span>上へ
+            </button>
+            <button onclick="adjustOffset(5)" class="py-2 border-2 border-gray-300 rounded-lg font-bold text-sm hover:bg-gray-100 flex items-center justify-center gap-1">
+              <span class="material-icons text-sm">arrow_downward</span>下へ
+            </button>
+          </div>
+        </div>
+        <button onclick="resetAll()" class="w-full text-red-600 font-bold underline hover:text-red-800 text-sm py-1">設定を全てリセット</button>
+      </div>
+    </div>
+
+  </div><!-- /右列 -->
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const S = {
+  image:null, currentFileName:'',
+  boardPos:'right',
+  boardSize:'m',
+  boardOffsetX:null, boardOffsetY:null,
+  boardColor:'green',
+  showBoard:true, showConstructor:false,
+  datePlace:'right', timePlace:'right',
+  dateFormat:'md_jp', timeFormat:'hm_jp',
+  workLabelType:'place',
+  text:{project:'',workType:'',memo:'',constructorName:'ヒューマンヤード(株)',date:'',time:''},
+  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.2,fontScaleWorkType:1.2,fontScaleMemo:1.4,fontScaleDate:1.0,lineHeight:1.2,yOffset:0},
+};
+
+let currentImages = [];  // { img, name }
+let currentImgIdx = 0;
+let dragMode = false;
+let isDragging = false, dragStartX=0, dragStartY=0, dragBoardX=0, dragBoardY=0;
+
+// ============================================================
+// CANVAS
+// ============================================================
+const canvas = document.getElementById('mainCanvas');
+const ctx    = canvas.getContext('2d');
+const canvasWrap = document.getElementById('canvasWrap');
+
+function getBoardColors() {
+  const m = {
+    black:{bg:'#1a1a1a',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
+    white:{bg:'#fff',line:'#333',text:'#111',shadow:'rgba(0,0,0,.3)'},
+    blue: {bg:'#0d47a1',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
+    green:{bg:'#004d40',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
+  };
+  return m[S.boardColor] || m.green;
+}
+
+const SIZE_RATIOS = {xs:.26, s:.31, sm:.37, m:.44, ml:.50, l:.56};
+
+function getBoardDimensions() {
+  const cw=canvas.width, ch=canvas.height;
+  const r=SIZE_RATIOS[S.boardSize]??0.44;
+  const bw=cw*r, bh=ch*r;
+  let bx, by;
+  if (S.boardOffsetX!==null && S.boardOffsetY!==null) {
+    bx=Math.max(0,Math.min(cw-bw,S.boardOffsetX));
+    by=Math.max(0,Math.min(ch-bh,S.boardOffsetY));
+  } else {
+    bx=S.boardPos==='left'?0:cw-bw;
+    by=ch-bh;
+  }
+  return {bx,by,bw,bh};
+}
+
+function drawBlackboard(ctx,x,y,w,h,c) {
+  ctx.save();
+  ctx.shadowColor=c.shadow; ctx.shadowBlur=10; ctx.shadowOffsetX=5; ctx.shadowOffsetY=5;
+  ctx.fillStyle=c.bg; ctx.fillRect(x,y,w,h);
+  ctx.shadowColor='transparent';
+  ctx.strokeStyle=S.boardColor==='white'?'#999':'#e0e0e0';
+  ctx.lineWidth=Math.max(2,w*.005);
+  const hl=ctx.lineWidth/2;
+  ctx.strokeRect(x+hl,y+hl,w-ctx.lineWidth,h-ctx.lineWidth);
+  ctx.strokeStyle=c.line; ctx.lineWidth=Math.max(1,w*.003);
+  ctx.beginPath();
+  ctx.moveTo(x,y+h*.18); ctx.lineTo(x+w,y+h*.18);
+  ctx.moveTo(x,y+h*.36); ctx.lineTo(x+w,y+h*.36);
+  ctx.moveTo(x+w*.22,y); ctx.lineTo(x+w*.22,y+h*.36);
+  if(S.showConstructor){
+    const cH=h*.14,cY=y+h-cH;
+    ctx.moveTo(x,cY); ctx.lineTo(x+w,cY);
+    ctx.moveTo(x+w*.22,cY); ctx.lineTo(x+w*.22,y+h);
+  }
+  ctx.stroke(); ctx.restore();
+}
+
+function drawTextOnBoard(ctx,bx,by,bw,bh,c) {
+  ctx.save();
+  ctx.fillStyle=c.text;
+  ctx.beginPath(); ctx.rect(bx,by,bw,bh); ctx.clip();
+  const labelSz=bw*.047, base=bw*.055, pad=bw*.04, offY=S.style.yOffset, font=S.style.fontFamily;
+  const row1CY=by+bh*.09, row2CY=by+bh*.27;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.font=`${labelSz}px ${font}`;
+  ctx.fillText('工事件名',bx+bw*.11,row1CY);
+  ctx.fillText(S.workLabelType==='place'?'工事場所':'工種',bx+bw*.11,row2CY);
+  if(S.showConstructor) ctx.fillText('施工者',bx+bw*.11,by+bh-bh*.14/2);
+  ctx.textAlign='left'; ctx.textBaseline='middle';
+  const pSz=Math.min(S.style.fontScaleProject*base,bh*.13);
+  ctx.font=`${pSz}px ${font}`;
+  const pLines=(S.text.project||'').split('\n').filter(Boolean);
+  if(pLines.length){const pLH=pSz*S.style.lineHeight,pTH=pLines.length*pLH,pSY=row1CY-pTH/2+pSz/2+offY; pLines.forEach((l,i)=>ctx.fillText(l,bx+bw*.25+pad*.3,pSY+i*pLH));}
+  const wSz=Math.min(S.style.fontScaleWorkType*base,bh*.13);
+  ctx.font=`${wSz}px ${font}`;
+  const wLines=(S.text.workType||'').split('\n').filter(Boolean);
+  if(wLines.length){const wLH=wSz*S.style.lineHeight,wTH=wLines.length*wLH,wSY=row2CY-wTH/2+wSz/2+offY; wLines.forEach((l,i)=>ctx.fillText(l,bx+bw*.25+pad*.3,wSY+i*wLH));}
+  ctx.textBaseline='top';
+  const memoY=by+bh*.36+pad*.4+offY, memoSz=S.style.fontScaleMemo*base;
+  ctx.font=`${memoSz}px ${font}`;
+  const mlines=(S.text.memo||'').split('\n');
+  const mLH=memoSz*S.style.lineHeight;
+  mlines.forEach((l,i)=>ctx.fillText(l,bx+pad,memoY+i*mLH));
+  if(S.showConstructor){ctx.textBaseline='middle';ctx.font=`${labelSz*.9}px ${font}`;ctx.fillText(S.text.constructorName,bx+bw*.25+pad*.3,by+bh-bh*.14/2);}
+  // 日付・時間 独立描画
+  const dateTxt=buildDatePart(), timeTxt=buildTimePart();
+  const inlineParts=[];
+  if(S.datePlace==='inline'&&dateTxt) inlineParts.push(dateTxt);
+  if(S.timePlace==='inline'&&timeTxt) inlineParts.push(timeTxt);
+  if(inlineParts.length){ctx.textBaseline='top';ctx.font=`${S.style.fontScaleDate*base}px ${font}`;ctx.fillText(inlineParts.join(' '),bx+pad,memoY+mlines.length*mLH+pad*.2);}
+  const drawCorner=place=>{
+    const parts=[];
+    if(S.datePlace===place&&dateTxt) parts.push(dateTxt);
+    if(S.timePlace===place&&timeTxt) parts.push(timeTxt);
+    if(!parts.length) return;
+    ctx.textBaseline='middle'; ctx.font=`${S.style.fontScaleDate*base*.85}px ${font}`;
+    let dY=by+bh-pad*.8; if(S.showConstructor)dY=by+bh-bh*.14-pad*.4;
+    if(place==='right'){ctx.textAlign='right';ctx.fillText(parts.join(' '),bx+bw-pad,dY);}
+    else{ctx.textAlign='left';ctx.fillText(parts.join(' '),bx+pad,dY);}
+  };
+  drawCorner('right'); drawCorner('left');
+  ctx.restore();
+}
+
+function buildDatePart(){
+  if(!S.text.date) return '';
+  const p=S.text.date.replace(/\//g,'-').split('-');
+  if(p.length!==3) return S.text.date;
+  const yy=p[0],mm=parseInt(p[1]),dd=parseInt(p[2]);
+  const mm2=String(mm).padStart(2,'0'),dd2=String(dd).padStart(2,'0');
+  switch(S.dateFormat){case 'ymd_slash':return `${yy}/${mm2}/${dd2}`;case 'ymd_jp':return `${yy}年${mm}月${dd}日`;case 'md_slash':return `${mm}/${dd2}`;default:return `${mm}月${dd}日`;}
+}
+function buildTimePart(){
+  if(!S.text.time) return '';
+  const t=S.text.time.split(':'); if(t.length<2) return S.text.time;
+  const hh=parseInt(t[0]),mm=parseInt(t[1]),hh2=String(hh).padStart(2,'0'),mm2=String(mm).padStart(2,'0');
+  switch(S.timeFormat){case 'hm_colon':return `${hh}:${mm2}`;case 'hm_colon0':return `${hh2}:${mm2}`;default:return `${hh}時${mm2}分`;}
+}
+function drawML(ctx,text,x,y,lh){if(!text)return;text.split('\n').forEach((l,i)=>ctx.fillText(l,x,y+i*lh));}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  if(S.image){
+    const img=S.image,cw=canvas.width,ch=canvas.height;
+    const ir=img.width/img.height,cr=cw/ch;
+    let dw,dh,dx,dy;
+    if(ir>cr){dh=ch;dw=dh*ir;dx=-(dw-cw)/2;dy=0;}else{dw=cw;dh=dw/ir;dx=0;dy=-(dh-ch)/2;}
+    ctx.drawImage(img,dx,dy,dw,dh);
+    if(S.showBoard){const{bx,by,bw,bh}=getBoardDimensions(),c=getBoardColors();drawBlackboard(ctx,bx,by,bw,bh,c);drawTextOnBoard(ctx,bx,by,bw,bh,c);}
+  } else {
+    ctx.fillStyle='#e2e8f0';ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle='#94a3b8';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.font='bold 20px sans-serif';
+    ctx.fillText('画像をドロップしてください',canvas.width/2,canvas.height/2);
+  }
+}
+
+// ============================================================
+// DRAG BLACKBOARD
+// ============================================================
+function canvasPoint(e){
+  const rect=canvas.getBoundingClientRect();
+  const sx=canvas.width/rect.width,sy=canvas.height/rect.height;
+  const cx=e.touches?e.touches[0].clientX:e.clientX,cy=e.touches?e.touches[0].clientY:e.clientY;
+  return{x:(cx-rect.left)*sx,y:(cy-rect.top)*sy};
+}
+function isInsideBoard(px,py){const{bx,by,bw,bh}=getBoardDimensions();return px>=bx&&px<=bx+bw&&py>=by&&py<=by+bh;}
+canvas.addEventListener('mousedown',e=>{if(!dragMode)return;const p=canvasPoint(e);if(!isInsideBoard(p.x,p.y))return;isDragging=true;const{bx,by}=getBoardDimensions();dragStartX=p.x;dragStartY=p.y;dragBoardX=S.boardOffsetX!==null?S.boardOffsetX:bx;dragBoardY=S.boardOffsetY!==null?S.boardOffsetY:by;e.preventDefault();});
+canvas.addEventListener('mousemove',e=>{if(!isDragging)return;const p=canvasPoint(e);S.boardOffsetX=dragBoardX+(p.x-dragStartX);S.boardOffsetY=dragBoardY+(p.y-dragStartY);draw();e.preventDefault();});
+canvas.addEventListener('mouseup',()=>{isDragging=false;});
+canvas.addEventListener('mouseleave',()=>{isDragging=false;});
+canvas.addEventListener('touchstart',e=>{if(!dragMode)return;const p=canvasPoint(e);if(!isInsideBoard(p.x,p.y))return;isDragging=true;const{bx,by}=getBoardDimensions();dragStartX=p.x;dragStartY=p.y;dragBoardX=S.boardOffsetX!==null?S.boardOffsetX:bx;dragBoardY=S.boardOffsetY!==null?S.boardOffsetY:by;e.preventDefault();},{passive:false});
+canvas.addEventListener('touchmove',e=>{if(!isDragging)return;const p=canvasPoint(e);S.boardOffsetX=dragBoardX+(p.x-dragStartX);S.boardOffsetY=dragBoardY+(p.y-dragStartY);draw();e.preventDefault();},{passive:false});
+canvas.addEventListener('touchend',()=>{isDragging=false;});
+window.resetBoardPosition=()=>{S.boardOffsetX=null;S.boardOffsetY=null;draw();};
+
+// ============================================================
+// FILE HANDLING（シンプル版：バッチなし）
+// ============================================================
+function handleFiles(files){
+  if(!files||files.length===0) return;
+  const loading=document.getElementById('loading');
+  loading.classList.remove('hidden');
+  const newItems=[]; let done=0;
+  Array.from(files).forEach(file=>{
+    if(!file.type.startsWith('image/')){done++;return;}
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        newItems.push({img,name:file.name});
+        done++;
+        if(done===files.length){
+          currentImages=currentImages.concat(newItems);
+          const nav=document.getElementById('imageNav');
+          if(currentImages.length>1) nav.classList.replace('hidden','flex');
+          setImage(currentImages.length-newItems.length);
+          loading.classList.add('hidden');
         }
-
-        (function() {
-            const initialState = {
-                image: null,
-                images: [], 
-                currentImageIndex: 0,
-                boardPos: 'right', 
-                boardSize: 'medium', 
-                boardColor: 'green',
-                showBoard: true,
-                dateDisplayMode: 'standard', 
-                showTime: true,
-                datePos: 'right',
-                showConstructor: false,
-                workLabelType: 'place', 
-                text: {
-                    project: '',
-                    workType: '',
-                    memo: '',
-                    date: '',
-                    time: '',
-                    constructorName: 'ヒューマンヤード(株)'
-                },
-                style: {
-                    fontFamily: "'M PLUS Rounded 1c', sans-serif",
-                    fontSizeBase: 24, 
-                    fontScaleProject: 1.0,
-                    fontScaleWorkType: 1.0,
-                    fontScaleMemo: 1.0,
-                    fontScaleDate: 1.0,
-                    lineHeight: 1.2,
-                    yOffset: 0
-                }
-            };
-
-            window.state = JSON.parse(JSON.stringify(initialState));
-            window.requestSave = function() {}; 
-
-            let counterValue = 1;
-            let canvas, ctx, loading;
-
-            document.addEventListener('DOMContentLoaded', () => {
-                canvas = document.getElementById('mainCanvas');
-                ctx = canvas.getContext('2d');
-                loading = document.getElementById('loading');
-                
-                // ドロップゾーンのイベント設定
-                const dropZone = document.getElementById('dropZone');
-                dropZone.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    dropZone.classList.add('drag-over');
-                    document.getElementById('dragOverlay').classList.replace('hidden', 'flex');
-                });
-                dropZone.addEventListener('dragleave', (e) => {
-                    e.preventDefault();
-                    dropZone.classList.remove('drag-over');
-                    document.getElementById('dragOverlay').classList.replace('flex', 'hidden');
-                });
-                dropZone.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    dropZone.classList.remove('drag-over');
-                    document.getElementById('dragOverlay').classList.replace('flex', 'hidden');
-                    handleFiles(e.dataTransfer.files);
-                });
-
-                setToday();
-                loadPlaceholder();
-                setupEventListeners();
-            });
-
-            function setupEventListeners() {
-                // ファイル入力を handleFiles に統合
-                document.getElementById('cameraInput').addEventListener('change', (e) => handleFiles(e.target.files));
-                document.getElementById('fileInput').addEventListener('change', (e) => handleFiles(e.target.files));
-                
-                const btnClear = document.getElementById('btnClearMemo');
-                if(btnClear) btnClear.addEventListener('click', clearMemo);
-                
-                const btnCamera = document.getElementById('btnCamera');
-                if(btnCamera) btnCamera.addEventListener('click', () => document.getElementById('cameraInput').click());
-                
-                const btnFile = document.getElementById('btnFile');
-                if(btnFile) btnFile.addEventListener('click', () => document.getElementById('fileInput').click());
-                
-                const btnDownload = document.getElementById('btnDownload');
-                if(btnDownload) btnDownload.addEventListener('click', downloadImage);
-                
-                const btnShare = document.getElementById('btnShare');
-                if(btnShare) btnShare.addEventListener('click', shareImage);
-
-                ['inputProject', 'inputWorkType', 'inputMemo', 'inputDate', 'inputTime', 'inputConstructor'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if(el) {
-                        el.addEventListener('input', (e) => {
-                            const map = {
-                                'inputProject': 'project',
-                                'inputWorkType': 'workType',
-                                'inputMemo': 'memo',
-                                'inputDate': 'date',
-                                'inputTime': 'time',
-                                'inputConstructor': 'constructorName'
-                            };
-                            if(map[e.target.id]) {
-                                window.state.text[map[e.target.id]] = e.target.value;
-                                draw();
-                                window.requestSave();
-                            }
-                        });
-                    }
-                });
-
-                const bindChange = (id, handler) => {
-                    const el = document.getElementById(id);
-                    if(el) el.addEventListener('change', handler);
-                };
-
-                bindChange('boardColor', (e) => { window.state.boardColor = e.target.value; draw(); window.requestSave(); });
-                bindChange('boardSize', (e) => { window.state.boardSize = e.target.value; draw(); window.requestSave(); });
-                bindChange('toggleBoard', (e) => { window.state.showBoard = e.target.checked; draw(); window.requestSave(); });
-                bindChange('toggleDate', (e) => { window.state.showDate = e.target.checked; draw(); window.requestSave(); });
-                bindChange('toggleTime', (e) => { window.state.showTime = e.target.checked; draw(); window.requestSave(); });
-                bindChange('showConstructor', (e) => { window.state.showConstructor = e.target.checked; draw(); window.requestSave(); });
-                bindChange('fontFamily', (e) => { window.state.style.fontFamily = e.target.value; draw(); window.requestSave(); });
-
-                setupSlider('scaleProject', 'fontScaleProject', 'valScaleProject');
-                setupSlider('scaleWorkType', 'fontScaleWorkType', 'valScaleWorkType');
-                setupSlider('scaleMemo', 'fontScaleMemo', 'valScaleMemo');
-                setupSlider('scaleDate', 'fontScaleDate', 'valScaleDate');
-                setupSlider('lineHeight', 'lineHeight', 'dispLineHeight');
-
-                document.querySelectorAll('input[name="datePos"]').forEach(radio => {
-                    radio.addEventListener('change', (e) => {
-                        window.state.datePos = e.target.value;
-                        draw();
-                        window.requestSave();
-                    });
-                });
-                
-                document.querySelectorAll('input[name="dateMode"]').forEach(radio => {
-                    radio.addEventListener('change', (e) => {
-                        window.state.dateDisplayMode = e.target.value;
-                        draw();
-                        window.requestSave();
-                    });
-                });
-
-                document.querySelectorAll('input[name="labelType"]').forEach(radio => {
-                    radio.addEventListener('change', (e) => {
-                        window.state.workLabelType = e.target.value;
-                        const labelText = e.target.value === 'place' ? '工事場所' : '工種';
-                        document.getElementById('workTypeLabel').textContent = labelText;
-                        document.getElementById('adjustLabelWorkType').textContent = labelText + ' サイズ';
-                        draw();
-                        window.requestSave();
-                    });
-                });
-            }
-
-            function setupSlider(id, stateKey, displayId) {
-                const el = document.getElementById(id);
-                if(el) {
-                    el.addEventListener('input', (e) => {
-                        window.state.style[stateKey] = parseFloat(e.target.value);
-                        const disp = document.getElementById(displayId);
-                        if(disp) disp.innerText = window.state.style[stateKey];
-                        draw();
-                        window.requestSave();
-                    });
-                }
-            }
-
-            // Window Exposed Functions
-            window.switchTab = function(tabName) {
-                document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-                document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('tab-active'));
-                document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-                document.getElementById(`btn-tab-${tabName}`).classList.add('tab-active');
-            };
-
-            window.setBoardPos = function(pos) {
-                window.state.boardPos = pos;
-                document.querySelectorAll('.pos-btn-active').forEach(el => el.classList.remove('pos-btn-active'));
-                if(pos === 'left') document.getElementById('pos-btn-left').classList.add('pos-btn-active');
-                if(pos === 'right') document.getElementById('pos-btn-right').classList.add('pos-btn-active');
-                draw();
-                window.requestSave();
-            };
-
-            window.adjustOffset = function(delta) {
-                window.state.style.yOffset += delta;
-                draw();
-                window.requestSave();
-            };
-
-            window.resetAll = function() {
-                if(confirm('設定を初期状態に戻しますか？')) {
-                    location.reload();
-                }
-            };
-
-            window.toggleEasyInput = function() {
-                const content = document.getElementById('easyInputContent');
-                const icon = document.getElementById('easyInputIcon');
-                content.classList.toggle('hidden');
-                icon.innerText = content.classList.contains('hidden') ? 'keyboard_arrow_down' : 'keyboard_arrow_up';
-            };
-
-            // サブタブ切り替え (新規追加)
-            window.switchSubTab = function(subTabName) {
-                // ボタンのスタイルリセット
-                document.getElementById('btn-sub-soil').classList.remove('sub-tab-active');
-                document.getElementById('btn-sub-dimension').classList.remove('sub-tab-active');
-                
-                // パネル非表示
-                document.getElementById('panel-soil').classList.add('hidden');
-                document.getElementById('panel-dimension').classList.add('hidden');
-
-                // 選択されたものをアクティブ化
-                document.getElementById(`btn-sub-${subTabName}`).classList.add('sub-tab-active');
-                document.getElementById(`panel-${subTabName}`).classList.remove('hidden');
-            };
-
-            // 寸法値の調整 (新規追加)
-            window.adjustDimValue = function(val) {
-                const input = document.getElementById('dimValue');
-                let current = parseFloat(input.value) || 0;
-                input.value = current + val;
-            };
-
-            // 寸法・数値の挿入 (新規追加)
-            window.insertDimension = function() {
-                const prefixRadio = document.querySelector('input[name="dimPrefix"]:checked');
-                const prefix = prefixRadio ? prefixRadio.value : '';
-                const valInput = document.getElementById('dimValue');
-                const val = valInput.value;
-
-                if (!val && val !== "0") return; 
-
-                // User Request: Add space BEFORE and AFTER
-                const textToInsert = ` ${prefix}${val} `; 
-                
-                const memoInput = document.getElementById('inputMemo');
-                
-                // カーソル位置に挿入するロジック
-                const startPos = memoInput.selectionStart;
-                const endPos = memoInput.selectionEnd;
-                const before = memoInput.value.substring(0, startPos);
-                const after = memoInput.value.substring(endPos, memoInput.value.length);
-                
-                memoInput.value = before + textToInsert + after;
-                
-                // カーソル位置を挿入後に移動
-                const newPos = startPos + textToInsert.length;
-                memoInput.setSelectionRange(newPos, newPos);
-                memoInput.focus();
-
-                window.state.text.memo = memoInput.value;
-                draw();
-                window.requestSave();
-            };
-
-
-            window.changeCounter = function(change) {
-                counterValue += change;
-                if (counterValue < 1) counterValue = 1;
-                document.getElementById('counterValue').innerText = counterValue;
-                window.updateSoilDirectly(); 
-            };
-
-            window.updateSoilDirectly = function(forceInsert = false) {
-                const soilTypeRadio = document.querySelector('input[name="soilType"]:checked');
-                let soilType = soilTypeRadio ? soilTypeRadio.value : '';
-                
-                const truckCapRadio = document.querySelector('input[name="truckCap"]:checked');
-                let truckCap = truckCapRadio ? truckCapRadio.value : '';
-
-                let parts = [];
-                if(soilType) parts.push(soilType);
-                if(truckCap) parts.push(truckCap);
-                parts.push(`${counterValue}台目`);
-
-                const newText = parts.join(' '); 
-                const pattern = /(?:残土搬出|客土搬入|残土|客土)?[\s　]*(?:\d+t)?[\s　]*\d+台目/g;
-                
-                const memoInput = document.getElementById('inputMemo');
-                let currentText = memoInput.value;
-
-                if (pattern.test(currentText) && !forceInsert) {
-                    currentText = currentText.replace(pattern, newText);
-                } else {
-                    if (currentText && !currentText.endsWith('\n')) {
-                        currentText += '\n';
-                    }
-                    currentText += newText;
-                }
-
-                memoInput.value = currentText;
-                window.state.text.memo = currentText;
-                draw();
-                window.requestSave(); 
-            };
-
-            function clearMemo() {
-                if(confirm("備考・内容をクリアしますか？")) {
-                    document.getElementById('inputMemo').value = "";
-                    window.state.text.memo = "";
-                    draw();
-                    window.requestSave(); 
-                }
-            }
-
-            window.setToday = setToday;
-            function setToday() {
-                const today = new Date();
-                const yyyy = today.getFullYear();
-                const mm = String(today.getMonth() + 1).padStart(2, '0');
-                const dd = String(today.getDate()).padStart(2, '0');
-                const hh = String(today.getHours()).padStart(2, '0');
-                const min = String(today.getMinutes()).padStart(2, '0');
-                
-                const dStr = `${yyyy}/${mm}/${dd}`; 
-                const tStr = `${hh}:${min}`;
-                document.getElementById('inputDate').value = `${yyyy}-${mm}-${dd}`; 
-                document.getElementById('inputTime').value = tStr;
-                window.state.text.date = dStr;
-                window.state.text.time = tStr;
-                draw();
-                window.requestSave();
-            }
-
-            // 画像切り替え関数
-            window.prevImage = function() {
-                if (window.state.images.length === 0) return;
-                window.state.currentImageIndex = (window.state.currentImageIndex - 1 + window.state.images.length) % window.state.images.length;
-                setImage(window.state.currentImageIndex);
-            };
-
-            window.nextImage = function() {
-                if (window.state.images.length === 0) return;
-                window.state.currentImageIndex = (window.state.currentImageIndex + 1) % window.state.images.length;
-                setImage(window.state.currentImageIndex);
-            };
-
-            function setImage(index) {
-                if (index < 0 || index >= window.state.images.length) return;
-                const imgData = window.state.images[index];
-                window.state.image = imgData.img;
-                window.state.currentFileName = imgData.name; // ファイル名保持
-                
-                // キャンバスリサイズ
-                const canvas = document.getElementById('mainCanvas');
-                canvas.width = window.state.image.width;
-                canvas.height = window.state.image.height;
-                window.state.style.fontSizeBase = Math.max(16, Math.floor(window.state.image.width * 0.015));
-
-                // UI更新
-                document.getElementById('currentImageNum').innerText = index + 1;
-                document.getElementById('totalImageNum').innerText = window.state.images.length;
-                
-                draw();
-            }
-
-            // 一括処理関数 (ファイルを読み込み、リストに追加)
-            function handleFiles(files) {
-                if (!files || files.length === 0) return;
-                loading.classList.remove('hidden');
-
-                let loadedCount = 0;
-                const newImages = [];
-
-                Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        const img = new Image();
-                        img.onload = () => {
-                            newImages.push({
-                                img: img,
-                                name: file.name
-                            });
-                            loadedCount++;
-                            
-                            // 全て読み込み完了
-                            if (loadedCount === files.length) {
-                                // 既存リストに追加するか、新規作成するか。
-                                // ここでは追加する仕様にする (空なら新規)
-                                if (!window.state.images) window.state.images = [];
-                                const startIndex = window.state.images.length;
-                                window.state.images = window.state.images.concat(newImages);
-                                
-                                // 画像ナビゲーションを表示
-                                if (window.state.images.length > 1) {
-                                    document.getElementById('imageNav').classList.remove('hidden');
-                                    document.getElementById('imageNav').classList.add('flex');
-                                }
-
-                                // 最初に追加された画像を表示
-                                window.state.currentImageIndex = startIndex;
-                                setImage(window.state.currentImageIndex);
-                                loading.classList.add('hidden');
-                            }
-                        };
-                        img.src = event.target.result;
-                    };
-                    reader.readAsDataURL(file);
-                });
-            }
-
-
-            window.downloadImage = function() {
-                if (!window.state.image) {
-                    alert("画像が選択されていません。");
-                    return;
-                }
-                const canvas = document.getElementById('mainCanvas');
-                
-                // 元ファイル名を取得 (拡張子を除去)
-                let originalName = window.state.currentFileName || 'photo.jpg';
-                const lastDot = originalName.lastIndexOf('.');
-                if (lastDot !== -1) {
-                    originalName = originalName.substring(0, lastDot);
-                }
-                
-                // ダウンロードファイル名: 元の名前_board.jpg (要望は「同じ名前」だが、識別子がないと不便なので_boardをつけるのが安全だが、
-                // ユーザー要望「取り込んだ時と同じ名前がいい」を尊重しつつ、DL時はブラウザが自動連番をつけるのでそのままにする手もある。
-                // ここでは分かりやすく元の名前に戻す。
-                const fileName = `${originalName}.jpg`;
-
-                canvas.toBlob(async (blob) => {
-                    const file = new File([blob], fileName, { type: "image/jpeg" });
-                    const link = document.createElement('a');
-                    link.download = fileName;
-                    link.href = URL.createObjectURL(blob);
-                    link.click();
-                }, 'image/jpeg', 0.95);
-            };
-
-            window.shareImage = function() {
-                if (!window.state.image) {
-                    alert("画像が選択されていません。");
-                    return;
-                }
-                const canvas = document.getElementById('mainCanvas');
-                
-                let originalName = window.state.currentFileName || 'photo.jpg';
-                const lastDot = originalName.lastIndexOf('.');
-                if (lastDot !== -1) originalName = originalName.substring(0, lastDot);
-                const fileName = `${originalName}.jpg`;
-
-                canvas.toBlob(async (blob) => {
-                    const file = new File([blob], fileName, { type: "image/jpeg" });
-                    
-                    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                        try {
-                            await navigator.share({
-                                files: [file],
-                                title: '工事写真',
-                                text: '作成した工事写真'
-                            });
-                        } catch (error) {
-                            console.log("Share cancelled", error);
-                        }
-                    } else {
-                        alert("お使いのブラウザは共有機能に対応していません。\n「端末に保存」ボタンを使用してください。");
-                    }
-                }, 'image/jpeg', 0.95);
-            };
-
-            function loadPlaceholder() {
-                canvas.width = 800;
-                canvas.height = 600;
-                window.state.style.fontSizeBase = 16;
-                ctx.fillStyle = "#e2e8f0";
-                ctx.fillRect(0,0,800,600);
-            }
-
-            function draw() {
-                if (!window.state.image && canvas.width === 800) {} 
-                if (window.state.image) ctx.drawImage(window.state.image, 0, 0);
-                else {
-                    ctx.fillStyle = "#e2e8f0";
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.fillStyle = "#94a3b8";
-                    ctx.font = "bold 30px sans-serif";
-                    ctx.textAlign = "center";
-                }
-
-                if (!window.state.showBoard) return;
-
-                let boardW, boardH;
-                const ASPECT_RATIO = 0.75;
-
-                switch (window.state.boardSize) {
-                    case 'extraLarge': boardW = canvas.width * 0.6; break;
-                    case 'large': boardW = canvas.width * 0.5; break;
-                    case 'medium': boardW = canvas.width * 0.4; break;
-                    case 'small': boardW = canvas.width * 0.3; break;
-                    default: boardW = canvas.width * 0.5;
-                }
-                boardH = boardW * ASPECT_RATIO;
-
-                const margin = 0;
-                let boardX = margin;
-                let boardY = canvas.height - boardH - margin;
-                if (window.state.boardPos === 'right') boardX = canvas.width - boardW - margin;
-
-                const colors = getBoardColors();
-                drawBlackboard(ctx, boardX, boardY, boardW, boardH, colors);
-                drawTextOnBoard(ctx, boardX, boardY, boardW, boardH, colors);
-            }
-
-            function getBoardColors() {
-                switch(window.state.boardColor) {
-                    case 'black': return { bg: "#1a1a1a", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                    case 'white': return { bg: "#ffffff", line: "#333333", text: "#111111", shadow: "rgba(0,0,0,0.3)" };
-                    case 'blue': return { bg: "#0d47a1", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                    case 'green': default: return { bg: "#004d40", line: "#ffffff", text: "#ffffff", shadow: "rgba(0,0,0,0.5)" };
-                }
-            }
-
-            function drawBlackboard(ctx, x, y, w, h, colors) {
-                ctx.save();
-                ctx.shadowColor = colors.shadow;
-                ctx.shadowBlur = 10;
-                ctx.shadowOffsetX = 5;
-                ctx.shadowOffsetY = 5;
-                ctx.fillStyle = colors.bg; 
-                ctx.fillRect(x, y, w, h);
-
-                ctx.shadowColor = "transparent";
-                ctx.strokeStyle = "#e0e0e0"; 
-                if(window.state.boardColor === 'white') ctx.strokeStyle = "#999999"; 
-                ctx.lineWidth = Math.max(2, w * 0.005);
-                const halfLine = ctx.lineWidth / 2;
-                ctx.strokeRect(x + halfLine, y + halfLine, w - ctx.lineWidth, h - ctx.lineWidth);
-
-                ctx.strokeStyle = colors.line;
-                ctx.lineWidth = Math.max(1, w * 0.003);
-                ctx.beginPath();
-                ctx.moveTo(x, y + h * 0.15); ctx.lineTo(x + w, y + h * 0.15);
-                ctx.moveTo(x, y + h * 0.30); ctx.lineTo(x + w, y + h * 0.30);
-                ctx.moveTo(x + w * 0.25, y); ctx.lineTo(x + w * 0.25, y + h * 0.30); 
-
-                if(window.state.showConstructor) {
-                    const constH = h * 0.12; 
-                    const constY = y + h - constH;
-                    ctx.moveTo(x, constY);
-                    ctx.lineTo(x + w, constY);
-                    ctx.moveTo(x + w * 0.25, constY);
-                    ctx.lineTo(x + w * 0.25, y + h);
-                }
-
-                ctx.stroke();
-                ctx.restore();
-            }
-
-            function drawTextOnBoard(ctx, bx, by, bw, bh, colors) {
-                ctx.save();
-                ctx.fillStyle = colors.text;
-                
-                const responsiveBaseSize = bw * 0.055; 
-                const pad = bw * 0.05; 
-                const globalOffsetY = window.state.style.yOffset;
-
-                ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
-
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                const labelSize = 1.0 * responsiveBaseSize; 
-                ctx.font = `${labelSize}px ${window.state.style.fontFamily}`;
-                ctx.fillText("工事件名", bx + bw * 0.125, by + bh * 0.075);
-                
-                const workLabel = window.state.workLabelType === 'place' ? "工事場所" : "工種";
-                ctx.fillText(workLabel, bx + bw * 0.125, by + bh * 0.225);
-
-                if(window.state.showConstructor) {
-                    const constH = bh * 0.12;
-                    const constCenterY = by + bh - (constH / 2);
-                    ctx.fillText("施工者", bx + bw * 0.125, constCenterY);
-                    ctx.textAlign = "left";
-                    const constSize = 0.9 * responsiveBaseSize; 
-                    ctx.font = `${constSize}px ${window.state.style.fontFamily}`; 
-                    ctx.fillText(window.state.text.constructorName, bx + bw * 0.27, constCenterY);
-                }
-
-                ctx.textAlign = "left";
-
-                // 工事件名
-                ctx.font = `${window.state.style.fontScaleProject * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                drawMultilineText(ctx, window.state.text.project, bx + bw * 0.27, by + bh * 0.075 + globalOffsetY, window.state.style.fontScaleProject * responsiveBaseSize * window.state.style.lineHeight);
-                
-                // 工事場所/工種
-                ctx.font = `${window.state.style.fontScaleWorkType * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                drawMultilineText(ctx, window.state.text.workType, bx + bw * 0.27, by + bh * 0.225 + globalOffsetY, window.state.style.fontScaleWorkType * responsiveBaseSize * window.state.style.lineHeight);
-                
-                // 備考
-                ctx.font = `${window.state.style.fontScaleMemo * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                
-                // 備考は上揃え
-                ctx.textBaseline = "top";
-                const memoY = by + (bh * 0.30) + (pad * 0.5) + globalOffsetY;
-                
-                // 備考テキストの描画
-                const memoLines = window.state.text.memo.split('\n');
-                const memoLineH = window.state.style.fontScaleMemo * responsiveBaseSize * window.state.style.lineHeight;
-                memoLines.forEach((line, index) => {
-                    ctx.fillText(line, bx + pad, memoY + (index * memoLineH));
-                });
-                
-                // 備考下のインライン日付表示 (mode === 'inline')
-                if(window.state.dateDisplayMode === 'inline') {
-                    const nextY = memoY + (memoLines.length * memoLineH) + (pad * 0.2); 
-                    
-                    let dStr = "";
-                    if(window.state.text.date) {
-                         const dParts = window.state.text.date.split('/');
-                         if(dParts.length === 3) {
-                             dStr = `${parseInt(dParts[1])}月${parseInt(dParts[2])}日`;
-                         } else {
-                             dStr = window.state.text.date;
-                         }
-                    }
-
-                    if(window.state.showTime && window.state.text.time) {
-                         const tParts = window.state.text.time.split(':');
-                         if(tParts.length === 2) {
-                             dStr += ` ${parseInt(tParts[0])}時${parseInt(tParts[1])}分`;
-                         } else {
-                             dStr += ` ${window.state.text.time}`;
-                         }
-                    }
-
-                    if(dStr) {
-                         // フォントサイズは日付用スケールを適用
-                         ctx.font = `${window.state.style.fontScaleDate * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                         ctx.fillText(dStr, bx + pad, nextY);
-                    }
-                }
-                
-                ctx.textBaseline = "middle";
-
-                // 標準日付 (mode === 'standard')
-                if (window.state.dateDisplayMode === 'standard') {
-                    let dateString = window.state.text.date.replace(/-/g, '/');
-                    if (window.state.showTime && window.state.text.time) {
-                        dateString += " " + window.state.text.time;
-                    }
-                    
-                    ctx.font = `${window.state.style.fontScaleDate * 0.8 * responsiveBaseSize}px ${window.state.style.fontFamily}`;
-                    
-                    let dateY = by + bh - pad;
-                    if(window.state.showConstructor) {
-                        const constH = bh * 0.12;
-                        dateY = by + bh - constH - (pad * 0.5);
-                    }
-
-                    if(window.state.datePos === 'left') {
-                        ctx.textAlign = "left";
-                        ctx.fillText(dateString, bx + pad, dateY);
-                    } else {
-                        ctx.textAlign = "right";
-                        ctx.fillText(dateString, bx + bw - pad, dateY);
-                    }
-                }
-
-                ctx.restore();
-            }
-
-            function drawMultilineText(ctx, text, x, y, lineHeight) {
-                if(!text) return;
-                const lines = text.split('\n'); 
-                lines.forEach((line, index) => {
-                    ctx.fillText(line, x, y + (index * lineHeight));
-                });
-            }
-        })();
-    </script>
-
-    <!-- Firebase Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        let hasFirebase = false;
-        try { if(typeof __firebase_config !== 'undefined') hasFirebase = true; } catch(e) {}
-
-        if (hasFirebase) {
-            const firebaseConfig = JSON.parse(__firebase_config);
-            const app = initializeApp(firebaseConfig);
-            const auth = getAuth(app);
-            const db = getFirestore(app);
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'construction-board';
-
-            let currentUser = null;
-            let saveTimeout = null;
-
-            const initAuth = async () => {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            };
-            initAuth();
-
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    currentUser = user;
-                    await loadData();
-                }
-            });
-
-            async function loadData() {
-                if (!currentUser) return;
-                const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
-                try {
-                    const docSnap = await getDoc(userDocRef);
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        if(data.text) window.state.text = { ...window.state.text, ...data.text };
-                        if(data.style) window.state.style = { ...window.state.style, ...data.style };
-                        if(data.boardPos) window.state.boardPos = data.boardPos;
-                        if(data.boardSize) window.state.boardSize = data.boardSize;
-                        if(data.boardColor) window.state.boardColor = data.boardColor;
-                        if(data.showBoard !== undefined) window.state.showBoard = data.showBoard;
-                        if(data.dateDisplayMode) window.state.dateDisplayMode = data.dateDisplayMode;
-                        if(data.showTime !== undefined) window.state.showTime = data.showTime;
-                        if(data.datePos) window.state.datePos = data.datePos;
-                        if(data.showConstructor !== undefined) window.state.showConstructor = data.showConstructor;
-                        if(data.workLabelType) window.state.workLabelType = data.workLabelType;
-
-                        updateUIFromState();
-                        window.setToday(); 
-                        showSaveStatus("データ復元完了");
-                    }
-                } catch (e) {
-                    console.warn("Load failed", e);
-                }
-            }
-
-            window.requestSave = function() {
-                if (saveTimeout) clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => { saveData(); }, 1000);
-            };
-
-            async function saveData() {
-                if (!currentUser) return;
-                const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'settings', 'default');
-                
-                const dataToSave = {
-                    text: window.state.text,
-                    style: window.state.style,
-                    boardPos: window.state.boardPos,
-                    boardSize: window.state.boardSize,
-                    boardColor: window.state.boardColor,
-                    showBoard: window.state.showBoard,
-                    dateDisplayMode: window.state.dateDisplayMode,
-                    showTime: window.state.showTime,
-                    datePos: window.state.datePos,
-                    showConstructor: window.state.showConstructor,
-                    workLabelType: window.state.workLabelType,
-                    lastUpdated: new Date()
-                };
-
-                try {
-                    await setDoc(userDocRef, dataToSave);
-                    showSaveStatus("保存済み");
-                } catch (e) {
-                    showSaveStatus("保存失敗");
-                }
-            }
-
-            function showSaveStatus(msg) {
-                const el = document.getElementById('saveStatus');
-                el.innerText = msg;
-                el.classList.remove('opacity-0');
-                setTimeout(() => el.classList.add('opacity-0'), 2000);
-            }
-
-            function updateUIFromState() {
-                document.getElementById('inputProject').value = window.state.text.project || "";
-                document.getElementById('inputWorkType').value = window.state.text.workType || "";
-                document.getElementById('inputMemo').value = window.state.text.memo || "";
-                
-                if(window.state.text.date) {
-                     document.getElementById('inputDate').value = window.state.text.date.replace(/\//g, '-');
-                }
-                
-                document.getElementById('inputTime').value = window.state.text.time || "";
-                document.getElementById('inputConstructor').value = window.state.text.constructorName || "ヒューマンヤード(株)";
-
-                document.getElementById('boardColor').value = window.state.boardColor;
-                document.getElementById('boardSize').value = window.state.boardSize;
-                document.getElementById('toggleBoard').checked = window.state.showBoard;
-                
-                const dateModeRadio = document.querySelector(`input[name="dateMode"][value="${window.state.dateDisplayMode}"]`);
-                if(dateModeRadio) dateModeRadio.checked = true;
-
-                document.getElementById('toggleTime').checked = window.state.showTime;
-                document.getElementById('showConstructor').checked = window.state.showConstructor;
-                document.getElementById('fontFamily').value = window.state.style.fontFamily;
-
-                document.getElementById('scaleProject').value = window.state.style.fontScaleProject;
-                document.getElementById('valScaleProject').innerText = window.state.style.fontScaleProject;
-                document.getElementById('scaleWorkType').value = window.state.style.fontScaleWorkType;
-                document.getElementById('valScaleWorkType').innerText = window.state.style.fontScaleWorkType;
-                document.getElementById('scaleMemo').value = window.state.style.fontScaleMemo;
-                document.getElementById('valScaleMemo').innerText = window.state.style.fontScaleMemo;
-                document.getElementById('scaleDate').value = window.state.style.fontScaleDate || 1.0;
-                document.getElementById('valScaleDate').innerText = window.state.style.fontScaleDate || 1.0;
-                document.getElementById('lineHeight').value = window.state.style.lineHeight;
-                document.getElementById('dispLineHeight').innerText = window.state.style.lineHeight;
-
-                const dateRadio = document.querySelector(`input[name="datePos"][value="${window.state.datePos}"]`);
-                if(dateRadio) dateRadio.checked = true;
-
-                const labelRadio = document.querySelector(`input[name="labelType"][value="${window.state.workLabelType}"]`);
-                if(labelRadio) {
-                    labelRadio.checked = true;
-                    const labelText = window.state.workLabelType === 'place' ? '工事場所' : '工種';
-                    document.getElementById('workTypeLabel').textContent = labelText;
-                    document.getElementById('adjustLabelWorkType').textContent = labelText + ' サイズ';
-                }
-                
-                window.setBoardPos(window.state.boardPos);
-            }
-        }
-    </script>
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function setImage(idx){
+  if(idx<0||idx>=currentImages.length) return;
+  currentImgIdx=idx;
+  const item=currentImages[idx];
+  S.image=item.img; S.currentFileName=item.name;
+  document.getElementById('currentFileLabel').textContent=item.name;
+  canvas.width=item.img.width; canvas.height=item.img.height;
+  document.getElementById('currentImageNum').textContent=idx+1;
+  document.getElementById('totalImageNum').textContent=currentImages.length;
+  draw();
+}
+window.prevImage=()=>{if(currentImgIdx>0)setImage(currentImgIdx-1);};
+window.nextImage=()=>{if(currentImgIdx<currentImages.length-1)setImage(currentImgIdx+1);};
+
+// ============================================================
+// TAB
+// ============================================================
+window.switchTab=name=>{
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('tab-active'));
+  document.getElementById(`tab-${name}`).classList.remove('hidden');
+  document.getElementById(`btn-tab-${name}`).classList.add('tab-active');
+};
+
+// ============================================================
+// BOARD POS
+// ============================================================
+window.setBoardPos=pos=>{
+  S.boardPos=pos; S.boardOffsetX=null; S.boardOffsetY=null;
+  ['left','right'].forEach(p=>{const b=document.getElementById(`pos-btn-${p}`);if(p===pos)b.classList.add('btn-pos-active');else b.classList.remove('btn-pos-active');});
+  draw();
+};
+window.adjustOffset=d=>{S.style.yOffset+=d;draw();};
+window.resetAll=()=>{if(confirm('リセットしますか？'))location.reload();};
+
+// ============================================================
+// DATE / TIME
+// ============================================================
+window.setToday=()=>{
+  const n=new Date(),yy=n.getFullYear(),mm=String(n.getMonth()+1).padStart(2,'0'),dd=String(n.getDate()).padStart(2,'0');
+  const hh=String(n.getHours()).padStart(2,'0'),mi=String(n.getMinutes()).padStart(2,'0');
+  document.getElementById('inputDate').value=`${yy}-${mm}-${dd}`;
+  document.getElementById('inputTime').value=`${hh}:${mi}`;
+  S.text.date=`${yy}/${mm}/${dd}`; S.text.time=`${hh}:${mi}`; draw();
+};
+
+// ============================================================
+// 簡単入力支援
+// ============================================================
+let counterValue=1;
+
+window.toggleEasyInput=()=>{
+  const c=document.getElementById('easyInputContent'),i=document.getElementById('easyInputIcon');
+  c.classList.toggle('hidden');
+  i.innerText=c.classList.contains('hidden')?'keyboard_arrow_down':'keyboard_arrow_up';
+};
+window.switchSubTab=name=>{
+  ['soil','dimension'].forEach(n=>{document.getElementById(`btn-sub-${n}`).classList.remove('sub-tab-active');document.getElementById(`panel-${n}`).classList.add('hidden');});
+  document.getElementById(`btn-sub-${name}`).classList.add('sub-tab-active');
+  document.getElementById(`panel-${name}`).classList.remove('hidden');
+};
+window.changeCounter=delta=>{
+  counterValue=Math.max(1,counterValue+delta);
+  document.getElementById('counterValue').innerText=counterValue;
+  updateSoilDirectly();
+};
+window.updateSoilDirectly=(forceInsert=false)=>{
+  const soilType=document.querySelector('input[name="soilType"]:checked')?.value||'';
+  const truckCap=document.querySelector('input[name="truckCap"]:checked')?.value||'';
+  const parts=[]; if(soilType)parts.push(soilType); if(truckCap)parts.push(truckCap); parts.push(`${counterValue}台目`);
+  const newText=parts.join(' ');
+  const pattern=/(?:残土搬出|客土搬入|残土|客土)?[\s　]*(?:\d+t)?[\s　]*\d+台目/g;
+  const ta=document.getElementById('inputMemo'); let cur=ta.value;
+  if(pattern.test(cur)&&!forceInsert){cur=cur.replace(pattern,newText);}
+  else{if(cur&&!cur.endsWith('\n'))cur+='\n';cur+=newText;}
+  ta.value=cur; S.text.memo=cur; draw();
+};
+window.adjustDimValue=val=>{const i=document.getElementById('dimValue');i.value=(parseFloat(i.value)||0)+val;};
+window.insertDimension=()=>{
+  const prefix=document.querySelector('input[name="dimPrefix"]:checked')?.value||'';
+  const val=document.getElementById('dimValue').value; if(!val&&val!=='0')return;
+  const txt=` ${prefix}${val} `, ta=document.getElementById('inputMemo');
+  const s=ta.selectionStart,e=ta.selectionEnd;
+  ta.value=ta.value.slice(0,s)+txt+ta.value.slice(e);
+  ta.setSelectionRange(s+txt.length,s+txt.length); ta.focus();
+  S.text.memo=ta.value; draw();
+};
+window.clearMemo=()=>{if(confirm('備考をクリアしますか？')){document.getElementById('inputMemo').value='';S.text.memo='';draw();}};
+
+// ============================================================
+// DOWNLOAD / SHARE
+// ============================================================
+function getBlobAsync(){return new Promise(res=>canvas.toBlob(res,'image/jpeg',.95));}
+document.getElementById('btnDownload').addEventListener('click',async()=>{
+  if(!S.image){alert('画像が選択されていません');return;}
+  const blob=await getBlobAsync();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=S.currentFileName.replace(/\.[^.]+$/,'')+'.jpg';a.click();
+});
+document.getElementById('btnShare').addEventListener('click',async()=>{
+  if(!S.image){alert('画像が選択されていません');return;}
+  const blob=await getBlobAsync();
+  const file=new File([blob],'photo.jpg',{type:'image/jpeg'});
+  if(navigator.share&&navigator.canShare?.({files:[file]})){
+    try{await navigator.share({files:[file],title:'工事写真'});}catch{}
+  } else alert('このブラウザは共有に対応していません。「端末に保存」をお使いください。');
+});
+
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+document.addEventListener('DOMContentLoaded',()=>{
+  canvas.width=800;canvas.height=500;draw();
+
+  const dz=document.getElementById('dropZone');
+  dz.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('dragOverlay').classList.replace('hidden','flex');});
+  dz.addEventListener('dragleave',()=>document.getElementById('dragOverlay').classList.replace('flex','hidden'));
+  dz.addEventListener('drop',e=>{e.preventDefault();document.getElementById('dragOverlay').classList.replace('flex','hidden');handleFiles(e.dataTransfer.files);});
+  document.getElementById('btnCamera').addEventListener('click',()=>document.getElementById('cameraInput').click());
+  document.getElementById('btnFile'  ).addEventListener('click',()=>document.getElementById('fileInput').click());
+  document.getElementById('cameraInput').addEventListener('change',e=>handleFiles(e.target.files));
+  document.getElementById('fileInput'  ).addEventListener('change',e=>handleFiles(e.target.files));
+
+  [['inputProject','project'],['inputWorkType','workType'],['inputMemo','memo'],['inputConstructor','constructorName']].forEach(([id,key])=>{
+    document.getElementById(id)?.addEventListener('input',e=>{S.text[key]=e.target.value;draw();});
+  });
+  document.getElementById('inputDate').addEventListener('input',e=>{S.text.date=e.target.value.replace(/-/g,'/');draw();});
+  document.getElementById('inputTime').addEventListener('input',e=>{S.text.time=e.target.value;draw();});
+
+  document.getElementById('boardColor').addEventListener('change',e=>{S.boardColor=e.target.value;draw();});
+  document.getElementById('toggleBoard').addEventListener('change',e=>{S.showBoard=e.target.checked;draw();});
+  document.getElementById('showConstructor').addEventListener('change',e=>{S.showConstructor=e.target.checked;draw();});
+
+  document.querySelectorAll('input[name="datePlace"]').forEach(r=>r.addEventListener('change',e=>{S.datePlace=e.target.value;draw();}));
+  document.querySelectorAll('input[name="timePlace"]').forEach(r=>r.addEventListener('change',e=>{S.timePlace=e.target.value;draw();}));
+  document.getElementById('dateFormatSelect').addEventListener('change',e=>{S.dateFormat=e.target.value;draw();});
+  document.getElementById('timeFormatSelect').addEventListener('change',e=>{S.timeFormat=e.target.value;draw();});
+
+  document.querySelectorAll('input[name="labelType"]').forEach(r=>r.addEventListener('change',e=>{
+    S.workLabelType=e.target.value;
+    const lbl=e.target.value==='place'?'工事場所':'工種';
+    document.getElementById('workTypeLabel').textContent=lbl;
+    document.getElementById('adjustLabelWorkType').textContent=lbl+' サイズ';
+    draw();
+  }));
+
+  document.getElementById('sizePillGroup').addEventListener('click',e=>{
+    const pill=e.target.closest('.size-pill');if(!pill)return;
+    document.querySelectorAll('.size-pill').forEach(p=>p.classList.remove('active'));
+    pill.classList.add('active');
+    S.boardSize=pill.dataset.size;S.boardOffsetX=null;S.boardOffsetY=null;draw();
+  });
+
+  document.getElementById('dragModeToggle').addEventListener('change',e=>{
+    dragMode=e.target.checked;canvasWrap.classList.toggle('drag-mode',dragMode);
+  });
+
+  document.getElementById('fontFamily').addEventListener('change',e=>{S.style.fontFamily=e.target.value;draw();});
+  function ss(id,key,did){const el=document.getElementById(id);el?.addEventListener('input',e=>{S.style[key]=parseFloat(e.target.value);const d=document.getElementById(did);if(d)d.textContent=parseFloat(e.target.value).toFixed(1);draw();});}
+  ss('scaleProject','fontScaleProject','valScaleProject');
+  ss('scaleWorkType','fontScaleWorkType','valScaleWorkType');
+  ss('scaleMemo','fontScaleMemo','valScaleMemo');
+  ss('scaleDate','fontScaleDate','valScaleDate');
+  ss('lineHeight','lineHeight','dispLineHeight');
+
+  setToday();
+});
+</script>
 </body>
 </html>
