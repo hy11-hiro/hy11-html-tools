@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>工事写真台帳作成ツール (v3.5.1 - Excel Fit Fix)</title>
+  <title>工事写真台帳作成ツール (v4.3)</title>
   
   <!-- React & ReactDOM -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -84,11 +84,19 @@
       .a4-paper:last-child { break-after: auto; page-break-after: auto; }
       .a4-paper > div { break-inside: avoid; }
     }
+    .a4-preview { height: 297mm; min-height: 0 !important; display: flex; flex-direction: column; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen overflow-hidden">
 
   <div id="root"></div>
+  <div id="err-display" style="display:none;position:fixed;top:0;left:0;right:0;padding:16px;background:#fef2f2;color:#991b1b;font-family:monospace;font-size:12px;z-index:9999;white-space:pre-wrap;"></div>
+  <script>
+    window.addEventListener('error', function(e) {
+      var d = document.getElementById('err-display');
+      if (d) { d.style.display = 'block'; d.textContent = e.message + '\n' + e.filename + ':' + e.lineno; }
+    });
+  </script>
 
   <script>
     window.onerror = function(message, source, lineno, colno, error) {
@@ -129,14 +137,17 @@
       RefreshCw: (p) => <Icon name="refresh-cw" {...p} />, RotateCcw: (p) => <Icon name="rotate-ccw" {...p} />, Layers: (p) => <Icon name="layers" {...p} />,
       AlertTriangle: (p) => <Icon name="alert-triangle" {...p} />, Info: (p) => <Icon name="info" {...p} />, Terminal: (p) => <Icon name="terminal" {...p} />,
       LayoutTemplate: (p) => <Icon name="layout-template" {...p} />, FolderUp: (p) => <Icon name="folder-up" {...p} />, FolderDown: (p) => <Icon name="folder-down" {...p} />,
-      ArrowUp: (p) => <Icon name="arrow-up" {...p} />, XCircle: (p) => <Icon name="x-circle" {...p} />, Hash: (p) => <Icon name="hash" {...p} />,
+      ArrowUp: (p) => <Icon name="arrow-up" {...p} />, XCircle: (p) => <Icon name="x-circle" {...p} />, Hash: (p) => <Icon name="hash" {...p} />, ChevronDown: (p) => <Icon name="chevron-down" {...p} />,
     };
 
     const DEFAULT_LAYOUT_DEFS = {
-      'standard-3': { label: '3枚 (1列・標準)', itemCount: 3, type: 'list' },
-      'large-2': { label: '2枚 (1列・詳細)', itemCount: 2, type: 'list' },
-      'grid-4': { label: '4枚 (2列・一覧)', itemCount: 4, type: 'grid' },
-      'grid-6': { label: '6枚 (2列・多枚数)', itemCount: 6, type: 'grid' },
+      'single-1':     { label: '1枚 (全面)',       itemCount: 1, type: 'single'       },
+      'large-2':      { label: '2枚 (縦並び)',     itemCount: 2, type: 'list'         },
+      'before-after': { label: '前後比較 2枚',     itemCount: 2, type: 'before-after' },
+      'standard-3':   { label: '3枚 (標準)',       itemCount: 3, type: 'list'         },
+      'grid-4':       { label: '4枚 (2列)',        itemCount: 4, type: 'grid'         },
+      'grid-6':       { label: '6枚 (2列)',        itemCount: 6, type: 'grid'         },
+      'grid-8':       { label: '8枚 (2列)',        itemCount: 8, type: 'grid'         },
     };
 
     // ==========================================
@@ -429,10 +440,11 @@
                                  .replace(/\{%date\}/g, info.date || '')
                                  .replace(/\{%client\}/g, info.client || '')
                                  .replace(/\{%contractor\}/g, info.contractor || '')
+
                                  .replace(/\{%constructionNumber\}/g, info.constructionNumber || '')
-                                 .replace(/\{%period\}/g, `自 ${info.periodStart}  至 ${info.periodEnd}`);
+                                 .replace(/\{%period\}/g, (() => { const fmt = (typeof importOptions !== 'undefined' ? importOptions.periodFormat : null) || 'wareki'; const fp = (s) => { if(!s)return''; const jm=s.match(/(?:令和|平成|昭和)(\d+)年(\d+)月(\d+)日/); if(jm){const w=2018+parseInt(jm[1]),mm=String(parseInt(jm[2])).padStart(2,'0'),dd=String(parseInt(jm[3])).padStart(2,'0'); if(fmt==='seireki')return w+'年'+parseInt(jm[2])+'月'+parseInt(jm[3])+'日'; if(fmt==='slash')return w+'/'+mm+'/'+dd; if(fmt==='hyphen')return w+'-'+mm+'-'+dd; if(fmt==='numbers')return String(w)+mm+dd;} return s; }; return '自 '+fp(info.periodStart)+'  至 '+fp(info.periodEnd); })());
                     
-                    processed = processed.replace(/\{%([a-zA-Z0-9_]+)(\d+|N)(_(\d+))?\}/g, (match, type, numStr, _, subIdx) => {
+                    processed = processed.replace(/\{%([a-zA-Z]+)(\d+|N)(?:_(\d+))?\}/g, (match, type, numStr, subIdx) => {
                         let itemIdx = -1;
                         if (numStr === 'N') itemIdx = effectiveIndexForN - 1;
                         else itemIdx = parseInt(numStr) - 1;
@@ -622,257 +634,382 @@
         };
     };
 
-    const createCoverSheet = (workbook, info, pattern = 'standard') => {
-         const cover = workbook.addWorksheet('表紙', { 
-            pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: false, fitToWidth: 1, fitToHeight: 0 } 
-         });
-         const periodStr = `自 ${info.periodStart}  至 ${info.periodEnd}`;
-         const fields = [ 
-             { l: "工 事 番 号", v: info.constructionNumber },
-             { l: "工 事 名", v: info.title }, 
-             { l: "工 事 場 所", v: info.location }, 
-             { l: "工 期", v: periodStr }, 
-             { l: "発 注 者", v: info.client }, 
-             { l: "施 工 業 者", v: info.contractor }, 
-             { l: "作 成 日", v: info.date } 
-         ];
-         if (pattern === 'table') {
-             cover.columns = [{ width: 4 }, { width: 25 }, { width: 50 }, { width: 4 }];
-             cover.mergeCells('B3:C4');
-             const titleCell = cover.getCell('B3');
-             titleCell.value = "工　事　写　真　台　帳";
-             titleCell.font = { name: 'Meiryo UI', size: 24, bold: true };
-             titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-             titleCell.border = { bottom: { style: 'double' } };
-             if (info.logo) {
-                 const logoId = workbook.addImage({ base64: info.logo, extension: 'png' });
-                 cover.addImage(logoId, { tl: { col: 1, row: 5 }, ext: { width: 120, height: 50 } });
-             }
-             const startRow = 10;
-             fields.forEach((f, i) => {
-                 const r = startRow + i * 2;
-                 cover.mergeCells(`B${r}:B${r+1}`);
-                 const label = cover.getCell(`B${r}`);
-                 label.value = f.l;
-                 label.font = { name: 'Meiryo UI', size: 11, bold: true };
-                 label.alignment = { horizontal: 'center', vertical: 'middle' };
-                 label.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
-                 label.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-                 cover.mergeCells(`C${r}:C${r+1}`);
-                 const val = cover.getCell(`C${r}`);
-                 val.value = f.v;
-                 val.font = { name: 'Meiryo UI', size: 11 };
-                 val.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
-                 val.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
-             });
-             const endR = startRow + fields.length * 2 - 1;
-             cover.getCell(`B${startRow}`).border.top = { style: 'medium' };
-             cover.getCell(`C${startRow}`).border.top = { style: 'medium' };
-             cover.getCell(`B${endR}`).border.bottom = { style: 'medium' };
-             cover.getCell(`C${endR}`).border.bottom = { style: 'medium' };
-             for(let r=startRow; r<=endR; r++) {
-                 cover.getCell(`B${r}`).border.left = { style: 'medium' };
-                 cover.getCell(`C${r}`).border.right = { style: 'medium' };
-             }
-         } else if (pattern === 'modern') {
-             cover.columns = [{ width: 5 }, { width: 25 }, { width: 50 }, { width: 5 }];
-             cover.mergeCells('A2:D4');
-             const header = cover.getCell('A2');
-             header.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } }; 
-             cover.mergeCells('B3:C3');
-             const title = cover.getCell('B3');
-             title.value = "CONSTRUCTION PHOTO LEDGER";
-             title.font = { name: 'Arial', size: 16, color: { argb: 'FFFFFFFF' }, bold: true };
-             title.alignment = { horizontal: 'left', vertical: 'middle' };
-             cover.mergeCells('B8:C10');
-             const mainTitle = cover.getCell('B8');
-             mainTitle.value = info.title;
-             mainTitle.font = { name: 'Meiryo UI', size: 28, bold: true, color: { argb: 'FF333333' } };
-             mainTitle.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-             if (info.logo) {
-                 const logoId = workbook.addImage({ base64: info.logo, extension: 'png' });
-                 cover.addImage(logoId, { tl: { col: 2, row: 1 }, ext: { width: 100, height: 100 }, editAs: 'absolute' });
-             }
-             let r = 14;
-             fields.filter(f => f.l !== '工 事 名').forEach(f => {
-                 cover.mergeCells(`B${r}:B${r}`);
-                 const l = cover.getCell(`B${r}`);
-                 l.value = f.l;
-                 l.font = { name: 'Meiryo UI', size: 10, color: { argb: 'FF888888' } };
-                 l.alignment = { horizontal: 'left', vertical: 'bottom' };
-                 l.border = { bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } } };
-                 cover.mergeCells(`C${r}:C${r}`);
-                 const v = cover.getCell(`C${r}`);
-                 v.value = f.v;
-                 v.font = { name: 'Meiryo UI', size: 12 };
-                 v.alignment = { horizontal: 'left', vertical: 'bottom', indent: 1 };
-                 v.border = { bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } } };
-                 r += 2;
-             });
-         } else {
-             cover.columns = [{ width: 5 }, { width: 25 }, { width: 50 }, { width: 5 }];
-             cover.mergeCells('B6:C7');
-             const titleCell = cover.getCell('B6');
-             titleCell.value = "工 事 写 真 台 帳";
-             titleCell.font = { name: 'Meiryo UI', size: 28, bold: true, underline: true };
-             titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-             if (info.logo) {
-                 const logoId = workbook.addImage({ base64: info.logo, extension: 'png' });
-                 cover.addImage(logoId, { tl: { col: 1, row: 1 }, ext: { width: 150, height: 60 } });
-             }
-             const startRow = 12;
-             fields.forEach((f, i) => {
-                 const r = startRow + (i * 3);
-                 cover.mergeCells(`B${r}:B${r+1}`); cover.getCell(`B${r}`).value = f.l;
-                 cover.getCell(`B${r}`).font = { name: 'Meiryo UI', size: 12, bold: true };
-                 cover.getCell(`B${r}`).alignment = { horizontal: 'center', vertical: 'middle' };
-                 cover.getCell(`B${r}`).border = { top: {style:'medium'}, left: {style:'medium'}, bottom: {style:'medium'}, right: {style:'thin'} };
-                 cover.getCell(`B${r}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
-                 cover.mergeCells(`C${r}:C${r+1}`); cover.getCell(`C${r}`).value = f.v;
-                 cover.getCell(`C${r}`).font = { name: 'Meiryo UI', size: 12 };
-                 cover.getCell(`C${r}`).alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
-                 cover.getCell(`C${r}`).border = { top: {style:'medium'}, left: {style:'thin'}, bottom: {style:'medium'}, right: {style:'medium'} };
-             });
-         }
-         return cover;
+    const createCoverSheet = (workbook, info, pattern) => {
+        pattern = pattern || 'standard';
+        var cover = workbook.addWorksheet('表紙', {
+            pageSetup: { paperSize: 9, orientation: 'portrait' }
+        });
+        var periodStr = '自 ' + info.periodStart + '  至 ' + info.periodEnd;
+        var fields = [
+            { l: '工 事 番 号', v: info.constructionNumber },
+            { l: '工 事 名',   v: info.title },
+            { l: '工 事 場 所', v: info.location },
+            { l: '工 期',      v: periodStr },
+            { l: '発 注 者',   v: info.client },
+            { l: '施 工 業 者', v: info.contractor },
+            { l: '作 成 日',   v: info.date }
+        ];
+
+        // Safe merge helper for cover sheet
+        var cvMerge = function(addr) {
+            try { cover.mergeCells(addr); } catch(e) {}
+        };
+
+        if (pattern === 'table') {
+            cover.columns = [{ width: 4 }, { width: 25 }, { width: 50 }, { width: 4 }];
+            cvMerge('B3:C4');
+            var tc = cover.getCell('B3');
+            tc.value = '工　事　写　真　台　帳';
+            tc.font = { name: 'Meiryo UI', size: 24, bold: true };
+            tc.alignment = { horizontal: 'center', vertical: 'middle' };
+            tc.border = { bottom: { style: 'double' } };
+            var startRow = 10;
+            fields.forEach(function(f, i) {
+                var rr = startRow + i * 2;
+                cvMerge('B' + rr + ':B' + (rr+1));
+                var label = cover.getCell('B' + rr);
+                label.value = f.l; label.font = { name: 'Meiryo UI', size: 11, bold: true };
+                label.alignment = { horizontal: 'center', vertical: 'middle' };
+                label.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+                label.border = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+                cvMerge('C' + rr + ':C' + (rr+1));
+                var val = cover.getCell('C' + rr);
+                val.value = f.v; val.font = { name: 'Meiryo UI', size: 11 };
+                val.alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
+                val.border = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+            });
+
+        } else if (pattern === 'modern') {
+            // Modern: blue header bar (fill cells individually, no nested merge)
+            cover.columns = [{ width: 5 }, { width: 25 }, { width: 50 }, { width: 5 }];
+            // Blue header: fill rows 2-4 individually (no A2:D4 merge to avoid nesting)
+            var blueFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
+            [2, 3, 4].forEach(function(rr) {
+                ['A','B','C','D'].forEach(function(col) {
+                    cover.getCell(col + rr).fill = blueFill;
+                });
+            });
+            // Title text in B3 (no merge, just set value)
+            var hdrCell = cover.getCell('B3');
+            hdrCell.value = 'CONSTRUCTION PHOTO LEDGER';
+            hdrCell.font = { name: 'Arial', size: 16, color: { argb: 'FFFFFFFF' }, bold: true };
+            hdrCell.alignment = { horizontal: 'left', vertical: 'middle' };
+            // Main title
+            cvMerge('B8:C10');
+            var mainTitle = cover.getCell('B8');
+            mainTitle.value = info.title;
+            mainTitle.font = { name: 'Meiryo UI', size: 28, bold: true, color: { argb: 'FF333333' } };
+            mainTitle.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+            var rr2 = 14;
+            fields.filter(function(f) { return f.l !== '工 事 名'; }).forEach(function(f) {
+                var lc = cover.getCell('B' + rr2);
+                lc.value = f.l; lc.font = { name: 'Meiryo UI', size: 10, color: { argb: 'FF888888' } };
+                lc.alignment = { horizontal: 'left', vertical: 'bottom' };
+                lc.border = { bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } } };
+                var vc = cover.getCell('C' + rr2);
+                vc.value = f.v; vc.font = { name: 'Meiryo UI', size: 12 };
+                vc.alignment = { horizontal: 'left', vertical: 'bottom', indent: 1 };
+                vc.border = { bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } } };
+                rr2 += 2;
+            });
+
+        } else if (pattern === 'official') {
+            // Official: red header bar (fill cells individually, no nested merge)
+            cover.columns = [{ width: 5 }, { width: 20 }, { width: 55 }, { width: 5 }];
+            var redFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } };
+            [2, 3, 4, 5, 6].forEach(function(rr) {
+                ['A','B','C','D'].forEach(function(col) {
+                    cover.getCell(col + rr).fill = redFill;
+                });
+            });
+            // Title in merged B3:C5
+            cvMerge('B3:C5');
+            var rt = cover.getCell('B3');
+            rt.value = '工事写真台帳';
+            rt.font = { name: 'Meiryo UI', size: 26, bold: true, color: { argb: 'FFFFFFFF' } };
+            rt.alignment = { horizontal: 'center', vertical: 'middle' };
+            var ro = 9;
+            fields.forEach(function(f) {
+                var la = cover.getCell('B' + ro);
+                la.value = f.l; la.font = { name: 'Meiryo UI', size: 10, bold: true };
+                la.alignment = { horizontal: 'right', vertical: 'middle' };
+                la.border = { bottom: { style: 'thin' } };
+                var va = cover.getCell('C' + ro);
+                va.value = f.v; va.font = { name: 'Meiryo UI', size: 11 };
+                va.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+                va.border = { bottom: { style: 'thin' } };
+                var bgArgb = ro % 2 === 0 ? 'FFFFFFFF' : 'FFFEF2F2';
+                la.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+                va.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: bgArgb } };
+                ro += 2;
+            });
+
+        } else if (pattern === 'minimal') {
+            cover.columns = [{ width: 8 }, { width: 25 }, { width: 42 }, { width: 8 }];
+            cvMerge('B2:C6');
+            var mt = cover.getCell('B2');
+            mt.value = info.title;
+            mt.font = { name: 'Meiryo UI', size: 22, bold: true, color: { argb: 'FF111827' } };
+            mt.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+            cover.getCell('B8').border = { bottom: { style: 'medium', color: { argb: 'FF111827' } } };
+            var rm = 10;
+            fields.filter(function(f) { return f.l !== '工 事 名'; }).forEach(function(f) {
+                cover.getCell('B' + rm).value = f.l;
+                cover.getCell('B' + rm).font = { name: 'Meiryo UI', size: 9, color: { argb: 'FF6B7280' } };
+                cover.getCell('C' + rm).value = f.v;
+                cover.getCell('C' + rm).font = { name: 'Meiryo UI', size: 11, bold: true, color: { argb: 'FF111827' } };
+                rm += 2;
+            });
+
+        } else { // standard
+            cover.columns = [{ width: 5 }, { width: 25 }, { width: 50 }, { width: 5 }];
+            cvMerge('B6:C7');
+            var titleCell = cover.getCell('B6');
+            titleCell.value = '工 事 写 真 台 帳';
+            titleCell.font = { name: 'Meiryo UI', size: 28, bold: true, underline: true };
+            titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+            var startRow2 = 12;
+            fields.forEach(function(f, i) {
+                var rr = startRow2 + (i * 3);
+                cvMerge('B' + rr + ':B' + (rr+1));
+                cover.getCell('B' + rr).value = f.l;
+                cover.getCell('B' + rr).font = { name: 'Meiryo UI', size: 12, bold: true };
+                cover.getCell('B' + rr).alignment = { horizontal: 'center', vertical: 'middle' };
+                cover.getCell('B' + rr).border = { top:{style:'medium'}, left:{style:'medium'}, bottom:{style:'medium'}, right:{style:'thin'} };
+                cover.getCell('B' + rr).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+                cvMerge('C' + rr + ':C' + (rr+1));
+                cover.getCell('C' + rr).value = f.v;
+                cover.getCell('C' + rr).font = { name: 'Meiryo UI', size: 12 };
+                cover.getCell('C' + rr).alignment = { horizontal: 'left', vertical: 'middle', indent: 1, wrapText: true };
+                cover.getCell('C' + rr).border = { top:{style:'medium'}, left:{style:'thin'}, bottom:{style:'medium'}, right:{style:'medium'} };
+            });
+        }
+        return cover;
     };
+
 
     const generateDefaultExcel = (workbook, pages, info, options) => {
         createCoverSheet(workbook, info, options.coverPattern || 'standard');
-        
-        // Calculate number of pages to force fit
-        const totalPages = Math.max(1, pages.length);
 
-        const sheet = workbook.addWorksheet('写真帳', { 
-            pageSetup: { 
-                paperSize: 9, 
-                orientation: 'portrait', 
-                // --- FIX START: Force Fit to Page ---
-                fitToPage: true,      // Enable scaling
-                fitToWidth: 1,        // Fit to 1 page wide
-                fitToHeight: totalPages, // Fit to exactly N pages tall
-                margins: { left: 0.4, right: 0.4, top: 0.4, bottom: 0.4, header: 0, footer: 0 } // Reduce margins slightly
-                // --- FIX END ---
-            },
-            headerFooter: { oddFooter: { right: 'Page &P' } } 
-        });
-        const layoutType = pages.length > 0 ? pages[0].layout : 'standard-3';
-        const safeLayout = DEFAULT_LAYOUT_DEFS[layoutType] ? layoutType : 'standard-3';
-        const isGrid = DEFAULT_LAYOUT_DEFS[safeLayout].type === 'grid';
-        if (isGrid) {
-            sheet.columns = [{ width: 2 }, { width: 43 }, { width: 2 }, { width: 43 }, { width: 2 }];
-        } else {
-            sheet.columns = [{ width: 2 }, { width: 63 }, { width: 6 }, { width: 19 }, { width: 2 }];
-        }
-        let r = 2;
-        const placeItemStandardLike = (item, startR, endR) => {
-            sheet.mergeCells(`B${startR}:B${endR}`);
-            const photoCell = sheet.getCell(`B${startR}`);
-            photoCell.border = { top: {style:'medium'}, left: {style:'medium'}, bottom: {style:'medium'}, right: {style:'medium'} };
-            
-            const photoRect = { top: startR, left: 2, bottom: endR, right: 2 };
+        pages.forEach(function(page, pIdx) {
+            var lDef = DEFAULT_LAYOUT_DEFS[page.layout] || DEFAULT_LAYOUT_DEFS['standard-3'];
+            var lType = lDef.type;
+            var sheet = workbook.addWorksheet('写真帳-' + (pIdx + 1), {
+                pageSetup: {
+                    paperSize: 9, orientation: 'portrait',
+                    fitToPage: true, fitToWidth: 1, fitToHeight: 1,
+                    margins: { left: 0.5, right: 0.5, top: 0.5, bottom: 0.5, header: 0, footer: 0 }
+                }
+            });
 
-            if (item.image) {
-                const imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
-                const imgW = item.imgWidth || 100; const imgH = item.imgHeight || 100;
-                const pos = calculateImagePositionForDefault(sheet, photoCell, imgW, imgH, options, photoRect);
-                sheet.addImage(imgId, pos);
-            } else { 
-                photoCell.value = "（写真なし）"; 
-                photoCell.alignment = { horizontal: 'center', vertical: 'middle' }; 
+            if (lType === 'grid' || lType === 'before-after') {
+                sheet.columns = [{ width: 2 }, { width: 43 }, { width: 2 }, { width: 43 }, { width: 2 }];
+            } else if (lType === 'single') {
+                sheet.columns = [{ width: 2 }, { width: 88 }, { width: 2 }];
+            } else {
+                sheet.columns = [{ width: 2 }, { width: 63 }, { width: 6 }, { width: 19 }, { width: 2 }];
             }
-            sheet.mergeCells(`C${startR}:D${startR+2}`);
-            const headerCell = sheet.getCell(`C${startR}`);
-            const noStr = item.number ? `No.${item.number}` : "No.";
-            headerCell.value = { 
-                richText: [
-                    { font: { size: 12, bold: true, name: 'Meiryo UI' }, text: noStr + "  " },
-                    { font: { size: 11, name: 'Meiryo UI' }, text: item.title }
-                ] 
+
+            // Track merged ranges to prevent "Cannot merge already merged cells"
+            // Uses an array of {r1,c1,r2,c2} objects
+            var mergedRanges = [];
+            var doMerge = function(r1, c1, r2, c2) {
+                if (r1 > r2 || c1 > c2) return; // invalid range
+                if (r1 === r2 && c1 === c2) return; // single cell, skip
+                // Check for overlap with existing merges
+                for (var i = 0; i < mergedRanges.length; i++) {
+                    var m = mergedRanges[i];
+                    if (r1 <= m.r2 && r2 >= m.r1 && c1 <= m.c2 && c2 >= m.c1) return; // overlap
+                }
+                mergedRanges.push({ r1: r1, c1: c1, r2: r2, c2: c2 });
+                sheet.mergeCells(r1, c1, r2, c2);
             };
-            headerCell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 };
-            headerCell.border = { top: {style:'medium'}, left: {style:'thin'}, right: {style:'medium'}, bottom: {style:'dotted'} };
-            headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFAFAFA' } };
-            sheet.mergeCells(`C${startR+3}:D${endR}`);
-            const descVal = sheet.getCell(`C${startR+3}`);
-            let descText = item.description || '';
-            if (item.description2) descText += `\n${item.description2}`;
-            descVal.value = descText;
-            descVal.font = { name: 'Meiryo UI', size: 10 };
-            descVal.alignment = { horizontal: 'left', vertical: 'top', wrapText: true, indent: 1 };
-            descVal.border = { top: {style:'dotted'}, left: {style:'thin'}, right: {style:'medium'}, bottom: {style:'medium'} };
-        };
-        const placeGridItem = (item, topR, colIdx, photoH, textH) => {
-             const photoEndR = topR + photoH - 1;
-             sheet.mergeCells(topR, colIdx, photoEndR, colIdx);
-             const photoCell = sheet.getCell(topR, colIdx);
-             photoCell.border = { top: {style:'thin'}, left: {style:'thin'}, right: {style:'thin'}, bottom: {style:'dotted'} };
-             const photoRect = { top: topR, left: colIdx, bottom: photoEndR, right: colIdx };
-             if (item.image) {
-                 const imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
-                 const imgW = item.imgWidth || 100; const imgH = item.imgHeight || 100;
-                 const pos = calculateImagePositionForDefault(sheet, photoCell, imgW, imgH, options, photoRect);
-                 sheet.addImage(imgId, pos);
-             } else {
-                 photoCell.value = "（写真なし）";
-                 photoCell.alignment = { horizontal: 'center', vertical: 'middle' };
-             }
-             const textStartR = topR + photoH;
-             const textEndR = textStartR + textH - 1;
-             sheet.mergeCells(textStartR, colIdx, textEndR, colIdx);
-             const textCell = sheet.getCell(textStartR, colIdx);
-             let fullText = "";
-             if (item.number) fullText += `No.${item.number} `;
-             if (item.title) fullText += `${item.title}\n`;
-             if (item.description) fullText += `${item.description}\n`;
-             if (item.description2) fullText += `${item.description2}`;
-             textCell.value = fullText.trim();
-             textCell.font = { name: 'Meiryo UI', size: 9 };
-             textCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-             textCell.border = { top: {style:'dotted'}, left: {style:'thin'}, right: {style:'thin'}, bottom: {style:'thin'} };
-        };
-        pages.forEach((page, pIdx) => {
-            const maxCol = isGrid ? 'D' : 'D'; 
-            sheet.mergeCells(`B${r}:${maxCol}${r}`);
-            const header = sheet.getCell(`B${r}`);
-            header.value = `${info.title}  (Page ${pIdx + 1})`;
-            header.font = { name: 'Meiryo UI', size: 10, italic: true, color: { argb: 'FF555555' } };
-            header.border = { bottom: { style: 'thin' } };
+
+            var r = 2;
+            // Page header
+            if (lType !== 'single') {
+                doMerge(r, 2, r, 4);
+            }
+            var hdrCell = sheet.getCell(r, 2);
+            hdrCell.value = info.title + '  (' + (pIdx+1) + '/' + pages.length + ')';
+            hdrCell.font = { name: 'Meiryo UI', size: 10, italic: true, color: { argb: 'FF555555' } };
+            hdrCell.border = { bottom: { style: 'thin' } };
             r += 2;
-            if (safeLayout === 'standard-3') {
-                page.items.forEach(item => {
-                    const startR = r; const endR = r + 18; 
-                    placeItemStandardLike(item, startR, endR);
-                    r = endR + 2;
+
+            // ── placeStd ──────────────────────────────────────────
+            var placeStd = function(item, startR, endR) {
+                // Photo block: column B (col 2), full height
+                doMerge(startR, 2, endR, 2);
+                var pc = sheet.getCell(startR, 2);
+                pc.border = { top:{style:'medium'}, left:{style:'medium'}, bottom:{style:'medium'}, right:{style:'medium'} };
+                if (item.image) {
+                    var imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
+                    sheet.addImage(imgId, calculateImagePositionForDefault(
+                        sheet, pc, item.imgWidth||100, item.imgHeight||100, options,
+                        { top:startR, left:2, bottom:endR, right:2 }
+                    ));
+                } else {
+                    pc.value = '（写真なし）'; pc.alignment = { horizontal:'center', vertical:'middle' };
+                }
+                // Title block: columns C-D (3-4), 3 rows
+                var titleEnd = Math.min(startR + 2, endR);
+                doMerge(startR, 3, titleEnd, 4);
+                var hc = sheet.getCell(startR, 3);
+                hc.value = { richText: [
+                    { font: { size:12, bold:true, name:'Meiryo UI' }, text: (item.number ? 'No.' + item.number : '') + '  ' },
+                    { font: { size:11, name:'Meiryo UI' }, text: item.title||'' }
+                ]};
+                hc.alignment = { horizontal:'left', vertical:'middle', wrapText:true, indent:1 };
+                hc.border = { top:{style:'medium'}, left:{style:'thin'}, right:{style:'medium'}, bottom:{style:'dotted'} };
+                hc.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFFAFAFA' } };
+                // Description block: columns C-D, rest of height
+                var descStart = titleEnd + 1;
+                if (descStart <= endR) {
+                    doMerge(descStart, 3, endR, 4);
+                    var dv = sheet.getCell(descStart, 3);
+                    dv.value = (item.description||'') + (item.description2 ? '\n' + item.description2 : '');
+                    dv.font = { name:'Meiryo UI', size:10 };
+                    dv.alignment = { horizontal:'left', vertical:'top', wrapText:true, indent:1 };
+                    dv.border = { top:{style:'dotted'}, left:{style:'thin'}, right:{style:'medium'}, bottom:{style:'medium'} };
+                }
+            };
+
+            // ── placeGrid ─────────────────────────────────────────
+            var placeGrid = function(item, topR, colIdx, photoH, textH) {
+                var photoEndR = topR + photoH - 1;
+                var textStartR = topR + photoH;
+                var textEndR = textStartR + textH - 1;
+                // Photo
+                doMerge(topR, colIdx, photoEndR, colIdx);
+                var pc = sheet.getCell(topR, colIdx);
+                pc.border = { top:{style:'thin'}, left:{style:'thin'}, right:{style:'thin'}, bottom:{style:'dotted'} };
+                if (item.image) {
+                    var imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
+                    sheet.addImage(imgId, calculateImagePositionForDefault(
+                        sheet, pc, item.imgWidth||100, item.imgHeight||100, options,
+                        { top:topR, left:colIdx, bottom:photoEndR, right:colIdx }
+                    ));
+                } else {
+                    pc.value = '（写真なし）'; pc.alignment = { horizontal:'center', vertical:'middle' };
+                }
+                // Caption
+                doMerge(textStartR, colIdx, textEndR, colIdx);
+                var tc = sheet.getCell(textStartR, colIdx);
+                tc.value = (item.number ? 'No.' + item.number + ' ' : '') + (item.title||'') +
+                           (item.description ? '\n' + item.description : '');
+                tc.font = { name:'Meiryo UI', size:9 };
+                tc.alignment = { horizontal:'left', vertical:'top', wrapText:true };
+                tc.border = { top:{style:'dotted'}, left:{style:'thin'}, right:{style:'thin'}, bottom:{style:'thin'} };
+            };
+
+            // ── placeBA ───────────────────────────────────────────
+            var placeBA = function(items, topR) {
+                var photoH = 22, textH = 4;
+                [0, 1].forEach(function(idx) {
+                    var item = items[idx] || { image:null, number:'', title:'', description:'' };
+                    var col = idx === 0 ? 2 : 4;
+                    var photoStartR = topR + 1;
+                    var photoEndR   = photoStartR + photoH - 1;
+                    var textStartR  = photoEndR + 1;
+                    var textEndR    = textStartR + textH - 1;
+                    // Label row (single row, no merge)
+                    var lc = sheet.getCell(topR, col);
+                    lc.value = idx === 0 ? '【施工前】' : '【施工後】';
+                    lc.font = { name:'Meiryo UI', size:10, bold:true,
+                                color:{ argb: idx===0?'FF1D4ED8':'FF059669' } };
+                    lc.alignment = { horizontal:'center', vertical:'middle' };
+                    lc.fill = { type:'pattern', pattern:'solid',
+                               fgColor:{ argb: idx===0?'FFDBEAFE':'FFD1FAE5' } };
+                    lc.border = { top:{style:'medium'}, left:{style:'medium'},
+                                  right:{style:'medium'}, bottom:{style:'dotted'} };
+                    // Photo block
+                    doMerge(photoStartR, col, photoEndR, col);
+                    var pc = sheet.getCell(photoStartR, col);
+                    pc.border = { top:{style:'dotted'}, left:{style:'medium'},
+                                  right:{style:'medium'}, bottom:{style:'dotted'} };
+                    if (item.image) {
+                        var imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
+                        sheet.addImage(imgId, calculateImagePositionForDefault(
+                            sheet, pc, item.imgWidth||100, item.imgHeight||100, options,
+                            { top:photoStartR, left:col, bottom:photoEndR, right:col }
+                        ));
+                    } else {
+                        pc.value = '（写真なし）'; pc.alignment = { horizontal:'center', vertical:'middle' };
+                    }
+                    // Caption block
+                    doMerge(textStartR, col, textEndR, col);
+                    var tc = sheet.getCell(textStartR, col);
+                    tc.value = (item.title||'') + (item.description ? '\n' + item.description : '');
+                    tc.font = { name:'Meiryo UI', size:10 };
+                    tc.alignment = { horizontal:'left', vertical:'top', wrapText:true, indent:1 };
+                    tc.border = { top:{style:'dotted'}, left:{style:'medium'},
+                                  right:{style:'medium'}, bottom:{style:'medium'} };
                 });
-            } else if (safeLayout === 'large-2') {
-                page.items.forEach(item => {
-                    const startR = r; const endR = r + 27;
-                    placeItemStandardLike(item, startR, endR);
-                    r = endR + 2;
+            };
+
+            // ── placeSingle ───────────────────────────────────────
+            var placeSingle = function(item, topR) {
+                var photoH = 55, textH = 8;
+                var photoStartR = topR + 1;
+                var photoEndR   = photoStartR + photoH - 1;
+                var textStartR  = photoEndR + 1;
+                var textEndR    = textStartR + textH - 1;
+                // Header row (no merge)
+                var hc = sheet.getCell(topR, 2);
+                hc.value = (item.number ? 'No.' + item.number + '  ' : '') + (item.title||'');
+                hc.font = { name:'Meiryo UI', size:14, bold:true };
+                hc.alignment = { horizontal:'left', vertical:'middle', indent:1 };
+                hc.border = { top:{style:'medium'}, left:{style:'medium'},
+                              right:{style:'medium'}, bottom:{style:'dotted'} };
+                hc.fill = { type:'pattern', pattern:'solid', fgColor:{ argb:'FFF8FAFF' } };
+                // Photo block
+                doMerge(photoStartR, 2, photoEndR, 2);
+                var pc = sheet.getCell(photoStartR, 2);
+                pc.border = { top:{style:'dotted'}, left:{style:'medium'},
+                              right:{style:'medium'}, bottom:{style:'dotted'} };
+                if (item.image) {
+                    var imgId = workbook.addImage({ base64: item.image, extension: 'jpeg' });
+                    sheet.addImage(imgId, calculateImagePositionForDefault(
+                        sheet, pc, item.imgWidth||100, item.imgHeight||100, options,
+                        { top:photoStartR, left:2, bottom:photoEndR, right:2 }
+                    ));
+                } else {
+                    pc.value = '（写真なし）'; pc.alignment = { horizontal:'center', vertical:'middle' };
+                }
+                // Description block
+                doMerge(textStartR, 2, textEndR, 2);
+                var dc = sheet.getCell(textStartR, 2);
+                dc.value = (item.description||'') + (item.description2 ? '\n' + item.description2 : '');
+                dc.font = { name:'Meiryo UI', size:11 };
+                dc.alignment = { horizontal:'left', vertical:'top', wrapText:true, indent:1 };
+                dc.border = { top:{style:'dotted'}, left:{style:'medium'},
+                              right:{style:'medium'}, bottom:{style:'medium'} };
+            };
+
+            // ── Dispatch ──────────────────────────────────────────
+            if (lType === 'single') {
+                placeSingle(page.items[0] || { image:null, number:'', title:'', description:'' }, r);
+            } else if (lType === 'before-after') {
+                placeBA(page.items, r);
+            } else if (lType === 'list') {
+                var rowH = page.layout === 'large-2' ? 28 : 18;
+                page.items.forEach(function(item) {
+                    placeStd(item, r, r + rowH - 1);
+                    r += rowH + 1;
                 });
-            } else { 
-                const rows = safeLayout === 'grid-4' ? 2 : 3;
-                const photoH = 15; const textH = 6;
-                let itemIdx = 0;
-                for(let row=0; row<rows; row++) {
-                    const topR = r;
-                    const itemL = page.items[itemIdx];
-                    if (itemL) placeGridItem(itemL, topR, 2, photoH, textH);
-                    const itemR = page.items[itemIdx+1];
-                    if (itemR) placeGridItem(itemR, topR, 4, photoH, textH);
-                    r += photoH + textH + 1;
-                    itemIdx += 2;
+            } else { // grid
+                var rows2 = Math.ceil(page.items.length / 2);
+                var photoH2 = lDef.itemCount <= 4 ? 15 : 10;
+                var textH2  = lDef.itemCount <= 4 ? 6  : 4;
+                for (var row = 0; row < rows2; row++) {
+                    if (page.items[row*2])   placeGrid(page.items[row*2],   r, 2, photoH2, textH2);
+                    if (page.items[row*2+1]) placeGrid(page.items[row*2+1], r, 4, photoH2, textH2);
+                    r += photoH2 + textH2 + 1;
                 }
             }
-            // --- FIX START: Do not add page break after the last page ---
-            if (pIdx < pages.length - 1) {
-                sheet.getRow(r).addPageBreak(); 
-            }
-            // --- FIX END ---
-            r += 1;
         });
     };
+
 
     const processTemplateCloneStrategy = async (workbook, pages, projectInfo, importOptions) => {
         const logs = [];
@@ -997,37 +1134,198 @@
     };
 
     const PreviewItemList = ({ item }) => (
-        <div className="flex h-64 border border-slate-800 mb-4 bg-white shadow-sm">
-            <div className="w-[65%] border-r border-slate-800 relative flex items-center justify-center bg-slate-50 p-1">
-                {item.image ? (
-                    <img src={item.image} className="max-w-full max-h-full object-contain shadow-sm" />
-                ) : <div className="text-slate-400 text-xs flex flex-col items-center gap-1"><Icons.ImageIcon className="w-6 h-6"/>(写真なし)</div>}
-                {item.number && <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-0.5 rounded font-mono">{item.number}</div>}
+        <div style={{flex:1, minHeight:0, display:'flex', border:'1px solid #334155', background:'white'}}>
+            <div style={{width:'63%', borderRight:'1px solid #334155', position:'relative', display:'flex', alignItems:'center', justifyContent:'center', background:'#f8fafc', padding:'4px', overflow:'hidden'}}>
+                {item.image
+                    ? <img src={item.image} style={{maxWidth:'100%', maxHeight:'100%', objectFit:'contain'}} />
+                    : <div style={{color:'#94a3b8', fontSize:'11px', textAlign:'center'}}>(写真なし)</div>}
+                {item.number && <div style={{position:'absolute', top:'4px', left:'4px', background:'rgba(0,0,0,0.5)', color:'white', fontSize:'10px', padding:'1px 5px', borderRadius:'3px'}}>{item.number}</div>}
             </div>
-            <div className="w-[35%] flex flex-col">
-                <div className="h-10 border-b border-dotted border-slate-800 flex items-center px-3 bg-slate-50">
-                    <span className="font-bold text-base mr-3 text-slate-900">
-                        No.{item.number}
-                    </span>
-                    <span className="font-bold text-sm text-slate-800 flex-1 truncate">
-                        {item.title}
-                    </span>
+            <div style={{width:'37%', display:'flex', flexDirection:'column'}}>
+                <div style={{borderBottom:'1px dotted #334155', padding:'5px 8px', background:'#f8fafc', display:'flex', alignItems:'center', gap:'6px', flexShrink:0}}>
+                    <span style={{fontWeight:'bold', fontSize:'11px', color:'#1e293b', flexShrink:0}}>No.{item.number}</span>
+                    <span style={{fontWeight:'bold', fontSize:'10px', color:'#334155', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.title}</span>
                 </div>
-                <div className="flex-1 p-3 text-sm bg-white overflow-y-auto leading-relaxed text-slate-700">
+                <div style={{flex:1, padding:'6px 8px', fontSize:'10px', overflowY:'auto', lineHeight:'1.5', color:'#475569'}}>
                     <div dangerouslySetInnerHTML={formatTextToHtml(item.description)} />
-                    <div className="mt-1" dangerouslySetInnerHTML={formatTextToHtml(item.description2)} />
+                    {item.description2 && <div style={{marginTop:'4px', paddingTop:'4px', borderTop:'1px dashed #e2e8f0'}} dangerouslySetInnerHTML={formatTextToHtml(item.description2)} />}
                 </div>
             </div>
         </div>
     );
 
-    const TagsList = ({ onCopy }) => {
+    // ── Cover Preview ─────────────────────────────────────
+    const CoverRow = ({ l, v }) => (
+      <div style={{display:'flex',marginBottom:'3px',fontSize:'9.5px'}}>
+        <div style={{width:'72px',fontWeight:'bold',padding:'3px 5px',background:'#eee',border:'1px solid #bbb',flexShrink:0,textAlign:'center'}}>{l}</div>
+        <div style={{flex:1,padding:'3px 5px',border:'1px solid #bbb',borderLeft:'none',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v||' '}</div>
+      </div>
+    );
+    const CvStandard = ({ info }) => (
+      <div style={{height:'100%',padding:'12px',background:'white',fontFamily:'sans-serif'}}>
+        <div style={{textAlign:'center',fontSize:'16px',fontWeight:'bold',textDecoration:'underline',padding:'14px 0 8px',borderBottom:'2px solid #333',marginBottom:'12px'}}>工 事 写 真 台 帳</div>
+        <CoverRow l="工事番号" v={info.constructionNumber}/><CoverRow l="工事名" v={info.title}/>
+        <CoverRow l="工事場所" v={info.location}/><CoverRow l="発注者" v={info.client}/>
+        <CoverRow l="施工業者" v={info.contractor}/>
+      </div>
+    );
+    const CvTable = ({ info }) => (
+      <div style={{height:'100%',padding:'12px',background:'white',fontFamily:'sans-serif'}}>
+        <div style={{textAlign:'center',fontSize:'14px',fontWeight:'bold',padding:'12px 0 8px',borderBottom:'3px double #333',marginBottom:'10px'}}>工　事　写　真　台　帳</div>
+        <CoverRow l="工事番号" v={info.constructionNumber}/><CoverRow l="工事名" v={info.title}/>
+        <CoverRow l="工事場所" v={info.location}/><CoverRow l="発注者" v={info.client}/>
+        <CoverRow l="施工業者" v={info.contractor}/>
+      </div>
+    );
+    const CvModern = ({ info }) => (
+      <div style={{height:'100%',background:'white',fontFamily:'sans-serif',display:'flex',flexDirection:'column'}}>
+        <div style={{background:'#1e40af',padding:'10px 12px',color:'white',flexShrink:0}}>
+          <div style={{fontSize:'9px',fontWeight:'bold',letterSpacing:'0.1em'}}>CONSTRUCTION PHOTO LEDGER</div>
+        </div>
+        <div style={{padding:'10px 12px',flex:1}}>
+          <div style={{fontSize:'15px',fontWeight:'bold',color:'#1e293b',marginBottom:'10px',lineHeight:'1.2'}}>{info.title||'工事名未入力'}</div>
+          <CoverRow l="工事場所" v={info.location}/><CoverRow l="発注者" v={info.client}/>
+          <CoverRow l="施工業者" v={info.contractor}/>
+        </div>
+      </div>
+    );
+    const CvOfficial = ({ info }) => (
+      <div style={{height:'100%',background:'white',fontFamily:'sans-serif',display:'flex',flexDirection:'column'}}>
+        <div style={{background:'#c00000',padding:'14px',color:'white',textAlign:'center',flexShrink:0}}>
+          <div style={{fontSize:'18px',fontWeight:'bold',letterSpacing:'0.15em'}}>工事写真台帳</div>
+        </div>
+        <div style={{padding:'10px 12px',flex:1}}>
+          <CoverRow l="工事番号" v={info.constructionNumber}/><CoverRow l="工事名" v={info.title}/>
+          <CoverRow l="工事場所" v={info.location}/><CoverRow l="発注者" v={info.client}/>
+          <CoverRow l="施工業者" v={info.contractor}/>
+        </div>
+      </div>
+    );
+    const CvMinimal = ({ info }) => (
+      <div style={{height:'100%',background:'white',fontFamily:'sans-serif',padding:'14px 12px'}}>
+        <div style={{fontSize:'7px',color:'#aaa',letterSpacing:'0.2em',marginBottom:'5px'}}>CONSTRUCTION PHOTO LEDGER</div>
+        <div style={{fontSize:'17px',fontWeight:'bold',color:'#111',marginBottom:'2px',lineHeight:'1.2'}}>{info.title||'工事名未入力'}</div>
+        <div style={{width:'30px',height:'2px',background:'#111',marginBottom:'12px'}}/>
+        <CoverRow l="工事場所" v={info.location}/><CoverRow l="発注者" v={info.client}/>
+        <CoverRow l="施工業者" v={info.contractor}/>
+      </div>
+    );
+    const COVER_DEFS = [
+      { key:'standard', label:'標準 (シンプル)',   desc:'タイトル大見出し＋縦並び',  Comp: CvStandard  },
+      { key:'table',    label:'表形式 (罫線あり)', desc:'ラベル・値の2列表',          Comp: CvTable     },
+      { key:'modern',   label:'モダン (青帯)',     desc:'英文ヘッダー＋工事名大',     Comp: CvModern    },
+      { key:'official', label:'公式風 (赤帯)',     desc:'赤帯ヘッダー・行政書類風',   Comp: CvOfficial  },
+      { key:'minimal',  label:'ミニマル (白黒)',   desc:'装飾なし・工事名大・細字',   Comp: CvMinimal   },
+    ];
+    const CoverPreviewModal = ({ info, currentPattern, onClose, onSelect }) => {
+      const [sel, setSel] = useState(currentPattern);
+      return (
+        <div className="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-200 flex justify-between items-center">
+              <h3 className="font-bold text-slate-800 flex items-center gap-2"><Icons.LayoutTemplate className="w-5 h-5 text-brand-500"/> 表紙スタイル選択</h3>
+              <button onClick={onClose}><Icons.X className="w-5 h-5 text-slate-400 hover:text-red-500"/></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 bg-slate-50">
+              <div className="grid grid-cols-3 gap-4">
+                {COVER_DEFS.map(s => {
+                  const isSelected = sel === s.key;
+                  const Thumb = s.Comp;
+                  return (
+                    <div key={s.key} onClick={() => setSel(s.key)}
+                      className={'flex flex-col rounded-lg overflow-hidden border-2 cursor-pointer transition-all ' + (isSelected ? 'border-brand-500' : 'border-slate-200 hover:border-slate-300')}>
+                      <div style={{height:'190px',overflow:'hidden',background:'white',flexShrink:0}}>
+                        <div style={{transform:'scale(0.62)',transformOrigin:'top left',width:'162%',height:'162%',pointerEvents:'none'}}>
+                          <Thumb info={info}/>
+                        </div>
+                      </div>
+                      <div className={'p-3 ' + (isSelected ? 'bg-brand-50' : 'bg-white')}>
+                        <div className="flex items-center gap-2 mb-1">
+                          {isSelected && <Icons.Check className="w-4 h-4 text-brand-500"/>}
+                          <span className="font-bold text-sm text-slate-800">{s.label}</span>
+                        </div>
+                        <p className="text-xs text-slate-500">{s.desc}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 flex justify-end gap-3">
+              <button onClick={onClose} className="px-5 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg">キャンセル</button>
+              <button onClick={() => { onSelect(sel); onClose(); }} className="px-6 py-2 text-sm font-bold bg-brand-600 text-white rounded-lg hover:bg-brand-700 shadow">このスタイルに決定</button>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ── Per-layout Preview Components ─────────────────────────
+    const PreviewItemSingle = ({ item }) => (
+      <div style={{flex:1,minHeight:0,display:'flex',flexDirection:'column',border:'1px solid #1e293b',background:'white'}}>
+        <div style={{padding:'6px 10px',borderBottom:'1px solid #1e293b',background:'#f8fafc',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
+          <span style={{fontWeight:'bold',fontSize:'14px',color:'#1e293b'}}>No.{item.number}</span>
+          <span style={{fontWeight:'bold',fontSize:'12px',flex:1,color:'#334155',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.title}</span>
+        </div>
+        <div style={{flex:1,minHeight:0,display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc',overflow:'hidden',padding:'4px'}}>
+          {item.image ? <img src={item.image} style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain'}}/> : <div style={{color:'#94a3b8',fontSize:'12px',textAlign:'center'}}>(写真なし)</div>}
+        </div>
+        <div style={{borderTop:'1px solid #1e293b',padding:'6px 10px',fontSize:'11px',color:'#334155',flexShrink:0,minHeight:'24px'}}>
+          <div dangerouslySetInnerHTML={formatTextToHtml(item.description)}/>
+        </div>
+      </div>
+    );
+
+    const PreviewItemBeforeAfter = ({ items }) => (
+      <div style={{flex:1,minHeight:0,display:'flex',border:'1px solid #1e293b',background:'white'}}>
+        {[0,1].map(idx => {
+          const item = items[idx] || { id:'ba-'+idx, image:null, number:'', title:'', description:'' };
+          return (
+            <div key={item.id||idx} style={{flex:1,display:'flex',flexDirection:'column',borderRight:idx===0?'1px solid #1e293b':'none'}}>
+              <div style={{textAlign:'center',fontSize:'11px',fontWeight:'bold',padding:'5px',background:idx===0?'linear-gradient(135deg,#1d4ed8,#2563eb)':'linear-gradient(135deg,#059669,#10b981)',color:'white',flexShrink:0}}>
+                {idx===0 ? '【 施 工 前 】' : '【 施 工 後 】'}
+              </div>
+              <div style={{flex:1,minHeight:0,position:'relative',display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc',padding:'4px',overflow:'hidden'}}>
+                {item.image ? <img src={item.image} style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain'}}/> : <div style={{color:'#94a3b8',fontSize:'10px',textAlign:'center'}}>(写真なし)</div>}
+                {item.number && <div style={{position:'absolute',top:'3px',left:'3px',background:'rgba(0,0,0,0.5)',color:'white',fontSize:'9px',padding:'0 4px',borderRadius:'2px'}}>{item.number}</div>}
+              </div>
+              <div style={{borderTop:'1px solid #1e293b',padding:'4px 7px',background:'white',flexShrink:0}}>
+                <div style={{fontWeight:'bold',fontSize:'10px',color:'#1e293b',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.title}</div>
+                <div style={{fontSize:'9px',color:'#475569',marginTop:'1px',overflow:'hidden'}}>{item.description}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+
+    const PreviewItemGrid = ({ items }) => {
+      const rowCount = Math.ceil(items.length / 2);
+      return (
+        <div style={{flex:1,minHeight:0,display:'grid',gridTemplateColumns:'1fr 1fr',gridTemplateRows:'repeat('+rowCount+', 1fr)',gap:'3px'}}>
+          {items.map(item => (
+            <div key={item.id} style={{display:'flex',flexDirection:'column',border:'1px solid #334155',background:'white',minHeight:0,overflow:'hidden'}}>
+              <div style={{flex:1,minHeight:0,position:'relative',display:'flex',alignItems:'center',justifyContent:'center',background:'#f8fafc',overflow:'hidden'}}>
+                {item.image ? <img src={item.image} style={{maxWidth:'100%',maxHeight:'100%',objectFit:'contain'}}/> : <div style={{color:'#94a3b8',fontSize:'9px',textAlign:'center'}}>(写真なし)</div>}
+                {item.number && <div style={{position:'absolute',top:'2px',left:'2px',background:'rgba(0,0,0,0.5)',color:'white',fontSize:'8px',padding:'0 3px',borderRadius:'2px'}}>{item.number}</div>}
+              </div>
+              <div style={{borderTop:'1px dotted #334155',padding:'2px 4px',flexShrink:0}}>
+                <div style={{fontWeight:'bold',fontSize:'9px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',color:'#1e293b'}}>{item.title}</div>
+                <div style={{fontSize:'8px',color:'#475569',overflow:'hidden'}}>{item.description}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+        const TagsList = ({ onCopy }) => {
         const items = [
             { tag: "{%noN}", desc: "No. (番号)" },
             { tag: "{%imgN}", desc: "写真画像" },
             { tag: "{%titleN}", desc: "施工名" },
-            { tag: "{%textN_1}", desc: "詳細 (上段)" },
-            { tag: "{%textN_2}", desc: "詳細 (下段)" },
+            { tag: "{%textN_1}", desc: "詳細① (description)" },
+            { tag: "{%textN_2}", desc: "詳細② (description2)" },
             { tag: "{%constructionNumber}", desc: "基本: 工事番号" }, 
             { tag: "{%title}", desc: "基本: 工事名" },
             { tag: "{%location}", desc: "基本: 工事場所" },
@@ -1074,8 +1372,10 @@
                     {options.length === 0 && <div className="p-4 text-slate-400 text-center text-xs">定型文がありません。<br/>サイドバーで追加してください。</div>}
                     {options.map((opt, idx) => (
                         <div key={idx} className="group flex items-center justify-between px-2 py-2 hover:bg-brand-50 rounded cursor-pointer transition-colors">
-                            <span className="flex-1 truncate text-slate-700" onClick={() => onSelect(opt)}>{opt}</span>
-                            <button onClick={(e) => { e.stopPropagation(); onDelete(opt); }} className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100">
+                            <span className="flex-1 truncate text-slate-700"
+                              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onSelect(opt); }}>{opt}</span>
+                            <button onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onDelete(opt); }}
+                              className="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100">
                                 <Icons.Trash2 className="w-3 h-3"/>
                             </button>
                         </div>
@@ -1083,7 +1383,8 @@
                 </div>
                 {currentText && !options.includes(currentText) && (
                     <div className="border-t border-slate-200 p-2 bg-slate-50">
-                        <button onClick={() => onAdd(currentText)} className="w-full flex items-center justify-center gap-2 bg-white border border-slate-300 rounded py-1.5 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 transition-colors text-xs font-bold text-slate-600">
+                        <button onMouseDown={e => { e.preventDefault(); e.stopPropagation(); onAdd(currentText); }}
+                          className="w-full flex items-center justify-center gap-2 bg-white border border-slate-300 rounded py-1.5 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 transition-colors text-xs font-bold text-slate-600">
                             <Icons.Plus className="w-3 h-3"/> 「{currentText.slice(0,8)}...」を登録
                         </button>
                     </div>
@@ -1103,10 +1404,10 @@
         title: '令和7年度 外構改修工事',
         location: '東京都世田谷区〇〇邸',
         constructionNumber: '', 
-        periodStart: '令和7年4月1日', 
-        periodEnd: '令和7年4月30日',   
+        periodStart: '2025-04-01',
+        periodEnd: '2025-04-30',   
         client: '〇〇様',
-        contractor: '株式会社 エクステリア建設',
+        contractor: 'ヒューマンヤード株式会社',
         date: new Date().toISOString().split('T')[0],
         logo: null
       };
@@ -1143,14 +1444,17 @@
                   imgFit: 'merge', 
                   keepRatio: false,
                   forceCoverInsert: false,
-                  coverPattern: 'standard' 
+                  coverPattern: 'standard',
+                  headerStyle: 'normal',
+                  periodFormat: 'wareki'
               };
           } catch(e) { 
-              return { mode: 'clone', imgFit: 'merge', keepRatio: false, forceCoverInsert: false, coverPattern: 'standard' }; 
+              return { mode: 'clone', imgFit: 'merge', keepRatio: false, forceCoverInsert: false, coverPattern: 'standard', headerStyle: 'normal', periodFormat: 'wareki' };
           }
       });
       
       const [storageError, setStorageError] = useState(false);
+      const [showCoverPreview, setShowCoverPreview] = useState(false);
 
       const saveToStorage = (key, data) => {
           try {
@@ -1168,11 +1472,10 @@
       useEffect(() => { saveToStorage(KEY_OPTIONS, importOptions); }, [importOptions]);
 
       const [titleTemplates, setTitleTemplates] = useState([
-        "着工前状況", "掘削状況", "路盤工 転圧状況", "境界ブロック積 完了", "フェンス基礎 設置状況", 
-        "土間コンクリート 打設状況", "土間コンクリート 完了", "カーポート 組立状況", "植栽工 完了", "完了全景", "是正箇所確認"
+        "施工前", "解体前", "解体状況", "解体後", "掘削", "転圧", "配筋状況", "ベース", "横筋", "フェンス完了", "完了"
       ]);
       const [descTemplates, setDescTemplates] = useState([
-        "清掃状況よし", "寸法確認よし", "材料検収", "全景", "近景", "是正完了", "t=100", "D=300", "L=2000"
+        "全景", "近景", "遠景", "施工前", "施工中", "施工後", "清掃完了"
       ]);
 
       const [newTemplateText, setNewTemplateText] = useState("");
@@ -1194,6 +1497,7 @@
 
       const [activeTab, setActiveTab] = useState('info');
       const [lastFocusedInput, setLastFocusedInput] = useState(null);
+      const [dragState, setDragState] = useState({ dragging: null, over: null }); // {pageId, itemId}
       const [isExporting, setIsExporting] = useState(false);
       const [exportStage, setExportStage] = useState('');
       const [isWebPreview, setIsWebPreview] = useState(false);
@@ -1221,7 +1525,43 @@
           alert("リセットしました。");
       };
 
-      const changePageLayout = (pageId, newLayout) => handleReflowLayout(newLayout);
+      const changePageLayout = (pageId, newLayout) => {
+          setPages(function(prev) {
+              var pageIdx = prev.findIndex(function(p){ return p.id === pageId; });
+              if (pageIdx < 0) return prev;
+              var page = prev[pageIdx];
+              var oldCount = (layoutDefs[page.layout] || DEFAULT_LAYOUT_DEFS[page.layout] || {}).itemCount || 3;
+              var newCount = (layoutDefs[newLayout] || DEFAULT_LAYOUT_DEFS[newLayout] || {}).itemCount || 3;
+              var cur = page.items;
+
+              if (newCount > cur.length) {
+              // Expanding capacity: collect all content items from this page onward, reflow into new layout
+                  var allItems = [];
+                  // Items from current page
+                  cur.forEach(function(it){ allItems.push(it); });
+                  // Items from following SINGLE-item pages (same old layout)
+                  var keptPages = [];
+                  prev.slice(pageIdx + 1).forEach(function(np) {
+                      var npOldCount = (layoutDefs[np.layout] || DEFAULT_LAYOUT_DEFS[np.layout] || {}).itemCount || 3;
+                      var hasContent = np.items.some(function(it){ return it.image || (it.title && it.title.trim()); });
+                      if (npOldCount <= oldCount && hasContent && allItems.length < newCount) {
+                          np.items.forEach(function(it){ if(allItems.length < newCount) allItems.push(it); });
+                      } else {
+                          keptPages.push(np);
+                      }
+                  });
+                  while (allItems.length < newCount) allItems.push(createEmptyItem(pageId + '-fill-' + allItems.length));
+                  var newPage = Object.assign({}, page, { layout: newLayout, items: allItems.slice(0, newCount) });
+                  var result = prev.slice(0, pageIdx).concat([newPage]).concat(keptPages);
+                  return result;
+
+              } else {
+                  // Shrinking: trim items
+                  var newItems = cur.slice(0, newCount);
+                  return prev.map(function(p){ return p.id === pageId ? Object.assign({}, p, { layout: newLayout, items: newItems }) : p; });
+              }
+          });
+      };
 
       const handleReflowLayout = (targetLayout) => {
         const itemsPerPage = layoutDefs[targetLayout] ? layoutDefs[targetLayout].itemCount : 3;
@@ -1338,7 +1678,32 @@
       };
       
       // --- Helper to Renumber ALL Items (Auto-Renumber Logic) ---
-      const renumberAllItems = (currentPages) => {
+      const renumberPage = (pageId) => {
+        setPages(prev => {
+            const pageIndex = prev.findIndex(p => p.id === pageId);
+            if (pageIndex < 0) return prev;
+            let startNo = 1;
+            for (let i = 0; i < pageIndex; i++) {
+                prev[i].items.forEach(item => {
+                    if (item.image || (item.title && item.title.trim()) || (item.description && item.description.trim())) startNo++;
+                });
+            }
+            let currentNo = startNo;
+            const newPages = [...prev];
+            newPages[pageIndex] = {
+                ...prev[pageIndex],
+                items: prev[pageIndex].items.map(item => {
+                    if (item.image || (item.title && item.title.trim()) || (item.description && item.description.trim())) {
+                        return { ...item, number: String(currentNo++) };
+                    }
+                    return { ...item, number: '' };
+                })
+            };
+            return newPages;
+        });
+    };
+
+    const renumberAllItems = (currentPages) => {
           let currentNo = 1;
           return currentPages.map(page => {
               const newItems = page.items.map(item => {
@@ -1413,6 +1778,33 @@
           return renumberAllItems(newPages);
       };
 
+      const handleItemDragEnd = (pageId, dragItemId, overItemId) => {
+          if (!dragItemId || !overItemId || dragItemId === overItemId) return;
+          setPages(prev => prev.map(page => {
+              if (page.id !== pageId) return page;
+              const items = [...page.items];
+              const fromIdx = items.findIndex(i => i.id === dragItemId);
+              const toIdx   = items.findIndex(i => i.id === overItemId);
+              if (fromIdx === -1 || toIdx === -1) return page;
+              const [moved] = items.splice(fromIdx, 1);
+              items.splice(toIdx, 0, moved);
+              return { ...page, items };
+          }));
+      };
+
+      const moveItemInPage = (pageId, itemId, direction) => {
+          setPages(prev => prev.map(page => {
+              if (page.id !== pageId) return page;
+              const idx = page.items.findIndex(i => i.id === itemId);
+              if (idx === -1) return page;
+              const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+              if (newIdx < 0 || newIdx >= page.items.length) return page;
+              const newItems = [...page.items];
+              [newItems[idx], newItems[newIdx]] = [newItems[newIdx], newItems[idx]];
+              return { ...page, items: newItems };
+          }));
+      };
+
       const handleRemoveItem = (pageId, itemId) => {
           setPages(prev => compactItemsGlobally(prev, pageId, itemId));
       };
@@ -1478,10 +1870,7 @@
       };
 
       const insertTemplate = (text) => {
-        if (!lastFocusedInput) {
-          alert("挿入したい入力欄をクリックしてからボタンを押してください。");
-          return;
-        }
+        if (!lastFocusedInput) return;
         const { pageId, itemId, field } = lastFocusedInput;
         const page = pages.find(p => p.id === pageId);
         const item = page?.items.find(i => i.id === itemId);
@@ -1649,6 +2038,61 @@
           e.target.value = '';
       };
 
+      // Format period string based on selected format
+      const formatPeriod = (dateStr, format) => {
+          if (!dateStr) return '';
+          const fmt = format || 'wareki';
+          // Handle ISO date YYYY-MM-DD
+          const isoMatch = dateStr.match(/^(d{4})-(d{2})-(d{2})$/);
+          if (isoMatch) {
+              const y = parseInt(isoMatch[1]), m = parseInt(isoMatch[2]), d = parseInt(isoMatch[3]);
+              const mm = isoMatch[2], dd = isoMatch[3];
+              if (fmt === 'wareki') {
+                  // Convert to 和暦
+                  let era = '', eraYear = 0;
+                  if (y >= 2019 || (y === 2019 && m >= 5)) { era = '令和'; eraYear = y - 2018; }
+                  else if (y >= 1989 || (y === 1989 && m >= 1)) { era = '平成'; eraYear = y - 1988; }
+                  else { era = '昭和'; eraYear = y - 1925; }
+                  return era + eraYear + '年' + m + '月' + d + '日';
+              }
+              if (fmt === 'seireki') return y + '年' + m + '月' + d + '日';
+              if (fmt === 'slash')   return y + '/' + mm + '/' + dd;
+              if (fmt === 'hyphen')  return y + '-' + mm + '-' + dd;
+              if (fmt === 'numbers') return String(y) + mm + dd;
+              return y + '年' + m + '月' + d + '日';
+          }
+          if (fmt === 'wareki') return dateStr; // keep as-is (e.g. 令和7年4月1日)
+          // Try to parse Japanese era date
+          const jMatch = dateStr.match(/(?:令和|平成|昭和)(d+)年(d+)月(d+)日/);
+          if (jMatch) {
+              const eraYear = parseInt(jMatch[1]);
+              const month   = parseInt(jMatch[2]);
+              const day     = parseInt(jMatch[3]);
+              // 令和: 2019+eraYear-1
+              const western = 2018 + eraYear;
+              const mm = String(month).padStart(2,'0');
+              const dd = String(day).padStart(2,'0');
+              if (format === 'seireki') return western + '年' + month + '月' + day + '日';
+              if (format === 'slash')   return western + '/' + mm + '/' + dd;
+              if (format === 'hyphen')  return western + '-' + mm + '-' + dd;
+              if (format === 'numbers') return String(western) + mm + dd;
+          }
+          // Fallback: try yyyy/mm/dd or yyyy-mm-dd input
+          const wMatch = dateStr.match(/(d{4})[/-](d{1,2})[/-](d{1,2})/);
+          if (wMatch) {
+              const y = wMatch[1], m = String(parseInt(wMatch[2])).padStart(2,'0'), d = String(parseInt(wMatch[3])).padStart(2,'0');
+              if (format === 'seireki') return y + '年' + parseInt(wMatch[2]) + '月' + parseInt(wMatch[3]) + '日';
+              if (format === 'slash')   return y + '/' + m + '/' + d;
+              if (format === 'hyphen')  return y + '-' + m + '-' + d;
+          }
+          return dateStr; // fallback: return original
+      };
+
+      const getPeriodStr = () => {
+          const fmt = importOptions.periodFormat || 'wareki';
+          return '自 ' + formatPeriod(projectInfo.periodStart, fmt) + '  至 ' + formatPeriod(projectInfo.periodEnd, fmt);
+      };
+
       const handleExportExcel = async () => {
         setIsExporting(true);
         setExportStage('初期化中...');
@@ -1735,7 +2179,8 @@
           
           {showLogModal && <LogModal logs={logs} onClose={() => setShowLogModal(false)} />}
 
-          {contextMenu.x !== null && (
+          {showCoverPreview && <CoverPreviewModal info={projectInfo} currentPattern={importOptions.coverPattern} onClose={() => setShowCoverPreview(false)} onSelect={pat => setImportOptions(o => ({...o, coverPattern: pat}))}/>}
+      {contextMenu.x !== null && (
               <ContextMenu 
                   x={contextMenu.x} y={contextMenu.y} 
                   options={contextMenu.type === 'title' ? titleTemplates : descTemplates}
@@ -1744,45 +2189,58 @@
               />
           )}
 
-          <div className="w-80 bg-white border-r border-slate-200 flex flex-col shadow-xl z-20 shrink-0 no-print">
-            <div className="p-5 bg-brand-700 text-white font-bold flex items-center gap-3 shadow-sm">
-              <div className="bg-white/20 p-1.5 rounded-lg"><Icons.Settings className="w-5 h-5" /></div>
-              <span>工事写真台帳メーカー</span>
-            </div>
-            
-            <div className="flex border-b border-slate-200 bg-slate-50">
-              {['info', 'template', 'excel-template'].map(tab => (
-                  <button key={tab} onClick={() => setActiveTab(tab)} 
-                    className={`flex-1 py-3 text-xs font-bold transition-all relative
-                    ${activeTab === tab ? 'text-brand-600 bg-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'}`}>
-                    {tab === 'info' && '基本情報'}
-                    {tab === 'template' && '定型文'}
-                    {tab === 'excel-template' && 'Excel設定'}
-                    {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-brand-600"></div>}
-                  </button>
-              ))}
+          <div className="w-[400px] bg-white flex flex-col z-20 shrink-0 no-print" style={{boxShadow:'3px 0 20px rgba(0,0,0,0.07)'}}>
+
+            {/* Header */}
+            <div className="px-5 py-4 shrink-0 flex items-center justify-between" style={{background:'linear-gradient(135deg,#1d4ed8,#3b82f6)'}}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{background:'rgba(255,255,255,0.15)'}}>
+                  <Icons.FileSpreadsheet className="w-5 h-5 text-white"/>
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-white">工事写真台帳メーカー</div>
+                  <div className="text-[10px]" style={{color:'rgba(255,255,255,0.55)'}}>Photo Ledger Maker</div>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                {[[pages.length,'ページ'],[pages.reduce((s,p)=>s+p.items.filter(i=>i.image).length,0),'写真']].map(([v,l])=>(
+                  <div key={l} className="text-center">
+                    <div className="text-xl font-bold text-white leading-none">{v}</div>
+                    <div className="text-[9px] mt-0.5" style={{color:'rgba(255,255,255,0.5)'}}>{l}</div>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
-               {activeTab === 'info' && (
+            {/* Tabs */}
+            <div className="px-4 pt-3 pb-2 bg-white border-b border-slate-100 shrink-0">
+              <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                {[['info','基本情報'],['template','定型文'],['excel-template','Excel設定']].map(([tab,label])=>(
+                  <button key={tab} onClick={()=>setActiveTab(tab)}
+                    className={'flex-1 py-2 text-xs font-bold rounded-lg transition-all ' +
+                      (activeTab===tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600')}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 bg-slate-50">
+              {activeTab === 'info' && (
                 <div className="space-y-5">
                   <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
-                    <label className="block text-xs font-bold text-slate-500 mb-2 flex items-center gap-1"><Icons.ImageIcon className="w-3 h-3"/> 会社ロゴ</label>
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 bg-slate-100 border border-slate-200 rounded flex items-center justify-center overflow-hidden">
-                            {projectInfo.logo ? <img src={projectInfo.logo} className="w-full h-full object-contain" /> : <Icons.ImageIcon className="text-slate-300 w-6 h-6"/>}
-                        </div>
-                        <label className="flex-1 cursor-pointer bg-white border border-slate-300 px-3 py-2 rounded text-xs font-bold text-slate-600 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 transition-colors flex items-center justify-center gap-2">
-                            {projectInfo.logo ? "画像を変更" : "画像を選択"} <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                        </label>
-                    </div>
-                    
                     <label className="block text-xs font-bold text-slate-500 mb-2 flex items-center gap-1"><Icons.LayoutTemplate className="w-3 h-3"/> 表紙スタイル</label>
                     <select className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs bg-slate-50 outline-none" value={importOptions.coverPattern} onChange={e => setImportOptions({...importOptions, coverPattern: e.target.value})}>
-                        <option value="standard">標準 (シンプル)</option>
-                        <option value="table">表形式 (罫線あり)</option>
-                        <option value="modern">モダン (アクセント付)</option>
+                        <option value="standard">📄 標準 (シンプル)</option>
+                        <option value="table">📋 表形式 (罫線あり)</option>
+                        <option value="modern">🎨 モダン (青帯)</option>
+                        <option value="official">🔴 公式風 (赤帯)</option>
+                        <option value="minimal">✏️ ミニマル (白黒)</option>
                     </select>
+                    <button onClick={() => setShowCoverPreview(true)} className="w-full mt-2 py-1.5 text-xs font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded border border-brand-200 flex items-center justify-center gap-1.5 transition-colors">
+                      <Icons.Eye className="w-3 h-3"/> 表紙プレビュー
+                    </button>
                   </div>
 
                   <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200 space-y-4">
@@ -1791,14 +2249,69 @@
                         <div key={key}><label className="block text-xs font-bold text-slate-500 mb-1">{label}</label><input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo[key]} onChange={e => setProjectInfo({ ...projectInfo, [key]: e.target.value })} /></div>
                     ))}
                     <div className="grid grid-cols-2 gap-2">
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">工期 (自)</label><input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo.periodStart} onChange={e => setProjectInfo({ ...projectInfo, periodStart: e.target.value })} /></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">工期 (至)</label><input type="text" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo.periodEnd} onChange={e => setProjectInfo({ ...projectInfo, periodEnd: e.target.value })} /></div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1">工期 (自)</label>
+                          <input type="date" className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                            value={projectInfo.periodStart}
+                            onChange={e => setProjectInfo({ ...projectInfo, periodStart: e.target.value })} />
+                          {projectInfo.periodStart && (
+                            <p className="text-[10px] text-slate-400 mt-1 truncate">{formatPeriod(projectInfo.periodStart, importOptions.periodFormat || 'wareki')}</p>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 mb-1">工期 (至)</label>
+                          <input type="date" className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                            value={projectInfo.periodEnd}
+                            onChange={e => setProjectInfo({ ...projectInfo, periodEnd: e.target.value })} />
+                          {projectInfo.periodEnd && (
+                            <p className="text-[10px] text-slate-400 mt-1 truncate">{formatPeriod(projectInfo.periodEnd, importOptions.periodFormat || 'wareki')}</p>
+                          )}
+                        </div>
                     </div>
                     <div><label className="block text-xs font-bold text-slate-500 mb-1">作成日</label><input type="date" className="w-full border border-slate-300 rounded px-3 py-2 text-sm" value={projectInfo.date} onChange={e => setProjectInfo({ ...projectInfo, date: e.target.value })} /></div>
+
+                    {/* 工期 表示形式 */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 mb-1">工期の表示形式</label>
+                      <select className="w-full border border-slate-300 rounded px-2 py-1.5 text-xs bg-slate-50 outline-none"
+                        value={importOptions.periodFormat || 'wareki'}
+                        onChange={e => setImportOptions({...importOptions, periodFormat: e.target.value})}>
+                        <option value="wareki">和暦 (令和7年4月1日)</option>
+                        <option value="seireki">西暦 (2025年4月1日)</option>
+                        <option value="slash">スラッシュ (2025/04/01)</option>
+                        <option value="hyphen">ハイフン (2025-04-01)</option>
+                        <option value="numbers">数字のみ (20250401)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* ページヘッダースタイル */}
+                  <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
+                    <label className="block text-xs font-bold text-slate-500 mb-2">ページヘッダー表示</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        ['normal',  '標準 (大)',   '工事名＋場所＋日付'],
+                        ['small',   '小さく',      '工事名＋日付 (小)'],
+                        ['compact', 'コンパクト',  '工事名のみ 1行'],
+                        ['hidden',  '非表示',      'ヘッダーなし'],
+                      ].map(([val, label, desc]) => (
+                        <button key={val}
+                          onClick={() => setImportOptions({...importOptions, headerStyle: val})}
+                          className={'text-left p-2 rounded border text-xs transition-all ' + (
+                            (importOptions.headerStyle || 'normal') === val
+                              ? 'border-brand-500 bg-brand-50 text-brand-700 font-bold'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                          )}>
+                          <div className="font-bold">{label}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">{desc}</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}
-              {activeTab === 'template' && (
+              {
+              activeTab === 'template' && (
                 <div className="space-y-6">
                   {/* Template settings */}
                   <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200">
@@ -1818,7 +2331,7 @@
                       <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                         {titleTemplates.map((text, idx) => (
                             <div key={idx} className="flex items-center gap-1 group">
-                                <button onClick={() => insertTemplate(text)} className="flex-1 text-left px-3 py-2 bg-white hover:bg-brand-50 border border-slate-200 rounded text-xs truncate">{text}</button>
+                                <button onMouseDown={e => { e.preventDefault(); insertTemplate(text); }} className="flex-1 text-left px-3 py-2 bg-white hover:bg-brand-50 border border-slate-200 rounded text-xs truncate">{text}</button>
                                 <button onClick={() => handleMenuDelete(text, 'title')} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"><Icons.Trash2 className="w-3 h-3"/></button>
                             </div>
                         ))}
@@ -1829,7 +2342,7 @@
                       <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
                         {descTemplates.map((text, idx) => (
                             <div key={idx} className="flex items-center gap-1 group">
-                                <button onClick={() => insertTemplate(text)} className="flex-1 text-left px-3 py-2 bg-white hover:bg-green-50 border border-slate-200 rounded text-xs truncate">{text}</button>
+                                <button onMouseDown={e => { e.preventDefault(); insertTemplate(text); }} className="flex-1 text-left px-3 py-2 bg-white hover:bg-green-50 border border-slate-200 rounded text-xs truncate">{text}</button>
                                 <button onClick={() => handleMenuDelete(text, 'desc')} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100"><Icons.Trash2 className="w-3 h-3"/></button>
                             </div>
                         ))}
@@ -1837,22 +2350,118 @@
                   </div>
                 </div>
               )}
-              {activeTab === 'excel-template' && (
-                 <div className="space-y-5">
+              {
+              activeTab === 'excel-template' && (
+                 <div className="space-y-4">
+
+                     {/* How-to guide */}
+                     <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 text-xs space-y-3">
+                       <p className="font-bold text-brand-700 flex items-center gap-1"><Icons.Info className="w-3 h-3"/> テンプレートの使い方</p>
+
+                       {/* Step 1: Sheet naming */}
+                       <div className="bg-white border border-brand-200 rounded p-2 space-y-1">
+                         <p className="font-bold text-[11px] text-slate-700">① Excelのシート名を設定する</p>
+                         <p className="text-[10px] text-slate-600 leading-relaxed">Excelファイルのシートタブを右クリックして名前を変更してください。</p>
+                         <div className="flex flex-col gap-1 mt-1">
+                           <div className="flex items-center gap-2">
+                             <span className="font-mono text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-bold">表紙</span>
+                             <span className="text-[10px] text-slate-500">← 表紙シートの名前（任意）</span>
+                           </div>
+                           <div className="flex items-center gap-2">
+                             <span className="font-mono text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-bold">テンプレート</span>
+                             <span className="text-[10px] text-slate-500">← 写真台帳シートの名前（任意）</span>
+                           </div>
+                         </div>
+                         <p className="text-[10px] text-slate-400 mt-1">※ シート名は何でも構いません。{'{%img}'} タグがあるシートが写真台帳、{'{%title}'} タグがあるシートが表紙として自動認識されます。</p>
+                       </div>
+
+                       {/* Step 2: Tags */}
+                       <div className="space-y-1.5">
+                         <p className="font-bold text-[11px] text-slate-700">② 各セルにタグを記入する</p>
+
+                         <div className="bg-white border border-brand-200 rounded p-2 space-y-1.5">
+                           <p className="text-[10px] font-bold text-slate-500">📷 写真タグ（どちらでも可）</p>
+                           <div className="flex flex-wrap gap-1 items-center">
+                             <span className="font-mono text-[10px] bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">{'{%imgN}'}</span>
+                             <span className="text-[10px] text-slate-500">行順に自動割当（推奨）</span>
+                           </div>
+                           <div className="flex flex-wrap gap-1 items-center">
+                             <span className="font-mono text-[10px] bg-slate-50 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">{'{%img1}'}</span>
+                             <span className="font-mono text-[10px] bg-slate-50 text-slate-700 border border-slate-200 px-1.5 py-0.5 rounded">{'{%img2}'}</span>
+                             <span className="text-[10px] text-slate-500">番号指定も可</span>
+                           </div>
+                           <p className="text-[10px] text-slate-400">{'{%img}'} の数が自動検出され、1ページあたりの写真枚数になります。</p>
+                         </div>
+
+                         <div className="bg-white border border-brand-200 rounded p-2 space-y-1.5">
+                           <p className="text-[10px] font-bold text-slate-500">📝 テキストタグ（写真台帳シート）</p>
+                           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                             {[
+                               ['{%noN}',    '番号'],
+                               ['{%titleN}', '施工名'],
+                               ['{%textN_1}','詳細①'],
+                               ['{%textN_2}','詳細②'],
+                             ].map(([tag, desc]) => (
+                               <div key={tag} className="flex items-center gap-1">
+                                 <span className="font-mono bg-slate-50 text-brand-700 border border-slate-200 px-1 rounded">{tag}</span>
+                                 <span className="text-slate-500">{desc}</span>
+                               </div>
+                             ))}
+                           </div>
+                           <p className="text-[10px] text-slate-400">N は行順自動。{'{%title1}'} など番号指定も可。</p>
+                         </div>
+
+                         <div className="bg-white border border-brand-200 rounded p-2 space-y-1.5">
+                           <p className="text-[10px] font-bold text-slate-500">🏗️ 工事情報タグ（表紙シート）</p>
+                           <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                             {[
+                               ['{%title}',    '工事名'],
+                               ['{%location}', '工事場所'],
+                               ['{%client}',   '発注者'],
+                               ['{%contractor}','施工業者'],
+                               ['{%date}',     '作成日'],
+                               ['{%period}',   '工期'],
+                             ].map(([tag, desc]) => (
+                               <div key={tag} className="flex items-center gap-1">
+                                 <span className="font-mono bg-slate-50 text-brand-700 border border-slate-200 px-1 rounded">{tag}</span>
+                                 <span className="text-slate-500">{desc}</span>
+                               </div>
+                             ))}
+                           </div>
+                         </div>
+                       </div>
+
+                       {/* Step 3: Upload */}
+                       <div className="bg-white border border-brand-200 rounded p-2">
+                         <p className="font-bold text-[11px] text-slate-700 mb-1">③ アップロード → 写真登録 → 出力</p>
+                         <p className="text-[10px] text-slate-600 leading-relaxed">このページにExcelをアップロードするとシートが解析されます。写真を登録して「テンプレート合成出力」を押すと、タグが写真・テキストに置き換えられたExcelが生成されます。</p>
+                       </div>
+                     </div>
+
                      <div className="bg-white p-4 rounded-lg shadow-sm border border-slate-200">
                         <h3 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><Icons.FileSpreadsheet className="w-4 h-4 text-brand-500"/> テンプレート読み込み</h3>
                         
                         <div className="bg-yellow-50 p-2 rounded text-xs text-yellow-800 mb-4 border border-yellow-200 flex gap-2">
                              <Icons.AlertTriangle className="w-4 h-4 shrink-0 mt-0.5"/>
                              <div>
-                                <b>注意：</b> アップロードした元ファイルは<b>変更されません</b>。内部で複製を作成して処理を行います。
+                                <b>注意：</b> アップロードした元ファイルは<b>変更されません</b>。内部で複製を作成して処理します。
                              </div>
                         </div>
 
                         {!templateFile ? (
-                            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                                <Icons.FileSpreadsheet className="w-8 h-8 text-slate-300 mb-2"/><span className="text-xs font-bold text-slate-500">Excelファイルをドラッグ＆ドロップ</span><input type="file" accept=".xlsx,.xlsm" className="hidden" onChange={handleTemplateUpload} />
-                            </label>
+                            <div
+                              className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors relative"
+                              onDragOver={e=>{e.preventDefault();e.currentTarget.style.borderColor='#3b82f6';e.currentTarget.style.background='#eff6ff';}}
+                              onDragLeave={e=>{e.currentTarget.style.borderColor='';e.currentTarget.style.background='';}}
+                              onDrop={e=>{e.preventDefault();e.currentTarget.style.borderColor='';e.currentTarget.style.background='';const f=e.dataTransfer.files[0];if(f&&(f.name.endsWith('.xlsx')||f.name.endsWith('.xlsm'))){handleTemplateUpload({target:{files:[f],value:''}});}}}
+                            >
+                              <Icons.FileSpreadsheet className="w-8 h-8 text-slate-300 mb-2"/>
+                              <span className="text-xs font-bold text-slate-500">Excelファイルをドラッグ＆ドロップ</span>
+                              <span className="text-[10px] text-slate-400 mt-1">.xlsx / .xlsm</span>
+                              <label className="absolute inset-0 cursor-pointer">
+                                <input type="file" accept=".xlsx,.xlsm" className="hidden" onChange={handleTemplateUpload} />
+                              </label>
+                            </div>
                         ) : (
                             <div className="space-y-4">
                                 <div className="bg-brand-50 border border-brand-200 rounded-lg p-3 flex items-center justify-between">
@@ -1887,10 +2496,10 @@
                                             <div className="pl-6 animate-fadeIn">
                                                 <p className="text-[10px] text-slate-400 mb-1">デザインを選択してください:</p>
                                                 <div className="flex flex-col gap-1">
-                                                    {['standard', 'table', 'modern'].map(pat => (
+                                                    {['standard', 'table', 'modern', 'official', 'minimal'].map(pat => (
                                                         <label key={pat} className="flex items-center gap-2 text-xs cursor-pointer">
                                                             <input type="radio" name="coverPattern" value={pat} checked={importOptions.coverPattern === pat} onChange={(e)=>setImportOptions({...importOptions, coverPattern:e.target.value})} />
-                                                            <span>{pat === 'standard' ? '標準 (シンプル)' : pat === 'table' ? '表形式 (罫線あり)' : 'モダン (アクセント付)'}</span>
+                                                            <span>{pat === 'standard' ? '📄 標準' : pat === 'table' ? '📋 表形式' : pat === 'modern' ? '🎨 モダン' : pat === 'official' ? '🔴 公式風' : '✏️ ミニマル'}</span>
                                                         </label>
                                                     ))}
                                                 </div>
@@ -1900,26 +2509,49 @@
                                 </div>
 
                                 {analysisResult && (
-                                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs">
-                                        <div className="font-bold text-slate-600 mb-2 flex items-center justify-between">
-                                            <span className="flex items-center gap-1"><Icons.Terminal className="w-3 h-3"/> プレースホルダ解析</span>
-                                            {logs.length > 0 && <button onClick={()=>setShowLogModal(true)} className="text-brand-600 underline">ログを表示</button>}
+                                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs space-y-3">
+                                        <div className="font-bold text-slate-600 flex items-center gap-1">
+                                          <Icons.Terminal className="w-3 h-3 text-brand-500"/> テンプレート解析結果
                                         </div>
-                                        <div className="max-h-32 overflow-y-auto space-y-1 bg-white border border-slate-200 rounded p-1">
-                                            <table className="w-full text-[10px] text-left">
-                                                <thead className="bg-slate-100 text-slate-500"><tr><th className="p-1">タグ</th><th className="p-1">個数</th><th className="p-1">状態</th></tr></thead>
-                                                <tbody>
-                                                    {placeholders.map((p, i) => (
-                                                        <tr key={i} className="border-t border-slate-100">
-                                                            <td className="p-1 font-mono text-brand-600">{p.tag}</td>
-                                                            <td className="p-1">{p.count}</td>
-                                                            <td className="p-1 text-green-600"><Icons.Check className="w-3 h-3 inline"/></td>
-                                                        </tr>
-                                                    ))}
-                                                    {placeholders.length === 0 && <tr><td colSpan="3" className="p-2 text-center text-slate-400">タグが見つかりません</td></tr>}
-                                                </tbody>
-                                            </table>
+
+                                        {/* Sheet list */}
+                                        <div>
+                                          <p className="text-[10px] text-slate-400 font-bold mb-1">検出されたシート</p>
+                                          <div className="space-y-1">
+                                            {analysisResult.map((sheet, i) => (
+                                              <div key={i} className="flex items-center justify-between bg-white border border-slate-200 rounded px-2 py-1.5">
+                                                <span className="font-mono text-slate-700 font-bold truncate">{sheet.name}</span>
+                                                <span className={
+                                                  'text-[10px] font-bold px-2 py-0.5 rounded-full ' +
+                                                  (sheet.role === '写真帳パターン' ? 'bg-brand-100 text-brand-700' :
+                                                   sheet.role === '表紙(候補)' ? 'bg-amber-100 text-amber-700' :
+                                                   'bg-slate-100 text-slate-500')
+                                                }>{sheet.role}{sheet.imgCount > 0 ? ' ×' + sheet.imgCount + '枚' : ''}</span>
+                                              </div>
+                                            ))}
+                                          </div>
                                         </div>
+
+                                        {/* Placeholder tags */}
+                                        {placeholders.length > 0 && (
+                                          <div>
+                                            <p className="text-[10px] text-slate-400 font-bold mb-1">検出されたタグ ({placeholders.length}種)</p>
+                                            <div className="flex flex-wrap gap-1">
+                                              {placeholders.map((p, i) => (
+                                                <span key={i} className="font-mono text-[10px] bg-brand-50 text-brand-700 border border-brand-200 px-1.5 py-0.5 rounded">
+                                                  {p.tag} <span className="text-slate-400">×{p.count}</span>
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {placeholders.length === 0 && (
+                                          <div className="text-center py-2 text-amber-600 bg-amber-50 rounded border border-amber-200">
+                                            <Icons.AlertTriangle className="w-4 h-4 inline mr-1"/>
+                                            タグが見つかりません。Excelに {'{%img1}'} などのタグを追加してください。
+                                          </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -1933,35 +2565,34 @@
                  </div>
               )}
             </div>
-            
-            <div className="p-4 border-t border-slate-200 bg-white shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-               {storageError && (
-                   <div className="mb-2 p-2 bg-red-100 border border-red-300 text-red-700 text-[10px] rounded flex items-center gap-2 animate-fadeIn">
-                       <Icons.AlertTriangle className="w-4 h-4 shrink-0" />
-                       <div>
-                           <b>容量エラー:</b> ブラウザの保存容量を超えました。自動保存されません。不要なページを削除してください。
-                       </div>
-                   </div>
-               )}
-               
-               <div className="grid grid-cols-2 gap-2 mb-2">
-                   <button onClick={handleSaveProject} className="py-2 text-[10px] font-bold text-brand-600 bg-brand-50 hover:bg-brand-100 rounded border border-brand-200 flex items-center justify-center gap-1 transition-colors" title="プロジェクトをファイルに保存">
-                       <Icons.FolderDown className="w-3 h-3"/> プロジェクト保存
-                   </button>
-                   <label className="py-2 text-[10px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 flex items-center justify-center gap-1 transition-colors cursor-pointer" title="ファイルから読み込み">
-                       <Icons.FolderUp className="w-3 h-3"/> プロジェクト読込
-                       <input type="file" accept=".json" className="hidden" onChange={handleLoadProject} />
-                   </label>
-               </div>
 
-               <button onClick={handleResetAll} className="w-full mb-2 py-2 text-xs font-bold text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex items-center justify-center gap-1"><Icons.RotateCcw className="w-3 h-3"/> 全データをリセット</button>
-               <button onClick={handleExportExcel} disabled={isExporting} className={`w-full py-3 rounded-lg shadow-md flex items-center justify-center gap-2 transition-all font-bold text-sm text-white ${isExporting ? 'bg-slate-400 cursor-wait' : templateFile ? 'bg-brand-600 hover:bg-brand-700' : 'bg-green-600 hover:bg-green-700'}`}>
-                 {isExporting ? <Icons.RefreshCw className="w-4 h-4 animate-spin"/> : <Icons.Download className="w-4 h-4" />}
-                 {isExporting ? (exportStage || '生成中...') : (templateFile ? 'テンプレート合成出力' : 'Excel出力')}
-               </button>
+            {/* Bottom */}
+            <div className="px-4 py-3 bg-white shrink-0 border-t border-slate-100" style={{boxShadow:'0 -2px 12px rgba(0,0,0,0.05)'}}>
+              {storageError && (
+                <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg flex items-center gap-2">
+                  <Icons.AlertTriangle className="w-3.5 h-3.5 shrink-0"/> 容量エラー：不要なページを削除してください。
+                </div>
+              )}
+              <div className="flex gap-2 mb-2.5">
+                <button onClick={handleSaveProject} className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center gap-1.5 transition-colors">
+                  <Icons.FolderDown className="w-3.5 h-3.5"/> 保存
+                </button>
+                <label className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
+                  <Icons.FolderUp className="w-3.5 h-3.5"/> 読込
+                  <input type="file" accept=".json" className="hidden" onChange={handleLoadProject}/>
+                </label>
+                <button onClick={handleResetAll} title="全データリセット" className="px-3 py-2 text-xs text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                  <Icons.RotateCcw className="w-3.5 h-3.5"/>
+                </button>
+              </div>
+              <button onClick={handleExportExcel} disabled={isExporting}
+                className={'w-full py-3 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all ' + (
+                  isExporting ? 'bg-slate-400 cursor-wait' : templateFile ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-500 hover:bg-emerald-600'
+                )} style={{boxShadow: isExporting ? 'none' : templateFile ? '0 4px 14px rgba(37,99,235,0.35)' : '0 4px 14px rgba(16,185,129,0.35)'}}>
+                {isExporting ? <><Icons.RefreshCw className="w-4 h-4 animate-spin"/> {exportStage||'生成中...'}</> : <><Icons.Download className="w-4 h-4"/> {templateFile?'テンプレート合成出力':'Excel 出力'}</>}
+              </button>
             </div>
           </div>
-
           <div className="flex-1 overflow-y-auto bg-slate-200/50 p-8 flex flex-col items-center">
             
             <div className="fixed top-6 right-8 z-40 bg-white rounded-full shadow-lg p-1 border border-slate-200 flex gap-1 no-print">
@@ -1969,14 +2600,17 @@
                 <button onClick={() => setIsWebPreview(true)} className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-all ${isWebPreview ? 'bg-pink-500 text-white shadow' : 'text-slate-500 hover:bg-slate-100'}`}><Icons.Eye className="w-3 h-3"/> プレビュー</button>
             </div>
 
-            {pages.map((page, pageIndex) => (
-              <div key={page.id} className="mb-10 relative group max-w-full">
+            {pages.map((page, pageIndex) => {
+              var lDef2 = layoutDefs[page.layout] || DEFAULT_LAYOUT_DEFS['standard-3'];
+              var lType2 = lDef2.type;
+              return (
+              <div key={page.id} className="mb-10 relative max-w-full">
                 <div className="absolute -top-8 left-0 right-0 flex justify-between items-center px-1 no-print">
                     <span className="font-bold text-slate-500 text-sm">Page {pageIndex + 1}</span>
                     {!isWebPreview && (
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-slate-500 font-bold">{templateFile ? '1ページの枚数:' : 'レイアウト:'}</span>
-                            <select className="text-xs border border-slate-300 rounded px-2 py-1 shadow-sm bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 outline-none" value={page.layout} onChange={(e) => changePageLayout(page.id, e.target.value)}>
+                            <select className="text-xs border border-slate-300 rounded px-2 py-1 shadow-sm bg-white cursor-pointer focus:ring-2 focus:ring-brand-500 outline-none" value={page.layout} onChange={(e) => handleReflowLayout(e.target.value)}>
                                 {Object.keys(layoutDefs).map(key => {
                                     const def = layoutDefs[key];
                                     return <option key={key} value={key}>{def.label}</option>;
@@ -1995,34 +2629,93 @@
                     )}
                 </div>
 
-                <div className="a4-paper transform transition-transform">
-                  <div className="border-b-2 border-slate-800 pb-2 mb-6 flex justify-between items-end h-16 opacity-70">
-                    <div className="flex items-center gap-4">
-                      {projectInfo.logo && <img src={projectInfo.logo} className="h-12 object-contain" alt="Logo" />}
-                      <div><h1 className="text-xl font-bold text-slate-900 leading-tight font-serif">{projectInfo.title}</h1></div>
+                <div className={isWebPreview ? "a4-paper a4-preview" : "a4-paper transform transition-transform"}>
+                  {importOptions.headerStyle !== 'hidden' && (
+                    <div className={'border-b-2 border-slate-800 pb-2 mb-4 flex justify-between items-end ' + (
+                      importOptions.headerStyle === 'compact' ? 'h-8' :
+                      importOptions.headerStyle === 'small'   ? 'h-10' : 'h-16'
+                    )}>
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div>
+                          <h1 className={'font-bold text-slate-900 leading-tight font-serif ' + (
+                            importOptions.headerStyle === 'compact' ? 'text-sm' :
+                            importOptions.headerStyle === 'small'   ? 'text-base' : 'text-xl'
+                          )}>{projectInfo.title}</h1>
+                          {importOptions.headerStyle === 'normal' && projectInfo.location && (
+                            <p className="text-xs text-slate-500">{projectInfo.location}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-slate-500 font-mono shrink-0 ml-2">
+                        {importOptions.headerStyle !== 'compact' && <p>{projectInfo.date}</p>}
+                        {projectInfo.constructionNumber && <p className="font-bold">{projectInfo.constructionNumber}</p>}
+                      </div>
                     </div>
-                    <div className="text-right text-xs text-slate-500 font-mono"><p>{projectInfo.date}</p></div>
-                  </div>
+                  )}
 
                   {/* プレビュー表示ロジック (Unified List) */}
-                  {isWebPreview ? (
-                      <div className="flex flex-col gap-0">
-                          {page.items.map((item) => (
-                            <PreviewItemList 
-                                key={item.id} 
-                                item={item} 
-                            />
-                          ))}
+                  {isWebPreview && (
+
+                      <div style={{flex:1,minHeight:0,display:'flex',flexDirection:'column',gap:'4px'}}>
+                          {lType2 === 'single' && page.items.slice(0,1).map(item => <PreviewItemSingle key={item.id} item={item}/>)}
+                          {lType2 === 'before-after' && <PreviewItemBeforeAfter key="ba" items={page.items}/>}
+                          {lType2 === 'grid' && <PreviewItemGrid key="grid" items={page.items}/>}
+                          {(lType2 === 'list' || !lType2) && page.items.map(item => <PreviewItemList key={item.id} item={item}/>)}
                       </div>
-                  ) : (
-                      // 編集モード (Unified List)
-                      <div className="flex-1 grid gap-6 grid-cols-1">
+                  )}
+
+                  {!isWebPreview && (
+                      <div className="flex-1 gap-4"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: (lType2 === 'grid' || lType2 === 'before-after') ? '1fr 1fr' : '1fr'
+                      }}>
                         {page.items.map((item, itemIdx) => (
-                          <div key={item.id} className="border border-slate-200 bg-white p-3 rounded-lg shadow-sm hover:shadow-md hover:border-brand-300 transition-all flex gap-4 flex-row h-60">
+                          <div key={item.id}
+                            className={'group relative border-2 rounded-lg shadow-sm p-3 transition-all ' +
+                              (dragState.over && dragState.over.itemId === item.id && dragState.dragging && dragState.dragging.itemId !== item.id
+                                ? 'border-brand-400 bg-brand-50'
+                                : 'border-slate-200 bg-white hover:border-brand-300 hover:shadow-md')
+                            }
+                            style={{
+                              display: 'flex',
+                              flexDirection: (lType2 === 'grid' || lType2 === 'single') ? 'column' : 'row',
+                              height: lType2 === 'single' ? '480px' : lType2 === 'grid' ? '300px' : '240px',
+                              gap: lType2 === 'single' ? '10px' : '12px'
+                            }}
+                            draggable={!isWebPreview}
+                            onDragStart={e => { e.dataTransfer.effectAllowed='move'; setDragState({ dragging:{pageId:page.id,itemId:item.id}, over:null }); }}
+                            onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect='move'; setDragState(s=>({...s, over:{pageId:page.id,itemId:item.id}})); }}
+                            onDragLeave={() => setDragState(s=>({...s, over:null}))}
+                            onDrop={e => { e.preventDefault(); if(dragState.dragging) handleItemDragEnd(page.id, dragState.dragging.itemId, item.id); setDragState({dragging:null,over:null}); }}
+                            onDragEnd={() => setDragState({dragging:null,over:null})}
+                          >
+                            {/* Move up/down buttons */}
+                            {!isWebPreview && (
+                              <div className="absolute top-1 left-1 flex flex-col gap-0.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();moveItemInPage(page.id,item.id,'up');}}
+                                  className="w-5 h-5 bg-white border border-slate-300 rounded flex items-center justify-center text-slate-400 hover:text-brand-600 hover:border-brand-400 shadow-sm">
+                                  <Icons.ArrowUp className="w-3 h-3"/>
+                                </button>
+                                <button onMouseDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();moveItemInPage(page.id,item.id,'down');}}
+                                  className="w-5 h-5 bg-white border border-slate-300 rounded flex items-center justify-center text-slate-400 hover:text-brand-600 hover:border-brand-400 shadow-sm">
+                                  <Icons.ChevronDown className="w-3 h-3"/>
+                                </button>
+                              </div>
+                            )}
+                            {lType2 === 'before-after' && <div className={'absolute top-1 right-1 text-white text-[10px] px-2 py-0.5 rounded-bl-lg font-bold z-10 ' + (itemIdx === 0 ? 'bg-blue-700' : 'bg-green-700')}>{itemIdx === 0 ? '施工前' : '施工後'}</div>}
                             {!isWebPreview && templateFile && <div className="absolute top-0 left-0 bg-brand-600 text-white text-[10px] px-2 py-0.5 rounded-br-lg rounded-tl-lg z-10 font-mono no-print shadow">Tag: {`{%img${itemIdx + 1}}`}</div>}
                             
                             {/* Photo Area */}
-                            <div className="bg-slate-50 border-2 border-dashed border-slate-300 relative flex items-center justify-center overflow-hidden rounded-lg group/img w-[40%] h-full">
+                            <div className="bg-slate-50 border-2 border-dashed border-slate-300 relative flex items-center justify-center overflow-hidden rounded-lg group/img"
+                              style={{
+                                width: (lType2 === 'grid' || lType2 === 'single') ? '100%' : '40%',
+                                height: lType2 === 'single' ? '300px' : lType2 === 'grid' ? '160px' : '100%',
+                                flexShrink: 0
+                              }}
+                              onDragOver={function(e){e.preventDefault();e.currentTarget.style.borderColor='#3b82f6';}}
+                              onDragLeave={function(e){e.currentTarget.style.borderColor='';}}
+                              onDrop={function(e){e.preventDefault();e.currentTarget.style.borderColor='';var files=Array.from(e.dataTransfer.files).filter(function(f){return f.type.startsWith('image/');});if(!files.length)return;var fakeE={target:{files:files,value:''}};handleBatchImageUpload(fakeE,page.id,item.id);}}>
                               {item.image ? (
                                 <>
                                   <img src={item.image} className="max-w-full max-h-full object-contain" />
@@ -2061,7 +2754,7 @@
                             </div>
 
                             {/* Text Area */}
-                            <div className="w-[60%] flex flex-col gap-3">
+                            <div className="flex flex-col gap-2" style={{ width: (lType2 === 'grid' || lType2 === 'single') ? '100%' : '60%', minWidth: 0 }}>
                                 <>
                                     <div className="flex gap-2">
                                         <div className="w-16 flex flex-col">
@@ -2072,7 +2765,7 @@
                                             <span className="text-[10px] font-bold text-slate-400 mb-0.5 ml-1">施工名 <span className="font-normal text-slate-300">(右クリックで定型文)</span></span>
                                             <input 
                                                 type="text" 
-                                                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm font-bold focus:ring-2 focus:ring-brand-500 outline-none placeholder:font-normal" 
+                                                className={'w-full border border-slate-300 rounded px-2 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none placeholder:font-normal ' + (lType2 === 'single' ? 'text-base font-bold' : 'text-sm font-bold')}
                                                 placeholder="例：着工前状況" 
                                                 value={item.title} 
                                                 onChange={(e) => updateItem(page.id, item.id, { title: e.target.value })} 
@@ -2084,7 +2777,7 @@
                                     <div className="flex-1 flex flex-col gap-1">
                                         <span className="text-[10px] font-bold text-slate-400 ml-1">詳細</span>
                                         <textarea 
-                                            className="flex-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none" 
+                                            className="flex-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none"
                                             placeholder="詳細を入力..." 
                                             value={item.description} 
                                             onChange={(e) => updateItem(page.id, item.id, { description: e.target.value })} 
@@ -2092,7 +2785,7 @@
                                             onFocus={() => setLastFocusedInput({ pageId: page.id, itemId: item.id, field: 'description' })}
                                         />
                                         <textarea 
-                                            className="flex-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none" 
+                                            className="flex-1 w-full border border-slate-300 rounded p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none resize-none"
                                             placeholder="詳細2 (任意)" 
                                             value={item.description2} 
                                             onChange={(e) => updateItem(page.id, item.id, { description2: e.target.value })} 
@@ -2115,7 +2808,8 @@
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
             
             {!isWebPreview && (
                 <button onClick={addPage} className="mb-20 flex items-center gap-2 bg-brand-600 px-8 py-4 rounded-full shadow-xl text-white font-bold hover:bg-brand-700 hover:scale-105 transition-all no-print">
