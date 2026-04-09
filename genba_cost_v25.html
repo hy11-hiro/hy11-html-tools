@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v58</title>
+    <title>G-Ledger | 現場原価管理台帳システム v61</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v58</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v61</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -282,7 +282,7 @@
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-24">完了日</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-28 browse-cost-col">売上(税抜)</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-24 browse-cost-col">粗利率</th>
-                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-20">原価</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-28">原価累計</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-24">サブコード</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-16">詳細</th>
                                 </tr>
@@ -453,7 +453,7 @@
                         <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4 border-l-4 border-teal-500 pl-2">業者別 原価構成（全業者）</h4><div class="h-64 flex justify-center"><canvas id="chart-composition"></canvas></div></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">売上明細</h4><span class="text-[10px] text-slate-400">※税抜・税込を表示</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-sales">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3">得意先</th><th class="px-3 py-3 text-right">金額(税抜)</th><th class="px-3 py-3 text-right text-slate-400">金額(税込)</th></tr></thead><tbody id="table-sales-body" class="divide-y divide-slate-100"></tbody></table></div></div>
+                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">売上明細</h4><span class="text-[10px] text-slate-400">※税抜・税込を表示</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-sales">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3 whitespace-nowrap">工番（メイン）</th><th class="px-3 py-3 whitespace-nowrap">サブコード</th><th class="px-3 py-3">得意先</th><th class="px-3 py-3 text-right">金額(税抜)</th><th class="px-3 py-3 text-right text-slate-400">金額(税込)</th></tr></thead><tbody id="table-sales-body" class="divide-y divide-slate-100"></tbody></table></div></div>
                         <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">仕入明細 (原価)</h4><span class="text-[10px] text-slate-400">※データ値を表示(税抜+税)</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-purchase">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3">業者名</th><th class="px-3 py-3">項目(材料/外注/残土)</th><th class="px-3 py-3 text-right">金額(税抜+税)</th></tr></thead><tbody id="table-purchase-body" class="divide-y divide-slate-100"></tbody></table></div></div>
                     </div>
                 </div>
@@ -1145,6 +1145,7 @@
     // 1. DB Config
     const db = new Dexie("ConstructionLedgerDB_System_v45_5DigitCode"); 
     db.version(1).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, date', meta: 'key' });
+    db.version(2).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, subCode, date', meta: 'key' });
     
     // 2. Global Vars
     let pendingFiles = { cost: null, master: null, purchase: null, sales: null };
@@ -1442,12 +1443,14 @@
                 const idxCustomer = excelColToIndex('I');
                 const idxAmountInc = excelColToIndex('DG');
                 const idxAmountExc = excelColToIndex('DJ');
-                const idxSite = excelColToIndex('EI');
+                const idxSite    = excelColToIndex('EI');  // 現場メインコード
+                const idxSubCode = excelColToIndex('EJ');  // 現場サブコード
 
                 salesData = raw.slice(1).map(r => {
                     if (!r[idxSite]) return null;
                     let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
-                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), customer: r[idxCustomer], amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) };
+                    const sub = r[idxSubCode] ? String(r[idxSubCode]).trim() : '';
+                    return { siteCode: String(r[idxSite]).trim(), subCode: sub, date: d.trim(), customer: r[idxCustomer], amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) };
                 }).filter(r => r && r.siteCode);
             }
             await db.transaction('rw', db.costs, db.masters, db.purchases, db.sales, db.meta, async () => {
@@ -1865,13 +1868,13 @@
         };
         ws.getRow(row).height = 28; row++;
 
-        ['日付','得意先','金額（税抜）','金額（税込）'].forEach((h,i) => {
-            ws.getCell(['B','C','E','G'][i] + row).value = h;
-            ws.getCell(['B','C','E','G'][i] + row).style = hdr(C.blue);
+        ['日付','工番（メイン）','サブコード','得意先','金額（税抜）','金額（税込）'].forEach((h,i) => {
+            ws.getCell(['B','C','D','E','G','I'][i] + row).value = h;
+            ws.getCell(['B','C','D','E','G','I'][i] + row).style = hdr(C.blue);
         });
-        ws.mergeCells('C'+row+':D'+row);
         ws.mergeCells('E'+row+':F'+row);
         ws.mergeCells('G'+row+':H'+row);
+        ws.mergeCells('I'+row+':J'+row);
         ws.getRow(row).height = 26; row++;
 
         let sTot = 0;
@@ -1883,20 +1886,22 @@
             const inc = parseFloat(String(s.amountInc).replace(/[^0-9.-]/g,''))||0;
             sTot += exc;
             ws.getCell('B'+row).value = s.date; ws.getCell('B'+row).style={...cell,fill:bgF};
-            ws.mergeCells('C'+row+':D'+row);
-            ws.getCell('C'+row).value = s.customer; ws.getCell('C'+row).style={...cell,fill:bgF};
+            ws.getCell('C'+row).value = s.siteCode||'-'; ws.getCell('C'+row).style={...cell,font:{...cell.font,bold:true,color:{argb:'FF1E3A5F'}},fill:bgF};
+            ws.getCell('D'+row).value = s.subCode||'-'; ws.getCell('D'+row).style={...cell,font:{...cell.font,color:{argb:'FF2563EB'}},fill:bgF};
             ws.mergeCells('E'+row+':F'+row);
-            const dc = ws.getCell('E'+row); dc.value=exc; dc.style={...cell,numFmt:'#,##0',alignment:{horizontal:'right',vertical:'middle'},fill:bgF};
+            ws.getCell('E'+row).value = s.customer; ws.getCell('E'+row).style={...cell,fill:bgF};
             ws.mergeCells('G'+row+':H'+row);
-            const ec = ws.getCell('G'+row); ec.value=inc; ec.style={...cell,numFmt:'#,##0',alignment:{horizontal:'right',vertical:'middle'},fill:bgF};
+            const dc = ws.getCell('G'+row); dc.value=exc; dc.style={...cell,numFmt:'#,##0',alignment:{horizontal:'right',vertical:'middle'},fill:bgF};
+            ws.mergeCells('I'+row+':J'+row);
+            const ec = ws.getCell('I'+row); ec.value=inc; ec.style={...cell,numFmt:'#,##0',alignment:{horizontal:'right',vertical:'middle'},fill:bgF};
             row++;
         });
         // 合計
         ws.getRow(row).height = 20;
-        ws.mergeCells('C'+row+':D'+row);
-        ws.getCell('C'+row).value='合計'; ws.getCell('C'+row).style={font:{bold:true},alignment:{horizontal:'right',vertical:'middle'}};
         ws.mergeCells('E'+row+':F'+row);
-        const stc=ws.getCell('E'+row); stc.value=sTot;
+        ws.getCell('E'+row).value='合計'; ws.getCell('E'+row).style={font:{bold:true},alignment:{horizontal:'right',vertical:'middle'}};
+        ws.mergeCells('G'+row+':H'+row);
+        const stc=ws.getCell('G'+row); stc.value=sTot;
         stc.style={font:{bold:true,size:13,color:{argb:'FF'+C.blue}},numFmt:'#,##0',
                    alignment:{horizontal:'right',vertical:'middle'},
                    fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF'+C.lightBlue}}};
@@ -2187,7 +2192,7 @@
             const salesTotal = cost ? cost.salesTotal : 0; const costTotal = cost ? cost.costTotal : 0; const profitTotal = cost ? cost.profitTotal : 0; const margin = salesTotal !== 0 ? (profitTotal / salesTotal * 100) : 0; 
             document.getElementById('res-sales').textContent = window.formatCurrency(salesTotal); document.getElementById('res-cost').textContent = window.formatCurrency(costTotal); document.getElementById('res-profit').textContent = window.formatCurrency(profitTotal); document.getElementById('res-margin').textContent = margin.toFixed(1) + '%'; document.getElementById('res-margin-bar').style.width = Math.min(Math.max(margin, 0), 100) + '%'; 
             
-            window.renderTable('table-sales-body', sales, ['date', 'customer', 'amountExc', 'amountInc']); 
+            window.renderTable('table-sales-body', sales, ['date', 'siteCode', 'subCode', 'customer', 'amountExc', 'amountInc']); 
             window.renderTable('table-purchase-body', purchases, ['date', 'vendor', 'item', 'amount']); 
             document.getElementById('count-sales').textContent = sales.length + "件"; 
             // 仕入明細合計を件数バッジに表示
@@ -3620,10 +3625,10 @@
                 ? '<span class="w-2 h-2 rounded-full bg-slate-300 inline-block mr-1 flex-shrink-0" title="完了"></span>'
                 : '<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block mr-1 flex-shrink-0 animate-pulse" title="進行中"></span>';
 
-            // 原価フラグバッジ
+            // 原価累計（実金額を表示）
             const costBadge = d.hasCost
-                ? '<span class="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">有</span>'
-                : '<span class="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded">-</span>';
+                ? `<span class="font-mono text-xs text-indigo-700 font-bold">${window.formatCurrency(d.costTotal)}</span>`
+                : '<span class="text-[10px] text-slate-300">-</span>';
 
             // マスターなし警告（原価基準のとき）
             const noMasterWarn = isCostBasis && !d.hasMaster
@@ -3659,7 +3664,7 @@
                 <td class="px-4 py-2.5 border-b border-slate-100 text-xs font-mono text-slate-500 text-center whitespace-nowrap">${d.startDate || '-'}</td>
                 <td class="px-4 py-2.5 border-b border-slate-100 text-xs font-mono text-center whitespace-nowrap ${hasEnd ? 'text-slate-400' : 'text-emerald-600 font-bold'}">${hasEnd ? d.endDate : '進行中'}</td>
                 ${salesCell}${marginCell}
-                <td class="px-4 py-2.5 border-b border-slate-100 text-center">${costBadge}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-right">${costBadge}</td>
                 <td class="px-4 py-2.5 border-b border-slate-100">${subBadge}</td>
                 <td class="px-4 py-2.5 border-b border-slate-100 text-center">
                     <button onclick="event.stopPropagation(); window.browseJumpToSite('${d.code}', 'browse', '現場一覧に戻る')" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">照会</button>
@@ -3763,7 +3768,7 @@
                 "拠点": d.branch,
                 "着手日": d.startDate,
                 "完了日": d.endDate,
-                "原価データ": d.hasCost ? '有' : '無',
+                "原価累計": d.costTotal || 0,
                 "サブコード数": d.subCodeCount,
                 "サブコード一覧": d.subCodes.map(s => s.subCode || '').join(', ')
             };
