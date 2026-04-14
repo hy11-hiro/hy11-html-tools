@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>請求書データ変換ツール v4.1</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Noto Sans JP',sans-serif;background:#f1f5f9;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.drop-hover{border-color:#2563eb!important;background:#eff6ff!important;}
+.drop-hover .upload-icon{color:#2563eb!important;transform:scale(1.1);}
+.upload-icon{transition:all .2s;}
+thead th{position:sticky;top:0;z-index:10;}
+tfoot td{position:sticky;bottom:0;z-index:10;}
+tr.row-neg{background:#fff1f2;}
+tr.row-zero{opacity:.5;}
+tr.row-neg td.amt{color:#dc2626!important;}
+.tag{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.03em;white-space:nowrap;}
+.tag-taiyo{background:#dcfce7;color:#15803d;}
+.tag-sbic{background:#ede9fe;color:#7c3aed;}
+.tag-yoshi{background:#dbeafe;color:#1d4ed8;}
+.tag-make{background:#ffedd5;color:#c2410c;}
+.tag-unk{background:#f3f4f6;color:#6b7280;}
+.tab-btn{padding:6px 14px;font-size:12px;font-weight:700;border-bottom:2px solid transparent;color:#9ca3af;transition:all .15s;cursor:pointer;white-space:nowrap;}
+.tab-btn.active{color:#2563eb;border-bottom-color:#2563eb;}
+.tab-btn:hover:not(.active){color:#4b5563;}
+.tab-pane{display:none;}
+.tab-pane.active{display:block;}
+.enc-btn{border-color:#e5e7eb;color:#9ca3af;background:white;transition:all .15s;}
+.enc-btn.active{border-color:#3b82f6;color:#2563eb;background:#eff6ff;}
+.enc-btn:hover:not(.active){border-color:#d1d5db;color:#6b7280;}
+.sparkline{display:inline-flex;align-items:flex-end;gap:1px;height:20px;}
+.sparkline-bar{width:4px;background:#60a5fa;border-radius:1px 1px 0 0;min-height:2px;}
+.sparkline-bar.latest{background:#f97316;}
+.sparkline-bar.first{background:#86efac;}
+.change-up{color:#dc2626;}
+.change-down{color:#16a34a;}
+.change-flat{color:#9ca3af;}
+.trend-detail-row{display:none;}
+.trend-detail-row.open{display:table-row;}
+.log-item{font-size:11px;padding:5px 8px;border-radius:5px;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+.fade-in{animation:fadeIn .2s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:#f1f5f9;}
+::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:#94a3b8;}
+input[type=checkbox]{accent-color:#2563eb;}
+/* Modal */
+#mapModal{display:none;}
+#mapModal.open{display:flex;}
+.map-select{border:1px solid #e5e7eb;border-radius:6px;padding:4px 8px;font-size:11px;background:white;outline:none;width:100%;}
+.map-select:focus{border-color:#3b82f6;}
+</style>
+</head>
+<body class="min-h-screen text-gray-800">
+
+<!-- ===== HEADER ===== -->
+<header class="bg-white border-b border-gray-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-50 shadow-sm">
+  <div class="flex items-center gap-2.5">
+    <div class="bg-blue-600 text-white rounded-lg w-8 h-8 flex items-center justify-center text-sm flex-shrink-0"><i class="fas fa-file-invoice"></i></div>
+    <div>
+      <h1 class="text-sm font-bold text-gray-800 leading-tight">請求書データ変換ツール <span class="text-blue-500 text-xs mono">v4.1</span></h1>
+      <p class="text-[10px] text-gray-400 leading-tight">太陽エコ(PDF) · エスビック(PDF/CSV) · 吉田東光(CSV) · メイク(PDF) · 他社対応</p>
+    </div>
+  </div>
+  <div class="flex gap-2 flex-wrap">
+    <span id="headerStats" class="text-[11px] text-gray-400 mono self-center hidden"></span>
+    <button onclick="clearAllData()" class="border border-red-300 text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5">
+      <i class="fas fa-trash-alt"></i>クリア
+    </button>
+    <div class="relative group">
+      <button class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5">
+        <i class="fas fa-file-excel"></i>明細出力<i class="fas fa-chevron-down text-[9px] ml-1"></i>
+      </button>
+      <div class="hidden group-hover:block absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px] py-1">
+        <button onclick="exportInvoiceExcel(false)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="fas fa-table text-emerald-600"></i>全件 Excel</button>
+        <button onclick="exportInvoiceExcel(true)"  class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="fas fa-filter text-emerald-600"></i>絞込み Excel</button>
+        <hr class="my-1 border-gray-100">
+        <button onclick="exportCSV(false)" class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="fas fa-file-csv text-gray-400"></i>全件 CSV</button>
+        <button onclick="exportCSV(true)"  class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="fas fa-filter text-gray-400"></i>絞込み CSV</button>
+      </div>
+    </div>
+    <div class="relative group">
+      <button class="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5">
+        <i class="fas fa-chart-line"></i>価格表出力<i class="fas fa-chevron-down text-[9px] ml-1"></i>
+      </button>
+      <div class="hidden group-hover:block absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px] py-1">
+        <button onclick="exportPriceExcel()" class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="fas fa-file-excel text-orange-500"></i>価格表 Excel</button>
+        <button onclick="exportPriceCSV()"   class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2"><i class="fas fa-file-csv text-gray-400"></i>価格表 CSV</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="max-w-screen-2xl mx-auto p-3 flex gap-3">
+
+  <!-- LEFT PANEL -->
+  <aside class="w-60 flex-shrink-0 space-y-3">
+    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-3">
+      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ファイル読み込み</p>
+      <div>
+        <p class="text-[10px] text-gray-400 mb-1">テキスト文字コード（CSV/TXT用）</p>
+        <div class="grid grid-cols-3 gap-1">
+          <button id="btnAuto" onclick="setEncoding('AUTO')"      class="enc-btn active py-1 rounded text-[10px] font-bold border-2">自動</button>
+          <button id="btnUTF8" onclick="setEncoding('UTF-8')"     class="enc-btn py-1 rounded text-[10px] font-bold border-2">UTF-8</button>
+          <button id="btnSJIS" onclick="setEncoding('Shift_JIS')" class="enc-btn py-1 rounded text-[10px] font-bold border-2">S-JIS</button>
+        </div>
+      </div>
+      <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-xl p-5 text-center cursor-pointer transition-all bg-gray-50"
+           ondragover="event.preventDefault();this.classList.add('drop-hover')"
+           ondragleave="this.classList.remove('drop-hover')" ondrop="handleDrop(event)">
+        <input type="file" id="fileInput" accept=".txt,.csv,.pdf,.xlsx,.xls" multiple class="hidden"/>
+        <button onclick="document.getElementById('fileInput').click()" class="w-full focus:outline-none">
+          <i class="fas fa-cloud-upload-alt upload-icon text-2xl text-gray-300 mb-2 block"></i>
+          <p class="text-xs text-gray-500 font-bold">ドロップ or クリック</p>
+          <p class="text-[10px] text-gray-400 mt-0.5">PDF · Excel · CSV · TXT</p>
+        </button>
+      </div>
+      <div id="fileList" class="space-y-1 max-h-48 overflow-y-auto"></div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">集計</p>
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        <div class="bg-blue-50 rounded-lg p-2.5 text-center">
+          <p class="text-[9px] font-bold text-blue-400">件数</p>
+          <p id="statRows" class="text-2xl font-bold text-blue-700 mono">0</p>
+        </div>
+        <div class="bg-emerald-50 rounded-lg p-2.5 text-center">
+          <p class="text-[9px] font-bold text-emerald-500">合計金額</p>
+          <p id="statAmount" class="text-xs font-bold text-emerald-700 mono mt-1 leading-snug">¥0</p>
+        </div>
+      </div>
+      <div id="supplierStats" class="space-y-1 border-t border-gray-100 pt-2"></div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm space-y-2">
+      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">表示オプション</p>
+      <label class="flex items-center gap-2 cursor-pointer text-xs text-gray-600">
+        <input type="checkbox" id="hideZero" onchange="updateInvoiceTable()">
+        ¥0行を非表示<span class="text-[10px] text-gray-400">(ﾊﾟﾚｯﾄ等)</span>
+      </label>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+      <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">対応フォーマット</p>
+      <div class="space-y-1.5 text-[10px]">
+        <div class="flex items-center gap-2"><span class="tag tag-taiyo">太陽エコ</span><span class="text-gray-500">PDF・テキスト</span></div>
+        <div class="flex items-center gap-2"><span class="tag tag-sbic">エスビック</span><span class="text-gray-500">CSV</span></div>
+        <div class="flex items-center gap-2"><span class="tag tag-yoshi">吉田東光</span><span class="text-gray-500">CSV</span></div>
+        <div class="flex items-center gap-2"><span class="tag tag-make">メイク</span><span class="text-gray-500">テキスト</span></div>
+        <div class="flex items-center gap-2"><span class="tag tag-unk">他社</span><span class="text-gray-500">Excel·CSV·TXT·PDF<br><span class="text-blue-500">自動/手動マッピング</span></span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN PANEL -->
+  <main class="flex-1 min-w-0 space-y-3">
+    <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <div class="flex border-b border-gray-200 px-4 pt-1 gap-1">
+        <button class="tab-btn active" onclick="switchTab('invoice',this)"><i class="fas fa-list-ul mr-1.5"></i>請求明細</button>
+        <button class="tab-btn" onclick="switchTab('price',this)"><i class="fas fa-chart-line mr-1.5"></i>価格変動</button>
+      </div>
+
+      <!-- TAB: 請求明細 -->
+      <div id="tab-invoice" class="tab-pane active">
+        <div class="px-4 py-3 border-b border-gray-100 grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">工番</label>
+            <input type="text" id="filterCode" oninput="updateInvoiceTable()" placeholder="例: i1847"
+              class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none mono"></div>
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">現場名</label>
+            <input type="text" id="filterName" oninput="updateInvoiceTable()" placeholder="キーワード"
+              class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none"></div>
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">商品名</label>
+            <input type="text" id="filterItem" oninput="updateInvoiceTable()" placeholder="キーワード"
+              class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none"></div>
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">仕入先</label>
+            <select id="filterSource" onchange="updateInvoiceTable()"
+              class="w-full border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none bg-white">
+              <option value="">すべて</option>
+              <option value="太陽ｴｺﾌﾞﾛｯｸ">太陽エコブロック</option>
+              <option value="エスビック">エスビック</option>
+              <option value="吉田東光">吉田東光</option>
+              <option value="メイク">メイク</option>
+            </select></div>
+        </div>
+        <div style="max-height:calc(100vh - 260px);overflow-y:auto;">
+          <table class="min-w-full text-xs border-collapse">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-2 py-2.5 text-[10px] font-bold text-gray-400 text-right w-8 border-r border-gray-100">#</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-left w-20">日付</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-blue-500 text-left bg-blue-50 w-24">工番</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-blue-500 text-left bg-blue-50">現場名</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-left">商品名・規格</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-16">数量</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-24">単価</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-28">金額</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-center w-20">仕入先</th>
+              </tr>
+            </thead>
+            <tbody id="resultBody" class="divide-y divide-gray-100">
+              <tr><td colspan="9" class="px-6 py-16 text-center text-gray-300">
+                <i class="fas fa-file-arrow-up text-3xl mb-2 block"></i>
+                <p class="text-sm">ファイルをドロップして解析</p>
+              </td></tr>
+            </tbody>
+            <tfoot id="resultFoot" class="bg-gray-50"></tfoot>
+          </table>
+        </div>
+        <div id="tableInfo" class="px-4 py-1.5 text-[10px] text-gray-400 border-t border-gray-100 bg-gray-50"></div>
+      </div>
+
+      <!-- TAB: 価格変動 -->
+      <div id="tab-price" class="tab-pane">
+        <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap gap-3 items-end">
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">商品名</label>
+            <input type="text" id="trendSearch" oninput="updatePriceTable()" placeholder="キーワード"
+              class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none w-44"></div>
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">仕入先</label>
+            <select id="trendSource" onchange="updatePriceTable()"
+              class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none bg-white">
+              <option value="">すべて</option>
+              <option value="太陽ｴｺﾌﾞﾛｯｸ">太陽エコブロック</option>
+              <option value="エスビック">エスビック</option>
+              <option value="吉田東光">吉田東光</option>
+              <option value="メイク">メイク</option>
+            </select></div>
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">並び替え</label>
+            <select id="trendSort" onchange="updatePriceTable()"
+              class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none bg-white">
+              <option value="change_desc">値上がり率▼</option>
+              <option value="change_asc">値下がり率▼</option>
+              <option value="name_asc">商品名 A→Z</option>
+              <option value="latest_desc">最新単価▼</option>
+            </select></div>
+          <label class="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600 self-end pb-1.5">
+            <input type="checkbox" id="trendOnlyChange" onchange="updatePriceTable()">変動のある商品のみ</label>
+        </div>
+        <div class="px-4 py-1.5 border-b border-gray-100 bg-gray-50 flex gap-4 text-[10px] text-gray-400">
+          <span><span class="inline-block w-3 h-3 rounded-sm bg-green-200 mr-1"></span>初回単価</span>
+          <span><span class="inline-block w-3 h-3 rounded-sm bg-orange-400 mr-1"></span>最新単価</span>
+          <span><span class="change-up font-bold">▲</span>値上がり</span>
+          <span><span class="change-down font-bold">▼</span>値下がり</span>
+          <span class="ml-auto text-gray-300">行クリック→履歴展開</span>
+        </div>
+        <div style="max-height:calc(100vh - 290px);overflow-y:auto;">
+          <table class="min-w-full text-xs border-collapse">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-left">商品名・規格</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-center w-20">仕入先</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-28">初回単価</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-28">最新単価</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-24">差額</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-20">変動率</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-center w-28">推移</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-center w-14">件数</th>
+              </tr>
+            </thead>
+            <tbody id="priceBody">
+              <tr><td colspan="8" class="px-6 py-16 text-center text-gray-300">
+                <i class="fas fa-chart-bar text-3xl mb-2 block"></i>
+                <p class="text-sm">請求書を読み込むと価格変動が表示されます</p>
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="priceInfo" class="px-4 py-1.5 text-[10px] text-gray-400 border-t border-gray-100 bg-gray-50"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ===== COLUMN MAPPING MODAL ===== -->
+<div id="mapModal" class="fixed inset-0 bg-black/50 z-[100] items-center justify-center p-4">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-5 border-b border-gray-200">
+      <div>
+        <h2 class="text-base font-bold text-gray-800"><i class="fas fa-table-columns text-blue-500 mr-2"></i>列のマッピング設定</h2>
+        <p class="text-xs text-gray-400 mt-0.5">自動判定できなかったファイルです。各列が何のデータか指定してください。</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="toggleMapGuide()" class="text-xs text-blue-500 hover:text-blue-700 font-bold flex items-center gap-1 border border-blue-200 hover:border-blue-400 px-2.5 py-1.5 rounded-lg transition">
+          <i class="fas fa-circle-question"></i>使い方
+        </button>
+        <button onclick="closeMapModal()" class="text-gray-400 hover:text-gray-600 text-xl"><i class="fas fa-times"></i></button>
+      </div>
+    </div>
+
+    <!-- ガイドパネル（折りたたみ） -->
+    <div id="mapGuide" class="hidden border-b border-blue-100 bg-blue-50 px-5 py-4 space-y-3">
+      <p class="text-xs font-bold text-blue-700 flex items-center gap-1.5"><i class="fas fa-lightbulb text-yellow-500"></i>手動マッピングの手順</p>
+
+      <!-- Step 1 -->
+      <div class="flex gap-3">
+        <div class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">1</div>
+        <div>
+          <p class="text-xs font-bold text-gray-700 mb-0.5">仕入先名を確認・修正</p>
+          <p class="text-[11px] text-gray-500">出力データの「仕入先」列に表示される名前です。ファイル名から自動入力されますが、「○○建材」などわかりやすい名前に変更してください。</p>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="flex gap-3">
+        <div class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">2</div>
+        <div>
+          <p class="text-xs font-bold text-gray-700 mb-0.5">プレビューで列の内容を確認</p>
+          <p class="text-[11px] text-gray-500">先頭3行のデータが表示されています。どの列に日付・商品名・金額が入っているか確認してから、下のドロップダウンを設定します。</p>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="flex gap-3">
+        <div class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">3</div>
+        <div>
+          <p class="text-xs font-bold text-gray-700 mb-1.5">各列にデータの種類を割り当て</p>
+          <!-- 選択肢テーブル -->
+          <div class="overflow-x-auto">
+            <table class="text-[11px] border border-gray-200 rounded-lg overflow-hidden w-full">
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="px-2 py-1.5 text-left font-bold text-gray-500 whitespace-nowrap">選択肢</th>
+                  <th class="px-2 py-1.5 text-left font-bold text-gray-500">意味・ヘッダー例</th>
+                  <th class="px-2 py-1.5 text-center font-bold text-gray-500 whitespace-nowrap">必須</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100 bg-white">
+                <tr><td class="px-2 py-1.5 font-bold text-orange-600 whitespace-nowrap">商品名</td><td class="px-2 py-1.5 text-gray-600">品名・品目・材料名・摘要</td><td class="px-2 py-1.5 text-center text-red-500 font-bold">★</td></tr>
+                <tr class="bg-gray-50"><td class="px-2 py-1.5 font-bold text-orange-600 whitespace-nowrap">単価</td><td class="px-2 py-1.5 text-gray-600">1個あたりの価格。価格変動の追跡に使用</td><td class="px-2 py-1.5 text-center text-orange-400 font-bold text-[10px]">★いずれか</td></tr>
+                <tr><td class="px-2 py-1.5 font-bold text-orange-600 whitespace-nowrap">金額</td><td class="px-2 py-1.5 text-gray-600">合計金額・売上金額。単価がない場合は数量÷で補完</td><td class="px-2 py-1.5 text-center text-orange-400 font-bold text-[10px]">★いずれか</td></tr>
+                <tr class="bg-gray-50"><td class="px-2 py-1.5 font-bold text-gray-600 whitespace-nowrap">日付</td><td class="px-2 py-1.5 text-gray-600">納品日・請求日・出荷日</td><td class="px-2 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-2 py-1.5 font-bold text-gray-600 whitespace-nowrap">工番</td><td class="px-2 py-1.5 text-gray-600">現場コード（i1847 など）</td><td class="px-2 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr class="bg-gray-50"><td class="px-2 py-1.5 font-bold text-gray-600 whitespace-nowrap">現場名</td><td class="px-2 py-1.5 text-gray-600">工事名・施工先名称</td><td class="px-2 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-2 py-1.5 font-bold text-gray-600 whitespace-nowrap">数量</td><td class="px-2 py-1.5 text-gray-600">個数・m³・枚数など。単位欄と組み合わせると価格変動が正確に</td><td class="px-2 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr class="bg-gray-50"><td class="px-2 py-1.5 font-bold text-gray-600 whitespace-nowrap">単位</td><td class="px-2 py-1.5 text-gray-600">M3・枚・束など。同名商品を単位ごとに分けて価格集計</td><td class="px-2 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr><td class="px-2 py-1.5 font-bold text-gray-600 whitespace-nowrap">伝票番号</td><td class="px-2 py-1.5 text-gray-600">伝票No・受注番号</td><td class="px-2 py-1.5 text-center text-gray-300">—</td></tr>
+                <tr class="bg-gray-50"><td class="px-2 py-1.5 font-bold text-gray-400 whitespace-nowrap">(使用しない)</td><td class="px-2 py-1.5 text-gray-400">その列を読み込みから除外</td><td class="px-2 py-1.5 text-center text-gray-300">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div class="bg-white border border-blue-200 rounded-lg p-3 space-y-1.5">
+        <p class="text-[11px] font-bold text-blue-600"><i class="fas fa-star text-yellow-400 mr-1"></i>価格変動を正確に追跡するポイント</p>
+        <p class="text-[11px] text-gray-600">・<span class="font-bold">単価</span>列を必ず指定 → 単価がない場合は<span class="font-bold">金額＋数量</span>を両方指定すれば自動計算</p>
+        <p class="text-[11px] text-gray-600">・<span class="font-bold">単位</span>列も指定すると「RC40-0 / M3」と「RC40-0 / 束」を別商品として集計できる</p>
+        <p class="text-[11px] text-gray-600">・次回以降も自動で読み込みたい場合は、Excelのヘッダーを「商品名」「単価」「金額」「工番」などに統一するとキーワード自動判定が効く</p>
+      </div>
+    </div><!-- /mapGuide -->
+
+    <div class="p-5 space-y-4">
+      <div>
+        <p class="text-xs font-bold text-gray-500 mb-2">仕入先名</p>
+        <input type="text" id="mapSupplierName" placeholder="例: ○○建材" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-52 focus:ring-2 focus:ring-blue-200 outline-none">
+      </div>
+      <div>
+        <p class="text-xs font-bold text-gray-500 mb-2">データプレビュー（先頭3行）— どの列に何が入っているか確認</p>
+        <div class="overflow-x-auto rounded-lg border border-gray-200">
+          <table class="min-w-full text-xs" id="mapPreviewTable"></table>
+        </div>
+      </div>
+      <div>
+        <p class="text-xs font-bold text-gray-500 mb-1">列のマッピング</p>
+        <p class="text-[11px] text-gray-400 mb-2">★<span class="text-red-400 font-bold">商品名</span> と ★<span class="text-orange-400 font-bold">単価 or 金額</span> は必須です</p>
+        <div id="mapSelects" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="applyMapping()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2">
+          <i class="fas fa-check"></i>この設定で読み込む
+        </button>
+        <button onclick="closeMapModal()" class="border border-gray-300 text-gray-600 hover:bg-gray-50 px-5 py-2 rounded-lg text-sm font-bold transition">
+          スキップ
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Setup ───────────────────────────────────────────────────────────────────
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let allParsedRows = [];
+let currentEncoding = 'AUTO';
+let openTrendRows = new Set();
+// pending mapping state
+let _mapPending = null; // { rows: [[]], filename: '', resolve: fn }
+
+// ─── Tab ─────────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+  if (name==='price') updatePriceTable();
+}
+
+// ─── Encoding ────────────────────────────────────────────────────────────────
+function setEncoding(enc) {
+  currentEncoding = enc;
+  document.querySelectorAll('.enc-btn').forEach(b=>b.classList.remove('active'));
+  ({AUTO:'btnAuto','UTF-8':'btnUTF8','Shift_JIS':'btnSJIS'}[enc] && document.getElementById({AUTO:'btnAuto','UTF-8':'btnUTF8','Shift_JIS':'btnSJIS'}[enc]).classList.add('active'));
+}
+
+// ─── File handling ────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e=>{ processFiles(e.target.files); e.target.value=''; });
+function handleDrop(e) {
+  e.preventDefault(); document.getElementById('dropZone').classList.remove('drop-hover');
+  processFiles(e.dataTransfer.files);
+}
+
+async function processFiles(files) {
+  if (!files?.length) return;
+  const list = document.getElementById('fileList');
+  for (const file of files) {
+    const logItem = document.createElement('div');
+    logItem.className = 'log-item bg-blue-50 text-blue-600 fade-in';
+    logItem.innerHTML = `<span class="truncate max-w-[140px]"><i class="fas fa-spinner fa-spin mr-1"></i>${escHtml(file.name)}</span><span class="text-[10px]">解析中…</span>`;
+    list.insertBefore(logItem, list.firstChild);
+    try {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const isPDF   = ext === 'pdf';
+      const isExcel = ext === 'xlsx' || ext === 'xls';
+      let text = null;
+      let xlsxRows = null; // [[cell,...],...]
+
+      if (isPDF) {
+        text = await extractTextFromPDF(file);
+      } else if (isExcel) {
+        xlsxRows = await readExcelAsRows(file);
+      } else {
+        const enc = currentEncoding==='AUTO' ? await detectEncoding(file) : currentEncoding;
+        text = await readFileAsText(file, enc);
+      }
+
+      const format = isPDF || !isExcel ? detectFormat(text||'', file.name) : detectFormatFromRows(xlsxRows, file.name);
+      const before = allParsedRows.length;
+      let label = '汎用';
+
+      if (format === 'TAIYO') {
+        parseTaiyoInvoice(text, file.name); label='太陽エコ';
+      } else if (format === 'SBIC_PDF') {
+        parseSbicPDF(text, file.name); label='エスビック';
+      } else if (format === 'SBIC') {
+        parseSbicCSV(isExcel ? rowsToCSV(xlsxRows) : text, file.name); label='エスビック';
+      } else if (format === 'YOSHIDA') {
+        parseYoshidaCSV(isExcel ? rowsToCSV(xlsxRows) : text, file.name); label='吉田東光';
+      } else if (format === 'MAKE') {
+        // PDF uses different item structure
+        if (isPDF) parseMakePDF(text, file.name); else parseMakeInvoice(text, file.name);
+        label='メイク';
+      } else {
+        // Generic — try auto-map, then show modal if needed
+        const dataRows = isExcel ? xlsxRows : csvToRows(text);
+        const added = await parseGenericWithMapping(dataRows, file.name);
+        label = `他社(${added}件)`;
+        const finalAdded = allParsedRows.length - before;
+        logItem.className = 'log-item bg-emerald-50 text-emerald-700 fade-in';
+        logItem.innerHTML = `<span class="truncate max-w-[130px]"><i class="fas fa-check-circle mr-1"></i>${escHtml(file.name)}</span><span class="font-bold whitespace-nowrap">${label}</span>`;
+        updateInvoiceTable(); updateStats();
+        continue;
+      }
+
+      const added = allParsedRows.length - before;
+      logItem.className = 'log-item bg-emerald-50 text-emerald-700 fade-in';
+      logItem.innerHTML = `<span class="truncate max-w-[130px]"><i class="fas fa-check-circle mr-1"></i>${escHtml(file.name)}</span><span class="font-bold whitespace-nowrap">${label} ${added}件</span>`;
+    } catch(err) {
+      logItem.className = 'log-item bg-red-50 text-red-700 fade-in';
+      logItem.innerHTML = `<span class="truncate max-w-[130px]"><i class="fas fa-exclamation-circle mr-1"></i>${escHtml(file.name)}</span><span class="whitespace-nowrap text-[10px]">${escHtml(err.message)}</span>`;
+    }
+  }
+  updateInvoiceTable(); updateStats();
+}
+
+// ─── Excel reader ─────────────────────────────────────────────────────────────
+async function readExcelAsRows(file) {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, {type:'array', cellDates:true, dateNF:'yyyy/mm/dd'});
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws, {header:1, defval:''}).filter(r=>r.some(c=>String(c).trim()));
+}
+
+function rowsToCSV(rows) {
+  return rows.map(r => r.map(c => {
+    const s = String(c==null?'':c);
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(',')).join('\n');
+}
+
+function csvToRows(text) {
+  return text.split(/\r\n|\n|\r/).map(line => {
+    if (!line.trim()) return null;
+    return parseCSVLine(line);
+  }).filter(Boolean);
+}
+
+// ─── Format detection ─────────────────────────────────────────────────────────
+function detectFormat(text, filename) {
+  const fn = filename.toLowerCase();
+  const fl = text.split(/\r\n|\n|\r/)[0];
+  // 太陽エコ
+  if (text.match(/\d{2}\/\d{2}\/\d{2}\s+NO\.\d+/) ||
+      text.includes('太陽エコ') || text.includes('ｴｺﾌﾞﾛｯｸ') ||
+      fn.includes('taiyo') || fn.includes('太陽') || fn.includes('eco')) return 'TAIYO';
+  // エスビック PDF (請求書PDF with 納入日/伝票/受注 table, or filename)
+  if (fn.includes('エスビック') || fn.includes('esbic') || fn.includes('sbic') ||
+      text.includes('エスビック株式会社') || text.includes('NBIG') ||
+      (text.includes('納入日') && text.includes('得意先発注番号') === false && text.includes('御発注№'))) return 'SBIC_PDF';
+  // エスビック CSV
+  if (fl.includes('得意先発注番号') || (fl.includes('売上金額') && fl.includes('伝票番号'))) return 'SBIC';
+  // 吉田東光 CSV
+  if (fl.includes('出荷№') || fl.includes('工事№') || fl.includes('納品日付')) return 'YOSHIDA';
+  // メイク (PDF or text — distinguished later by file type)
+  if (text.includes('PAGE:') && text.includes('現場名：')) return 'MAKE';
+  return 'GENERIC';
+}
+
+function detectFormatFromRows(rows, filename) {
+  if (!rows?.length) return 'GENERIC';
+  const fn = filename.toLowerCase();
+  if (fn.includes('taiyo') || fn.includes('太陽') || fn.includes('eco')) return 'TAIYO';
+  const hdr = (rows[0]||[]).map(c=>String(c||''));
+  if (hdr.some(c=>c.includes('得意先発注番号'))) return 'SBIC';
+  if (hdr.some(c=>c.includes('工事№') || c.includes('出荷№'))) return 'YOSHIDA';
+  return 'GENERIC';
+}
+
+// ─── Generic with auto/manual mapping ────────────────────────────────────────
+// Column role keywords
+const FIELD_HINTS = {
+  date:      ['日付','date','納品日','出荷日','伝票日','請求日','年月日'],
+  siteCode:  ['工番','工事番号','工事no','工事ＮＯ','現場コード','発注番号','得意先発注'],
+  siteName:  ['現場名','工事名','現場','site'],
+  itemName:  ['商品名','品名','商品','品目','摘要','品種','材料名','description','item'],
+  qty:       ['数量','qty','quantity','数','本数'],
+  unitPrice: ['単価','unit price','unitprice','価格'],
+  amount:    ['金額','合計','売上金額','amount','price','請求金額','売上'],
+  slipNo:    ['伝票','伝票番号','no.','番号','出荷№','slip'],
+};
+
+function autoMapColumns(headers) {
+  const map = {};
+  const used = new Set();
+  const norm = s => String(s||'').toLowerCase().replace(/[　\s]/g,'').replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+
+  for (const [field, hints] of Object.entries(FIELD_HINTS)) {
+    for (let i=0; i<headers.length; i++) {
+      if (used.has(i)) continue;
+      const h = norm(headers[i]);
+      if (hints.some(hint => h.includes(norm(hint)))) {
+        map[field] = i; used.add(i); break;
+      }
+    }
+  }
+  return map;
+}
+
+async function parseGenericWithMapping(rows, filename) {
+  if (!rows?.length) return 0;
+
+  // Find header row (first row with mostly string content)
+  let headerIdx = 0;
+  for (let i=0; i<Math.min(5, rows.length); i++) {
+    const r = rows[i];
+    const strCount = r.filter(c => typeof c === 'string' && isNaN(c.replace(/[,¥]/g,''))).length;
+    if (strCount >= 2) { headerIdx = i; break; }
+  }
+  const headers = rows[headerIdx].map(c=>String(c||''));
+  const dataRows = rows.slice(headerIdx+1).filter(r=>r.some(c=>String(c).trim()));
+
+  const autoMap = autoMapColumns(headers);
+  const hasMinRequired = autoMap.itemName !== undefined && (autoMap.unitPrice !== undefined || autoMap.amount !== undefined);
+
+  if (hasMinRequired) {
+    // Auto-parse
+    const supplierName = filename.replace(/\.[^.]+$/, '').slice(0, 12);
+    applyRowMapping(dataRows, autoMap, supplierName, headers);
+    return dataRows.length;
+  }
+
+  // Need manual mapping
+  return new Promise(resolve => {
+    openMapModal(headers, dataRows.slice(0,3), filename, (mapping, supplierName) => {
+      if (mapping) applyRowMapping(dataRows, mapping, supplierName, headers);
+      resolve(mapping ? dataRows.length : 0);
+    });
+  });
+}
+
+function applyRowMapping(dataRows, map, supplierName, headers) {
+  const g = (row, field) => {
+    const idx = map[field];
+    return idx !== undefined ? String(row[idx]||'').trim() : '';
+  };
+  dataRows.forEach(row => {
+    const rawDate = g(row,'date');
+    const rawAmt  = g(row,'amount').replace(/[¥,]/g,'');
+    const rawUp   = g(row,'unitPrice').replace(/[¥,]/g,'');
+    const amountNum   = parseFloat(rawAmt)  || 0;
+    const unitPriceNum = parseFloat(rawUp)  || 0;
+    const itemName = g(row,'itemName');
+    if (!itemName && !amountNum) return; // skip empty rows
+    allParsedRows.push({
+      source: supplierName||'他社',
+      date: normalizeDate(rawDate),
+      slipNo: g(row,'slipNo')||'-',
+      siteCode: g(row,'siteCode').toLowerCase(),
+      siteName: g(row,'siteName'),
+      itemName,
+      qty: g(row,'qty')||'0',
+      unitPrice: rawUp||rawAmt,
+      amount: rawAmt||rawUp,
+      amountNum, unitPriceNum, isZero: amountNum===0
+    });
+  });
+}
+
+function normalizeDate(s) {
+  if (!s) return '';
+  // Excel serial date (number)
+  if (!isNaN(s) && Number(s) > 20000) {
+    const d = XLSX.SSF.parse_date_code(Number(s));
+    if (d) return `${String(d.y).slice(-2)}/${String(d.m).padStart(2,'0')}/${String(d.d).padStart(2,'0')}`;
+  }
+  // already string date
+  const m = String(s).match(/(\d{2,4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/);
+  if (m) return `${String(m[1]).slice(-2)}/${m[2].padStart(2,'0')}/${m[3].padStart(2,'0')}`;
+  return String(s);
+}
+
+// ─── Mapping Modal ────────────────────────────────────────────────────────────
+const ROLE_OPTIONS = [
+  ['','(使用しない)'],['date','日付'],['siteCode','工番'],['siteName','現場名'],
+  ['itemName','商品名'],['qty','数量'],['unit','単位'],['unitPrice','単価'],['amount','金額'],['slipNo','伝票番号'],
+];
+
+function openMapModal(headers, previewRows, filename, callback) {
+  _mapPending = { headers, previewRows, dataRows: null, filename, callback };
+
+  // Preview table
+  const pt = document.getElementById('mapPreviewTable');
+  const autoMap = autoMapColumns(headers);
+  const revMap = {};
+  Object.entries(autoMap).forEach(([f,i]) => revMap[i]=f);
+
+  let html = '<thead class="bg-gray-100"><tr>';
+  headers.forEach((h,i) => {
+    html += `<th class="px-2 py-1.5 text-left text-[10px] font-bold text-gray-500 border-r border-gray-200 last:border-0">${escHtml(h)||`列${i+1}`}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  previewRows.forEach(row => {
+    html += '<tr class="border-t border-gray-100">';
+    headers.forEach((_,i) => {
+      html += `<td class="px-2 py-1 text-[11px] text-gray-600 border-r border-gray-200 last:border-0 max-w-[100px] truncate">${escHtml(String(row[i]||''))}</td>`;
+    });
+    html += '</tr>';
+  });
+  pt.innerHTML = html + '</tbody>';
+
+  // Selects
+  const sc = document.getElementById('mapSelects');
+  sc.innerHTML = headers.map((h,i) => {
+    const currentRole = revMap[i] || '';
+    const opts = ROLE_OPTIONS.map(([v,l]) => `<option value="${v}"${v===currentRole?' selected':''}>${l}</option>`).join('');
+    return `<div><label class="block text-[10px] text-gray-400 mb-1">${escHtml(h)||`列${i+1}`}</label>
+      <select class="map-select" data-col="${i}">${opts}</select></div>`;
+  }).join('');
+
+  document.getElementById('mapSupplierName').value = filename.replace(/\.[^.]+$/,'').slice(0,15);
+  document.getElementById('mapModal').classList.add('open');
+}
+
+function toggleMapGuide() {
+  const g = document.getElementById('mapGuide');
+  g.classList.toggle('hidden');
+}
+
+function closeMapModal() {
+  document.getElementById('mapModal').classList.remove('open');
+  if (_mapPending?.callback) _mapPending.callback(null, '');
+  _mapPending = null;
+}
+
+function applyMapping() {
+  if (!_mapPending) return;
+  const selects = document.querySelectorAll('#mapSelects .map-select');
+  const mapping = {};
+  selects.forEach(sel => {
+    const role = sel.value;
+    const col  = parseInt(sel.dataset.col);
+    if (role) mapping[role] = col;
+  });
+  const supplierName = document.getElementById('mapSupplierName').value.trim() || '他社';
+  document.getElementById('mapModal').classList.remove('open');
+  const cb = _mapPending.callback;
+  _mapPending = null;
+  cb(mapping, supplierName);
+}
+
+// ─── PDF extraction ───────────────────────────────────────────────────────────
+async function extractTextFromPDF(file) {
+  if (!window.pdfjsLib) throw new Error('PDF.js未読込');
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+  const lines = [];
+  for (let pn=1; pn<=pdf.numPages; pn++) {
+    const page = await pdf.getPage(pn);
+    const tc   = await page.getTextContent();
+    const yMap = new Map();
+    tc.items.forEach(item => {
+      if (!item.str.trim()) return;
+      const y = Math.round(item.transform[5]/2)*2;
+      if (!yMap.has(y)) yMap.set(y,[]);
+      yMap.get(y).push({x:item.transform[4], text:item.str});
+    });
+    [...yMap.keys()].sort((a,b)=>b-a).forEach(y => {
+      lines.push(yMap.get(y).sort((a,b)=>a.x-b.x).map(i=>i.text.trim()).filter(Boolean).join('  '));
+    });
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+// ─── Encoding ─────────────────────────────────────────────────────────────────
+function detectEncoding(file) {
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = e => {
+      const b = new Uint8Array(e.target.result);
+      if (b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF){resolve('UTF-8');return;}
+      let pts=0;
+      for(let i=0;i<b.length-1;i++){const b1=b[i],b2=b[i+1];
+        if(((b1>=0x81&&b1<=0x9F)||(b1>=0xE0&&b1<=0xFC))&&((b2>=0x40&&b2<=0x7E)||(b2>=0x80&&b2<=0xFC)))pts++;}
+      resolve(pts>0?'Shift_JIS':'UTF-8');
+    };
+    r.readAsArrayBuffer(file.slice(0,10000));
+  });
+}
+function readFileAsText(file, enc) {
+  return new Promise((res,rej)=>{
+    const r=new FileReader(); r.onload=e=>res(e.target.result); r.onerror=()=>rej(new Error('読み込みエラー')); r.readAsText(file,enc);
+  });
+}
+
+// ─── Known parsers ────────────────────────────────────────────────────────────
+function parseTaiyoInvoice(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  let curDate='',curSlip='',curSiteCode='',curSiteName='',isReturn=false;
+  for(const line of lines){
+    const tl=line.trim(); if(!tl) continue;
+    if(/^\*{3,}/.test(tl)) continue;
+    if(/^(前回繰越|毎度有難|振込先|■本|請求明細|登録番号|摘\s+要|数\s+量|単\s+価|金\s+額)/.test(tl)) continue;
+    if(tl.includes('消費税合計')||tl.includes('税抜き合計')) continue;
+    if(tl.includes('三井住友')||tl.includes('三菱ＵＦＪ')||tl.includes('滋賀銀行')) continue;
+    if(tl.includes('返品伝票')){isReturn=true;continue;}
+    const hm=tl.match(/^(\d{2}\/\d{2}\/\d{2})\s+NO\.(\d+)\s+([A-Z][0-9]+)?\s*(.*)/);
+    if(hm){curDate=hm[1];curSlip=hm[2];curSiteCode=(hm[3]||'').toLowerCase();curSiteName=(hm[4]||'').replace(/\s+\S+様\s*$/,'').trim();isReturn=false;continue;}
+    const im=tl.match(/^(.+?)\s+([-\d,]*\.\d{2})\s+([-\d,]*\.\d{2})\s+([-\d,]+)$/);
+    if(im&&curDate){
+      const amountNum=parseInt(im[4].replace(/,/g,''),10)||0;
+      const unitPriceNum=parseFloat(im[3].replace(/,/g,''))||0;
+      allParsedRows.push({source:'太陽ｴｺﾌﾞﾛｯｸ',date:curDate,slipNo:curSlip+(isReturn?'[返]':''),siteCode:curSiteCode,siteName:curSiteName,itemName:im[1].trim(),qty:im[2],unitPrice:im[3],amount:im[4],amountNum,unitPriceNum,isZero:amountNum===0});
+    }
+  }
+}
+
+function parseSbicCSV(text) {
+  const lines=text.split(/\r\n|\n|\r/); let hdr=false;
+  lines.forEach(line=>{
+    if(!line.trim()) return; const row=parseCSVLine(line);
+    if(!hdr){if(row.includes('伝票番号')||row.includes('売上金額'))hdr=true;return;}
+    const amountNum=parseInt((row[21]||'').replace(/,/g,''),10)||0;
+    const unitPriceNum=parseFloat((row[20]||'').replace(/,/g,''))||0;
+    allParsedRows.push({source:'エスビック',date:row[10]||'',slipNo:row[11]||'-',siteCode:(row[15]||'').toLowerCase().trim(),siteName:row[16]||'',itemName:row[18]||'',qty:row[19]||'0',unitPrice:row[20]||'0',amount:row[21]||'0',amountNum,unitPriceNum,isZero:amountNum===0});
+  });
+}
+
+function parseYoshidaCSV(text) {
+  const lines=text.split(/\r\n|\n|\r/); let hdr=false;
+  lines.forEach(line=>{
+    if(!line.trim()) return; const row=parseCSVLine(line);
+    if(!hdr){if(row.includes('工事№')||row.includes('現場名称')||(row[0]&&/^\d{8}$/.test(row[0])))hdr=false;else{return;}hdr=true;return;}
+    if(!row[0]||!row[0].match(/\d/)) return;
+    let ds=row[0]; if(ds.length===8)ds=`${ds.slice(0,4)}/${ds.slice(4,6)}/${ds.slice(6,8)}`;
+    const amountNum=parseInt((row[13]||'').replace(/,/g,''),10)||0;
+    const unitPriceNum=parseFloat((row[12]||'').replace(/,/g,''))||0;
+    allParsedRows.push({source:'吉田東光',date:ds,slipNo:row[2]||'',siteCode:(row[5]||'').replace('工番','').toLowerCase().trim(),siteName:row[6]||'',itemName:((row[8]||'')+' '+(row[9]||'')).trim(),unit:row[11]||'',qty:row[10]||'0',unitPrice:row[12]||'0',amount:row[13]||'0',amountNum,unitPriceNum,isZero:amountNum===0});
+  });
+}
+
+function parseMakeInvoice(text) {
+  const pages=text.split(/PAGE:\s*\d+\s*\/\s*\d+/);
+  pages.forEach(pc=>{
+    const sm=pc.match(/現場名：\s*([a-zA-Z0-9]{4,5})?\s*(.*?)\s*振込口座/);
+    const siteCode=sm?(sm[1]||'').toLowerCase().trim():'';
+    const siteName=sm?sm[2].trim():'';
+    const lines=pc.split(/\n/); let curDate='',curSlip='';
+    for(let i=0;i<lines.length;i++){
+      const line=lines[i].trim();
+      const dm=line.match(/^(\d{1,2}\/\d{1,2})\s+(\d+)?/);
+      if(dm){curDate=dm[1];curSlip=dm[2]||'';continue;}
+      const sm2=line.match(/^売上\s+([\d,]+)\s+([\d,]+)\s+([\d,]+)/);
+      if(sm2){
+        let names=[];
+        for(let j=i-1;j>=0;j--){const p=lines[j].trim();if(p.match(/^\d/)||p.includes('合計')||p==='')break;names.unshift(p);}
+        const amountNum=parseInt(sm2[3].replace(/,/g,''),10)||0;
+        const unitPriceNum=parseFloat(sm2[2].replace(/,/g,''))||0;
+        allParsedRows.push({source:'メイク',date:curDate,slipNo:curSlip,siteCode,siteName,itemName:names.join(' '),qty:sm2[1],unitPrice:sm2[2],amount:sm2[3],amountNum,unitPriceNum,isZero:amountNum===0});
+      }
+    }
+  });
+}
+
+// ─── エスビック PDF parser ─────────────────────────────────────────────────────
+function parseSbicPDF(text) {
+  const lines = text.split(/\r\n|\n|\r/);
+  let curDate='', curSlip='', curSiteCode='', curSiteName='', awaitSiteName=false;
+  for (let i=0; i<lines.length; i++) {
+    const tl = lines[i].trim();
+    if (!tl) { awaitSiteName=false; continue; }
+    // Skip boilerplate
+    if (/^(発行日|請求書|登録番号|前月|納入日|弊社では|お振込|群馬銀行|みずほ|三菱|足利|東和|板ﾊﾟﾚ|ﾌﾟﾗﾊﾟﾚ|御入金|繰越|消費税|当月|振込先|本社|東京支店)/.test(tl)) continue;
+    if (/^\d+\s*\/\s*\d+$/.test(tl) || tl.includes('エスビック株式会社') || tl.includes('NBIG') || tl.includes('ヒューマンヤード')) continue;
+    // Delivery header: YYYY/MM/DD slipNo ...
+    const dateM = tl.match(/^(\d{4}\/\d{2}\/\d{2})\s+(\S+)(.*)?$/);
+    if (dateM) {
+      curDate = dateM[1].slice(2); curSlip = dateM[2];
+      const rest = (dateM[3]||'').trim();
+      const scm = rest.match(/\b([A-Z][0-9-]{3,5})\b/);
+      if (scm) {
+        curSiteCode = scm[1].toLowerCase();
+        const after = rest.slice(rest.indexOf(scm[1]) + scm[1].length).trim();
+        curSiteName = after.replace(/様.*$/, '').replace(/^[^\w\u3000-\u9FFF]+/, '').trim();
+        awaitSiteName = !curSiteName;
+      } else { curSiteCode=''; awaitSiteName=true; }
+      continue;
+    }
+    // Site code on its own line
+    if (awaitSiteName) {
+      const scLine = tl.match(/^([A-Z][0-9-]{3,5})\s*(.*)?$/);
+      if (scLine) {
+        curSiteCode = scLine[1].toLowerCase();
+        curSiteName = (scLine[2]||'').replace(/様.*$/,'').trim();
+        awaitSiteName = !curSiteName; continue;
+      }
+      if (/[㈱㈲（棟現場]|[^\x00-\x7F]{2,}/.test(tl) && !/^\d/.test(tl)) {
+        curSiteName = tl.replace(/様.*$/,'').trim(); awaitSiteName=false; continue;
+      }
+    }
+    if (/^-?[\d,]+$/.test(tl)) continue;
+    if (/^(御発注|御引取|営業所|弊社便|営業配送|返品)/.test(tl)) continue;
+    if (curDate) {
+      const item = _parseSbicItem(tl);
+      if (item) {
+        const amountNum = parseInt(item.amount.replace(/,/g,''),10)||0;
+        const unitPriceNum = parseFloat(item.unitPrice.replace(/,/g,''))||0;
+        allParsedRows.push({source:'エスビック',date:curDate,slipNo:curSlip,siteCode:curSiteCode,siteName:curSiteName,itemName:item.itemName,qty:item.qty,unitPrice:item.unitPrice,amount:item.amount,amountNum,unitPriceNum,isZero:amountNum===0});
+      }
+    }
+  }
+}
+function _parseSbicItem(tl) {
+  // name QTY UNIT UNITPRICE AMOUNT  (unit = short non-numeric token like 枚,個,袋,M3)
+  let m = tl.match(/^(\S.*?[^\d\s,])\s+(-?[\d.]+)\s+([^\d\s,]\S{0,4})\s+([\d,]+)\s+(-?[\d,]+)(?:\s+.*)?$/);
+  if (m) {
+    const qty=parseFloat(m[2]),up=parseFloat(m[4].replace(/,/g,'')),amt=Math.abs(parseInt(m[5].replace(/,/g,''),10));
+    if(qty&&up&&amt&&Math.abs(qty*up-amt)/Math.max(1,amt)<0.03) return{itemName:m[1],qty:m[2],unitPrice:m[4],amount:m[5]};
+  }
+  // name QTY UNITPRICE AMOUNT  (no unit)
+  m = tl.match(/^(\S.*?[^\d\s,])\s+(-?[\d.]+)\s+([\d,]+)\s+(-?[\d,]+)(?:\s+.*)?$/);
+  if (m) {
+    const qty=parseFloat(m[2]),up=parseFloat(m[3].replace(/,/g,'')),amt=Math.abs(parseInt(m[4].replace(/,/g,''),10));
+    if(qty&&up&&amt&&Math.abs(qty*up-amt)/Math.max(1,amt)<0.03) return{itemName:m[1],qty:m[2],unitPrice:m[3],amount:m[4]};
+  }
+  return null;
+}
+
+// ─── メイク PDF parser ────────────────────────────────────────────────────────
+// Per page: PAGE:N/M → 現場名：siteCode siteName → MM/DD slip siteCode → 売上 amt → itemName → qty [unit] price
+function parseMakePDF(text) {
+  const pages = text.split(/PAGE:\s*\d+\s*\/\s*\d+/);
+  pages.forEach(pc => {
+    if (!pc.trim()) return;
+    // Extract site info from 現場名 line
+    let siteCode='', siteName='';
+    const snm = pc.match(/現場名：\s+([a-zA-Z0-9-]{4,6})\s*([^\n]*)/);
+    if (snm) {
+      siteCode = snm[1].toLowerCase();
+      siteName = snm[2].trim().replace(/\s*様.*$/,'').replace(/振込口座.*/,'').trim();
+    }
+    const lines = pc.split(/\n/);
+    let curDate='', curSlip='', i=0;
+    while (i < lines.length) {
+      const line = lines[i].trim();
+      // Transaction header: MM/DD slipNo [siteCode]
+      const hm = line.match(/^(\d{1,2}\/\d{1,2})\s+(\d{7,})\s*([a-zA-Z][0-9-]{3,5})?/);
+      if (hm) {
+        curDate=hm[1]; curSlip=hm[2];
+        if (hm[3]) siteCode=hm[3].toLowerCase();
+        i++; continue;
+      }
+      // 売上 line
+      if (/^売上/.test(line) && curDate) {
+        const amtM = line.match(/([-\d,]+)\s*$/);
+        const lineAmt = amtM ? parseInt(amtM[1].replace(/,/g,''),10) : 0;
+        // Next non-empty line = item name
+        let j=i+1; while(j<lines.length&&!lines[j].trim())j++;
+        let itemName='', qty='-', unitPrice='-';
+        if (j<lines.length) {
+          const nl=lines[j].trim();
+          if(nl&&!/^(伝票合計|PAGE|現場名|担当者|▲|▼|\d{1,2}\/|売上)/.test(nl)){
+            itemName=nl; j++;
+            while(j<lines.length&&!lines[j].trim())j++;
+            if(j<lines.length){
+              const qp=lines[j].trim();
+              const qm=qp.match(/^(-?[\d.]+)\s+([^\d\s]\S{0,4})\s+([\d,]+)$/)||qp.match(/^(-?[\d.]+)\s+([\d,]+)$/);
+              if(qm){qty=qm[1];unitPrice=qm[qm.length-1];i=j;}
+            }
+          }
+        }
+        if(itemName&&lineAmt!==0){
+          const unitPriceNum=parseFloat(unitPrice.replace(/,/g,''))||0;
+          allParsedRows.push({source:'メイク',date:curDate,slipNo:curSlip,siteCode,siteName,itemName,qty,unitPrice,amount:String(lineAmt),amountNum:lineAmt,unitPriceNum,isZero:lineAmt===0});
+        }
+        i++; continue;
+      }
+      i++;
+    }
+  });
+}
+
+
+function parseCSVLine(line) {
+  const r=[]; let c='',q=false;
+  for(const ch of line){if(ch==='"')q=!q;else if(ch===','&&!q){r.push(c.trim());c='';}else c+=ch;}
+  r.push(c.trim()); return r.map(s=>s.replace(/^"|"$/g,'').trim());
+}
+
+// ─── Invoice Table ─────────────────────────────────────────────────────────────
+function updateInvoiceTable() {
+  const tbody=document.getElementById('resultBody'), tfoot=document.getElementById('resultFoot');
+  tbody.innerHTML=''; tfoot.innerHTML='';
+  const fCode=document.getElementById('filterCode').value.toLowerCase();
+  const fName=document.getElementById('filterName').value.toLowerCase();
+  const fItem=document.getElementById('filterItem').value.toLowerCase();
+  const fSource=document.getElementById('filterSource').value;
+  const hideZ=document.getElementById('hideZero').checked;
+  let count=0,total=0; const frag=document.createDocumentFragment();
+  allParsedRows.forEach((row,idx)=>{
+    if(fCode&&!row.siteCode.toLowerCase().includes(fCode))return;
+    if(fName&&!row.siteName.toLowerCase().includes(fName))return;
+    if(fItem&&!row.itemName.toLowerCase().includes(fItem))return;
+    if(fSource&&row.source!==fSource)return;
+    if(hideZ&&row.isZero)return;
+    count++;total+=row.amountNum;
+    const isNeg=row.amountNum<0;
+    const tr=document.createElement('tr');
+    tr.className=(isNeg?'row-neg':row.isZero?'row-zero':'')+' hover:bg-amber-50 transition-colors';
+    tr.innerHTML=`<td class="px-2 py-1.5 text-[10px] text-gray-400 text-right border-r border-gray-100">${idx+1}</td>
+      <td class="px-3 py-1.5 mono text-[11px] text-gray-500 whitespace-nowrap">${escHtml(row.date)}</td>
+      <td class="px-3 py-1.5 mono text-[11px] font-semibold text-blue-600">${escHtml(row.siteCode)||'<span class="text-gray-300 font-normal">—</span>'}</td>
+      <td class="px-3 py-1.5 text-xs text-gray-700 max-w-[140px] truncate" title="${escHtml(row.siteName)}">${escHtml(row.siteName)}</td>
+      <td class="px-3 py-1.5 text-xs text-gray-800">${escHtml(row.itemName)}</td>
+      <td class="px-3 py-1.5 mono text-[11px] text-gray-600 text-right">${escHtml(row.qty)}</td>
+      <td class="px-3 py-1.5 mono text-[11px] text-gray-600 text-right">${escHtml(row.unitPrice)}</td>
+      <td class="px-3 py-1.5 mono text-xs font-semibold text-right amt">${escHtml(row.amount)}</td>
+      <td class="px-3 py-1.5 text-center"><span class="tag ${getTagClass(row.source)}">${escHtml(row.source)}</span></td>`;
+    frag.appendChild(tr);
+  });
+  if(count===0){tbody.innerHTML=allParsedRows.length>0
+    ?'<tr><td colspan="9" class="px-6 py-10 text-center text-gray-400 text-xs">絞り込み条件に該当するデータがありません</td></tr>'
+    :'<tr><td colspan="9" class="px-6 py-16 text-center text-gray-300"><i class="fas fa-file-arrow-up text-3xl mb-2 block"></i><p class="text-sm">ファイルをドロップして解析</p></td></tr>';
+  }else{
+    tbody.appendChild(frag);
+    tfoot.innerHTML=`<tr class="bg-gray-50 border-t-2 border-gray-300"><td colspan="7" class="px-3 py-2 text-xs text-right font-semibold text-gray-500">表示 ${count.toLocaleString()} 件　合計</td><td class="px-3 py-2 mono text-sm font-bold text-right ${total<0?'text-red-600':'text-gray-900'}">¥${total.toLocaleString()}</td><td></td></tr>`;
+  }
+  document.getElementById('tableInfo').textContent=`全 ${allParsedRows.length.toLocaleString()} 件 ／ 表示 ${count.toLocaleString()} 件`;
+}
+
+// ─── Price Table ──────────────────────────────────────────────────────────────
+function buildPriceMap() {
+  const map=new Map();
+  allParsedRows.forEach(row=>{
+    if(row.isZero) return;
+
+    // 単価を確定：① 保存済みunitPriceNum ② qty>1なら金額÷数量で計算 ③ それでも0ならスキップ
+    let up = row.unitPriceNum || 0;
+    if (!up) {
+      const qty = parseFloat(String(row.qty).replace(/,/g,'')) || 0;
+      if (qty > 0 && row.amountNum) up = Math.abs(row.amountNum) / qty;
+    }
+    if (!up || up <= 0) return;
+
+    // 異常値チェック：単価が合計金額と同じ（数量が正しく取れていない可能性）かつ数量!=1 → スキップ
+    const qtyNum = parseFloat(String(row.qty).replace(/,/g,'')) || 1;
+    if (qtyNum !== 1 && up === Math.abs(row.amountNum)) return;
+
+    const unit = (row.unit||'').trim();
+    const key=row.source+'|||'+normalizeItem(row.itemName)+'|||'+unit;
+    if(!map.has(key))map.set(key,{source:row.source,itemName:row.itemName,unit,history:[]});
+    map.get(key).history.push({date:row.date,ds:parseDateSort(row.date),unitPrice:up});
+  });
+  map.forEach(e=>e.history.sort((a,b)=>a.ds.localeCompare(b.ds)));
+  return map;
+}
+
+function normalizeItem(s) {
+  return String(s||'').replace(/[\s　]+/g,' ').trim().toLowerCase()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+}
+
+function parseDateSort(d) {
+  if(!d) return '';
+  const m=d.match(/(\d{2,4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(m){const y=m[1].length===2?'20'+m[1]:m[1];return`${y}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;}
+  const m2=d.match(/(\d{1,2})\/(\d{1,2})/);
+  if(m2)return`9999${m2[1].padStart(2,'0')}${m2[2].padStart(2,'0')}`;
+  return d;
+}
+
+function updatePriceTable() {
+  const tbody=document.getElementById('priceBody');
+  const search=document.getElementById('trendSearch').value.toLowerCase();
+  const srcF  =document.getElementById('trendSource').value;
+  const sortM =document.getElementById('trendSort').value;
+  const onlyC =document.getElementById('trendOnlyChange').checked;
+  if(!allParsedRows.length){tbody.innerHTML='<tr><td colspan="8" class="px-6 py-16 text-center text-gray-300"><i class="fas fa-chart-bar text-3xl mb-2 block"></i><p class="text-sm">請求書を読み込むと価格変動が表示されます</p></td></tr>';return;}
+  const priceMap=buildPriceMap();
+  let entries=[...priceMap.values()].map(e=>{
+    const prices=e.history.map(h=>h.unitPrice);
+    const fp=prices[0],lp=prices[prices.length-1],diff=lp-fp,pct=fp?(diff/fp)*100:0;
+    return{...e,firstPrice:fp,lastPrice:lp,diff,pct,count:e.history.length};
+  });
+  if(search)  entries=entries.filter(e=>normalizeItem(e.itemName).includes(search));
+  if(srcF)    entries=entries.filter(e=>e.source===srcF);
+  if(onlyC)   entries=entries.filter(e=>Math.abs(e.pct)>=0.01);
+  if(sortM==='change_desc')  entries.sort((a,b)=>b.pct-a.pct);
+  else if(sortM==='change_asc')   entries.sort((a,b)=>a.pct-b.pct);
+  else if(sortM==='name_asc')     entries.sort((a,b)=>a.itemName.localeCompare(b.itemName,'ja'));
+  else if(sortM==='latest_desc')  entries.sort((a,b)=>b.lastPrice-a.lastPrice);
+  if(!entries.length){tbody.innerHTML='<tr><td colspan="8" class="px-6 py-10 text-center text-gray-400 text-xs">条件に合う商品がありません</td></tr>';return;}
+  tbody.innerHTML='';
+  entries.forEach((e,idx)=>{
+    const isUp=e.pct>0.01,isDown=e.pct<-0.01;
+    const pctStr=(isUp?'▲ +':isDown?'▼ ':'— ')+Math.abs(e.pct).toFixed(1)+'%';
+    const pctCls=isUp?'change-up font-bold':isDown?'change-down font-bold':'change-flat';
+    const diffStr=(e.diff>=0?'+':'')+e.diff.toFixed(2);
+    const rowKey='tr_'+idx;
+    const spark=buildSparkline(e.history.map(h=>h.unitPrice));
+    const tr=document.createElement('tr');
+    tr.className='hover:bg-blue-50 transition-colors cursor-pointer border-b border-gray-100';
+    tr.onclick=()=>toggleDetail(rowKey);
+    tr.innerHTML=`<td class="px-3 py-2 text-xs text-gray-800 font-medium max-w-[220px]">
+        <div class="flex items-center gap-1.5">
+          <span class="truncate" title="${escHtml(e.itemName)}">${escHtml(e.itemName)}</span>
+          ${e.unit ? `<span class="flex-shrink-0 bg-slate-100 text-slate-500 text-[9px] font-bold px-1.5 py-0.5 rounded">/${escHtml(e.unit)}</span>` : ''}
+        </div>
+        <div class="text-[10px] text-gray-400">${e.history[0].date} 〜 ${e.history[e.history.length-1].date}</div></td>
+      <td class="px-3 py-2 text-center"><span class="tag ${getTagClass(e.source)}">${escHtml(e.source)}</span></td>
+      <td class="px-3 py-2 mono text-xs text-right"><span class="bg-green-100 text-green-800 px-1.5 py-0.5 rounded text-[11px]">¥${fmt2(e.firstPrice)}</span></td>
+      <td class="px-3 py-2 mono text-xs text-right"><span class="${isUp?'bg-red-100 text-red-800':isDown?'bg-blue-100 text-blue-800':'bg-gray-100 text-gray-600'} px-1.5 py-0.5 rounded text-[11px]">¥${fmt2(e.lastPrice)}</span></td>
+      <td class="px-3 py-2 mono text-xs text-right ${isUp?'text-red-600':isDown?'text-green-600':'text-gray-400'}">${diffStr}</td>
+      <td class="px-3 py-2 text-xs text-right ${pctCls}">${pctStr}</td>
+      <td class="px-3 py-2 text-center">${spark}</td>
+      <td class="px-3 py-2 text-center text-xs text-gray-500 mono">${e.count}</td>`;
+    tbody.appendChild(tr);
+    const trD=document.createElement('tr');
+    trD.id=rowKey; trD.className='trend-detail-row bg-slate-50';
+    const histRows=e.history.map((h,hi)=>{
+      const prev=hi>0?e.history[hi-1].unitPrice:null;
+      const hd=prev!==null?h.unitPrice-prev:null;
+      const hu=hd!==null&&hd>0.005,hdown=hd!==null&&hd<-0.005;
+      return`<tr><td class="px-3 py-1 mono text-[11px] text-gray-500 border-r border-gray-100">${escHtml(h.date)}</td>
+        <td class="px-3 py-1 mono text-[11px] text-right border-r border-gray-100">¥${fmt2(h.unitPrice)}</td>
+        <td class="px-3 py-1 text-[11px] text-right ${hu?'text-red-500 font-bold':hdown?'text-green-600 font-bold':'text-gray-300'}">
+          ${hd===null?'—':(hu?'▲ +':hdown?'▼ ':'')+Math.abs(hd).toFixed(2)}</td></tr>`;
+    }).join('');
+    trD.innerHTML=`<td colspan="8" class="px-6 py-2 bg-slate-50">
+      <div class="text-[10px] font-bold text-gray-400 mb-1.5">「${escHtml(e.itemName)}」の単価履歴</div>
+      <table class="text-xs border border-gray-200 rounded overflow-hidden w-auto">
+        <thead class="bg-gray-100"><tr>
+          <th class="px-3 py-1 text-left text-[10px] text-gray-400">日付</th>
+          <th class="px-3 py-1 text-right text-[10px] text-gray-400">単価</th>
+          <th class="px-3 py-1 text-right text-[10px] text-gray-400">前回比</th>
+        </tr></thead><tbody class="divide-y divide-gray-100 bg-white">${histRows}</tbody>
+      </table></td>`;
+    tbody.appendChild(trD);
+    if(openTrendRows.has(rowKey))trD.classList.add('open');
+  });
+  const upC=entries.filter(e=>e.pct>0.01).length, downC=entries.filter(e=>e.pct<-0.01).length;
+  document.getElementById('priceInfo').textContent=`${entries.length} 商品 ／ 値上がり ${upC}品目 ・ 値下がり ${downC}品目`;
+}
+
+function toggleDetail(id){
+  const el=document.getElementById(id); if(!el)return;
+  const open=el.classList.toggle('open');
+  if(open)openTrendRows.add(id);else openTrendRows.delete(id);
+}
+
+function buildSparkline(prices){
+  if(prices.length<2)return'<span class="text-gray-300 text-[10px]">—</span>';
+  const mn=Math.min(...prices),mx=Math.max(...prices),range=mx-mn||1;
+  return'<div class="sparkline mx-auto w-max">'+prices.map((p,i)=>{
+    const h=Math.max(2,Math.round(((p-mn)/range)*16)+2);
+    const cls=i===0?'first':i===prices.length-1?'latest':'';
+    return`<div class="sparkline-bar ${cls}" style="height:${h}px" title="¥${p}"></div>`;
+  }).join('')+'</div>';
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+function updateStats(){
+  const total=allParsedRows.reduce((s,r)=>s+r.amountNum,0);
+  document.getElementById('statRows').textContent=allParsedRows.length.toLocaleString();
+  document.getElementById('statAmount').textContent='¥'+total.toLocaleString();
+  const hs=document.getElementById('headerStats');
+  hs.textContent=`${allParsedRows.length.toLocaleString()}件 / ¥${total.toLocaleString()}`;
+  hs.classList.toggle('hidden',allParsedRows.length===0);
+  const bySrc={};
+  allParsedRows.forEach(r=>{if(!bySrc[r.source])bySrc[r.source]={count:0,amount:0};bySrc[r.source].count++;bySrc[r.source].amount+=r.amountNum;});
+  document.getElementById('supplierStats').innerHTML=Object.entries(bySrc).map(([src,st])=>`
+    <div class="flex justify-between items-center py-1.5 border-b border-gray-100 last:border-0">
+      <span class="tag ${getTagClass(src)}">${src}</span>
+      <div class="text-right"><div class="text-[10px] text-gray-400">${st.count.toLocaleString()}件</div>
+      <div class="text-xs font-bold mono text-gray-700">¥${st.amount.toLocaleString()}</div></div>
+    </div>`).join('');
+  // refresh supplier dropdowns
+  const allSources=[...new Set(allParsedRows.map(r=>r.source))];
+  ['filterSource','trendSource'].forEach(id=>{
+    const sel=document.getElementById(id);
+    const cur=sel.value;
+    const fixed=['','太陽ｴｺﾌﾞﾛｯｸ','エスビック','吉田東光','メイク'];
+    // add unknown sources
+    allSources.forEach(s=>{if(!fixed.includes(s)&&!sel.querySelector(`option[value="${CSS.escape(s)}"]`)){
+      const o=document.createElement('option'); o.value=s; o.textContent=s; sel.appendChild(o);
+    }});
+    sel.value=cur;
+  });
+}
+
+// ─── Clear ────────────────────────────────────────────────────────────────────
+function clearAllData(){
+  if(!allParsedRows.length)return;
+  if(!confirm('すべてのデータをクリアしますか？'))return;
+  allParsedRows=[];openTrendRows.clear();
+  document.getElementById('fileList').innerHTML='';
+  updateInvoiceTable();updateStats();updatePriceTable();
+}
+
+// ─── CSV exports ──────────────────────────────────────────────────────────────
+function exportCSV(filtered){
+  if(!allParsedRows.length){alert('データがありません');return;}
+  let rows=getFilteredRows(filtered);
+  if(!rows.length){alert('出力対象がありません');return;}
+  const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  const body=rows.map(r=>[r.source,r.date,r.siteCode,r.siteName,r.slipNo,r.itemName,r.qty,r.unitPrice,r.amount].map(esc).join(',')).join('\n');
+  dlBlob('参照元,日付,工番,現場名,伝票番号,商品名,数量,単価,金額\n'+body, `請求データ_${today()}_${rows.length}件.csv`,'text/csv');
+}
+
+function exportPriceCSV(){
+  const pm=buildPriceMap(); if(!pm.size){alert('価格データがありません');return;}
+  const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+  let body='仕入先,商品名,単位,件数,初回日付,初回単価,最新日付,最新単価,差額,変動率(%),最安値,最高値\n';
+  pm.forEach(e=>{
+    const prices=e.history.map(h=>h.unitPrice),fp=prices[0],lp=prices[prices.length-1],diff=lp-fp,pct=fp?(diff/fp*100).toFixed(1):'0';
+    body+=[e.source,e.itemName,e.unit||'',e.history.length,e.history[0].date,fp.toFixed(2),e.history[e.history.length-1].date,lp.toFixed(2),diff.toFixed(2),pct,Math.min(...prices).toFixed(2),Math.max(...prices).toFixed(2)].map(esc).join(',')+'\n';
+  });
+  dlBlob(body,`価格変動表_${today()}.csv`,'text/csv');
+}
+
+// ─── Excel exports ────────────────────────────────────────────────────────────
+async function exportInvoiceExcel(filtered) {
+  if (!allParsedRows.length) { alert('データがありません'); return; }
+  const rows = getFilteredRows(filtered);
+  if (!rows.length) { alert('出力対象がありません'); return; }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = '請求書データ変換ツール';
+  const ws = wb.addWorksheet('請求明細');
+
+  // Header
+  ws.columns = [
+    {header:'No',     key:'no',       width:6},
+    {header:'仕入先', key:'source',   width:14},
+    {header:'日付',   key:'date',     width:12},
+    {header:'工番',   key:'code',     width:12},
+    {header:'現場名', key:'site',     width:22},
+    {header:'伝票番号',key:'slip',    width:12},
+    {header:'商品名・規格',key:'item',width:36},
+    {header:'数量',   key:'qty',      width:10},
+    {header:'単価',   key:'up',       width:14},
+    {header:'金額',   key:'amount',   width:14},
+  ];
+
+  // Header style
+  ws.getRow(1).eachCell(cell=>{
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF1E40AF'}};
+    cell.font={bold:true,color:{argb:'FFFFFFFF'},size:10,name:'Arial'};
+    cell.alignment={vertical:'middle',horizontal:'center'};
+    cell.border={bottom:{style:'medium',color:{argb:'FF1E3A8A'}}};
+  });
+  ws.getRow(1).height = 22;
+
+  const srcColors = {'太陽ｴｺﾌﾞﾛｯｸ':'FFdcfce7','エスビック':'FFede9fe','吉田東光':'FFdbeafe','メイク':'FFffedd5'};
+  rows.forEach((row, i) => {
+    const r = ws.addRow([i+1, row.source, row.date, row.siteCode, row.siteName, row.slipNo, row.itemName, row.qty, row.unitPrice, row.amount]);
+    r.height = 16;
+    r.font = {size:10, name:'Arial'};
+    const bgColor = srcColors[row.source] || 'FFF9FAFB';
+    r.eachCell(cell => {
+      cell.fill = {type:'pattern',pattern:'solid',fgColor:{argb: i%2===0 ? bgColor : 'FFFFFFFF'}};
+      cell.border = {bottom:{style:'hair',color:{argb:'FFE5E7EB'}}};
+    });
+    // Right-align numeric cols
+    [8,9,10].forEach(col => {
+      const c = r.getCell(col);
+      c.alignment = {horizontal:'right'};
+      c.numFmt = '#,##0.##';
+    });
+    if (row.amountNum < 0) r.getCell(10).font = {size:10,name:'Arial',color:{argb:'FFDC2626'}};
+  });
+
+  // Freeze header
+  ws.views = [{state:'frozen', ySplit:1}];
+  ws.autoFilter = {from:'A1', to:'J1'};
+
+  const buf = await wb.xlsx.writeBuffer();
+  dlBuffer(buf, `請求データ_${today()}_${rows.length}件.xlsx`);
+}
+
+async function exportPriceExcel() {
+  const pm = buildPriceMap();
+  if (!pm.size) { alert('価格データがありません'); return; }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = '請求書データ変換ツール';
+
+  // ── Sheet 1: 価格変動サマリ ──
+  const ws1 = wb.addWorksheet('価格変動サマリ');
+  ws1.columns = [
+    {header:'仕入先',   key:'source',    width:14},
+    {header:'商品名',   key:'item',      width:38},
+    {header:'単位',     key:'unit',      width:8},
+    {header:'件数',     key:'count',     width:7},
+    {header:'初回日付', key:'firstDate', width:12},
+    {header:'初回単価', key:'firstP',    width:13},
+    {header:'最新日付', key:'lastDate',  width:12},
+    {header:'最新単価', key:'lastP',     width:13},
+    {header:'差額',     key:'diff',      width:12},
+    {header:'変動率(%)',key:'pct',       width:11},
+    {header:'最安値',   key:'minP',      width:12},
+    {header:'最高値',   key:'maxP',      width:12},
+  ];
+
+  // Header style
+  ws1.getRow(1).eachCell(cell=>{
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFB45309'}};
+    cell.font={bold:true,color:{argb:'FFFFFFFF'},size:10,name:'Arial'};
+    cell.alignment={vertical:'middle',horizontal:'center'};
+  });
+  ws1.getRow(1).height = 22;
+
+  const entries = [...pm.values()].map(e=>{
+    const prices=e.history.map(h=>h.unitPrice);
+    const fp=prices[0],lp=prices[prices.length-1],diff=lp-fp,pct=fp?diff/fp*100:0;
+    return {...e,firstPrice:fp,lastPrice:lp,diff,pct,minP:Math.min(...prices),maxP:Math.max(...prices)};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  entries.forEach((e, i) => {
+    const r = ws1.addRow([e.source, e.itemName, e.unit||'', e.history.length,
+      e.history[0].date, e.firstPrice,
+      e.history[e.history.length-1].date, e.lastPrice,
+      e.diff, e.pct/100, e.minP, e.maxP]);
+    r.height = 16;
+    r.font = {size:10, name:'Arial'};
+
+    const isUp = e.pct > 0.01, isDown = e.pct < -0.01;
+    const bg = isUp ? 'FFFFF1F2' : isDown ? 'FFF0FDF4' : 'FFFFFFFF';
+    r.eachCell(cell => {
+      if (i%2===0) cell.fill = {type:'pattern',pattern:'solid',fgColor:{argb:bg}};
+      cell.border = {bottom:{style:'hair',color:{argb:'FFE5E7EB'}}};
+    });
+    // Format numeric cells
+    [6, 8, 9, 11, 12].forEach(col => {
+      const c = r.getCell(col);
+      c.alignment = {horizontal:'right'};
+      c.numFmt = '#,##0.00';
+    });
+    r.getCell(10).numFmt = '0.00%';
+    r.getCell(10).alignment = {horizontal:'right'};
+    r.getCell(10).font = {
+      size:10, name:'Arial', bold:true,
+      color: {argb: isUp?'FFDC2626':isDown?'FF16A34A':'FF6B7280'}
+    };
+    r.getCell(9).font = {
+      size:10, name:'Arial',
+      color: {argb: isUp?'FFDC2626':isDown?'FF16A34A':'FF6B7280'}
+    };
+  });
+  ws1.views = [{state:'frozen', ySplit:1}];
+  ws1.autoFilter = {from:'A1', to:'L1'};
+
+  // ── Sheet 2: 価格履歴詳細 ──
+  const ws2 = wb.addWorksheet('単価履歴詳細');
+  ws2.columns = [
+    {header:'仕入先',   key:'source',  width:14},
+    {header:'商品名',   key:'item',    width:38},
+    {header:'日付',     key:'date',    width:12},
+    {header:'単価',     key:'price',   width:13},
+    {header:'前回比',   key:'diff',    width:12},
+    {header:'前回比(%)',key:'pct',     width:12},
+  ];
+  ws2.getRow(1).eachCell(cell=>{
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF374151'}};
+    cell.font={bold:true,color:{argb:'FFFFFFFF'},size:10,name:'Arial'};
+    cell.alignment={vertical:'middle',horizontal:'center'};
+  });
+  ws2.getRow(1).height = 22;
+
+  let rowIdx=0;
+  pm.forEach(e => {
+    e.history.forEach((h, hi) => {
+      const prev = hi > 0 ? e.history[hi-1].unitPrice : null;
+      const diff = prev!==null ? h.unitPrice - prev : null;
+      const pct  = prev && diff!==null ? diff/prev : null;
+      const r = ws2.addRow([e.source, e.itemName, h.date, h.unitPrice,
+        diff!==null ? diff : '', pct!==null ? pct : '']);
+      r.height = 16;
+      r.font = {size:10, name:'Arial'};
+      if (rowIdx%2===0) r.eachCell(c=>c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF9FAFB'}});
+      [4,5].forEach(col=>{r.getCell(col).numFmt='#,##0.00';r.getCell(col).alignment={horizontal:'right'};});
+      if(pct!==null){r.getCell(6).numFmt='0.00%';r.getCell(6).alignment={horizontal:'right'};}
+      if(diff!==null&&diff>0.005) r.getCell(5).font={size:10,name:'Arial',color:{argb:'FFDC2626'},bold:true};
+      if(diff!==null&&diff<-0.005) r.getCell(5).font={size:10,name:'Arial',color:{argb:'FF16A34A'},bold:true};
+      rowIdx++;
+    });
+  });
+  ws2.views = [{state:'frozen', ySplit:1}];
+  ws2.autoFilter = {from:'A1', to:'F1'};
+
+  const buf = await wb.xlsx.writeBuffer();
+  dlBuffer(buf, `価格変動表_${today()}.xlsx`);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getFilteredRows(filtered) {
+  if (!filtered) return allParsedRows;
+  const fCode=document.getElementById('filterCode').value.toLowerCase();
+  const fName=document.getElementById('filterName').value.toLowerCase();
+  const fItem=document.getElementById('filterItem').value.toLowerCase();
+  const fSrc=document.getElementById('filterSource').value;
+  const hideZ=document.getElementById('hideZero').checked;
+  return allParsedRows.filter(r=>{
+    if(fCode&&!r.siteCode.toLowerCase().includes(fCode))return false;
+    if(fName&&!r.siteName.toLowerCase().includes(fName))return false;
+    if(fItem&&!r.itemName.toLowerCase().includes(fItem))return false;
+    if(fSrc&&r.source!==fSrc)return false;
+    if(hideZ&&r.isZero)return false;
+    return true;
+  });
+}
+
+function dlBlob(content, filename, type) {
+  const bom=new Uint8Array([0xEF,0xBB,0xBF]);
+  const blob=new Blob([bom,content],{type:type+';charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function dlBuffer(buf, filename) {
+  const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function getTagClass(src){if(src==='メイク')return'tag-make';if(src==='吉田東光')return'tag-yoshi';if(src==='エスビック')return'tag-sbic';if(src==='太陽ｴｺﾌﾞﾛｯｸ')return'tag-taiyo';return'tag-unk';}
+function fmt2(n){return n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});}
+function today(){return new Date().toISOString().slice(0,10);}
+</script>
+</body>
+</html>
