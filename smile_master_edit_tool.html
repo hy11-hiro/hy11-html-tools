@@ -611,21 +611,64 @@ let salesCheckResultList = [];
                 const dictMaster = new Map();
                 
                 let idRowIdx = linesMaster.findIndex(l => l.includes("<00001>"));
+                // IDベースで列インデックスを動的に解決
                 let codeIdx=-1, subIdx=-1;
-                if(idRowIdx !== -1) {
-                    const cols = linesMaster[idRowIdx].split(sep).map(c=>c.trim().replace(/"/g,""));
-                    codeIdx = cols.indexOf("<00001>"); subIdx = cols.indexOf("<00002>");
-                }
+                let idx_name=-1, idx_subName=-1, idx_customer=-1, idx_customerName=-1,
+                    idx_amount=-1, idx_start=-1, idx_delivery=-1, idx_end=-1,
+                    idx_constructor=-1, idx_manager=-1, idx_designer=-1, idx_estimator=-1,
+                    idx_branch=-1, idx_branchName=-1;
 
-                // 現場マスターの各列をインデックスで取得 (W=22, F=5, Q=16, AR=43, AS=44, AT=45, AV=47, AX=49, AZ=51, BB=53, BD=55)
+                if(idRowIdx !== -1) {
+                    const idCols = linesMaster[idRowIdx].split(sep).map(c=>c.trim().replace(/"/g,""));
+                    codeIdx  = idCols.indexOf("<00001>");
+                    subIdx   = idCols.indexOf("<00002>");
+                    idx_name       = idCols.indexOf("<00003>");   // 現場名称
+                    idx_subName    = idCols.indexOf("<00006>");   // 現場サブ名称
+                    idx_amount     = idCols.indexOf("<00016>");   // 開始時売上済受注額
+                    idx_customer   = idCols.indexOf("<00019>");   // 得意先コード
+                    idx_start      = idCols.indexOf("<00020>");   // 着手日
+                    idx_delivery   = idCols.indexOf("<00021>");   // 納期
+                    idx_end        = idCols.indexOf("<00022>");   // 完了日
+                    idx_constructor= idCols.indexOf("<00023>");   // 施工主コード → 名は+1
+                    idx_manager    = idCols.indexOf("<00024>");   // 現場担当コード → 名は+1
+                    idx_designer   = idCols.indexOf("<00025>");   // 設計担当コード → 名は+1
+                    idx_estimator  = idCols.indexOf("<00026>");   // 積算担当コード → 名は+1
+                    idx_branch     = idCols.indexOf("<00027>");   // 拠点コード → 名は+1 か <00028>
+                    // 名称列は「コード列の次」を参照
+                    // ヘッダー行からも補完（拠点名・得意先名は名称列が別）
+                    if(idRowIdx > 0) {
+                        const hCols = linesMaster[idRowIdx-1].split(sep).map(c=>c.trim().replace(/"/g,""));
+                        if(idx_branchName === -1) {
+                            const bi = hCols.findIndex(c => c === '拠点名' || c === '拠点');
+                            if(bi !== -1) idx_branchName = bi;
+                        }
+                        if(idx_customerName === -1) {
+                            const ci = hCols.findIndex(c => c === '得意先名' || c === '得意先');
+                            if(ci !== -1) idx_customerName = ci;
+                        }
+                    }
+                }
+                // フォールバック：IDが見つからない場合は従来の固定インデックスを使用
+                const ci  = (i, fb) => i !== -1 ? i : fb;
+
+                // 現場マスターを解析してディクショナリ構築
                 for (let i = Math.max(0, idRowIdx+1); i < linesMaster.length; i++) {
                     const cols = linesMaster[i].split(sep).map(c => c.trim().replace(/"/g,""));
-                    if(cols.length>codeIdx && cols[codeIdx]) {
+                    if(cols.length > codeIdx && cols[codeIdx]) {
                         const code = cols[codeIdx], subCode = normalizeSubCode(cols[subIdx]);
                         const mData = {
-                            m_c: cols[2]||"", m_w: cols[22]||"", m_f: cols[5]||"", m_q: cols[16]||"",
-                            m_ar: cols[43]||"", m_as: cols[44]||"", m_at: cols[45]||"", m_av: cols[47]||"",
-                            m_ax: cols[49]||"", m_az: cols[51]||"", m_bb: cols[53]||"", m_bd: cols[55]||""
+                            m_c:  cols[ci(idx_name,       2)] ||"",   // 現場名称
+                            m_f:  cols[ci(idx_subName,    5)] ||"",   // 現場サブ名称
+                            m_w:  cols[ci(idx_customerName !== -1 ? idx_customerName : (idx_customer !== -1 ? idx_customer+1 : 22), 22)]||"", // 得意先名
+                            m_q:  cols[ci(idx_amount,    16)] ||"",   // 開始時売上済受注額
+                            m_ar: cols[ci(idx_start,     43)] ||"",   // 着手日
+                            m_as: cols[ci(idx_delivery,  44)] ||"",   // 納期
+                            m_at: cols[ci(idx_end,       45)] ||"",   // 完了日
+                            m_av: cols[ci(idx_constructor !== -1 ? idx_constructor+1 : 47, 47)]||"", // 施工主名
+                            m_ax: cols[ci(idx_manager    !== -1 ? idx_manager+1    : 49, 49)]||"",  // 現場担当名
+                            m_az: cols[ci(idx_designer   !== -1 ? idx_designer+1   : 51, 51)]||"",  // 設計担当名
+                            m_bb: cols[ci(idx_estimator  !== -1 ? idx_estimator+1  : 53, 53)]||"",  // 積算担当名
+                            m_bd: cols[ci(idx_branchName !== -1 ? idx_branchName   : (idx_branch !== -1 ? idx_branch+1 : 55), 55)]||"", // 拠点名
                         };
                         // ① 枝別データ用キー (現場コード|サブコード)
                         dictMaster.set(`${code}|${subCode}`, mData);
@@ -859,6 +902,22 @@ let salesCheckResultList = [];
             return scViewMode === 'genka' ? getAggregatedData() : salesCheckResultList;
         }
 
+        // 空欄チェック専用：モードに関わらず常に生データ(salesCheckResultList)をフィルター
+        // サブCDあり・なし両方を対象にする
+        function getFilteredRawData() {
+            const fBranch   = (document.getElementById('scFilter_branch')?.value || "").trim();
+            const fManager  = (document.getElementById('scFilter_manager')?.value || "").trim();
+            const fCustomer = (document.getElementById('scFilter_customer')?.value || "").trim();
+            const fSite     = (document.getElementById('scFilter_siteName')?.value || "").trim();
+            return salesCheckResultList.filter(r => {
+                if (fBranch   && !r.m_bd.includes(fBranch))   return false;
+                if (fManager  && !r.m_ax.includes(fManager))  return false;
+                if (fCustomer && !r.m_w.includes(fCustomer))  return false;
+                if (fSite     && !r.m_c.includes(fSite))      return false;
+                return true;
+            });
+        }
+
         function getFilteredSalesCheckData() {
             const isEdabetsu = scViewMode === 'edabetsu';
             const isGenka    = scViewMode === 'genka';
@@ -1071,7 +1130,9 @@ let salesCheckResultList = [];
 
         function runBlankCheck() {
             blankCheckResults = [];
-            const targetData = getFilteredSalesCheckData();
+            // 常に生データ（salesCheckResultList）を対象にする
+            // 原価集計モードでも集計前のサブCDあり・なし両方をチェック
+            const targetData = getFilteredRawData();
             targetData.forEach(r => {
                 const issuesForRow = [];
                 BLANK_CHECK_RULES.forEach(rule => {
@@ -1110,18 +1171,26 @@ let salesCheckResultList = [];
                 </button>`;
             }
 
+            // 各ルールカード：件数が0でも全て表示（0件は緑でOK表示）
             cards += BLANK_CHECK_RULES.map(rule => {
                 const cnt = countByType[rule.type];
-                if (cnt === 0) return '';
-                const cm = RULE_COLOR_MAP[rule.color];
-                const isActive = filterType === rule.type;
-                const activeCls = isActive ? 'ring-2 ring-offset-1 ring-rose-400' : '';
-                return `<button onclick="renderBlankCheckPanel('${isActive ? null : rule.type}')"
-                    class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${cm.card} ${activeCls}">
-                    <span class="text-lg font-extrabold">${cnt}</span>${rule.label}
-                </button>`;
+                if (cnt > 0) {
+                    const cm = RULE_COLOR_MAP[rule.color];
+                    const isActive = filterType === rule.type;
+                    const activeCls = isActive ? 'ring-2 ring-offset-1 ring-rose-400' : '';
+                    return `<button onclick="renderBlankCheckPanel('${isActive ? null : rule.type}')"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-all ${cm.card} ${activeCls}">
+                        <span class="text-lg font-extrabold">${cnt}</span>${rule.label}
+                    </button>`;
+                } else {
+                    // 0件：チェック済みOKバッジ（クリック不可）
+                    return `<span class="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold bg-green-50 text-green-700 border-green-200 opacity-80">
+                        <i data-lucide="check" class="w-3 h-3"></i>${rule.label}
+                    </span>`;
+                }
             }).join('');
             summaryEl.innerHTML = cards;
+            lucide.createIcons();
 
             // テーブル絞り込み
             let filtered;
