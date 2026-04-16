@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v62</title>
+    <title>G-Ledger | 現場原価管理台帳システム v63</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v62</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v63</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -1557,11 +1557,11 @@
         return { C, lbl, val, hdr, cell, num };
     }
 
-    // オフスクリーンChart描画 - responsive:false でキャンバスサイズを完全固定
+    // オフスクリーンChart描画 - animation.onComplete コールバック方式でメモリ安全に処理
     async function _renderOffscreenChart(dispW, dispH, config) {
         const W = dispW || 450;
         const H = dispH || 450;
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             const canvas = document.createElement('canvas');
             canvas.width  = W;
             canvas.height = H;
@@ -1571,17 +1571,39 @@
 
             const cfg = JSON.parse(JSON.stringify(config));
             if(!cfg.options) cfg.options = {};
-            cfg.options.animation           = false;
-            cfg.options.responsive          = false;   // ← キャンバス強制リサイズを防ぐ
+            cfg.options.responsive          = false;
             cfg.options.maintainAspectRatio = false;
+            // ★修正: setTimeout固定待機をやめ、描画完了コールバックで確実にキャプチャ
+            cfg.options.animation = {
+                duration: 0,
+                onComplete: function() {
+                    try {
+                        const img = this.toBase64Image('image/png', 1.0);
+                        this.destroy();
+                        // ★修正: GPU/CanvasメモリをrequestAnimationFrame後に確実に解放
+                        requestAnimationFrame(() => {
+                            try {
+                                const ctx2d = canvas.getContext('2d');
+                                if (ctx2d) ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+                                canvas.width = 1;
+                                canvas.height = 1;
+                            } catch(_) {}
+                            canvas.remove();
+                        });
+                        resolve(img);
+                    } catch(e) {
+                        canvas.remove();
+                        reject(e);
+                    }
+                }
+            };
 
-            const ch = new Chart(canvas, cfg);
-            setTimeout(() => {
-                const img = ch.toBase64Image('image/png', 1.0);
-                ch.destroy();
+            try {
+                new Chart(canvas, cfg);
+            } catch(e) {
                 canvas.remove();
-                resolve(img);
-            }, 300);
+                reject(e);
+            }
         });
     }
 
@@ -1854,9 +1876,13 @@
         }
 
         // ━━ 売上明細・仕入明細 ━━
-        ws.getRow(35).height = 10;
+        // ★修正: 業者テーブルの行数に応じて開始行を動的計算（業者数が多い場合のマージ衝突を防止）
+        // totR = 16 + catEntries2.length (合計行)  ← 業者数次第で36行を超えることがある
+        // 円グラフ領域は K〜P列のみのため列方向の衝突はないが、行番号の衝突は発生する
+        const detailStartRow = Math.max(37, totR + 3);
+        ws.getRow(detailStartRow - 1).height = 10; // スペーサー行
 
-        let row = 36;
+        let row = detailStartRow;
 
         // 売上明細
         ws.mergeCells('B'+row+':R'+row);
@@ -2048,6 +2074,8 @@
 
                 await _buildSiteSheet(wb, siteData, trendImg, compImg);
                 done++;
+                // ★修正: ブラウザにGC・レンダリングの余裕を与えてメモリ蓄積を防ぐ
+                await new Promise(r => setTimeout(r, 80));
             }
 
             if(wb.worksheets.length === 0) { alert('出力できるデータがありませんでした。'); return; }
