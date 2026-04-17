@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMILE マスター編集ツール v36</title>
+    <title>SMILE マスター編集ツール v38</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -31,7 +31,7 @@
         <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6 shadow-md">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v36</h1>
+                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v38</h1>
                     <p class="text-slate-300 text-sm mt-1 ml-11">SMILE V Air 連携用データの結合・編集・変換をサポートする統合ツール</p>
                 </div>
                 <div class="text-right hidden md:block"><span class="bg-indigo-600 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-400">UTF-16LE 対応</span></div>
@@ -620,7 +620,8 @@ let salesCheckResultList = [];
                 let idx_name=-1, idx_subName=-1, idx_customer=-1, idx_customerName=-1,
                     idx_amount=-1, idx_start=-1, idx_delivery=-1, idx_end=-1,
                     idx_constructor=-1, idx_manager=-1, idx_designer=-1, idx_estimator=-1,
-                    idx_branch=-1, idx_branchName=-1;
+                    idx_branch=-1, idx_branchName=-1,
+                    idx_salesClass1=-1, idx_salesClass2=-1;
 
                 if(idRowIdx !== -1) {
                     const idCols = linesMaster[idRowIdx].split(sep).map(c=>c.trim().replace(/"/g,""));
@@ -638,6 +639,8 @@ let salesCheckResultList = [];
                     idx_designer   = idCols.indexOf("<00025>");   // 設計担当コード → 名は+1
                     idx_estimator  = idCols.indexOf("<00026>");   // 積算担当コード → 名は+1
                     idx_branch     = idCols.indexOf("<00027>");   // 拠点コード → 名は+1 か <00028>
+                    idx_salesClass1= idCols.indexOf("<00029>");   // 売上分類①コード
+                    idx_salesClass2= idCols.indexOf("<00030>");   // 売上分類②コード
                     // 名称列は「コード列の次」を参照
                     // ヘッダー行からも補完（拠点名・得意先名は名称列が別）
                     if(idRowIdx > 0) {
@@ -660,20 +663,22 @@ let salesCheckResultList = [];
                     const cols = linesMaster[i].split(sep).map(c => c.trim().replace(/"/g,""));
                     if(cols.length > codeIdx && cols[codeIdx]) {
                         const code = cols[codeIdx], subCode = normalizeSubCode(cols[subIdx]);
-                        const mData = {
-                            m_c:  cols[ci(idx_name,       2)] ||"",   // 現場名称
-                            m_f:  cols[ci(idx_subName,    5)] ||"",   // 現場サブ名称
-                            m_w:  cols[ci(idx_customerName !== -1 ? idx_customerName : (idx_customer !== -1 ? idx_customer+1 : 22), 22)]||"", // 得意先名
-                            m_q:  cols[ci(idx_amount,    16)] ||"",   // 開始時売上済受注額
-                            m_ar: cols[ci(idx_start,     43)] ||"",   // 着手日
-                            m_as: cols[ci(idx_delivery,  44)] ||"",   // 納期
-                            m_at: cols[ci(idx_end,       45)] ||"",   // 完了日
-                            m_av: cols[ci(idx_constructor !== -1 ? idx_constructor+1 : 47, 47)]||"", // 施工主名
-                            m_ax: cols[ci(idx_manager    !== -1 ? idx_manager+1    : 49, 49)]||"",  // 現場担当名
-                            m_az: cols[ci(idx_designer   !== -1 ? idx_designer+1   : 51, 51)]||"",  // 設計担当名
-                            m_bb: cols[ci(idx_estimator  !== -1 ? idx_estimator+1  : 53, 53)]||"",  // 積算担当名
-                            m_bd: cols[ci(idx_branchName !== -1 ? idx_branchName   : (idx_branch !== -1 ? idx_branch+1 : 55), 55)]||"", // 拠点名
-                        };
+const mData = {
+    m_c:  cols[ci(idx_name,       2)] ||"",   // 現場名称
+    m_f:  cols[ci(idx_subName,    5)] ||"",   // 現場サブ名称
+    m_w:  cols[ci(idx_customerName !== -1 ? idx_customerName : (idx_customer !== -1 ? idx_customer+1 : 22), 22)]||"", // 得意先名
+    m_q:  cols[ci(idx_amount,    16)] ||"",   // 開始時売上済受注額
+    m_ar: cols[ci(idx_start,     43)] ||"",   // 着手日
+    m_as: cols[ci(idx_delivery,  44)] ||"",   // 納期
+    m_at: cols[ci(idx_end,       45)] ||"",   // 完了日
+    m_av: cols[ci(idx_constructor !== -1 ? idx_constructor+1 : 47, 47)]||"", // 施工主名
+    m_ax: cols[ci(idx_manager    !== -1 ? idx_manager+1    : 49, 49)]||"",  // 現場担当名
+    m_az: cols[ci(idx_designer   !== -1 ? idx_designer+1   : 51, 51)]||"",  // 設計担当名
+    m_bb: cols[ci(idx_estimator  !== -1 ? idx_estimator+1  : 53, 53)]||"",  // 積算担当名
+    m_bd: cols[ci(idx_branchName !== -1 ? idx_branchName   : (idx_branch !== -1 ? idx_branch+1 : 55), 55)]||"", // 拠点名
+    m_be: cols[ci(idx_salesClass1 !== -1 ? idx_salesClass1 + 1 : 58, 58)]||"", // 売上分類①名
+    m_bf: cols[ci(idx_salesClass2 !== -1 ? idx_salesClass2 + 1 : 60, 60)]||"", // 売上分類②名
+};
                         // ① 枝別データ用キー (現場コード|サブコード)
                         dictMaster.set(`${code}|${subCode}`, mData);
                         // ② 合算データ用キー (現場コードのみ。初回のみ登録し先頭行のデータを保持)
@@ -702,7 +707,8 @@ let salesCheckResultList = [];
                     const mData = dictMaster.get(key) || dictMaster.get(leftPart) || {
                         m_c:"", m_w:"", m_f:"", m_q:"",
                         m_ar:"", m_as:"", m_at:"", m_av:"",
-                        m_ax:"", m_az:"", m_bb:"", m_bd:""
+                        m_ax:"", m_az:"", m_bb:"", m_bd:"",
+                        m_be:"", m_bf:""
                     };
                     const masterMatched = dictMaster.has(key) || dictMaster.has(leftPart);
                     salesCheckResultList.push({
@@ -711,7 +717,8 @@ let salesCheckResultList = [];
                         c_col: row["C"]||"", e_col: row["E"]||"", f_col: row["F"]||"", g_col: row["G"]||"",
                         m_c: mData.m_c, m_w: mData.m_w, m_f: mData.m_f, m_q: mData.m_q,
                         m_ar: mData.m_ar, m_as: mData.m_as, m_at: mData.m_at, m_av: mData.m_av,
-                        m_ax: mData.m_ax, m_az: mData.m_az, m_bb: mData.m_bb, m_bd: mData.m_bd
+                        m_ax: mData.m_ax, m_az: mData.m_az, m_bb: mData.m_bb, m_bd: mData.m_bd,
+                        m_be: mData.m_be||'', m_bf: mData.m_bf||''
                     });
                 });
 
@@ -1025,7 +1032,8 @@ let salesCheckResultList = [];
         //  空欄チェックロジック
         // ==========================================
         let blankCheckResults = [];
-        let blankCheckActiveFilter = null;
+        let blankCheckActiveFilters = new Set(); // 選択中のフィルター（複数可）
+        let blankCheckFilterMode = 'OR';       // 'OR' | 'AND'
         let codesWithSubs = new Set(); // サブCDを持つ親コードのSet（runBlankCheck で構築）
 
         // "0" / "00000000" など数字のみの値を空扱いにする正規化ヘルパー
@@ -1078,13 +1086,7 @@ let salesCheckResultList = [];
                 group: 'staff',
                 check: (r) => !r.m_ax ? ['現場担当名 未入力'] : null
             },
-            {
-                type: 'required_estimator',
-                label: '積算担当名 空欄',
-                color: 'amber',
-                group: 'staff',
-                check: (r) => !r.m_bb ? ['積算担当名 未入力'] : null
-            },
+
             {
                 type: 'required_branch',
                 label: '拠点名 空欄',
@@ -1191,6 +1193,35 @@ let salesCheckResultList = [];
                     return v === "" ? ['原価 未入力'] : null;
                 }
             },
+            // --- 分類・サブ名称 ---
+            {
+                type: 'required_sub_name',
+                label: '現場サブ名称 空欄',
+                color: 'red',
+                group: 'basic',
+                check: (r) => !r.m_f ? ['現場サブ名称 未入力'] : null
+            },
+            {
+                type: 'required_estimator_code',
+                label: '積算担当 未入力',
+                color: 'amber',
+                group: 'staff',
+                check: (r) => !r.m_bb ? ['積算担当名 未入力'] : null
+            },
+            {
+                type: 'required_sales_class1',
+                label: '売上分類① 未入力',
+                color: 'indigo',
+                group: 'class',
+                check: (r) => !r.m_be ? ['売上分類①コード 未入力'] : null
+            },
+            {
+                type: 'required_sales_class2',
+                label: '売上分類② 未入力',
+                color: 'indigo',
+                group: 'class',
+                check: (r) => !r.m_bf ? ['売上分類②コード 未入力'] : null
+            },
         ];
 
         const RULE_COLOR_MAP = {
@@ -1200,7 +1231,8 @@ let salesCheckResultList = [];
             amber: { card: 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200',     badge: 'bg-amber-100 text-amber-700', row: 'bg-amber-50'  },
             rose:  { card: 'bg-rose-100 text-rose-800 border-rose-300 hover:bg-rose-200',         badge: 'bg-rose-100 text-rose-700',  row: 'bg-rose-50'   },
             pink:  { card: 'bg-pink-100 text-pink-800 border-pink-300 hover:bg-pink-200',         badge: 'bg-pink-100 text-pink-700',  row: 'bg-pink-50'   },
-            multi: { card: 'bg-slate-700 text-white border-slate-600 hover:bg-slate-800',         badge: 'bg-slate-200 text-slate-800', row: 'bg-yellow-50' },
+            multi:   { card: 'bg-slate-700 text-white border-slate-600 hover:bg-slate-800',         badge: 'bg-slate-200 text-slate-800', row: 'bg-yellow-50' },
+            indigo:  { card: 'bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200',   badge: 'bg-indigo-100 text-indigo-700', row: 'bg-indigo-50' },
         };
 
         function runBlankCheck() {
@@ -1236,19 +1268,38 @@ let salesCheckResultList = [];
             { key: 'staff',     label: '担当・拠点',     icon: 'users',          desc: '現場担当名・積算担当名・拠点名の入力状況' },
             { key: 'integrity', label: '売上・完了整合性', icon: 'alert-triangle', desc: '売上・原価・完了日の整合性（5パターン）。ルール④⑤はサブCDありの行を自動除外' },
             { key: 'amount',    label: '売上・原価',     icon: 'bar-chart-2',    desc: '売上・原価の入力状況' },
+            { key: 'class',     label: '売上分類・サブ名称', icon: 'tag',           desc: '売上分類①②コード・現場サブ名称の入力状況' },
         ];
 
-        function renderBlankCheckPanel(filterType = blankCheckActiveFilter) {
-            blankCheckActiveFilter = filterType;
+        function toggleBlankFilter(type) {
+            if (type === '__all__') {
+                blankCheckActiveFilters = new Set();
+            } else {
+                if (blankCheckActiveFilters.has(type)) {
+                    blankCheckActiveFilters.delete(type);
+                } else {
+                    blankCheckActiveFilters.add(type);
+                }
+            }
+            renderBlankCheckPanel();
+        }
+
+        function toggleFilterMode() {
+            blankCheckFilterMode = blankCheckFilterMode === 'OR' ? 'AND' : 'OR';
+            renderBlankCheckPanel();
+        }
+
+        function renderBlankCheckPanel() {
             // 選択カードExcelボタンの表示制御
             const filteredBtn = document.getElementById('btnFilteredXLSX');
             const filteredLabel = document.getElementById('btnFilteredXLSXLabel');
             if (filteredBtn) {
-                const hasActiveFilter = filterType && filterType !== '__multi__';
-                filteredBtn.classList.toggle('hidden', !hasActiveFilter);
-                if (hasActiveFilter && filteredLabel) {
-                    const rule = BLANK_CHECK_RULES.find(r => r.type === filterType);
-                    filteredLabel.textContent = rule ? `「${rule.label}」Excel` : '選択カード Excel';
+                const hasFilter = blankCheckActiveFilters.size > 0;
+                filteredBtn.classList.toggle('hidden', !hasFilter);
+                if (hasFilter && filteredLabel) {
+                    filteredLabel.textContent = blankCheckActiveFilters.size === 1
+                        ? `「${BLANK_CHECK_RULES.find(r => r.type === [...blankCheckActiveFilters][0])?.label || ''}」Excel`
+                        : `選択${blankCheckActiveFilters.size}件 Excel`;
                 }
             }
 
@@ -1256,46 +1307,60 @@ let salesCheckResultList = [];
             const countByType = {};
             BLANK_CHECK_RULES.forEach(r => countByType[r.type] = 0);
             blankCheckResults.forEach(({ issues }) => issues.forEach(i => countByType[i.type]++));
-            const multiRows    = blankCheckResults;  // 1件でも問題あれば全て対象
-            const totalIssueRows = blankCheckResults.length;
-            const totalChecked   = getFilteredRawData().length;
+            const totalIssueRows  = blankCheckResults.length;
+            const totalChecked    = getFilteredRawData().length;
+            const filteredResults = getFilteredBlankResults();
 
             document.getElementById('blankCheckTotal').textContent =
                 totalIssueRows === 0 ? '問題なし ✓' : `${totalIssueRows}件に問題あり`;
 
-            // ===== サマリーパネル再構築 =====
             const summaryEl = document.getElementById('blankCheckSummary');
 
-            // -- トップバー：全体サマリー + 複数問題カード --
-            const isMultiActive = filterType === '__multi__';
-            const multiActiveCls = isMultiActive ? 'ring-2 ring-offset-1 ring-yellow-400 shadow-md' : '';
-            const multiCard = multiRows.length > 0 ? `
-                <button onclick="renderBlankCheckPanel('${isMultiActive ? null : '__multi__'}')"
-                    class="flex flex-col items-center justify-center gap-1 px-5 py-3 rounded-xl border-2 text-xs font-bold transition-all min-w-[110px] ${RULE_COLOR_MAP.multi.card} ${multiActiveCls}">
-                    <span class="text-2xl font-extrabold leading-none">${multiRows.length}</span>
-                    <span class="leading-tight text-center">問題あり<br>全件表示</span>
-                </button>` : '';
+            // AND/OR トグル
+            const modeBtn = blankCheckActiveFilters.size >= 2
+                ? `<button onclick="toggleFilterMode()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-extrabold transition-all ${
+                        blankCheckFilterMode === 'AND'
+                        ? 'bg-indigo-600 text-white border-indigo-500 shadow'
+                        : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50'
+                    }">
+                    <i data-lucide="git-merge" class="w-3 h-3"></i>
+                    ${blankCheckFilterMode === 'AND' ? 'AND 絞込中' : 'OR 絞込中'}
+                    <span class="opacity-70">（クリックで切替）</span>
+                  </button>`
+                : '';
 
-            const noIssueBadge = totalIssueRows === 0 ? `
-                <div class="flex items-center gap-2 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-bold">
-                    <i data-lucide="check-circle" class="w-5 h-5"></i> すべてのチェックをパス
-                </div>` : '';
+            // 全件表示ボタン
+            const allBtn = `<button onclick="toggleBlankFilter('__all__')"
+                class="flex flex-col items-center justify-center gap-1 px-5 py-3 rounded-xl border-2 text-xs font-bold transition-all min-w-[110px] ${
+                    blankCheckActiveFilters.size === 0
+                    ? 'bg-slate-700 text-white border-slate-500 shadow-md ring-2 ring-offset-1 ring-slate-400'
+                    : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                }">
+                <span class="text-2xl font-extrabold leading-none">${totalIssueRows}</span>
+                <span class="leading-tight text-center">問題あり<br>全件表示</span>
+            </button>`;
 
-            // -- グループ別カード --
-            let groupSections = CHECK_GROUPS.map(group => {
+            // グループ別カード
+            const groupSections = CHECK_GROUPS.map(group => {
                 const rules = BLANK_CHECK_RULES.filter(r => r.group === group.key);
                 const groupTotal = rules.reduce((s, r) => s + (countByType[r.type]||0), 0);
                 const groupOk    = groupTotal === 0;
 
                 const ruleCards = rules.map(rule => {
                     const cnt = countByType[rule.type];
+                    const isActive = blankCheckActiveFilters.has(rule.type);
                     if (cnt > 0) {
                         const cm = RULE_COLOR_MAP[rule.color];
-                        const isActive = filterType === rule.type;
-                        const activeCls = isActive ? 'ring-2 ring-offset-1 ring-rose-400 shadow-md scale-105' : 'hover:scale-105';
-                        return `<button onclick="renderBlankCheckPanel('${isActive ? null : rule.type}')"
+                        const activeCls = isActive
+                            ? 'ring-2 ring-offset-1 ring-indigo-500 shadow-md scale-105'
+                            : 'hover:scale-105';
+                        const checkIcon = isActive
+                            ? '<i data-lucide="check-square" class="w-3.5 h-3.5 flex-shrink-0"></i>'
+                            : '<i data-lucide="square" class="w-3.5 h-3.5 flex-shrink-0 opacity-40"></i>';
+                        return `<button onclick="toggleBlankFilter('${rule.type}')"
                             class="flex items-center justify-between gap-2 w-full px-3 py-2 rounded-lg border text-xs font-bold transition-all transform ${cm.card} ${activeCls}">
-                            <span class="text-left leading-tight">${rule.label}</span>
+                            <span class="flex items-center gap-1 text-left leading-tight">${checkIcon}${rule.label}</span>
                             <span class="text-base font-extrabold flex-shrink-0 ml-2 bg-white/50 rounded-md px-2 py-0.5">${cnt}</span>
                         </button>`;
                     } else {
@@ -1324,68 +1389,73 @@ let salesCheckResultList = [];
                 </div>`;
             }).join('');
 
+            // 選択中の説明
+            const selDesc = blankCheckActiveFilters.size > 0 ? (() => {
+                const labels = [...blankCheckActiveFilters].map(t => {
+                    const rule = BLANK_CHECK_RULES.find(r => r.type === t);
+                    return rule ? `「${rule.label}」` : t;
+                });
+                const modeText = blankCheckFilterMode === 'AND' && blankCheckActiveFilters.size >= 2
+                    ? 'すべてに該当する行（AND）'
+                    : 'いずれかに該当する行（OR）';
+                return `<div class="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                    <i data-lucide="filter" class="w-3 h-3 flex-shrink-0"></i>
+                    <span><span class="font-bold">${labels.join(' ＋ ')}</span> の${modeText}を表示中
+                    （<span class="font-bold">${filteredResults.length}件</span> / ${totalIssueRows}件）
+                    <button onclick="toggleBlankFilter('__all__')" class="ml-2 underline text-indigo-500 hover:text-indigo-700">解除</button></span>
+                </div>`;
+            })() : '';
+
             summaryEl.innerHTML = `
-                <div class="w-full space-y-4">
-                    <!-- 全体サマリー行 -->
+                <div class="w-full space-y-3">
                     <div class="flex flex-wrap items-center gap-3">
                         <div class="flex items-center gap-2 text-sm text-gray-500">
                             <i data-lucide="list-checks" class="w-4 h-4"></i>
                             チェック対象 <span class="font-bold text-gray-700">${totalChecked}件</span>
                             のうち問題あり <span class="font-bold text-rose-600">${totalIssueRows}件</span>
                         </div>
-                        ${multiCard}
-                        ${noIssueBadge}
-                        ${filterType && filterType !== '__multi__' ? `<button onclick="renderBlankCheckPanel(null)" class="ml-auto text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-300 px-3 py-1.5 rounded-lg font-bold transition-colors">絞込解除</button>` : ''}
-                        ${filterType === '__multi__' ? `<button onclick="renderBlankCheckPanel(null)" class="ml-auto text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 border border-gray-300 px-3 py-1.5 rounded-lg font-bold transition-colors">絞込解除</button>` : ''}
+                        ${allBtn}
+                        ${modeBtn}
                     </div>
-                    <!-- 複数問題ありの説明（複数問題がある場合のみ） -->
-                    ${multiRows.length > 0 ? `<div class="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                        <i data-lucide="info" class="w-3 h-3 inline mr-1 text-slate-400"></i>
-                        <span class="font-bold text-slate-600">問題あり全件表示</span>：問題が1件でもある現場をすべて表示します。各カードをクリックすると特定チェック種別のみに絞り込めます。
-                    </div>` : ''}
-                    <!-- グループ別カードグリッド -->
+                    ${selDesc}
+                    <p class="text-xs text-gray-400">カードをクリックで選択（複数選択可）。2件以上選択するとAND/OR切替ボタンが表示されます。</p>
                     <div class="flex flex-wrap gap-3">${groupSections}</div>
                 </div>`;
             lucide.createIcons();
 
-            // テーブル絞り込み
-            let filtered;
-            if (filterType === '__multi__')       filtered = multiRows;
-            else if (filterType)                  filtered = blankCheckResults.filter(({ issues }) => issues.some(i => i.type === filterType));
-            else                                  filtered = blankCheckResults;
+            // テーブルも更新
+            renderBlankCheckTable(filteredResults);
+        }
 
-            const tbody = document.getElementById('blankCheckTbody');
+        function renderBlankCheckTable(filtered) {            const tbody = document.getElementById('blankCheckTbody');
             if (filtered.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400 text-sm">
-                    ${totalIssueRows === 0 ? '✅ すべての項目に問題はありません' : '選択したチェック種別に該当する問題はありません'}</td></tr>`;
+                    ${blankCheckResults.length === 0 ? '✅ すべての項目に問題はありません' : '選択したチェック種別に該当する問題はありません'}</td></tr>`;
                 return;
             }
 
-            // 行ごとに全問題を1行にまとめて表示（絞り込み中はヒットした問題をハイライト）
+            // 行ごとに全問題を1行にまとめて表示
             tbody.innerHTML = filtered.map(({ row: r, issues }) => {
                 const isMultiRow = issues.length >= 2;
-                // 行背景：複数該当は黄色、単一は最初の問題のカラー
                 const rowBg = isMultiRow
                     ? 'bg-yellow-50 hover:bg-yellow-100'
                     : (RULE_COLOR_MAP[issues[0].color]?.row
                         ? `${RULE_COLOR_MAP[issues[0].color].row} hover:brightness-95`
                         : 'hover:bg-rose-50');
 
-                // 全問題バッジを1セルにまとめる
                 const allBadges = issues.map(issue => {
                     const cm = RULE_COLOR_MAP[issue.color];
-                    const isHit = filterType && (filterType === '__multi__' ? true : issue.type === filterType);
-                    const highlight = (filterType && isHit) ? 'ring-2 ring-offset-1 ring-rose-400' : '';
+                    const isHit = blankCheckActiveFilters.size > 0 && blankCheckActiveFilters.has(issue.type);
+                    const highlight = isHit ? 'ring-2 ring-offset-1 ring-rose-400' : '';
                     return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold mr-1 mb-1 ${cm.badge} ${highlight}">
                         ${issue.items.join(' ／ ')}
                     </span>`;
                 }).join('');
 
-                // チェック種別バッジ
                 const typeBadges = issues.map(issue => {
                     const cm = RULE_COLOR_MAP[issue.color];
-                    const isHit = filterType && (filterType === '__multi__' ? true : issue.type === filterType);
-                    const highlight = (filterType && isHit) ? 'ring-2 ring-offset-1 ring-rose-400' : 'opacity-70';
+                    const isHit = blankCheckActiveFilters.size > 0 && blankCheckActiveFilters.has(issue.type);
+                    const highlight = isHit ? 'ring-2 ring-offset-1 ring-rose-400' : 'opacity-70';
                     return `<span class="inline-block px-2 py-0.5 rounded text-xs font-bold mr-1 mb-1 ${cm.badge} ${highlight}">${issue.label}</span>`;
                 }).join('');
 
@@ -1422,7 +1492,7 @@ let salesCheckResultList = [];
             } else {
                 panel.classList.add('hidden');
                 document.getElementById('btnBlankCheck').classList.remove('bg-rose-200','text-rose-900');
-                blankCheckActiveFilter = null;
+                blankCheckActiveFilters = new Set();
             }
         }
 
@@ -1433,8 +1503,14 @@ let salesCheckResultList = [];
         const BLANK_EXPORT_HEADERS = [
             '現場CD','サブCD','現場名称','拠点名','現場担当名','得意先名',
             '売上','原価','着手日','納期','完了日',
+            '現場サブ名称','積算担当名','売上分類①CD','売上分類②CD',
             '問題項目（全件）','チェック種別（選択カード）'
         ];
+        // 列インデックス早見き（0始まり）
+        // 0:現場CD 1:サブCD 2:現場名称 3:拠点名 4:現場担当名 5:得意先名
+        // 6:売上 7:原価 8:着手日 9:納期 10:完了日
+        // 11:現場サブ名称 12:積算担当名 13:売上分類①CD 14:売上分類②CD
+        // 15:問題項目 16:チェック種別
         // 問題タイプ → 色付け対象の列インデックス (0始まり) と塗りつぶし色 (ARGB)
         const ISSUE_COL_COLOR = {
             master_unmatched:      { cols: [],        rowFill: 'FFE9D5FF' },   // 行全体を薄紫
@@ -1443,7 +1519,6 @@ let salesCheckResultList = [];
             required_start:        { cols: [8],        fill: 'FFFFEEDD' },      // 着手日
             required_delivery:     { cols: [9],        fill: 'FFFFEEDD' },      // 納期
             required_manager:      { cols: [4],        fill: 'FFFFF3CD' },      // 現場担当名
-            required_estimator:    { cols: [],         fill: 'FFFFF3CD' },      // 積算担当名（出力列なし）
             required_branch:       { cols: [3],        fill: 'FFFFF3CD' },      // 拠点名
             // 整合性5パターン：問題のあるセルを強調
             no_end_sales_cost:     { cols: [10],       fill: 'FFFFDDDD' },      // [1] 完了日（空が問題）
@@ -1453,26 +1528,36 @@ let salesCheckResultList = [];
             end_sales_no_cost:     { cols: [7],        fill: 'FFFFDDDD' },      // [5] 原価（空が問題、メインCDのみ）
             sales_empty:           { cols: [6],        fill: 'FFFFE0EC' },      // 売上
             cost_empty:            { cols: [7],        fill: 'FFFFE0EC' },      // 原価
+            required_sub_name:      { cols: [11],       fill: 'FFFFCCCC' },      // 現場サブ名称（col 11）
+            required_estimator_code:{ cols: [12],       fill: 'FFFFF3CD' },      // 積算担当名（col 12）
+            required_sales_class1:  { cols: [13],       fill: 'FFE0E7FF' },      // 売上分類①CD（col 13）
+            required_sales_class2:  { cols: [14],       fill: 'FFE0E7FF' },      // 売上分類②CD（col 14）
         };
 
-        function getBlankCheckExportRows(filterType = blankCheckActiveFilter) {
-            let filtered;
-            if (filterType === '__multi__')  filtered = blankCheckResults;
-            else if (filterType)             filtered = blankCheckResults.filter(({ issues }) => issues.some(i => i.type === filterType));
-            else                             filtered = blankCheckResults;
+        function getFilteredBlankResults() {
+            if (blankCheckActiveFilters.size === 0) return blankCheckResults;
+            if (blankCheckFilterMode === 'AND') {
+                return blankCheckResults.filter(({ issues }) => {
+                    const types = new Set(issues.map(i => i.type));
+                    return [...blankCheckActiveFilters].every(t => types.has(t));
+                });
+            } else { // OR
+                return blankCheckResults.filter(({ issues }) =>
+                    issues.some(i => blankCheckActiveFilters.has(i.type))
+                );
+            }
+        }
 
+        function getBlankCheckExportRows() {
+            const filtered = getFilteredBlankResults();
             return filtered.map(({ row: r, issues }) => {
-                // 問題項目（全件）：この行が持つ全問題をすべて列挙
-                const allProblems = issues.map(i => i.label).join(' ／ ');
-                // チェック種別（選択カード）：選択中フィルターに一致したルールのみ
-                const matchedTypes = (() => {
-                    if (!filterType || filterType === '__multi__') {
-                        return issues.map(i => i.label).join(' ／ ');
-                    }
-                    return issues.filter(i => i.type === filterType).map(i => i.label).join(' ／ ');
-                })();
+                const allProblems  = issues.map(i => i.label).join(' ／ ');
+                const matchedTypes = blankCheckActiveFilters.size === 0
+                    ? issues.map(i => i.label).join(' ／ ')
+                    : issues.filter(i => blankCheckActiveFilters.has(i.type)).map(i => i.label).join(' ／ ');
                 return [r.code, r.subCode||'', r.m_c, r.m_bd, r.m_ax, r.m_w,
                     r.e_col, r.f_col, r.m_ar, r.m_as, r.m_at,
+                    r.m_f||'', r.m_bb||'', r.m_be||'', r.m_bf||'',
                     allProblems, matchedTypes];
             });
         }
@@ -1488,17 +1573,14 @@ let salesCheckResultList = [];
         async function downloadBlankCheckXLSX() {
             if (blankCheckResults.length === 0) return;
 
-            let filtered;
-            const filterType = blankCheckActiveFilter;
-            if (filterType === '__multi__')  filtered = blankCheckResults;  // 全件
-            else if (filterType)             filtered = blankCheckResults.filter(({ issues }) => issues.some(i => i.type === filterType));
-            else                             filtered = blankCheckResults;
+            const filtered = getFilteredBlankResults();
+            const filterType = null; // 多選択対応済み（getFilteredBlankResultsで処理）
 
             const wb = new ExcelJS.Workbook();
             const ws = wb.addWorksheet('空欄チェック');
 
             // 列幅
-            const colWidths = [10,8,24,14,14,22, 12,12,11,11,11, 36,28];
+            const colWidths = [10,8,24,14,14,22, 12,12,11,11,11, 16,14,12,12, 36,28];
             ws.columns = BLANK_EXPORT_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
 
             // ヘッダー行スタイル
@@ -1511,7 +1593,7 @@ let salesCheckResultList = [];
                 };
             });
             // 末尾2列（問題項目・チェック種別）はヘッダーを赤系に
-            [12, 13].forEach(colNum => {
+            [15, 16].forEach(colNum => {
                 const cell = ws.getRow(1).getCell(colNum);
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF9F1239' } };
             });
@@ -1520,16 +1602,13 @@ let salesCheckResultList = [];
             filtered.forEach(({ row: r, issues }, rowIdx) => {
                 // 問題項目：全問題を列挙
                 const allProblems = issues.map(i => i.label).join(' ／ ');
-                // チェック種別：選択カード一致分のみ
-                const matchedTypes = (() => {
-                    if (!filterType || filterType === '__multi__') {
-                        return issues.map(i => i.label).join(' ／ ');
-                    }
-                    const matched = issues.filter(i => i.type === filterType);
-                    return matched.map(i => i.label).join(' ／ ');
-                })();
+                // チェック種別：選択カード一致分のみ（多選択対応）
+                const matchedTypes = blankCheckActiveFilters.size === 0
+                    ? issues.map(i => i.label).join(' ／ ')
+                    : issues.filter(i => blankCheckActiveFilters.has(i.type)).map(i => i.label).join(' ／ ');
                 const values   = [r.code, r.subCode||'', r.m_c, r.m_bd, r.m_ax, r.m_w,
                                   r.e_col, r.f_col, r.m_ar, r.m_as, r.m_at,
+                                  r.m_f||'', r.m_bb||'', r.m_be||'', r.m_bf||'',
                                   allProblems, matchedTypes];
                 const exRow = ws.addRow(values);
                 const exRowNum = rowIdx + 2;
@@ -1565,7 +1644,7 @@ let salesCheckResultList = [];
                 // 問題項目・チェック種別セルのスタイル
                 const hasMulti = issues.length >= 2;
                 const problemFill = hasMulti ? 'FFFEF3C7' : 'FFFFF1F5';
-                [12, 13].forEach(colNum => {
+                [15, 16].forEach(colNum => {
                     const cell = exRow.getCell(colNum);
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: problemFill } };
                     cell.font = { bold: true, color: { argb: 'FF9F1239' }, size: 9 };
@@ -1584,94 +1663,118 @@ let salesCheckResultList = [];
             document.body.appendChild(a); a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
         }
-        // ============================================================
-        //  選択カード専用 Excel 出力（選択ルールの問題セルのみ色付け）
-        // ============================================================
 
-        // Excelのシート名・ファイル名に使えない文字を除去するヘルパー
-        function sanitizeSheetName(str) {
-            // Excel シート名禁止文字: \ / ? * [ ] : および全角スラッシュ・全角バックスラッシュ
-            return str.replace(/[\\\/\?\*\[\]:／＼]/g, '-').substring(0, 28);
-        }
+// ============================================================
+//  選択カード専用 Excel 出力（選択ルールの問題セルのみ色付け）
+// ============================================================
 
-        // ExcelJS用 fill オブジェクトを毎回新規生成（共有参照を避ける）
-        function makeFill(argb) {
-            return { type: 'pattern', pattern: 'solid', fgColor: { argb } };
-        }
+// Excelのシート名・ファイル名に使えない文字を除去するヘルパー
+function sanitizeSheetName(str) {
+    // Excel シート名禁止文字: \ / ? * [ ] : および全角スラッシュ・全角バックスラッシュ
+    return str.replace(/[\\\/\?\*\[\]:／＼]/g, '-').substring(0, 28);
+}
 
-        async function downloadFilteredBlankCheckXLSX() {
-            const filterType = blankCheckActiveFilter;
-            if (!filterType || filterType === '__multi__') {
-                showModal('error', '選択エラー', 'カードを選択してからExcel出力してください。');
-                return;
-            }
-            const rule = BLANK_CHECK_RULES.find(r => r.type === filterType);
-            if (!rule) return;
+// ExcelJS用 fill オブジェクトを毎回新規生成（共有参照を避ける）
+function makeFill(argb) {
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+}
 
-            const filtered = blankCheckResults.filter(({ issues }) => issues.some(i => i.type === filterType));
-            if (filtered.length === 0) {
-                showModal('error', '対象なし', '選択カードに該当する行がありません。');
-                return;
-            }
+async function downloadFilteredBlankCheckXLSX() {
+    if (blankCheckActiveFilters.size === 0) {
+        showModal('error', '選択エラー', 'カードを選択してからExcel出力してください。');
+        return;
+    }
+    const selectedLabels = [...blankCheckActiveFilters].map(t => {
+        const rule = BLANK_CHECK_RULES.find(r => r.type === t);
+        return rule ? rule.label : t;
+    });
+    const filtered = getFilteredBlankResults();
+    if (filtered.length === 0) {
+        showModal('error', '対象なし', '選択カードに該当する行がありません。');
+        return;
+    }
 
-            const colorDef  = ISSUE_COL_COLOR[filterType];
-            const safeLabel = sanitizeSheetName(rule.label);   // ← シート名を安全化
-            const wb = new ExcelJS.Workbook();
-            const ws = wb.addWorksheet(safeLabel || '選択カード');
+    // 多選択：最初の選択ルールの色定義を使用（複数の場合はデフォルト）
+    const firstType = [...blankCheckActiveFilters][0];
+    const colorDef  = ISSUE_COL_COLOR[firstType] || null;
+    const sheetName = sanitizeSheetName(selectedLabels[0] || '選択カード');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(sheetName);
 
-            // 列定義（幅）
-            const colWidths = [10,8,24,14,14,22, 12,12,11,11,11, 36,28];
-            ws.columns = BLANK_EXPORT_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
+    // 列定義（幅）
+    const colWidths = [10,8,24,14,14,22, 12,12,11,11,11, 16,14,12,12, 36,28];
+    ws.columns = BLANK_EXPORT_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
 
-            // ヘッダー行スタイル
-            const hRow = ws.getRow(1);
-            for (let c = 1; c <= BLANK_EXPORT_HEADERS.length; c++) {
-                const cell = hRow.getCell(c);
-                cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
-                cell.fill      = makeFill('FF334155');
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                cell.border    = { bottom: { style: 'medium', color: { argb: 'FF94A3B8' } } };
-            }
-            // ヘッダー末尾2列をカラーに
-            const headerFill = { purple:'FF6D28D9', red:'FFB91C1C', orange:'FFC2410C',
-                                  amber:'FFB45309',  rose:'FF9F1239', pink:'FFBE185D' }[rule.color] || 'FF9F1239';
-            [12, 13].forEach(c => {
-                hRow.getCell(c).fill = makeFill(headerFill);
-            });
-            hRow.commit();
+    // ヘッダー行スタイル
+    const hRow = ws.getRow(1);
+    const hLen = BLANK_EXPORT_HEADERS.length; // ヘッダーの総数(17)
+    
+    for (let c = 1; c <= hLen; c++) {
+        const cell = hRow.getCell(c);
+        cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
+        cell.fill      = makeFill('FF334155');
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+        cell.border    = { bottom: { style: 'medium', color: { argb: 'FF94A3B8' } } };
+    }
 
-            // データ行
+    // ヘッダー末尾2列（16, 17列目）をルール色に
+    const firstRule  = BLANK_CHECK_RULES.find(r => r.type === firstType);
+    const headerFill = { 
+        purple:'FF6D28D9', red:'FFB91C1C', orange:'FFC2410C',
+        amber:'FFB45309',  rose:'FF9F1239', pink:'FFBE185D', indigo:'FF4338CA' 
+    }[(firstRule||{}).color] || 'FF4338CA';
+
+    [hLen - 1, hLen].forEach(c => {
+        hRow.getCell(c).fill = makeFill(headerFill);
+    });
+    hRow.commit();
+
+// データ行
             filtered.forEach(({ row: r, issues }, rowIdx) => {
                 const allProblems  = issues.map(i => i.label).join(' ／ ');
-                const matchedTypes = issues.filter(i => i.type === filterType).map(i => i.label).join(' ／ ');
-                // undefined を空文字に変換してから追加
+                const matchedTypes = blankCheckActiveFilters.size === 0
+                    ? issues.map(i => i.label).join(' ／ ')
+                    : issues.filter(i => blankCheckActiveFilters.has(i.type)).map(i => i.label).join(' ／ ');
+                    
+                // 各値を配列に格納（17項目）
                 const values = [
                     r.code||'', r.subCode||'', r.m_c||'', r.m_bd||'', r.m_ax||'', r.m_w||'',
                     r.e_col||'', r.f_col||'', r.m_ar||'', r.m_as||'', r.m_at||'',
+                    r.m_f||'', r.m_bb||'', r.m_be||'', r.m_bf||'',
                     allProblems, matchedTypes
                 ];
+                
                 const exRow  = ws.addRow(values);
                 const baseArgb = rowIdx % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
 
-                // 全セルにベースカラーを個別オブジェクトで設定
+                // 全セルにベースカラーと枠線を設定
                 for (let c = 1; c <= values.length; c++) {
                     const cell = exRow.getCell(c);
-                    cell.fill      = makeFill(baseArgb);   // ← 毎回新規オブジェクト
+                    cell.fill      = makeFill(baseArgb);
                     cell.border    = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
                     cell.alignment = { vertical: 'middle', wrapText: true };
                 }
 
-                // 選択ルールの問題セルのみ強調色
-                if (colorDef && colorDef.cols) {
-                    colorDef.cols.forEach(colIdx => {
-                        const cell = exRow.getCell(colIdx + 1);
-                        cell.fill = makeFill(colorDef.fill);
-                        cell.font = { bold: true, color: { argb: 'FF1E293B' } };
-                    });
-                }
+                // その行が該当する問題ルールのうち、実際に空欄になっているセルのみ色付け
+                issues.forEach(issue => {
+                    if (blankCheckActiveFilters.size === 0 || blankCheckActiveFilters.has(issue.type)) {
+                        const ruleDef = ISSUE_COL_COLOR[issue.type];
+                        if (ruleDef && ruleDef.cols) {
+                            ruleDef.cols.forEach(colIdx => {
+                                const cell = exRow.getCell(colIdx + 1);
+                                // 値が空欄（または未定義）の場合のみ色を塗る
+                                if (!cell.value || cell.value.toString().trim() === "") {
+                                    cell.fill = makeFill(ruleDef.fill);
+                                    cell.font = { bold: true, color: { argb: 'FF1E293B' } };
+                                }
+                            });
+                        }
+                    }
+                });
 
-                // 問題項目・チェック種別セル（末尾2列）
-                [12, 13].forEach(c => {
+                // 問題項目・チェック種別セル（末尾2列）を薄赤に
+                const vLen = values.length;
+                [vLen - 1, vLen].forEach(c => {
                     const cell = exRow.getCell(c);
                     cell.fill = makeFill('FFFFF1F5');
                     cell.font = { bold: true, color: { argb: 'FF9F1239' }, size: 9 };
@@ -1679,19 +1782,18 @@ let salesCheckResultList = [];
 
                 exRow.commit();
             });
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
 
-            ws.views = [{ state: 'frozen', ySplit: 1 }];
-
-            const buf  = await wb.xlsx.writeBuffer();
-            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const url  = URL.createObjectURL(blob);
-            const a    = document.createElement('a');
-            // ファイル名の ／ も安全化
-            a.href     = url;
-            a.download = `空欄チェック_${sanitizeSheetName(rule.label)}.xlsx`;
-            document.body.appendChild(a); a.click();
-            setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-        }
+    const buf  = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href      = url;
+    a.download = `空欄チェック_${sanitizeSheetName(selectedLabels.join('_'))}.xlsx`;
+    document.body.appendChild(a); 
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+}
     </script>
 </body>
 </html>
