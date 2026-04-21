@@ -516,6 +516,7 @@
                                     <option value="amount_asc">発生額 低い順</option>
                                     <option value="count_desc">件数 多い順</option>
                                     <option value="sites_desc">取引現場数 多い順</option>
+                                    <option value="sites_asc">取引現場数 少ない順</option>
                                     <option value="name_asc">業者名 昇順</option>
                                 </select>
                             </div>
@@ -537,7 +538,7 @@
                                         <th class="px-4 py-3 border-b border-slate-200 font-bold text-left cursor-pointer hover:bg-slate-200 select-none" onclick="window.setVendorSort('name_asc')">業者名 <span id="csv-si-name" class="text-slate-400 font-normal ml-1">↕</span></th>
                                         <th class="px-4 py-3 border-b border-slate-200 font-bold text-right cursor-pointer hover:bg-slate-200 select-none whitespace-nowrap" onclick="window.setVendorSort('amount_desc')">発生総額（税抜） <span id="csv-si-amount" class="text-blue-500 font-normal ml-1">↓</span></th>
                                         <th class="px-4 py-3 border-b border-slate-200 font-bold text-center cursor-pointer hover:bg-slate-200 select-none whitespace-nowrap" onclick="window.setVendorSort('count_desc')">取引件数 <span id="csv-si-count" class="text-slate-400 font-normal ml-1">↕</span></th>
-                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-center cursor-pointer hover:bg-slate-200 select-none whitespace-nowrap" onclick="window.setVendorSort('sites_desc')">取引現場数 <span id="csv-si-sites" class="text-slate-400 font-normal ml-1">↕</span></th>
+                                        <th class="px-4 py-3 border-b border-slate-200 font-bold text-center cursor-pointer hover:bg-slate-200 select-none whitespace-nowrap" onclick="window.setVendorSort('sites_toggle')">取引現場数 <span id="csv-si-sites" class="text-slate-400 font-normal ml-1">↕</span></th>
                                         <th class="px-4 py-3 border-b border-slate-200 font-bold text-center whitespace-nowrap">最終発生月</th>
                                         <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-20">現場一覧</th>
                                         <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-16">詳細</th>
@@ -1105,6 +1106,10 @@
                             <div class="check-group"><input type="checkbox" id="chk-delivery" checked class="check-input"><label for="chk-delivery" class="check-label">納期</label></div>
                             <div class="check-group"><input type="checkbox" id="chk-subname" class="check-input"><label for="chk-subname" class="check-label">現場サブ名称</label></div>
                             <div class="check-group"><input type="checkbox" id="chk-init-sales" class="check-input"><label for="chk-init-sales" class="check-label">開始時売上済</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-designer" class="check-input"><label for="chk-designer" class="check-label">設計担当名</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-estimator" class="check-input"><label for="chk-estimator" class="check-label">積算担当名</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-sales-class1" class="check-input"><label for="chk-sales-class1" class="check-label">売上分類①</label></div>
+                            <div class="check-group"><input type="checkbox" id="chk-sales-class2" class="check-input"><label for="chk-sales-class2" class="check-label">売上分類②</label></div>
                         </div>
                         <p class="text-[10px] text-orange-600">※チェックONにした項目が「空欄」または「0」の場合に不備としてリストアップします。</p>
                     </div>
@@ -1383,7 +1388,11 @@
                         delivery: r[44],  
                         owner: r[47],     
                         manager: r[49],   
+                        designer: r[51],  
+                        estimator: r[53], 
                         branch: r[55],    
+                        salesClass1: r[58],
+                        salesClass2: r[60],
                         startDate: r[43], 
                         endDate: r[45],   
                         initialSales: r[16]
@@ -1403,7 +1412,11 @@
                             existing.delivery = rowObj.delivery;
                             existing.owner = rowObj.owner;
                             existing.manager = rowObj.manager;
+                            existing.designer = rowObj.designer;
+                            existing.estimator = rowObj.estimator;
                             existing.branch = rowObj.branch;
+                            existing.salesClass1 = rowObj.salesClass1;
+                            existing.salesClass2 = rowObj.salesClass2;
                             existing.startDate = rowObj.startDate;
                             existing.endDate = rowObj.endDate;
                             existing.initialSales = rowObj.initialSales;
@@ -2329,6 +2342,7 @@
             if(sortVal==='amount_asc')  return a.amount - b.amount;
             if(sortVal==='count_desc')  return b.count  - a.count;
             if(sortVal==='sites_desc')  return b.sites  - a.sites;
+            if(sortVal==='sites_asc')   return a.sites  - b.sites;
             if(sortVal==='name_asc')    return a.name.localeCompare(b.name,'ja');
             return 0;
         });
@@ -2354,7 +2368,13 @@
 
     window.setVendorSort = function(key) {
         const sel = document.getElementById('csv-sort');
-        if(sel) { sel.value = key; window.applyVendorFilter(); }
+        if(!sel) return;
+        // 取引現場数ヘッダークリック時: 現在の値でトグル
+        if(key === 'sites_toggle') {
+            key = sel.value === 'sites_desc' ? 'sites_asc' : 'sites_desc';
+        }
+        sel.value = key;
+        window.applyVendorFilter();
     }
 
     window.renderVendorTable = function() {
@@ -3836,8 +3856,12 @@
                 start: getChecked('chk-start'),
                 end: getChecked('chk-end'),
                 delivery: getChecked('chk-delivery'),
-                subname: getChecked('chk-subname'), // ★ここにカンマを追加しました
-                initSales: getChecked('chk-init-sales')
+                subname: getChecked('chk-subname'),
+                initSales: getChecked('chk-init-sales'),
+                designer: getChecked('chk-designer'),
+                estimator: getChecked('chk-estimator'),
+                salesClass1: getChecked('chk-sales-class1'),
+                salesClass2: getChecked('chk-sales-class2')
             };
 
             if (!Object.values(checks).includes(true)) { alert("少なくとも1つのチェック項目を選択してください。"); return; }
@@ -3857,7 +3881,7 @@
 
             ws.columns = [
                 { header: '判定', key: 'result', width: 10 },
-                { header: '未入力項目', key: 'missing', width: 40 },
+                { header: '未入力項目', key: 'missing', width: 50 },
                 { header: '親コード', key: 'code', width: 12 },
                 { header: 'サブコード', key: 'subCode', width: 12 },
                 { header: '施工主', key: 'owner', width: 15 },
@@ -3865,10 +3889,14 @@
                 { header: '現場サブ名称', key: 'subName', width: 25 },
                 { header: '得意先', key: 'customer', width: 15 },
                 { header: '担当者', key: 'manager', width: 12 },
+                { header: '設計担当', key: 'designer', width: 12 },
+                { header: '積算担当', key: 'estimator', width: 12 },
                 { header: '拠点', key: 'branch', width: 10 },
+                { header: '売上分類①', key: 'salesClass1', width: 15 },
+                { header: '売上分類②', key: 'salesClass2', width: 15 },
                 { header: '着手日', key: 'start', width: 12 },
                 { header: '完了日', key: 'end', width: 12 },
-                { header: '納期', key: 'delivery', width: 12 }, // ★ここにカンマを追加しました
+                { header: '納期', key: 'delivery', width: 12 },
                 { header: '開始時売上', key: 'initialSales', width: 15 }
             ];
             
@@ -3916,7 +3944,11 @@
                 if (checks.customer && !checkItem(rec.customer)) missing.push('得意先名');
                 if (checks.owner && !checkItem(rec.owner)) missing.push('施工主');
                 if (checks.manager && !checkItem(rec.manager)) missing.push('担当者');
+                if (checks.designer && !checkItem(rec.designer)) missing.push('設計担当名');
+                if (checks.estimator && !checkItem(rec.estimator)) missing.push('積算担当名');
                 if (checks.branch && !checkItem(rec.branch)) missing.push('拠点');
+                if (checks.salesClass1 && !checkItem(rec.salesClass1)) missing.push('売上分類①');
+                if (checks.salesClass2 && !checkItem(rec.salesClass2)) missing.push('売上分類②');
                 if (checks.start && !checkItem(rec.startDate)) missing.push('着手日');
                 if (checks.end && !checkItem(rec.endDate)) missing.push('完了日');
                 if (checks.delivery && !checkItem(rec.delivery)) missing.push('納期');
@@ -3932,11 +3964,15 @@
                     subName: rec.subName || '',
                     result: isNG ? '不備あり' : 'OK',
                     missing: missing.join(', '),
-                    initialSales: rec.initialSales, // 追加: 出力データ
+                    initialSales: rec.initialSales,
                     customer: rec.customer,
                     owner: rec.owner,
                     manager: rec.manager,
+                    designer: rec.designer,
+                    estimator: rec.estimator,
                     branch: rec.branch,
+                    salesClass1: rec.salesClass1,
+                    salesClass2: rec.salesClass2,
                     start: rec.startDate,
                     end: rec.endDate,
                     delivery: rec.delivery
