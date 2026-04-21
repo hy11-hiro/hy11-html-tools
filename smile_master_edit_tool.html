@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMILE マスター編集ツール v38</title>
+    <title>SMILE マスター編集ツール v45</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -31,7 +31,7 @@
         <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6 shadow-md">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v38</h1>
+                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v45</h1>
                     <p class="text-slate-300 text-sm mt-1 ml-11">SMILE V Air 連携用データの結合・編集・変換をサポートする統合ツール</p>
                 </div>
                 <div class="text-right hidden md:block"><span class="bg-indigo-600 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-400">UTF-16LE 対応</span></div>
@@ -177,8 +177,27 @@
                         </div>
                     </div>
                 </div>
-                <div class="text-center py-4">
+                <div class="text-center py-4 space-y-3">
                     <button onclick="processSalesCheckData()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-12 rounded-full shadow-lg transform transition hover:scale-105 flex items-center gap-2 mx-auto"><i data-lucide="play"></i> データを結合して表示</button>
+                    <!-- BD保存・復元バー -->
+                    <div class="flex items-center justify-center gap-3 flex-wrap">
+                        <div id="bdStatusBar" class="hidden text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
+                            <i data-lucide="database" class="w-3 h-3"></i>
+                            <span id="bdStatusText">保存済みデータあり</span>
+                        </div>
+                        <button onclick="saveFilesToDB()" id="btnSaveDB"
+                            class="hidden text-xs bg-teal-600 hover:bg-teal-700 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
+                            <i data-lucide="save" class="w-3.5 h-3.5"></i> このデータを保存（BD）
+                        </button>
+                        <button onclick="loadFilesFromDB()" id="btnLoadDB"
+                            class="hidden text-xs bg-white hover:bg-teal-50 text-teal-700 border border-teal-300 font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> 保存データを読み込む
+                        </button>
+                        <button onclick="clearDB()" id="btnClearDB"
+                            class="hidden text-xs bg-white hover:bg-red-50 text-red-500 border border-red-200 font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 保存データを削除
+                        </button>
+                    </div>
                 </div>
                 <div id="resultAreaSC" class="hidden space-y-4 animate-fade-in-up">
 
@@ -218,9 +237,13 @@
                         </div>
                         <!-- 共通フィルター行 -->
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-                            <div>
+                            <div class="md:col-span-2">
                                 <label class="block text-xs font-bold text-gray-600 mb-1">拠点名</label>
-                                <input type="text" id="scFilter_branch" placeholder="例：東京支店" oninput="filterSalesCheck()" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                <!-- hidden input で既存フィルターロジックに値を渡す -->
+                                <input type="hidden" id="scFilter_branch" value="">
+                                <div id="branchChipContainer" class="flex flex-wrap gap-1.5 min-h-[38px] p-1.5 bg-white border border-gray-300 rounded-lg">
+                                    <span class="text-xs text-gray-400 self-center px-1" id="branchChipPlaceholder">データ読み込み後に拠点を選択できます</span>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 mb-1">現場担当名</label>
@@ -233,6 +256,23 @@
                             <div>
                                 <label class="block text-xs font-bold text-gray-600 mb-1">現場名称</label>
                                 <input type="text" id="scFilter_siteName" placeholder="例：新築工事" oninput="filterSalesCheck()" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 mb-1">設計担当名</label>
+                                <input type="text" id="scFilter_designer" placeholder="例：佐藤" oninput="filterSalesCheck()" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-600 mb-1">積算担当名</label>
+                                <input type="text" id="scFilter_estimator" placeholder="例：田中" oninput="filterSalesCheck()" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-gray-600 mb-1">完了日</label>
+                                <div class="flex items-center gap-2">
+                                    <input type="date" id="scFilter_endFrom" onchange="filterSalesCheck()" class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                    <span class="text-xs text-gray-400 font-bold flex-shrink-0">〜</span>
+                                    <input type="date" id="scFilter_endTo" onchange="filterSalesCheck()" class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                    <span class="text-xs text-gray-400 flex-shrink-0">（空欄は制限なし）</span>
+                                </div>
                             </div>
                         </div>
                         <!-- 枝別専用フィルター行 -->
@@ -326,6 +366,27 @@
                                 <button id="btnFilteredXLSX" onclick="downloadFilteredBlankCheckXLSX()" class="hidden text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors font-bold ring-2 ring-indigo-300">
                                     <i data-lucide="filter" class="w-3.5 h-3.5"></i> <span id="btnFilteredXLSXLabel">選択カード Excel</span>
                                 </button>
+                            </div>
+                        </div>
+
+                        <!-- 除外フィルター -->
+                        <div class="px-6 py-3 border-b border-rose-100 bg-slate-50">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i data-lucide="ban" class="w-4 h-4 text-slate-500"></i>
+                                <span class="text-xs font-bold text-slate-600">除外リスト（現場CDまたは現場名の一部）</span>
+                                <span class="text-xs text-slate-400">登録した現場はチェック対象から除外されます（ブラウザに保存）</span>
+                            </div>
+                            <div class="flex gap-2 items-center flex-wrap">
+                                <div class="flex gap-1.5 flex-wrap flex-1 min-h-[32px] items-center" id="excludeTagContainer">
+                                    <span class="text-xs text-slate-400" id="excludeTagPlaceholder">除外なし</span>
+                                </div>
+                                <div class="flex gap-1.5 flex-shrink-0">
+                                    <input type="text" id="excludeInput" placeholder="現場CDまたは名称" onkeydown="if(event.key==='Enter')addExcludeTag()"
+                                        class="text-xs border border-gray-300 rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-slate-400 outline-none w-44">
+                                    <button onclick="addExcludeTag()" class="text-xs bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg font-bold transition-colors flex items-center gap-1">
+                                        <i data-lucide="plus" class="w-3 h-3"></i>追加
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -724,17 +785,19 @@ const mData = {
 
                 document.getElementById("theadSC").innerHTML = buildSCTableHeader();
                 renderSalesCheckTable(salesCheckResultList);
+                buildBranchList();
                 const unmatchedCount = salesCheckResultList.filter(r => !r.masterMatched).length;
                 document.getElementById("countSC").textContent = `${salesCheckResultList.length}件`;
                 document.getElementById("resultAreaSC").classList.remove("hidden");
                 // フィルターリセット
-                ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+                ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_endFrom','scFilter_endTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
                 const opEl = document.getElementById('scFilter_gpOp'); if(opEl) opEl.value='';
                 const valEl = document.getElementById('scFilter_gpVal'); if(valEl) valEl.value='';
                 document.getElementById('countSCFiltered')?.classList.add('hidden');
                 // コードに「-」が含まれるかで自動判定してモード切替
                 const hasSubCodes = salesCheckResultList.some(r => r.subCode !== "");
                 switchSCViewMode(hasSubCodes ? 'genka' : 'gosan');
+                checkDBStatus();
                 let msg = `${salesCheckResultList.length}件のデータを読み込みました。\n検出モード：${hasSubCodes ? '枝別データ → 原価集計モードで表示' : '合算データ'}`;
                 if (unmatchedCount > 0) msg += `\n\n⚠ マスター未一致: ${unmatchedCount}件\n（現場マスターに存在しないコードは空欄で表示されます）`;
                 showModal('success', '抽出完了', msg);
@@ -920,32 +983,126 @@ const mData = {
             const fManager  = (document.getElementById('scFilter_manager')?.value || "").trim();
             const fCustomer = (document.getElementById('scFilter_customer')?.value || "").trim();
             const fSite     = (document.getElementById('scFilter_siteName')?.value || "").trim();
+            const fDesigner2  = (document.getElementById('scFilter_designer')?.value || "").trim();
+            const fEstimator2 = (document.getElementById('scFilter_estimator')?.value || "").trim();
+            const fEndFrom2   = (document.getElementById('scFilter_endFrom')?.value || "").replace(/-/g, '');
+            const fEndTo2     = (document.getElementById('scFilter_endTo')?.value || "").replace(/-/g, '');
             return salesCheckResultList.filter(r => {
                 if (fBranch   && !r.m_bd.includes(fBranch))   return false;
                 if (fManager  && !r.m_ax.includes(fManager))  return false;
                 if (fCustomer && !r.m_w.includes(fCustomer))  return false;
                 if (fSite     && !r.m_c.includes(fSite))      return false;
+                if (fDesigner2  && !r.m_az.includes(fDesigner2))  return false;
+                if (fEstimator2 && !r.m_bb.includes(fEstimator2)) return false;
+                if (fEndFrom2 || fEndTo2) {
+                    const endStr = (r.m_at||'').toString().replace(/[^0-9]/g,'');
+                    const endNum = endStr.length >= 8 ? parseInt(endStr, 10) : 0;
+                    if (fEndFrom2 && (endNum === 0 || endNum < parseInt(fEndFrom2, 10))) return false;
+                    if (fEndTo2   && (endNum === 0 || endNum > parseInt(fEndTo2,   10))) return false;
+                }
+                // 除外パターン（現場CDまたは現場名の部分一致）
+                if (excludePatterns && excludePatterns.size > 0) {
+                    for (const pat of excludePatterns) {
+                        if ((r.code||'').includes(pat) || (r.m_c||'').includes(pat)) return false;
+                    }
+                }
                 return true;
             });
+        }
+
+        // ============================================================
+        //  拠点名クリック選択フィルター
+        // ============================================================
+        let selectedBranch = '';
+
+        function buildBranchList() {
+            // ユニーク拠点名を収集（空文字・未入力除く）
+            const branches = [...new Set(
+                salesCheckResultList.map(r => r.m_bd).filter(v => v && v.trim())
+            )].sort((a, b) => a.localeCompare(b, 'ja'));
+
+            const container = document.getElementById('branchChipContainer');
+            const placeholder = document.getElementById('branchChipPlaceholder');
+            if (!container) return;
+
+            selectedBranch = '';
+            document.getElementById('scFilter_branch').value = '';
+
+            if (branches.length === 0) {
+                placeholder.textContent = '拠点名データなし';
+                return;
+            }
+
+            placeholder.classList.add('hidden');
+            container.innerHTML = renderBranchChips(branches, '');
+            lucide.createIcons();
+        }
+
+        function renderBranchChips(branches, selected) {
+            const allCls = selected === ''
+                ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300';
+            let html = `<button onclick="selectBranch('')"
+                class="text-xs font-bold px-2.5 py-1 rounded-full border transition-all ${allCls}">
+                全拠点
+            </button>`;
+            html += branches.map(b => {
+                const isActive = selected === b;
+                const cls = isActive
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300';
+                return `<button onclick="selectBranch('${b.replace(/'/g, "\'")}')"
+                    class="text-xs font-bold px-2.5 py-1 rounded-full border transition-all ${cls}">
+                    ${b}
+                </button>`;
+            }).join('');
+            return html;
+        }
+
+        function selectBranch(branch) {
+            selectedBranch = branch;
+            document.getElementById('scFilter_branch').value = branch;
+
+            // チップの見た目を更新
+            const branches = [...new Set(
+                salesCheckResultList.map(r => r.m_bd).filter(v => v && v.trim())
+            )].sort((a, b) => a.localeCompare(b, 'ja'));
+            const container = document.getElementById('branchChipContainer');
+            if (container) container.innerHTML = renderBranchChips(branches, branch);
+
+            filterSalesCheck();
         }
 
         function getFilteredSalesCheckData() {
             const isEdabetsu = scViewMode === 'edabetsu';
             const isGenka    = scViewMode === 'genka';
             const baseData = getBaseData();
-            const fBranch   = (document.getElementById('scFilter_branch')?.value || "").trim();
-            const fManager  = (document.getElementById('scFilter_manager')?.value || "").trim();
-            const fCustomer = (document.getElementById('scFilter_customer')?.value || "").trim();
-            const fSite     = (document.getElementById('scFilter_siteName')?.value || "").trim();
-            const fSubCode  = (document.getElementById('scFilter_subCode')?.value || "").trim();
-            const gpOp      = (!isEdabetsu) ? (document.getElementById('scFilter_gpOp')?.value || "") : "";
-            const gpValRaw  = (!isEdabetsu) ? (document.getElementById('scFilter_gpVal')?.value || "") : "";
-            const gpVal     = gpValRaw !== "" ? parseFloat(gpValRaw) : null;
+            const fBranch    = (document.getElementById('scFilter_branch')?.value || "").trim();
+            const fManager   = (document.getElementById('scFilter_manager')?.value || "").trim();
+            const fCustomer  = (document.getElementById('scFilter_customer')?.value || "").trim();
+            const fSite      = (document.getElementById('scFilter_siteName')?.value || "").trim();
+            const fDesigner  = (document.getElementById('scFilter_designer')?.value || "").trim();
+            const fEstimator = (document.getElementById('scFilter_estimator')?.value || "").trim();
+            const fEndFrom   = (document.getElementById('scFilter_endFrom')?.value || "").replace(/-/g, '');
+            const fEndTo     = (document.getElementById('scFilter_endTo')?.value || "").replace(/-/g, '');
+            const fSubCode   = (document.getElementById('scFilter_subCode')?.value || "").trim();
+            const gpOp       = (!isEdabetsu) ? (document.getElementById('scFilter_gpOp')?.value || "") : "";
+            const gpValRaw   = (!isEdabetsu) ? (document.getElementById('scFilter_gpVal')?.value || "") : "";
+            const gpVal      = gpValRaw !== "" ? parseFloat(gpValRaw) : null;
             return baseData.filter(r => {
-                if (fBranch   && !r.m_bd.includes(fBranch))   return false;
-                if (fManager  && !r.m_ax.includes(fManager))  return false;
+                if (fBranch    && !r.m_bd.includes(fBranch))    return false;
+                if (fManager   && !r.m_ax.includes(fManager))   return false;
                 if (fCustomer && !r.m_w.includes(fCustomer))  return false;
                 if (fSite     && !r.m_c.includes(fSite))      return false;
+                if (fDesigner  && !r.m_az.includes(fDesigner))  return false;
+                if (fEstimator && !r.m_bb.includes(fEstimator)) return false;
+                if (fEndFrom || fEndTo) {
+                    // m_at は YYYYMMDD 形式 or 空/"0"
+                    const endStr = (r.m_at||'').toString().replace(/[^0-9]/g,'');
+                    const endNum = endStr.length >= 8 ? parseInt(endStr, 10) : 0;
+                    if (fEndFrom && (endNum === 0 || endNum < parseInt(fEndFrom, 10))) return false;
+                    if (fEndTo   && (endNum === 0 || endNum > parseInt(fEndTo,   10))) return false;
+                }
                 if (isEdabetsu && fSubCode && !r.subCode.includes(fSubCode)) return false;
                 if (!isEdabetsu && gpOp && gpVal !== null && !isNaN(gpVal)) {
                     const gpNum = isGenka
@@ -982,7 +1139,12 @@ const mData = {
         }
 
         function clearSCFilters() {
-            ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+            ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_endFrom','scFilter_endTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+            // 拠点チップもリセット
+            selectedBranch = '';
+            const branches = [...new Set(salesCheckResultList.map(r => r.m_bd).filter(v => v && v.trim()))].sort((a,b)=>a.localeCompare(b,'ja'));
+            const container = document.getElementById('branchChipContainer');
+            if (container && branches.length > 0) container.innerHTML = renderBranchChips(branches, '');
             const opEl = document.getElementById('scFilter_gpOp'); if(opEl) opEl.value='';
             const valEl = document.getElementById('scFilter_gpVal'); if(valEl) valEl.value='';
             filterSalesCheck();
@@ -1066,6 +1228,13 @@ const mData = {
                 check: (r) => !r.m_w ? ['得意先名 未入力'] : null
             },
             {
+                type: 'required_order_amount',
+                label: '開始時売上済受注額 未入力',
+                color: 'sky',
+                group: 'basic',
+                check: (r) => isBlankOrZero(r.m_q) ? ['開始時売上済受注額 未入力'] : null
+            },
+            {
                 type: 'required_start',
                 label: '着手日 未入力',
                 color: 'orange',
@@ -1093,6 +1262,31 @@ const mData = {
                 color: 'amber',
                 group: 'staff',
                 check: (r) => !r.m_bd ? ['拠点名 未入力'] : null
+            },
+            {
+                type: 'overdue_no_end',
+                label: '納期超過・完了日なし',
+                color: 'crimson',
+                group: 'integrity',
+                check: (r) => {
+                    // 納期が空なら対象外（別の「納期未入力」ルールで検出）
+                    if (isBlankOrZero(r.m_as)) return null;
+                    // 完了日が入力済みなら問題なし
+                    if (!isBlankOrZero(r.m_at)) return null;
+                    // 納期をYYYYMMDD → 比較可能な数値に変換
+                    const delivStr = r.m_as.toString().replace(/[^0-9]/g,'');
+                    if (delivStr.length < 8) return null;
+                    const today = new Date();
+                    const todayNum = today.getFullYear() * 10000
+                                   + (today.getMonth() + 1) * 100
+                                   + today.getDate();
+                    const delivNum = parseInt(delivStr, 10);
+                    if (isNaN(delivNum)) return null;
+                    // 納期 < 本日 → 超過
+                    return delivNum < todayNum
+                        ? ['納期超過', `納期: ${delivStr.slice(0,4)}/${delivStr.slice(4,6)}/${delivStr.slice(6,8)}`, '完了日 未入力']
+                        : null;
+                }
             },
             // -----------------------------------------------------------------------
             // 売上・原価・完了日 整合性チェック（5パターン）
@@ -1233,6 +1427,8 @@ const mData = {
             pink:  { card: 'bg-pink-100 text-pink-800 border-pink-300 hover:bg-pink-200',         badge: 'bg-pink-100 text-pink-700',  row: 'bg-pink-50'   },
             multi:   { card: 'bg-slate-700 text-white border-slate-600 hover:bg-slate-800',         badge: 'bg-slate-200 text-slate-800', row: 'bg-yellow-50' },
             indigo:  { card: 'bg-indigo-100 text-indigo-800 border-indigo-300 hover:bg-indigo-200',   badge: 'bg-indigo-100 text-indigo-700', row: 'bg-indigo-50' },
+            sky:     { card: 'bg-sky-100 text-sky-800 border-sky-300 hover:bg-sky-200',             badge: 'bg-sky-100 text-sky-700',       row: 'bg-sky-50'    },
+            crimson: { card: 'bg-red-100 text-red-900 border-red-400 hover:bg-red-200',             badge: 'bg-red-200 text-red-900',       row: 'bg-red-50'    },
         };
 
         function runBlankCheck() {
@@ -1501,37 +1697,49 @@ const mData = {
         // ============================================================
         // 列定義（問題項目・チェック種別を末尾に）
         const BLANK_EXPORT_HEADERS = [
-            '現場CD','サブCD','現場名称','拠点名','現場担当名','得意先名',
-            '売上','原価','着手日','納期','完了日',
-            '現場サブ名称','積算担当名','売上分類①CD','売上分類②CD',
+            '現場CD','サブCD','現場名称','現場サブ名称','得意先名',
+            '開始時売上済受注額',
+            '着手日','納期','完了日',
+            '現場担当名','積算担当名','拠点名',
+            '売上分類①CD','売上分類②CD',
+            '売上','原価',
             '問題項目（全件）','チェック種別（選択カード）'
         ];
-        // 列インデックス早見き（0始まり）
-        // 0:現場CD 1:サブCD 2:現場名称 3:拠点名 4:現場担当名 5:得意先名
-        // 6:売上 7:原価 8:着手日 9:納期 10:完了日
-        // 11:現場サブ名称 12:積算担当名 13:売上分類①CD 14:売上分類②CD
-        // 15:問題項目 16:チェック種別
+        // 列インデックス早見き（0始まり・現場マスター順）
+        // 0:現場CD  1:サブCD  2:現場名称  3:現場サブ名称  4:得意先名
+        // 5:開始時売上済受注額
+        // 6:着手日  7:納期  8:完了日
+        // 9:現場担当名  10:積算担当名  11:拠点名
+        // 12:売上分類①CD  13:売上分類②CD
+        // 14:売上  15:原価
+        // 16:問題項目  17:チェック種別
         // 問題タイプ → 色付け対象の列インデックス (0始まり) と塗りつぶし色 (ARGB)
         const ISSUE_COL_COLOR = {
-            master_unmatched:      { cols: [],        rowFill: 'FFE9D5FF' },   // 行全体を薄紫
-            required_name:         { cols: [2],        fill: 'FFFFCCCC' },      // 現場名称
-            required_customer:     { cols: [5],        fill: 'FFFFCCCC' },      // 得意先名
-            required_start:        { cols: [8],        fill: 'FFFFEEDD' },      // 着手日
-            required_delivery:     { cols: [9],        fill: 'FFFFEEDD' },      // 納期
-            required_manager:      { cols: [4],        fill: 'FFFFF3CD' },      // 現場担当名
-            required_branch:       { cols: [3],        fill: 'FFFFF3CD' },      // 拠点名
-            // 整合性5パターン：問題のあるセルを強調
-            no_end_sales_cost:     { cols: [10],       fill: 'FFFFDDDD' },      // [1] 完了日（空が問題）
-            no_end_sales_no_cost:  { cols: [7, 10],    fill: 'FFFFDDDD' },      // [2] 原価・完了日（空が問題）
-            end_no_sales_no_cost:  { cols: [6, 7],     fill: 'FFFFDDDD' },      // [3] 売上・原価（空が問題）
-            end_cost_no_sales:     { cols: [6],        fill: 'FFFFDDDD' },      // [4] 売上（空が問題、メインCDのみ）
-            end_sales_no_cost:     { cols: [7],        fill: 'FFFFDDDD' },      // [5] 原価（空が問題、メインCDのみ）
-            sales_empty:           { cols: [6],        fill: 'FFFFE0EC' },      // 売上
-            cost_empty:            { cols: [7],        fill: 'FFFFE0EC' },      // 原価
-            required_sub_name:      { cols: [11],       fill: 'FFFFCCCC' },      // 現場サブ名称（col 11）
-            required_estimator_code:{ cols: [12],       fill: 'FFFFF3CD' },      // 積算担当名（col 12）
-            required_sales_class1:  { cols: [13],       fill: 'FFE0E7FF' },      // 売上分類①CD（col 13）
-            required_sales_class2:  { cols: [14],       fill: 'FFE0E7FF' },      // 売上分類②CD（col 14）
+            // 0:現場CD 1:サブCD 2:現場名称 3:現場サブ名称 4:得意先名
+            // 5:開始時売上済受注額 6:着手日 7:納期 8:完了日
+            // 9:現場担当名 10:積算担当名 11:拠点名
+            // 12:売上分類①CD 13:売上分類②CD 14:売上 15:原価
+            master_unmatched:        { cols: [],         rowFill: 'FFE9D5FF' },
+            required_name:           { cols: [2],        fill: 'FFFFCCCC' },   // 現場名称
+            required_sub_name:       { cols: [3],        fill: 'FFFFCCCC' },   // 現場サブ名称
+            required_customer:       { cols: [4],        fill: 'FFFFCCCC' },   // 得意先名
+            required_order_amount:   { cols: [5],        fill: 'FFE0F2FE' },   // 開始時売上済受注額
+            required_start:          { cols: [6],        fill: 'FFFFEEDD' },   // 着手日
+            required_delivery:       { cols: [7],        fill: 'FFFFEEDD' },   // 納期
+            overdue_no_end:          { cols: [7, 8],     fill: 'FFFECDD3' },   // 納期（超過）・完了日（空）
+            required_manager:        { cols: [9],        fill: 'FFFFF3CD' },   // 現場担当名
+            required_estimator_code: { cols: [10],       fill: 'FFFFF3CD' },   // 積算担当名
+            required_branch:         { cols: [11],       fill: 'FFFFF3CD' },   // 拠点名
+            required_sales_class1:   { cols: [12],       fill: 'FFE0E7FF' },   // 売上分類①CD
+            required_sales_class2:   { cols: [13],       fill: 'FFE0E7FF' },   // 売上分類②CD
+            // 整合性5パターン
+            no_end_sales_cost:       { cols: [8],        fill: 'FFFFDDDD' },   // [1] 完了日（空が問題）
+            no_end_sales_no_cost:    { cols: [8, 15],    fill: 'FFFFDDDD' },   // [2] 完了日・原価（空が問題）
+            end_no_sales_no_cost:    { cols: [14, 15],   fill: 'FFFFDDDD' },   // [3] 売上・原価（空が問題）
+            end_cost_no_sales:       { cols: [14],       fill: 'FFFFDDDD' },   // [4] 売上（空が問題、メインCDのみ）
+            end_sales_no_cost:       { cols: [15],       fill: 'FFFFDDDD' },   // [5] 原価（空が問題、メインCDのみ）
+            sales_empty:             { cols: [14],       fill: 'FFFFE0EC' },   // 売上
+            cost_empty:              { cols: [15],       fill: 'FFFFE0EC' },   // 原価
         };
 
         function getFilteredBlankResults() {
@@ -1555,9 +1763,12 @@ const mData = {
                 const matchedTypes = blankCheckActiveFilters.size === 0
                     ? issues.map(i => i.label).join(' ／ ')
                     : issues.filter(i => blankCheckActiveFilters.has(i.type)).map(i => i.label).join(' ／ ');
-                return [r.code, r.subCode||'', r.m_c, r.m_bd, r.m_ax, r.m_w,
-                    r.e_col, r.f_col, r.m_ar, r.m_as, r.m_at,
-                    r.m_f||'', r.m_bb||'', r.m_be||'', r.m_bf||'',
+                return [r.code, r.subCode||'', r.m_c, r.m_f||'', r.m_w,
+                    r.m_q||'',
+                    r.m_ar, r.m_as, r.m_at,
+                    r.m_ax, r.m_bb||'', r.m_bd,
+                    r.m_be||'', r.m_bf||'',
+                    r.e_col, r.f_col,
                     allProblems, matchedTypes];
             });
         }
@@ -1580,7 +1791,7 @@ const mData = {
             const ws = wb.addWorksheet('空欄チェック');
 
             // 列幅
-            const colWidths = [10,8,24,14,14,22, 12,12,11,11,11, 16,14,12,12, 36,28];
+            const colWidths = [10,8,24,16,22, 16, 11,11,11, 14,14,14, 12,12, 12,12, 36,28];
             ws.columns = BLANK_EXPORT_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
 
             // ヘッダー行スタイル
@@ -1592,8 +1803,8 @@ const mData = {
                     bottom: { style: 'medium', color: { argb: 'FF94A3B8' } }
                 };
             });
-            // 末尾2列（問題項目・チェック種別）はヘッダーを赤系に
-            [15, 16].forEach(colNum => {
+            // 末尾2列（問題項目・チェック種別）はヘッダーを赤系に col16=問題項目, col17=チェック種別
+            [17, 18].forEach(colNum => {
                 const cell = ws.getRow(1).getCell(colNum);
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF9F1239' } };
             });
@@ -1606,9 +1817,12 @@ const mData = {
                 const matchedTypes = blankCheckActiveFilters.size === 0
                     ? issues.map(i => i.label).join(' ／ ')
                     : issues.filter(i => blankCheckActiveFilters.has(i.type)).map(i => i.label).join(' ／ ');
-                const values   = [r.code, r.subCode||'', r.m_c, r.m_bd, r.m_ax, r.m_w,
-                                  r.e_col, r.f_col, r.m_ar, r.m_as, r.m_at,
-                                  r.m_f||'', r.m_bb||'', r.m_be||'', r.m_bf||'',
+                const values   = [r.code, r.subCode||'', r.m_c, r.m_f||'', r.m_w,
+                                  r.m_q||'',
+                                  r.m_ar, r.m_as, r.m_at,
+                                  r.m_ax, r.m_bb||'', r.m_bd,
+                                  r.m_be||'', r.m_bf||'',
+                                  r.e_col, r.f_col,
                                   allProblems, matchedTypes];
                 const exRow = ws.addRow(values);
                 const exRowNum = rowIdx + 2;
@@ -1641,10 +1855,10 @@ const mData = {
                     });
                 });
 
-                // 問題項目・チェック種別セルのスタイル
+                // 問題項目・チェック種別セルのスタイル col16=問題項目, col17=チェック種別
                 const hasMulti = issues.length >= 2;
                 const problemFill = hasMulti ? 'FFFEF3C7' : 'FFFFF1F5';
-                [15, 16].forEach(colNum => {
+                [17, 18].forEach(colNum => {
                     const cell = exRow.getCell(colNum);
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: problemFill } };
                     cell.font = { bold: true, color: { argb: 'FF9F1239' }, size: 9 };
@@ -1702,12 +1916,12 @@ async function downloadFilteredBlankCheckXLSX() {
     const ws = wb.addWorksheet(sheetName);
 
     // 列定義（幅）
-    const colWidths = [10,8,24,14,14,22, 12,12,11,11,11, 16,14,12,12, 36,28];
+    const colWidths = [10,8,24,16,22, 16, 11,11,11, 14,14,14, 12,12, 12,12, 36,28];
     ws.columns = BLANK_EXPORT_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
 
     // ヘッダー行スタイル
     const hRow = ws.getRow(1);
-    const hLen = BLANK_EXPORT_HEADERS.length; // ヘッダーの総数(17)
+    const hLen = BLANK_EXPORT_HEADERS.length; // ヘッダーの総数(18)
     
     for (let c = 1; c <= hLen; c++) {
         const cell = hRow.getCell(c);
@@ -1738,9 +1952,12 @@ async function downloadFilteredBlankCheckXLSX() {
                     
                 // 各値を配列に格納（17項目）
                 const values = [
-                    r.code||'', r.subCode||'', r.m_c||'', r.m_bd||'', r.m_ax||'', r.m_w||'',
-                    r.e_col||'', r.f_col||'', r.m_ar||'', r.m_as||'', r.m_at||'',
-                    r.m_f||'', r.m_bb||'', r.m_be||'', r.m_bf||'',
+                    r.code||'', r.subCode||'', r.m_c||'', r.m_f||'', r.m_w||'',
+                    r.m_q||'',
+                    r.m_ar||'', r.m_as||'', r.m_at||'',
+                    r.m_ax||'', r.m_bb||'', r.m_bd||'',
+                    r.m_be||'', r.m_bf||'',
+                    r.e_col||'', r.f_col||'',
                     allProblems, matchedTypes
                 ];
                 
@@ -1755,18 +1972,15 @@ async function downloadFilteredBlankCheckXLSX() {
                     cell.alignment = { vertical: 'middle', wrapText: true };
                 }
 
-                // その行が該当する問題ルールのうち、実際に空欄になっているセルのみ色付け
+                // 問題ルールに対応するセルを色付け（"0"等も含め無条件で塗る）
                 issues.forEach(issue => {
                     if (blankCheckActiveFilters.size === 0 || blankCheckActiveFilters.has(issue.type)) {
                         const ruleDef = ISSUE_COL_COLOR[issue.type];
                         if (ruleDef && ruleDef.cols) {
                             ruleDef.cols.forEach(colIdx => {
                                 const cell = exRow.getCell(colIdx + 1);
-                                // 値が空欄（または未定義）の場合のみ色を塗る
-                                if (!cell.value || cell.value.toString().trim() === "") {
-                                    cell.fill = makeFill(ruleDef.fill);
-                                    cell.font = { bold: true, color: { argb: 'FF1E293B' } };
-                                }
+                                cell.fill = makeFill(ruleDef.fill);
+                                cell.font = { bold: true, color: { argb: 'FF1E293B' } };
                             });
                         }
                     }
@@ -1794,6 +2008,199 @@ async function downloadFilteredBlankCheckXLSX() {
     a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
 }
+
+        // ============================================================
+        //  除外フィルター機能（localStorage 永続化）
+        // ============================================================
+        let excludePatterns = new Set();
+        const EXCLUDE_STORAGE_KEY = 'blankCheck_excludePatterns';
+
+        function loadExcludePatterns() {
+            try {
+                const saved = localStorage.getItem(EXCLUDE_STORAGE_KEY);
+                if (saved) {
+                    const arr = JSON.parse(saved);
+                    excludePatterns = new Set(arr);
+                    renderExcludeTags();
+                }
+            } catch(e) {}
+        }
+
+        function saveExcludePatterns() {
+            try {
+                localStorage.setItem(EXCLUDE_STORAGE_KEY, JSON.stringify([...excludePatterns]));
+            } catch(e) {}
+        }
+
+        function renderExcludeTags() {
+            const container = document.getElementById('excludeTagContainer');
+            const placeholder = document.getElementById('excludeTagPlaceholder');
+            if (!container) return;
+            if (excludePatterns.size === 0) {
+                container.innerHTML = '<span class="text-xs text-slate-400" id="excludeTagPlaceholder">除外なし</span>';
+                return;
+            }
+            container.innerHTML = [...excludePatterns].map(p =>
+                `<span class="inline-flex items-center gap-1 text-xs bg-slate-200 text-slate-700 border border-slate-300 px-2 py-1 rounded-full font-bold">
+                    ${p}
+                    <button onclick="removeExcludeTag('${p.replace(/'/g, "\'")}')"
+                        class="hover:text-red-600 transition-colors ml-0.5">
+                        <i data-lucide="x" class="w-3 h-3"></i>
+                    </button>
+                </span>`
+            ).join('');
+            lucide.createIcons();
+        }
+
+        function addExcludeTag() {
+            const input = document.getElementById('excludeInput');
+            const val = (input.value || '').trim();
+            if (!val) return;
+            excludePatterns.add(val);
+            saveExcludePatterns();
+            renderExcludeTags();
+            input.value = '';
+            // チェック再実行（パネルが開いている場合）
+            if (!document.getElementById('blankCheckPanel').classList.contains('hidden')) {
+                runBlankCheck();
+                renderBlankCheckPanel();
+            }
+        }
+
+        function removeExcludeTag(pattern) {
+            excludePatterns.delete(pattern);
+            saveExcludePatterns();
+            renderExcludeTags();
+            if (!document.getElementById('blankCheckPanel').classList.contains('hidden')) {
+                runBlankCheck();
+                renderBlankCheckPanel();
+            }
+        }
+
+        // ============================================================
+        //  BD（IndexedDB）保存・復元機能
+        // ============================================================
+        const DB_NAME   = 'SmileMasterToolDB';
+        const DB_VER    = 1;
+        const STORE     = 'savedFiles';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, DB_VER);
+                req.onupgradeneeded = e => {
+                    e.target.result.createObjectStore(STORE);
+                };
+                req.onsuccess = e => resolve(e.target.result);
+                req.onerror   = e => reject(e.target.error);
+            });
+        }
+
+        async function saveFilesToDB() {
+            const branchFile = document.getElementById('fileBranchSC').files[0];
+            const masterFile = document.getElementById('fileMasterSC').files[0];
+            if (!branchFile || !masterFile) {
+                showModal('error', '保存エラー', 'ファイルが読み込まれていません。先にデータを結合してください。');
+                return;
+            }
+            try {
+                const readBuf = f => new Promise((res, rej) => {
+                    const r = new FileReader();
+                    r.onload  = e => res(e.target.result);
+                    r.onerror = rej;
+                    r.readAsArrayBuffer(f);
+                });
+                const [branchBuf, masterBuf] = await Promise.all([readBuf(branchFile), readBuf(masterFile)]);
+                const db = await openDB();
+                const tx = db.transaction(STORE, 'readwrite');
+                const st = tx.objectStore(STORE);
+                st.put({ buf: branchBuf, name: branchFile.name, type: branchFile.type }, 'branchFile');
+                st.put({ buf: masterBuf, name: masterFile.name, type: masterFile.type }, 'masterFile');
+                st.put(new Date().toLocaleString('ja-JP'), 'savedAt');
+                tx.oncomplete = () => {
+                    showModal('success', '保存完了', `ブラウザに保存しました。
+次回は「保存データを読み込む」ボタンで即座に復元できます。`);
+                    checkDBStatus();
+                };
+                tx.onerror = () => showModal('error', '保存失敗', tx.error?.message || 'エラーが発生しました。');
+            } catch(e) {
+                showModal('error', '保存失敗', e.message);
+            }
+        }
+
+        async function loadFilesFromDB() {
+            try {
+                const db  = await openDB();
+                const tx  = db.transaction(STORE, 'readonly');
+                const st  = tx.objectStore(STORE);
+                const get = key => new Promise((res, rej) => {
+                    const req = st.get(key);
+                    req.onsuccess = e => res(e.target.result);
+                    req.onerror   = rej;
+                });
+                const [branchData, masterData] = await Promise.all([get('branchFile'), get('masterFile')]);
+                if (!branchData || !masterData) {
+                    showModal('error', 'データなし', '保存されたデータが見つかりません。');
+                    return;
+                }
+                // File オブジェクトに変換してセット
+                const toFile = (d) => new File([d.buf], d.name, { type: d.type });
+                const branchFile = toFile(branchData);
+                const masterFile = toFile(masterData);
+                // input の files に注入（DataTransfer 経由）
+                const inject = (inputId, file, labelId) => {
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    document.getElementById(inputId).files = dt.files;
+                    document.getElementById(labelId).textContent = file.name;
+                    document.getElementById(inputId.replace('file','dropZone')).classList.add('border-indigo-500','bg-indigo-50');
+                };
+                inject('fileBranchSC', branchFile, 'fileNameBranchSC');
+                inject('fileMasterSC', masterFile, 'fileNameMasterSC');
+                // 自動で結合実行
+                await processSalesCheckData();
+            } catch(e) {
+                showModal('error', '読み込み失敗', e.message);
+            }
+        }
+
+        async function clearDB() {
+            if (!confirm('保存されたデータを削除しますか？')) return;
+            try {
+                const db = await openDB();
+                const tx = db.transaction(STORE, 'readwrite');
+                tx.objectStore(STORE).clear();
+                tx.oncomplete = () => { checkDBStatus(); showModal('success', '削除完了', '保存データを削除しました。'); };
+            } catch(e) { showModal('error', '削除失敗', e.message); }
+        }
+
+        async function checkDBStatus() {
+            try {
+                const db = await openDB();
+                const tx = db.transaction(STORE, 'readonly');
+                const st = tx.objectStore(STORE);
+                const getReq  = st.get('branchFile');
+                const dateReq = st.get('savedAt');
+                getReq.onsuccess = () => {
+                    const hasSaved = !!getReq.result;
+                    document.getElementById('bdStatusBar')?.classList.toggle('hidden', !hasSaved);
+                    document.getElementById('btnLoadDB')?.classList.toggle('hidden', !hasSaved);
+                    document.getElementById('btnClearDB')?.classList.toggle('hidden', !hasSaved);
+                    if (hasSaved) {
+                        dateReq.onsuccess = () => {
+                            const d = dateReq.result || '';
+                            document.getElementById('bdStatusText').textContent = `保存済みデータあり（${d}）`;
+                        };
+                    }
+                };
+                // 結合済み後は「このデータを保存」ボタンを表示
+                const hasList = salesCheckResultList.length > 0;
+                document.getElementById('btnSaveDB')?.classList.toggle('hidden', !hasList);
+            } catch(e) {}
+        }
+
+        // 初期化
+        loadExcludePatterns();
+        checkDBStatus();
     </script>
 </body>
 </html>
