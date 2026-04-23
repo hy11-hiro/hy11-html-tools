@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>売上データチェック・集計ツール (Ver 3.3)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <!-- Excel出力用ライブラリ (SheetJS) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; font-family: "Yu Gothic UI", sans-serif; font-size: 0.9rem; overflow-x: hidden; }
+        .container-fluid { max-width: 100%; padding: 20px; }
+        
+        .card { box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: none; margin-bottom: 20px; }
+        .card-header { font-weight: bold; background-color: #e9ecef; }
+        
+        .drop-area {
+            border: 3px dashed #ced4da; border-radius: 10px; background-color: #fff;
+            color: #6c757d; transition: all 0.3s; cursor: pointer; padding: 30px 10px;
+            text-align: center;
+        }
+        .drop-area:hover, .drop-area.dragover {
+            border-color: #0d6efd; background-color: #f1f8ff; color: #0d6efd;
+        }
+
+        .table-responsive { 
+            max-height: 60vh; 
+            overflow-y: auto; 
+            border: 1px solid #dee2e6;
+        }
+        .data-table th { 
+            position: sticky; top: 0; z-index: 10; 
+            background-color: #f1f3f5; white-space: nowrap; vertical-align: middle;
+            font-size: 0.85rem; padding: 8px;
+        }
+        .data-table td { 
+            vertical-align: middle; white-space: nowrap; padding: 4px 8px; font-size: 0.9rem;
+        }
+
+        .col-filename {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .col-key { background-color: #e7f5ff; font-weight: bold; }
+        .col-master { background-color: #fff3cd; }
+        .col-err { background-color: #ffe6e6; color: #dc3545; }
+        
+        .row-duplicate { background-color: #fff5f5 !important; color: #d63384; }
+        
+        /* 修正箇所: ジャンプ時の強調表示 (赤枠) */
+        /* アニメーション定義: 点滅させつつ表示 */
+        @keyframes borderPulse {
+            0% { outline-color: red; background-color: rgba(255, 0, 0, 0.1); }
+            50% { outline-color: #ff5555; background-color: rgba(255, 0, 0, 0.05); }
+            100% { outline-color: red; background-color: rgba(255, 0, 0, 0.1); }
+        }
+
+        .highlight-row {
+            /* Bootstrapのスタイルに勝つために !important を使用 */
+            outline: 4px solid red !important;
+            outline-offset: -4px; /* 枠の内側に描画 */
+            background-color: rgba(255, 0, 0, 0.1) !important; /* 薄い赤背景も追加 */
+            position: relative;
+            z-index: 50; /* 他の行より手前に表示 */
+            
+            /* 3秒間点滅アニメーション */
+            animation: borderPulse 1s infinite;
+        }
+        
+        .summary-table th { background-color: #343a40; color: #fff; }
+        .total-row { background-color: #fff3cd; font-weight: bold; border-top: 2px solid #666; }
+
+        .status-ok { color: #198754; font-weight: bold; }
+        .status-ng { color: #dc3545; font-weight: bold; }
+        .status-warn { color: #fd7e14; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> 売上データチェック・集計ツール (Ver 3.3)</h4>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success btn-sm" onclick="exportToExcel()"><i class="bi bi-file-earmark-excel"></i> Excel出力</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="clearAllData()">🗑️ 全データクリア</button>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 左側：ファイル取込エリア -->
+        <div class="col-md-3">
+            <!-- 1. 現場マスタ取込 -->
+            <div class="card mb-3">
+                <div class="card-header bg-warning bg-opacity-10">
+                    <i class="bi bi-database"></i> 1. 現場マスタ取込
+                    <span id="masterStatus" class="float-end badge bg-secondary">未取込</span>
+                </div>
+                <div class="card-body">
+                    <div id="dropZoneMaster" class="drop-area py-3">
+                        <div class="fs-4">🏗️</div>
+                        <small>現場マスタ(txt)を<br>ここにドロップ</small>
+                    </div>
+                    <div class="mt-2 small text-muted">
+                        ※A列:コード, B列:サブ, C列:名称, F列:正式名称, AV列:施工主, AX列:担当
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 売上データ取込 -->
+            <div class="card">
+                <div class="card-header bg-primary bg-opacity-10">
+                    <i class="bi bi-collection"></i> 2. 売上データ取込
+                    <span id="dataStatus" class="float-end badge bg-secondary">0件</span>
+                </div>
+                <div class="card-body">
+                    <div id="dropZoneData" class="drop-area py-4">
+                        <div class="fs-1">📄</div>
+                        <div>売上データ(txt)を<br>ドロップ (複数可)</div>
+                    </div>
+                    <div class="alert alert-info py-2 mt-2 mb-0 small">
+                        <i class="bi bi-info-circle"></i> 「01」と「1」は別扱い<br>
+                        <i class="bi bi-check-circle"></i> 重複判定: 工番+サブ+現場+金額
+                    </div>
+                    <div id="importLog" class="mt-2 small text-muted" style="max-height: 100px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側：結果表示エリア -->
+        <div class="col-md-9">
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list-pane" type="button"><i class="bi bi-table"></i> 明細チェックリスト</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="cust-tab" data-bs-toggle="tab" data-bs-target="#cust-pane" type="button"><i class="bi bi-person-lines-fill"></i> 得意先別集計</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="job-tab" data-bs-toggle="tab" data-bs-target="#job-pane" type="button"><i class="bi bi-buildings"></i> 工番別集計</button>
+                </li>
+            </ul>
+
+            <div class="tab-content pt-3" id="myTabContent">
+                <!-- 明細リスト -->
+                <div class="tab-pane fade show active" id="list-pane">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <span class="badge bg-primary fs-6 me-2">合計金額: <span id="totalAmountDisplay">0</span> 円</span>
+                            <span class="badge bg-secondary me-2">件数: <span id="totalCountDisplay">0</span> 件</span>
+                        </div>
+                        <input type="text" class="form-control form-control-sm w-auto" id="searchInput" placeholder="🔍 全文検索..." onkeyup="filterTable()">
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover data-table" id="mainTable">
+                            <thead>
+                                <tr>
+                                    <th>No</th>
+                                    <th>ファイル名</th>
+                                    <th>完了日</th>
+                                    <th>得意先名</th>
+                                    <th class="col-key">工番</th>
+                                    <th class="col-key">サブ</th>
+                                    <th class="col-master">現場名称 (マスタ)</th>
+                                    <th class="col-master">施工主 (マスタ)</th>
+                                    <th class="col-master">担当者 (マスタ)</th>
+                                    <th class="text-end">金額 (税込)</th>
+                                    <th>判定</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mainTableBody">
+                                <tr><td colspan="11" class="text-center text-muted py-5">データを読み込んでください</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 得意先別集計 -->
+                <div class="tab-pane fade" id="cust-pane">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <table class="table table-sm table-striped summary-table">
+                                <thead>
+                                    <tr>
+                                        <th>得意先名</th>
+                                        <th class="text-end">件数</th>
+                                        <th class="text-end">合計金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="custTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 工番別集計 -->
+                <div class="tab-pane fade" id="job-pane">
+                    <div class="row">
+                        <div class="col-md-10">
+                            <table class="table table-sm table-striped summary-table">
+                                <thead>
+                                    <tr>
+                                        <th>工番</th>
+                                        <th>サブ</th>
+                                        <th>現場名称</th>
+                                        <th class="text-end">件数</th>
+                                        <th class="text-end">合計金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="jobTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * グローバル変数
+ */
+let M_GENBA = [];       // 現場マスタ配列
+let IMPORTED_DATA = []; // 取込データ配列
+// 重複チェック用マップ (キー: "工番_サブ_現場名_金額", 値: 最初の行No)
+let IMPORTED_HASHES = new Map(); 
+
+/**
+ * IndexedDB ヘルパー
+ * localStorage の容量上限(~5MB)を回避するため IndexedDB を使用
+ */
+const DB_NAME = 'SalesCheckerDB';
+const DB_VERSION = 1;
+const STORE_NAME = 'master';
+
+function openDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = e => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            }
+        };
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror = e => reject(e.target.error);
+    });
+}
+
+async function saveMasterToDB(data) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.put({ id: 'genba', data: data });
+        tx.oncomplete = () => resolve();
+        tx.onerror = e => reject(e.target.error);
+    });
+}
+
+async function loadMasterFromDB() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get('genba');
+        req.onsuccess = e => resolve(e.target.result ? e.target.result.data : null);
+        req.onerror = e => reject(e.target.error);
+    });
+}
+
+// 起動時処理
+document.addEventListener('DOMContentLoaded', async () => {
+    setupDropZone('dropZoneMaster', handleMasterFile);
+    setupDropZone('dropZoneData', handleDataFiles);
+    
+    // IndexedDB からマスタ復元
+    try {
+        const savedMaster = await loadMasterFromDB();
+        if (savedMaster && savedMaster.length > 0) {
+            M_GENBA = savedMaster;
+            updateMasterStatus();
+        }
+    } catch(e) {
+        console.error('マスタ復元エラー:', e);
+    }
+});
+
+function setupDropZone(id, handler) {
+    const area = document.getElementById(id);
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        area.addEventListener(eventName, preventDefaults, false);
+    });
+    ['dragenter', 'dragover'].forEach(eventName => {
+        area.addEventListener(eventName, () => area.classList.add('dragover'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+        area.addEventListener(eventName, () => area.classList.remove('dragover'), false);
+    });
+    area.addEventListener('drop', handler, false);
+}
+function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = e => reject(e);
+        reader.readAsText(file, "Shift-JIS");
+    });
+}
+
+/**
+ * 1. 現場マスタ処理
+ */
+async function handleMasterFile(e) {
+    const files = e.dataTransfer.files;
+    if (files.length === 0) return;
+    
+    try {
+        const text = await readFileAsText(files[0]);
+        const rows = text.split(/\r\n|\n|\r/);
+        const newData = [];
+
+        rows.forEach(line => {
+            if (!line.trim()) return;
+            let cols = line.split('\t');
+            cols = cols.map(c => c.replace(/^"|"$/g, '').trim());
+
+            if (cols.length < 3) return;
+
+            const code = String(cols[0] || "");      // A列
+            const sub = String(cols[1] || "");       // B列
+            const name = cols[2];      // C列
+            const fullName = cols[5] || ""; // F列
+            const client = cols[47] || ""; // AV列
+            const staff = cols[49] || "";  // AX列
+
+            if (code) {
+                newData.push({
+                    c: code,
+                    s: sub,
+                    n: name,
+                    sn: fullName,
+                    cl: client,
+                    st: staff
+                });
+            }
+        });
+
+        M_GENBA = newData;
+
+        // IndexedDB へ保存 (localStorage の容量制限を回避)
+        try {
+            await saveMasterToDB(M_GENBA);
+        } catch(saveErr) {
+            console.warn('IndexedDB 保存エラー:', saveErr);
+            alert('⚠️ マスタの永続保存に失敗しました。\nデータは今回のセッション中のみ有効です。\n' + saveErr.message);
+        }
+
+        updateMasterStatus();
+        alert(`マスタを読み込みました (${newData.length}件)\n※「01」等は文字列として保持されます`);
+        
+        if(IMPORTED_DATA.length > 0) renderAll();
+
+    } catch (err) {
+        alert("マスタ読込エラー: " + err.message);
+    }
+}
+
+function updateMasterStatus() {
+    const el = document.getElementById('masterStatus');
+    if (M_GENBA.length > 0) {
+        el.textContent = `OK (${M_GENBA.length}件)`;
+        el.className = "float-end badge bg-success";
+    } else {
+        el.textContent = "未取込";
+        el.className = "float-end badge bg-secondary";
+    }
+}
+
+/**
+ * 2. 売上データ処理
+ */
+async function handleDataFiles(e) {
+    const files = e.dataTransfer.files;
+    if (files.length === 0) return;
+    
+    const logEl = document.getElementById('importLog');
+    let newCount = 0;
+    let dupCount = 0;
+    
+    // 今回取り込むデータの開始No (現在のデータ数 + 1)
+    let currentNo = IMPORTED_DATA.length + 1;
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+            const text = await readFileAsText(file);
+            const lines = text.split(/\r\n|\n|\r/);
+            
+            let startIndex = 0;
+            if (lines[0] && lines[0].includes("伝票日付")) startIndex = 1;
+
+            for (let j = startIndex; j < lines.length; j++) {
+                const line = lines[j];
+                if (!line.trim()) continue;
+
+                // パース
+                let cols = line.split('\t').map(c => c.replace(/^"|"$/g, '').trim());
+                if (cols.length < 10) continue;
+
+                const jobCode = String(cols[96] || "");
+                const subCode = String(cols[97] || "");
+                const amount = parseInt(cols[26]) || 0;
+                
+                // マスタ検索（現場名をキーに含めるため）
+                const m = findMaster(jobCode, subCode);
+                const genbaName = m ? (m.displayName || m.n) : "";
+
+                // 高度な重複判定キー: 工番_サブ_現場名_金額
+                const uniqueKey = `${jobCode}_${subCode}_${genbaName}_${amount}`;
+                
+                let isDuplicate = false;
+                let duplicateWith = null;
+                
+                if (IMPORTED_HASHES.has(uniqueKey)) {
+                    isDuplicate = true;
+                    duplicateWith = IMPORTED_HASHES.get(uniqueKey); // 重複元のNoを取得
+                    dupCount++;
+                } else {
+                    IMPORTED_HASHES.set(uniqueKey, currentNo); // 現在のNoを記録
+                }
+
+                const rowData = {
+                    no: currentNo,
+                    fileName: file.name,
+                    compDate: cols[98] || "",
+                    custName: cols[6] || "",
+                    jobCode: jobCode,
+                    subCode: subCode,
+                    amount: amount,
+                    isDuplicate: isDuplicate,
+                    duplicateWith: duplicateWith,
+                    rawLine: line.trim()
+                };
+
+                IMPORTED_DATA.push(rowData);
+                newCount++;
+                currentNo++;
+            }
+            logEl.innerHTML += `<div>✅ ${file.name}: 読込完了</div>`;
+
+        } catch (err) {
+            logEl.innerHTML += `<div class="text-danger">❌ ${file.name}: エラー ${err.message}</div>`;
+        }
+    }
+
+    if (dupCount > 0) {
+        logEl.innerHTML += `<div class="text-warning fw-bold">⚠️ ${dupCount}件の重複データが含まれています</div>`;
+    }
+
+    renderAll();
+    logEl.scrollTop = logEl.scrollHeight;
+}
+
+function renderAll() {
+    renderMainTable();
+    renderSummaryTables();
+    
+    document.getElementById('dataStatus').textContent = `${IMPORTED_DATA.length}件`;
+    const total = IMPORTED_DATA.reduce((sum, r) => sum + r.amount, 0);
+    document.getElementById('totalAmountDisplay').textContent = total.toLocaleString();
+    document.getElementById('totalCountDisplay').textContent = IMPORTED_DATA.length.toLocaleString();
+}
+
+/**
+ * メインテーブル描画
+ */
+function renderMainTable() {
+    const tbody = document.getElementById('mainTableBody');
+    tbody.innerHTML = "";
+
+    if (IMPORTED_DATA.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5">データを読み込んでください</td></tr>';
+        return;
+    }
+
+    IMPORTED_DATA.forEach((row, index) => {
+        const masterInfo = findMaster(row.jobCode, row.subCode);
+        
+        const tr = document.createElement('tr');
+        tr.id = `row-${row.no}`; // 行移動用ID
+        
+        let statusHtml = '<span class="status-ok">OK</span>';
+        let rowClass = "";
+        
+        if (row.isDuplicate) {
+            // 重複時の表示変更: 重複(No.X) + 確認ボタン
+            statusHtml = `
+                <div class="d-flex align-items-center gap-1 justify-content-center">
+                    <span class="status-warn small">重複(No.${row.duplicateWith})</span>
+                    <button class="btn btn-sm btn-outline-primary py-0 px-1" style="font-size:0.75rem;" onclick="jumpToRow(${row.duplicateWith})">確認</button>
+                </div>
+            `;
+            rowClass = "row-duplicate";
+        } else if (!masterInfo) {
+            statusHtml = '<span class="status-ng">マスタなし</span>';
+            rowClass = "table-warning";
+        }
+
+        tr.className = rowClass;
+        const genbaName = masterInfo ? (masterInfo.displayName || masterInfo.n) : '(該当なし)';
+
+        tr.innerHTML = `
+            <td>${row.no}</td>
+            <td class="col-filename" title="${row.fileName}">${row.fileName}</td>
+            <td>${formatDate(row.compDate)}</td>
+            <td>${row.custName}</td>
+            <td class="col-key fw-bold">${row.jobCode}</td>
+            <td class="col-key fw-bold">${row.subCode}</td>
+            <td class="col-master text-primary">${genbaName}</td>
+            <td class="col-master">${masterInfo ? masterInfo.cl : ''}</td>
+            <td class="col-master">${masterInfo ? masterInfo.st : ''}</td>
+            <td class="text-end fw-bold">${row.amount.toLocaleString()}</td>
+            <td class="text-center small">${statusHtml}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+/**
+ * 指定行へスクロールして強調表示する関数 (Ver 3.2 修正版)
+ * ・赤枠で囲み、3秒間強調する
+ */
+function jumpToRow(no) {
+    const row = document.getElementById(`row-${no}`);
+    if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // クラスを一旦削除して強制的にリフローさせてから追加（アニメーション再実行用）
+        row.classList.remove('highlight-row');
+        void row.offsetWidth; // リフロー強制
+        row.classList.add('highlight-row');
+        
+        // 3秒後にクラスを削除 (アニメーション終了後)
+        setTimeout(() => {
+            row.classList.remove('highlight-row');
+        }, 3000);
+    } else {
+        alert(`No.${no} の行が見つかりません`);
+    }
+}
+
+/**
+ * マスタ検索ロジック (文字列として厳密比較)
+ */
+function findMaster(code, sub) {
+    if (!code) return null;
+    
+    let found = null;
+    let displayName = "";
+
+    if (sub && sub !== "") {
+        found = M_GENBA.find(m => m.c === code && m.s === sub);
+        if (found) {
+            displayName = (found.sn && found.sn.trim() !== "") ? found.sn : found.n;
+        }
+    } else {
+        found = M_GENBA.find(m => m.c === code);
+        if (found) {
+            displayName = found.n;
+        }
+    }
+
+    if (found) {
+        return { ...found, displayName: displayName };
+    }
+    return null;
+}
+
+function renderSummaryTables() {
+    const custMap = {};
+    IMPORTED_DATA.forEach(row => {
+        const key = row.custName || "(不明)";
+        if (!custMap[key]) custMap[key] = { count: 0, amount: 0 };
+        custMap[key].count++;
+        custMap[key].amount += row.amount;
+    });
+    
+    const custTbody = document.getElementById('custTableBody');
+    custTbody.innerHTML = "";
+    let custTotalAmt = 0;
+    
+    Object.keys(custMap).sort().forEach(key => {
+        const d = custMap[key];
+        custTotalAmt += d.amount;
+        custTbody.innerHTML += `<tr><td>${key}</td><td class="text-end">${d.count}</td><td class="text-end">${d.amount.toLocaleString()}</td></tr>`;
+    });
+    custTbody.innerHTML += `<tr class="total-row"><td>合計</td><td class="text-end">-</td><td class="text-end">${custTotalAmt.toLocaleString()}</td></tr>`;
+
+    const jobMap = {};
+    IMPORTED_DATA.forEach(row => {
+        const key = row.jobCode + "_" + row.subCode;
+        if (!jobMap[key]) {
+            const m = findMaster(row.jobCode, row.subCode);
+            jobMap[key] = {
+                code: row.jobCode, sub: row.subCode,
+                name: m ? (m.displayName||m.n) : "(マスタなし)",
+                count: 0, amount: 0
+            };
+        }
+        jobMap[key].count++;
+        jobMap[key].amount += row.amount;
+    });
+
+    const jobTbody = document.getElementById('jobTableBody');
+    jobTbody.innerHTML = "";
+    let jobTotalAmt = 0;
+
+    Object.values(jobMap).sort((a,b) => (a.code+a.sub).localeCompare(b.code+b.sub)).forEach(d => {
+        jobTotalAmt += d.amount;
+        jobTbody.innerHTML += `<tr><td>${d.code}</td><td>${d.sub}</td><td class="small text-truncate" style="max-width:250px;">${d.name}</td><td class="text-end">${d.count}</td><td class="text-end">${d.amount.toLocaleString()}</td></tr>`;
+    });
+    jobTbody.innerHTML += `<tr class="total-row"><td>合計</td><td></td><td></td><td class="text-end">-</td><td class="text-end">${jobTotalAmt.toLocaleString()}</td></tr>`;
+}
+
+/**
+ * Excel出力機能
+ */
+function exportToExcel() {
+    if (IMPORTED_DATA.length === 0) { alert("出力するデータがありません"); return; }
+
+    const wb = XLSX.utils.book_new();
+    
+    // --- 1. 明細シート ---
+    const headers = ["No", "ファイル名", "完了日", "得意先名", "工番", "サブ", "現場名称", "施工主", "担当者", "金額", "判定"];
+    const wsDetailData = [headers];
+
+    IMPORTED_DATA.forEach((row, idx) => {
+        const m = findMaster(row.jobCode, row.subCode);
+        const genbaName = m ? (m.displayName || m.n) : "";
+        const client = m ? m.cl : "";
+        const staff = m ? m.st : "";
+        
+        let status = "OK";
+        if (row.isDuplicate) status = `重複(No.${row.duplicateWith})`;
+        else if (!m) status = "マスタなし";
+
+        const rowArr = [
+            { v: row.no, t: 'n' },
+            { v: row.fileName, t: 's' },
+            { v: row.compDate, t: 's' },
+            { v: row.custName, t: 's' },
+            { v: row.jobCode, t: 's' },
+            { v: row.subCode, t: 's' },
+            { v: genbaName, t: 's' },
+            { v: client, t: 's' },
+            { v: staff, t: 's' },
+            { v: row.amount, t: 'n' },
+            { v: status, t: 's' }
+        ];
+        wsDetailData.push(rowArr);
+    });
+
+    const wsDetail = XLSX.utils.aoa_to_sheet(wsDetailData);
+    XLSX.utils.book_append_sheet(wb, wsDetail, "明細リスト");
+
+    // --- 2. 得意先集計シート ---
+    const custTable = document.getElementById('custTableBody');
+    const custData = [["得意先名", "件数", "金額"]];
+    custTable.querySelectorAll('tr').forEach(tr => {
+        const tds = tr.querySelectorAll('td');
+        if(tds.length === 3) {
+            custData.push([
+                tds[0].innerText,
+                tds[1].innerText.replace(/,/g, ''),
+                tds[2].innerText.replace(/,/g, '')
+            ]);
+        }
+    });
+    const wsCust = XLSX.utils.aoa_to_sheet(custData);
+    XLSX.utils.book_append_sheet(wb, wsCust, "得意先別集計");
+
+    // 出力
+    const d = new Date();
+    const dateStr = d.getFullYear() + String(d.getMonth()+1).padStart(2,'0') + String(d.getDate()).padStart(2,'0');
+    XLSX.writeFile(wb, `売上チェック結果_${dateStr}.xlsx`);
+}
+
+function clearAllData() {
+    if(!confirm("すべての読込データをクリアしますか？\n※現場マスタもクリアされます")) return;
+    IMPORTED_DATA = [];
+    IMPORTED_HASHES.clear();
+    M_GENBA = [];
+    // IndexedDB のマスタも削除
+    saveMasterToDB([]).catch(e => console.warn('IndexedDB クリアエラー:', e));
+    updateMasterStatus();
+    document.getElementById('importLog').innerHTML = "";
+    renderAll();
+}
+
+function filterTable() {
+    const term = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#mainTableBody tr');
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(term) ? '' : 'none';
+    });
+}
+
+function formatDate(yyyymmdd) {
+    if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
+    return `${yyyymmdd.substring(0,4)}/${yyyymmdd.substring(4,6)}/${yyyymmdd.substring(6,8)}`;
+}
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
