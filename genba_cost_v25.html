@@ -158,6 +158,9 @@
                         <button onclick="window.setBrowseTab('branch')" id="btab-branch" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-location-dot mr-1"></i> 拠点
                         </button>
+                        <button onclick="window.setBrowseTab('estimator')" id="btab-estimator" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-solid fa-compass-drafting mr-1"></i> 積算
+                        </button>
                     </div>
 
                     <!-- キーワード検索パネル -->
@@ -225,6 +228,15 @@
                         <div id="browse-branch-buttons" class="flex flex-wrap gap-2"></div>
                     </div>
 
+                    <!-- 積算担当選択パネル -->
+                    <div id="browse-panel-estimator" class="browse-filter-panel hidden">
+                        <div class="mb-2 flex items-center justify-between">
+                            <span class="text-xs text-slate-500 font-bold">積算担当を選択してください</span>
+                            <button onclick="window.clearBrowseSelection('estimator')" class="text-xs text-slate-400 hover:text-slate-600 underline">全選択解除</button>
+                        </div>
+                        <div id="browse-estimator-buttons" class="flex flex-wrap gap-2"></div>
+                    </div>
+
                     <!-- 追加フィルター（共通） -->
                     <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-4">
                         <span class="text-xs font-bold text-slate-500">追加絞り込み:</span>
@@ -233,8 +245,8 @@
                             <span>サブコードありのみ</span>
                         </label>
                         <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
-                            <input type="checkbox" id="browse-chk-has-cost" class="w-3.5 h-3.5 text-teal-600 rounded" onchange="window.applyBrowseFilter()">
-                            <span>原価データありのみ</span>
+                            <input type="checkbox" id="browse-chk-cost-and-no-end" class="w-3.5 h-3.5 text-indigo-600 rounded" onchange="window.applyBrowseFilter()">
+                            <span>原価データあり＆完了日なし（進行中）</span>
                         </label>
                         <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
                             <input type="checkbox" id="browse-chk-no-end" class="w-3.5 h-3.5 text-orange-500 rounded" onchange="window.applyBrowseFilter()">
@@ -275,20 +287,21 @@
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-24">工番</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold">現場名</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-28">担当者</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold w-28">積算</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-32">得意先</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-28">施工主</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-20">拠点</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-24">着手日</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold w-24">完了日</th>
-                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-28 browse-cost-col">売上(税抜)</th>
-                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-24 browse-cost-col">粗利率</th>
-                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-28">原価累計</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-28">売上(税抜)</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-24">粗利率</th>
+                                    <th class="px-4 py-3 border-b border-slate-200 font-bold text-right w-28">原価(税抜)</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-24">サブコード</th>
                                     <th class="px-4 py-3 border-b border-slate-200 font-bold text-center w-16">詳細</th>
                                 </tr>
                             </thead>
                             <tbody id="browse-tbody" class="bg-white divide-y divide-slate-100">
-                                <tr><td colspan="11" class="px-4 py-12 text-center text-slate-400 text-sm">
+                                <tr><td colspan="14" class="px-4 py-12 text-center text-slate-400 text-sm">
                                     <i class="fa-solid fa-filter text-3xl mb-3 block text-slate-300"></i>
                                     上の条件から絞り込んでください
                                 </td></tr>
@@ -3340,6 +3353,7 @@
     let browseSelectedManagers = new Set();
     let browseSelectedCustomers = new Set();
     let browseSelectedBranches = new Set();
+    let browseSelectedEstimators = new Set();
     const BROWSE_PAGE_SIZE = 50;
     let browseCurrentPage = 1;
 
@@ -3362,9 +3376,9 @@
         const bannerMaster = document.getElementById('browse-basis-banner-master');
         if (bannerCost) bannerCost.classList.toggle('hidden', basis !== 'cost');
         if (bannerMaster) bannerMaster.classList.toggle('hidden', basis !== 'master');
-        // 売上・粗利列の表示切替（原価基準のときのみ表示）
-        document.querySelectorAll('.browse-cost-col').forEach(el => {
-            el.classList.toggle('hidden', basis !== 'cost');
+        // ★修正: 基準切り替え時にチェックボックスもリセット（意図しないチェック状態残存を防ぐ）
+        ['browse-chk-subcodes','browse-chk-cost-and-no-end','browse-chk-no-end'].forEach(id => {
+            const el = document.getElementById(id); if(el) el.checked = false;
         });
         // データ再構築 → フィルター再適用
         window.buildBrowseData();
@@ -3378,13 +3392,31 @@
         const { costs, masters } = window._browseRawData || {};
         if (!costs || !masters) return;
 
-        const masterMap = new Map(masters.map(m => [m.code, m]));
-        const costMap = new Map(costs.map(c => [c.code, c]));
+        // ★修正: コード比較をtrimしてスペース差異による不一致を防ぐ
+        const masterMap = new Map(masters.map(m => [String(m.code||'').trim(), m]));
+        const costMap   = new Map(costs.map(c   => [String(c.code||'').trim(), c]));
+
+        // ★修正: hasCost判定 - 親コード直接一致 OR サブコード結合キー（区切りなし/スペース区切り）で一致
+        const checkHasCost = (parentKey, subCodes) => {
+            if (costMap.has(parentKey)) return true;
+            // 原価集計がサブコード単位で登録されている場合に対応
+            // 例: 親"i0151" + サブ"01" → "i015101" or "i0151 01" or "i0151_01"
+            return (subCodes || []).some(sc => {
+                const sfx = String(sc.subCode||'').trim();
+                if (!sfx) return false;
+                return costMap.has(parentKey + sfx)
+                    || costMap.has(parentKey + ' ' + sfx)
+                    || costMap.has(parentKey + '_' + sfx);
+            });
+        };
+
+        // ★共通: endDateを文字列に正規化するヘルパー
+        const normalizeEnd = (v) => v != null ? String(v).trim() : '';
 
         if (browseCurrentBasis === 'cost') {
             // 原価集計に存在する工番が主役。マスター情報を付加
             browseAllData = costs.map(c => {
-                const m = masterMap.get(c.code) || {};
+                const m = masterMap.get(String(c.code||'').trim()) || {};
                 const margin = c.salesTotal > 0 ? (c.profitTotal / c.salesTotal * 100) : null;
                 return {
                     code: c.code,
@@ -3393,15 +3425,15 @@
                     subCodes: m.subCodes || [],
                     subCodeCount: (m.subCodes || []).length,
                     manager: m.manager || '',
+                    estimator: m.estimator || '',
                     customer: m.customer || '',
                     owner: m.owner || '',
                     branch: m.branch || '',
                     startDate: String(m.startDate || ''),
-                    endDate: String(m.endDate || ''),
+                    endDate: normalizeEnd(m.endDate),
                     delivery: m.delivery || '',
                     hasCost: true,
-                    hasMaster: !!masterMap.has(c.code),
-                    salesTotal: c.salesTotal || 0,
+                    hasMaster: masterMap.has(String(c.code||'').trim()),                    salesTotal: c.salesTotal || 0,
                     costTotal: c.costTotal || 0,
                     profitTotal: c.profitTotal || 0,
                     margin: margin
@@ -3410,7 +3442,8 @@
         } else {
             // マスター全件が主役。原価データを付加
             browseAllData = masters.map(m => {
-                const c = costMap.get(m.code) || {};
+                const key = String(m.code||'').trim();
+                const c = costMap.get(key) || {};
                 const margin = c.salesTotal > 0 ? (c.profitTotal / c.salesTotal * 100) : null;
                 return {
                     code: m.code,
@@ -3419,13 +3452,14 @@
                     subCodes: m.subCodes || [],
                     subCodeCount: (m.subCodes || []).length,
                     manager: m.manager || '',
+                    estimator: m.estimator || '',
                     customer: m.customer || '',
                     owner: m.owner || '',
                     branch: m.branch || '',
                     startDate: String(m.startDate || ''),
-                    endDate: String(m.endDate || ''),
+                    endDate: normalizeEnd(m.endDate),
                     delivery: m.delivery || '',
-                    hasCost: !!costMap.has(m.code),
+                    hasCost: checkHasCost(key, m.subCodes),
                     hasMaster: true,
                     salesTotal: c.salesTotal || 0,
                     costTotal: c.costTotal || 0,
@@ -3463,6 +3497,7 @@
         browseSelectedManagers.clear();
         browseSelectedCustomers.clear();
         browseSelectedBranches.clear();
+        browseSelectedEstimators.clear();
     }
 
     window.buildBrowseButtons = function() {
@@ -3516,6 +3551,23 @@
                 bContainer.appendChild(btn);
             });
         }
+
+        // 積算担当
+        const estimators = [...new Set(browseAllData.map(d => d.estimator).filter(Boolean))].sort();
+        const eContainer = document.getElementById('browse-estimator-buttons');
+        if (eContainer) {
+            eContainer.innerHTML = '';
+            estimators.forEach(est => {
+                const cnt = browseAllData.filter(d => d.estimator === est).length;
+                const btn = document.createElement('button');
+                btn.className = 'browse-sel-btn px-3 py-1.5 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-teal-50 hover:border-teal-400 hover:text-teal-700 transition-all flex items-center gap-1';
+                btn.innerHTML = `${est} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
+                btn.dataset.value = est;
+                btn.dataset.group = 'estimator';
+                btn.onclick = () => window.toggleBrowseButton(btn, 'estimator');
+                eContainer.appendChild(btn);
+            });
+        }
     }
 
     window.setBrowseTab = function(tab) {
@@ -3536,7 +3588,7 @@
 
     window.toggleBrowseButton = function(btn, group) {
         const val = btn.dataset.value;
-        const setMap = { manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches };
+        const setMap = { manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches, estimator: browseSelectedEstimators };
         const sel = setMap[group];
         if (sel.has(val)) {
             sel.delete(val);
@@ -3551,7 +3603,7 @@
     }
 
     window.clearBrowseSelection = function(group) {
-        const setMap = { manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches };
+        const setMap = { manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches, estimator: browseSelectedEstimators };
         setMap[group].clear();
         document.querySelectorAll(`[data-group="${group}"]`).forEach(btn => {
             btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
@@ -3595,19 +3647,21 @@
         const keyword = window.normalizeStr((document.getElementById('browse-keyword-input') || {}).value || '');
         const dateStart = (document.getElementById('browse-date-start') || {}).value || '';
         const dateEnd = (document.getElementById('browse-date-end') || {}).value || '';
-        const chkSub = document.getElementById('browse-chk-subcodes')?.checked;
-        const chkCost = document.getElementById('browse-chk-has-cost')?.checked;
-        const chkNoEnd = document.getElementById('browse-chk-no-end')?.checked;
+        const chkSub         = document.getElementById('browse-chk-subcodes')?.checked;
+        const chkCostNoEnd   = document.getElementById('browse-chk-cost-and-no-end')?.checked;
+        const chkNoEnd       = document.getElementById('browse-chk-no-end')?.checked;
         const sortVal = document.getElementById('browse-sort')?.value || 'code_asc';
 
         browseFiltered = browseAllData.filter(d => {
             // キーワードフィルター（キーワードタブ選択中のみ）
             if (browseCurrentTab === 'keyword' && keyword) {
-                const haystack = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.code, d.branch].join(' '));
+                const haystack = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.estimator, d.code, d.branch].join(' '));
                 if (!haystack.includes(keyword)) return false;
             }
             // 担当者フィルター
             if (browseSelectedManagers.size > 0 && !browseSelectedManagers.has(d.manager)) return false;
+            // 積算担当フィルター
+            if (browseSelectedEstimators.size > 0 && !browseSelectedEstimators.has(d.estimator)) return false;
             // 得意先フィルター
             if (browseSelectedCustomers.size > 0 && !browseSelectedCustomers.has(d.customer)) return false;
             // 拠点フィルター
@@ -3621,8 +3675,12 @@
             }
             // 追加フィルター
             if (chkSub && d.subCodeCount === 0) return false;
-            if (chkCost && !d.hasCost) return false;
-            const hasEndDate = d.endDate && d.endDate.replace(/\D/g,'').length === 8 && d.endDate.replace(/\D/g,'') !== '00000000';
+            // ★修正: endDate を文字列として安全に評価
+            const edStr = String(d.endDate ?? '').replace(/\D/g,'');
+            const hasEndDate = edStr.length === 8 && edStr !== '00000000';
+            // 原価データあり＆完了日なし（進行中）: AND条件を1チェックで判定
+            if (chkCostNoEnd && !(d.hasCost && !hasEndDate)) return false;
+            // 完了日なし（進行中）のみ
             if (chkNoEnd && hasEndDate) return false;
             return true;
         });
@@ -3661,14 +3719,16 @@
         const isCostBasis = browseCurrentBasis === 'cost';
 
         if (total === 0) {
-            tbody.innerHTML = `<tr><td colspan="${isCostBasis?13:11}" class="px-4 py-10 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-info mr-2"></i>該当する現場が見つかりませんでした</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-10 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-info mr-2"></i>該当する現場が見つかりませんでした</td></tr>`;
             document.getElementById('browse-pagination')?.classList.add('hidden');
             return;
         }
 
         let html = '';
         pageData.forEach(d => {
-            const hasEnd = d.endDate && d.endDate.replace(/\D/g,'').length === 8 && d.endDate.replace(/\D/g,'') !== '00000000';
+            // ★修正: endDate評価をnull安全に統一
+            const edStr = String(d.endDate ?? '').replace(/\D/g,'');
+            const hasEnd = edStr.length === 8 && edStr !== '00000000';
             const statusDot = hasEnd
                 ? '<span class="w-2 h-2 rounded-full bg-slate-300 inline-block mr-1 flex-shrink-0" title="完了"></span>'
                 : '<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block mr-1 flex-shrink-0 animate-pulse" title="進行中"></span>';
@@ -3690,14 +3750,10 @@
                 subBadge = `<div class="flex flex-wrap gap-1 items-center"><span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-200">${d.subCodeCount}件</span><div class="flex flex-wrap gap-1">${subList}</div></div>`;
             }
 
-            // 売上・粗利セル（原価基準のみ）
-            let salesCell = '';
-            let marginCell = '';
-            if (isCostBasis) {
-                salesCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs text-slate-600 browse-cost-col">${d.salesTotal ? window.formatCurrency(d.salesTotal) : '-'}</td>`;
-                const marginColor = d.margin === null ? 'text-slate-300' : d.margin < 10 ? 'text-red-500 font-bold' : d.margin < 20 ? 'text-orange-500 font-bold' : 'text-emerald-600 font-bold';
-                marginCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs browse-cost-col ${marginColor}">${d.margin !== null ? d.margin.toFixed(1)+'%' : '-'}</td>`;
-            }
+            // ★修正: 売上・粗利列は基準に関わらず常に表示（マスター全件はデータあれば表示、なければ「-」）
+            const salesCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs text-slate-600">${d.salesTotal ? window.formatCurrency(d.salesTotal) : '-'}</td>`;
+            const marginColor = d.margin === null ? 'text-slate-300' : d.margin < 10 ? 'text-red-500 font-bold' : d.margin < 20 ? 'text-orange-500 font-bold' : 'text-emerald-600 font-bold';
+            const marginCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs ${marginColor}">${d.margin !== null ? d.margin.toFixed(1)+'%' : '-'}</td>`;
 
             html += `<tr class="hover:bg-teal-50/40 transition-colors cursor-pointer" onclick="window.browseJumpToSite('${d.code}', 'browse', '現場一覧に戻る')">
                 <td class="px-4 py-2.5 font-mono text-sm font-black text-slate-800 border-b border-slate-100 bg-slate-50/60 whitespace-nowrap">${d.code}${noMasterWarn}</td>
@@ -3706,6 +3762,7 @@
                     ${d.subName ? `<div class="text-xs text-slate-400 mt-0.5 pl-3 truncate max-w-[200px]">${d.subName}</div>` : ''}
                 </td>
                 <td class="px-4 py-2.5 border-b border-slate-100 text-sm text-slate-600 whitespace-nowrap">${d.manager || '-'}</td>
+                <td class="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-500 whitespace-nowrap">${d.estimator || '-'}</td>
                 <td class="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-600 max-w-[110px] truncate" title="${d.customer}">${d.customer || '-'}</td>
                 <td class="px-4 py-2.5 border-b border-slate-100 text-xs text-slate-600 max-w-[100px] truncate" title="${d.owner}">${d.owner || '-'}</td>
                 <td class="px-4 py-2.5 border-b border-slate-100 text-xs text-center text-slate-600 whitespace-nowrap">${d.branch || '-'}</td>
@@ -3793,7 +3850,7 @@
         const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-customer-filter'];
         ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
         window.filterCustomerButtons();
-        ['browse-chk-subcodes','browse-chk-has-cost','browse-chk-no-end'].forEach(id => {
+        ['browse-chk-subcodes','browse-chk-cost-and-no-end','browse-chk-no-end'].forEach(id => {
             const el = document.getElementById(id); if(el) el.checked = false;
         });
         browseFiltered = [...browseAllData];
@@ -3805,29 +3862,24 @@
 
     window.exportBrowseExcel = function() {
         if (!browseFiltered || browseFiltered.length === 0) { alert("出力するデータがありません。"); return; }
-        const exportData = browseFiltered.map(d => {
-            const row = {
-                "工番": d.code,
-                "現場名": d.name,
-                "現場サブ名称": d.subName,
-                "担当者": d.manager,
-                "得意先": d.customer,
-                "施工主": d.owner,
-                "拠点": d.branch,
-                "着手日": d.startDate,
-                "完了日": d.endDate,
-                "原価累計": d.costTotal || 0,
-                "サブコード数": d.subCodeCount,
-                "サブコード一覧": d.subCodes.map(s => s.subCode || '').join(', ')
-            };
-            if (browseCurrentBasis === 'cost') {
-                row["売上累計(税抜)"] = d.salesTotal || 0;
-                row["原価累計"] = d.costTotal || 0;
-                row["粗利益"] = d.profitTotal || 0;
-                row["粗利率"] = d.margin !== null ? d.margin.toFixed(1) + '%' : '-';
-            }
-            return row;
-        });
+        const exportData = browseFiltered.map(d => ({
+            "工番":           d.code,
+            "現場名":          d.name,
+            "現場サブ名称":     d.subName,
+            "担当者":          d.manager,
+            "積算担当":         d.estimator,
+            "得意先":          d.customer,
+            "施工主":          d.owner,
+            "拠点":           d.branch,
+            "着手日":          d.startDate,
+            "完了日":          d.endDate,
+            "売上(税抜)":       d.salesTotal  || 0,
+            "原価(税抜)":       d.costTotal   || 0,
+            "粗利益":          d.profitTotal || 0,
+            "粗利率":          d.margin !== null ? d.margin.toFixed(1) + '%' : '-',
+            "サブコード数":     d.subCodeCount,
+            "サブコード一覧":   d.subCodes.map(s => s.subCode || '').join(', ')
+        }));
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "現場一覧");
