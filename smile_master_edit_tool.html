@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMILE マスター編集ツール v54</title>
+    <title>SMILE マスター編集ツール v59</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -31,7 +31,7 @@
         <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6 shadow-md">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v54</h1>
+                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v59</h1>
                     <p class="text-slate-300 text-sm mt-1 ml-11">SMILE V Air 連携用データの結合・編集・変換をサポートする統合ツール</p>
                 </div>
                 <div class="text-right hidden md:block"><span class="bg-indigo-600 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-400">UTF-16LE 対応</span></div>
@@ -160,6 +160,32 @@
                         <li>Excelの C列:粗利率 / E列:売上 / F列:原価 / G列:粗利額 を現場マスターの情報と結合して表示します。</li>
                         <li>結果はCSV形式でダウンロードでき、Excelで開いて確認・共有できます。</li>
                     </ul>
+
+                    <!-- 表示モード説明 -->
+                    <div class="mt-4 border-t border-blue-200 pt-4">
+                        <p class="text-blue-800 text-xs font-extrabold mb-2 flex items-center gap-1"><i data-lucide="layers" class="w-3.5 h-3.5"></i>表示モードについて</p>
+                        <div class="grid md:grid-cols-2 gap-2">
+                            <div class="bg-white/70 rounded-lg p-2.5 border border-blue-100">
+                                <span class="inline-block text-xs font-extrabold text-white bg-indigo-500 px-2 py-0.5 rounded mb-1">合算モード</span>
+                                <p class="text-xs text-blue-700 leading-relaxed">SMILEから<span class="font-bold">合算出力したExcel</span>（コードに「-」なし）を使用。1工番1行のデータをそのまま表示。</p>
+                            </div>
+                            <div class="bg-white/70 rounded-lg p-2.5 border border-blue-100">
+                                <span class="inline-block text-xs font-extrabold text-white bg-amber-500 px-2 py-0.5 rounded mb-1">枝別モード</span>
+                                <p class="text-xs text-blue-700 leading-relaxed">枝別Excel（コードに「-」あり）の<span class="font-bold">サブコード行を個別表示</span>。粗利率は非表示。</p>
+                            </div>
+                            <div class="bg-white/70 rounded-lg p-2.5 border border-blue-100">
+                                <span class="inline-block text-xs font-extrabold text-white bg-teal-500 px-2 py-0.5 rounded mb-1">原価集計モード</span>
+                                <p class="text-xs text-blue-700 leading-relaxed">枝別Excel（コードに「-」あり）を<span class="font-bold">ツール側で親コード単位に合算</span>して1行表示。粗利率も再計算。</p>
+                            </div>
+                            <div class="bg-white/70 rounded-lg p-2.5 border border-blue-100">
+                                <span class="inline-block text-xs font-extrabold text-white bg-emerald-600 px-2 py-0.5 rounded mb-1">現場マスターモード</span>
+                                <p class="text-xs text-blue-700 leading-relaxed"><span class="font-bold">マスターtxt全件を基準</span>に表示。Excelにない工番（売上・原価ゼロ）も含まれるため、登録済みの全工番を確認できます。</p>
+                            </div>
+                        </div>
+                        <div class="mt-2 bg-indigo-100/60 rounded-lg px-3 py-2 border border-indigo-200">
+                            <p class="text-xs text-indigo-800"><span class="font-bold">📌 合算 vs 原価集計：</span>元のExcelが合算済みなら「合算モード」、枝別出力なら「原価集計モード」を使います。どちらも最終的に1工番1行になりますが、<span class="font-bold">集計をExcel側でやるか・ツール側でやるか</span>の違いです。</p>
+                        </div>
+                    </div>
                 </div>
                 <div class="grid md:grid-cols-2 gap-6">
                     <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col h-full">
@@ -226,7 +252,8 @@
                     </div>
 
                     <!-- 表示モード切替 -->
-                    <div class="flex flex-wrap items-center gap-3 bg-white border border-gray-200 rounded-xl px-5 py-3 shadow-sm">
+                    <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                        <div class="flex flex-wrap items-center gap-3 px-5 py-3">
                         <i data-lucide="layers" class="w-4 h-4 text-gray-500 flex-shrink-0"></i>
                         <span class="text-sm font-bold text-gray-700 flex-shrink-0">表示モード:</span>
                         <div class="flex bg-gray-100 rounded-lg p-1 gap-1">
@@ -257,6 +284,55 @@
                         <span id="scModeDesc_master" class="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1 hidden">
                             <i data-lucide="database" class="w-3 h-3 inline mr-1"></i>現場マスター（テキスト）を基準に全現場を表示します。売上・原価が0の現場も含まれます。Excel側の売上・原価は親コードで集計して付与。
                         </span>
+                        <button onclick="toggleModeHelp()" class="ml-auto text-xs text-gray-400 hover:text-indigo-600 flex items-center gap-1 transition-colors flex-shrink-0">
+                            <i data-lucide="help-circle" class="w-4 h-4"></i><span>モードの違いを確認</span>
+                        </button>
+                        </div><!-- end flex row -->
+
+                        <!-- モード詳細説明パネル（トグル） -->
+                        <div id="modeHelpPanel" class="hidden border-t border-gray-100 bg-slate-50 px-5 py-4">
+                            <p class="text-xs font-extrabold text-slate-600 mb-3 flex items-center gap-1"><i data-lucide="info" class="w-3.5 h-3.5"></i>各モードの違い</p>
+                            <div class="grid md:grid-cols-2 gap-3">
+
+                                <div class="bg-white border border-indigo-100 rounded-lg p-3">
+                                    <div class="flex items-center gap-2 mb-1.5">
+                                        <span class="text-xs font-extrabold text-white bg-indigo-500 px-2 py-0.5 rounded">合算モード</span>
+                                        <span class="text-xs text-gray-500">対象Excel：コードに「-」なし</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 leading-relaxed">SMILEから出力した<span class="font-bold">合算済みExcel</span>を使用するモードです。1工番につき1行のデータになっており、ツールはそのまま表示します。売上・原価がゼロのデータは含まれません。</p>
+                                </div>
+
+                                <div class="bg-white border border-amber-100 rounded-lg p-3">
+                                    <div class="flex items-center gap-2 mb-1.5">
+                                        <span class="text-xs font-extrabold text-white bg-amber-500 px-2 py-0.5 rounded">枝別モード</span>
+                                        <span class="text-xs text-gray-500">対象Excel：コードに「-」あり</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 leading-relaxed">枝別Excelの<span class="font-bold">サブコード行をそのまま個別表示</span>するモードです。「h0001-01」「h0001-02」のように各枝が1行ずつ表示されます。粗利率・粗利額は表示しません。</p>
+                                </div>
+
+                                <div class="bg-white border border-teal-100 rounded-lg p-3">
+                                    <div class="flex items-center gap-2 mb-1.5">
+                                        <span class="text-xs font-extrabold text-white bg-teal-500 px-2 py-0.5 rounded">原価集計モード</span>
+                                        <span class="text-xs text-gray-500">対象Excel：コードに「-」あり</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 leading-relaxed">枝別Excelを使用しますが、<span class="font-bold">親コード単位で売上・原価を合算</span>して1行に集約します。合算モードとの違いは「ツール側で集計するか・Excel側で集計済みか」です。粗利率・粗利額もここで再計算されます。</p>
+                                </div>
+
+                                <div class="bg-white border border-emerald-100 rounded-lg p-3">
+                                    <div class="flex items-center gap-2 mb-1.5">
+                                        <span class="text-xs font-extrabold text-white bg-emerald-600 px-2 py-0.5 rounded">現場マスターモード</span>
+                                        <span class="text-xs text-gray-500">基準：テキストファイル（全件）</span>
+                                    </div>
+                                    <p class="text-xs text-gray-600 leading-relaxed">上記3モードと違い、<span class="font-bold">現場マスター（テキスト）を起点</span>にした全件表示です。Excelに存在しない工番（売上・原価ゼロ）も含まれます。登録したばかりの工番の確認に最適です。</p>
+                                </div>
+
+                            </div>
+                            <div class="mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                <p class="text-xs font-bold text-indigo-700 mb-1">📌 合算モード vs 原価集計モード の使い分け</p>
+                                <p class="text-xs text-indigo-600 leading-relaxed">SMILEから<span class="font-bold">「合算出力」したExcelを使うなら合算モード</span>、<span class="font-bold">「枝別出力」したExcelで工番全体の粗利を確認したいなら原価集計モード</span>を選んでください。どちらも最終的に「1工番1行」になりますが、元データの形式が違います。</p>
+                            </div>
+                        </div>
+
                     </div>
 
                     <!-- フィルターパネル -->
@@ -465,6 +541,29 @@
         </div>
     </div>
 
+    <!-- ローディングオーバーレイ -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 hidden flex flex-col items-center justify-center z-[60] backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl px-10 py-8 flex flex-col items-center gap-5 min-w-[280px]">
+            <!-- スピナー -->
+            <div class="relative w-16 h-16">
+                <div class="absolute inset-0 rounded-full border-4 border-indigo-100"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <i data-lucide="database" class="w-6 h-6 text-indigo-400"></i>
+                </div>
+            </div>
+            <div class="text-center">
+                <p id="loadingTitle" class="text-base font-extrabold text-slate-800 mb-1">データを読み込み中…</p>
+                <p id="loadingStep" class="text-xs text-slate-500"></p>
+            </div>
+            <!-- プログレスバー -->
+            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                <div id="loadingBar" class="h-2 bg-indigo-500 rounded-full transition-all duration-300" style="width:0%"></div>
+            </div>
+            <p class="text-xs text-slate-400">処理が完了するまでお待ちください</p>
+        </div>
+    </div>
+
     <div id="modal" class="fixed inset-0 bg-black/50 hidden flex items-center justify-center z-50 transition-opacity backdrop-blur-sm">
         <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center transform transition-all scale-100">
             <div id="modalIcon" class="mb-4 flex justify-center"></div>
@@ -476,6 +575,34 @@
 
     <script>
         lucide.createIcons();
+
+        // ============================================================
+        //  ローディングオーバーレイ制御
+        // ============================================================
+        let _loadingLocked = false;
+
+        function showLoading(title = 'データを読み込み中…', step = '') {
+            if (_loadingLocked) return;
+            _loadingLocked = true;
+            document.getElementById('loadingTitle').textContent = title;
+            document.getElementById('loadingStep').textContent = step;
+            document.getElementById('loadingBar').style.width = '0%';
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function updateLoading(step, pct = null) {
+            document.getElementById('loadingStep').textContent = step;
+            if (pct !== null) {
+                document.getElementById('loadingBar').style.width = pct + '%';
+            }
+        }
+
+        function hideLoading() {
+            _loadingLocked = false;
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            document.getElementById('loadingBar').style.width = '0%';
+        }
 
         function switchTab(tabId) {
             ['tabCombine', 'tabGeneral', 'tabSalesCheck'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
@@ -538,6 +665,10 @@
             const fileBranch = document.getElementById('fileBranch').files[0], fileMaster = document.getElementById('fileMaster').files[0];
             const branchFilter = document.getElementById('branchFilter').value.trim(), autoCalcAmount = document.getElementById('chkAutoCalcAmount').checked, roundMode = document.getElementById('selRoundMode').value;
             if (!fileBranch || !fileMaster) { showModal('error', 'ファイル不足', '両方のファイルを選択してください。'); return; }
+            if (_loadingLocked) return;
+
+            showLoading('データを結合中…', '現場マスターを解析しています');
+            await new Promise(r => setTimeout(r, 30));
 
             try {
                 const masterData = await readExcelOrText(fileMaster);
@@ -711,6 +842,10 @@ let salesCheckResultList = [];
         async function processSalesCheckData() {
             const fileBranch = document.getElementById('fileBranchSC').files[0], fileMaster = document.getElementById('fileMasterSC').files[0];
             if (!fileBranch || !fileMaster) { showModal('error', 'ファイル不足', '両方のファイルを選択してください。'); return; }
+            if (_loadingLocked) return;  // 二重実行防止
+
+            showLoading('データを結合中…', '現場マスターを解析しています');
+            await new Promise(r => setTimeout(r, 30)); // UIが更新されるのを待つ
 
             try {
                 const masterData = await readExcelOrText(fileMaster);
@@ -790,6 +925,8 @@ const mData = {
                     }
                 }
 
+                updateLoading('Excelデータを解析しています', 40);
+                await new Promise(r => setTimeout(r, 10));
                 const branchWb = await readExcelOrText(fileBranch);
                 const srcRows = XLSX.utils.sheet_to_json(branchWb.Sheets[branchWb.SheetNames[0]], {header: "A", range: 6, raw: false, defval: ""});
                 salesCheckResultList = [];
@@ -827,6 +964,8 @@ const mData = {
                     });
                 });
 
+                updateLoading('データを結合しています', 70);
+                await new Promise(r => setTimeout(r, 10));
                 // ── 現場マスターモード用リスト構築 ──
                 // マスター全コードを基点にして、Excelの行（サブCD含む）を1行ずつ結合する
                 // Excel行がない場合はマスターデータのみで1行追加（売上・原価は空）
@@ -885,6 +1024,8 @@ const mData = {
                     }
                 });
 
+                updateLoading('テーブルを描画しています', 90);
+                await new Promise(r => setTimeout(r, 10));
                 document.getElementById("theadSC").innerHTML = buildSCTableHeader();
                 renderSalesCheckTable(salesCheckResultList);
                 buildBranchList();
@@ -965,9 +1106,10 @@ const mData = {
                     msg += `\nデータ内容：実績データのみ`;
                 }
                 if (unmatchedCount > 0) msg += `\n\n⚠ マスター未一致: ${unmatchedCount}件\n（現場マスターに存在しないコードは空欄で表示されます）`;
+                hideLoading();
                 showModal('success', '抽出完了', msg);
                 lucide.createIcons();
-            } catch(e) { showModal('error', 'エラー', e.message); }
+            } catch(e) { hideLoading(); showModal('error', 'エラー', e.message); }
         }
 
         // ==========================================
@@ -975,6 +1117,17 @@ const mData = {
         // ==========================================
         let scViewMode = 'gosan'; // 'gosan' | 'edabetsu' | 'genka' | 'master'
         let masterBaseList = []; // 現場マスターモード用（マスター基準リスト）
+
+        function toggleModeHelp() {
+            const panel = document.getElementById('modeHelpPanel');
+            if (!panel) return;
+            const isHidden = panel.classList.contains('hidden');
+            panel.classList.toggle('hidden');
+            // ボタンラベルを切り替え
+            const btn = panel.previousElementSibling?.querySelector('button span');
+            if (btn) btn.textContent = isHidden ? 'モードの違いを閉じる' : 'モードの違いを確認';
+            if (isHidden) lucide.createIcons();
+        }
 
         function switchSCViewMode(mode) {
             scViewMode = mode;
@@ -1350,6 +1503,11 @@ const mData = {
         function filterSalesCheck() {
             const filtered = getFilteredSalesCheckData();
             renderSalesCheckTable(filtered);
+            // 空欄チェックパネルが開いていれば自動で再実行
+            if (!document.getElementById('blankCheckPanel')?.classList.contains('hidden')) {
+                runBlankCheck();
+                renderBlankCheckPanel();
+            }
             const baseCount = getBaseData().length;
             const filteredEl = document.getElementById('countSCFiltered');
             if (filtered.length < baseCount) {
@@ -1500,7 +1658,7 @@ const mData = {
                 type: 'overdue_no_end',
                 label: '納期超過・完了日なし',
                 color: 'crimson',
-                group: 'integrity',
+                group: 'overdue',
                 check: (r) => {
                     // 納期が空なら対象外（別の「納期未入力」ルールで検出）
                     if (isBlankOrZero(r.m_as)) return null;
@@ -1530,7 +1688,7 @@ const mData = {
                 type: 'cost_no_end',
                 label: '原価あり・完了日なし',
                 color: 'rose',
-                group: 'integrity',
+                group: 'integrity_no_end',
                 check: (r) => {
                     const hasCost = (r.f_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
                     const hasEnd  = (r.m_at||"").toString().trim().replace(/^0+$/,'') !== "";
@@ -1542,7 +1700,7 @@ const mData = {
                 type: 'all_empty',
                 label: '売上・原価・完了日すべてなし',
                 color: 'rose',
-                group: 'integrity',
+                group: 'integrity_no_end',
                 check: (r) => {
                     const hasSales = (r.e_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
                     const hasCost  = (r.f_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
@@ -1555,7 +1713,7 @@ const mData = {
                 type: 'no_end_sales_cost',
                 label: '完了日なし／売上・原価あり',
                 color: 'rose',
-                group: 'integrity',
+                group: 'integrity_no_end',
                 check: (r) => {
                     const hasSales = (r.e_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
                     const hasCost  = (r.f_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
@@ -1568,7 +1726,7 @@ const mData = {
                 type: 'no_end_sales_no_cost',
                 label: '完了日なし／売上あり・原価なし',
                 color: 'rose',
-                group: 'integrity',
+                group: 'integrity_no_end',
                 check: (r) => {
                     const hasSales = (r.e_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
                     const hasCost  = (r.f_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
@@ -1581,7 +1739,7 @@ const mData = {
                 type: 'end_no_sales_no_cost',
                 label: '完了日あり／売上・原価なし',
                 color: 'rose',
-                group: 'integrity',
+                group: 'integrity_with_end',
                 check: (r) => {
                     const hasSales = (r.e_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
                     const hasCost  = (r.f_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
@@ -1596,7 +1754,7 @@ const mData = {
                 type: 'end_cost_no_sales',
                 label: '完了日・原価あり／売上なし（メインCDのみ）',
                 color: 'rose',
-                group: 'integrity',
+                group: 'integrity_with_end',
                 check: (r, codesWithSubsSet) => {
                     const hasSales  = (r.e_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
                     const hasCost   = (r.f_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
@@ -1614,7 +1772,7 @@ const mData = {
                 type: 'end_sales_no_cost',
                 label: '完了日・売上あり／原価なし（メインCDのみ）',
                 color: 'rose',
-                group: 'integrity',
+                group: 'integrity_with_end',
                 check: (r, codesWithSubsSet) => {
                     const hasSales  = (r.e_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
                     const hasCost   = (r.f_col||"").toString().replace(/[,，\s]/g,'').replace(/^0+$/,'') !== "";
@@ -1730,7 +1888,9 @@ const mData = {
             { key: 'basic',     label: '基本情報',       icon: 'file-text',      desc: '現場名称・得意先名の必須項目' },
             { key: 'date',      label: '日付',           icon: 'calendar',       desc: '着手日・納期の入力状況（"0"も未入力扱い）' },
             { key: 'staff',     label: '担当・拠点',     icon: 'users',          desc: '現場担当名・積算担当名・拠点名の入力状況' },
-            { key: 'integrity', label: '売上・完了整合性', icon: 'alert-triangle', desc: '売上・原価・完了日の整合性（5パターン）。ルール④⑤はサブCDありの行を自動除外' },
+            { key: 'integrity_no_end',  label: '売上・完了整合性（完了日無）', icon: 'alert-triangle', desc: '完了日が未入力なのに売上・原価がある、またはすべて未入力のパターン' },
+            { key: 'integrity_with_end', label: '売上・完了整合性（完了日有）', icon: 'check-square',   desc: '完了日はあるのに売上・原価が不一致のパターン。ルール④⑤はサブCDありを自動除外' },
+            { key: 'overdue',            label: '納期超過',                     icon: 'clock',          desc: '納期を過ぎているのに完了日が未入力の現場' },
             { key: 'amount',    label: '売上・原価',     icon: 'bar-chart-2',    desc: '売上・原価の入力状況' },
             { key: 'class',     label: '売上分類・サブ名称', icon: 'tag',           desc: '売上分類①②コード・現場サブ名称の入力状況' },
         ];
@@ -2399,6 +2559,9 @@ async function downloadFilteredBlankCheckXLSX() {
         }
 
         async function loadFilesFromDB() {
+            if (_loadingLocked) return;
+            showLoading('保存データを復元中…', 'IndexedDBからファイルを読み込んでいます');
+            await new Promise(r => setTimeout(r, 30));
             try {
                 const db  = await openDB();
                 const tx  = db.transaction(STORE, 'readonly');
@@ -2430,6 +2593,7 @@ async function downloadFilteredBlankCheckXLSX() {
                 // 自動で結合実行
                 await processSalesCheckData();
             } catch(e) {
+                hideLoading();
                 showModal('error', '読み込み失敗', e.message);
             }
         }
