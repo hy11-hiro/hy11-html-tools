@@ -1,0 +1,3351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>職人請求書チェック v4</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://unpkg.com/dexie@3.2.4/dist/dexie.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font-size:15px;}
+::-webkit-scrollbar{width:7px;height:7px;}
+::-webkit-scrollbar-track{background:#f0f2f5;}
+::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px;}
+#wrap{display:flex;height:100vh;}
+#sb{width:215px;flex-shrink:0;background:#0f172a;display:flex;flex-direction:column;overflow-y:auto;box-shadow:2px 0 8px rgba(0,0,0,.2);}
+#body{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#bar{height:54px;background:linear-gradient(135deg,#1e3a5f,#1e40af);display:flex;align-items:center;padding:0 22px;gap:12px;flex-shrink:0;box-shadow:0 2px 8px rgba(30,64,175,.3);}
+#cnt{flex:1;overflow-y:auto;padding:18px 22px;}
+.sbl{padding:18px 16px 12px;border-bottom:1px solid #1e293b;}
+.sbl h1{color:#fff;font-weight:900;font-size:17px;line-height:1.3;}
+.sbl p{color:#475569;font-size:11px;margin-top:2px;}
+.sbg{padding:14px 16px 5px;font-size:10px;font-weight:700;color:#475569;letter-spacing:.12em;text-transform:uppercase;}
+.sbn{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;font-size:14px;font-weight:500;color:#94a3b8;border-left:4px solid transparent;transition:all .18s;}
+.sbn:hover{background:#1e293b;color:#e2e8f0;}
+.sbn.on{background:#172554;color:#fff;border-left-color:#3b82f6;font-weight:700;}
+.sbn i{width:16px;text-align:center;font-size:14px;}
+.sbf{margin-top:auto;padding:12px 16px;border-top:1px solid #1e293b;font-size:11px;color:#475569;line-height:1.7;}
+.pg{display:none;}.pg.on{display:block;}
+.sp{display:none;}.sp.on{display:block;}
+#bar-title{font-size:17px;font-weight:900;color:#fff;}
+#save-lbl{margin-left:auto;font-size:12px;color:#93c5fd;}
+.wfbar{display:flex;align-items:center;flex-wrap:wrap;gap:4px;background:#fff;border-radius:12px;padding:10px 16px;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,.08);}
+.wfc{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:900;border:2px solid #e2e8f0;background:#f8fafc;color:#94a3b8;cursor:pointer;flex-shrink:0;transition:all .2s;}
+.wfc.done{background:#059669;color:#fff;border-color:#059669;}
+.wfc.cur{background:#1e40af;color:#fff;border-color:#1e40af;box-shadow:0 0 0 4px rgba(30,64,175,.15);}
+.wfl{font-size:12px;font-weight:700;color:#94a3b8;white-space:nowrap;margin-left:4px;overflow:hidden;max-width:80px;text-overflow:ellipsis;}
+.wfl.done{color:#059669;}.wfl.cur{color:#1e40af;}
+.wfline{flex:1;min-width:8px;height:2px;background:#e2e8f0;margin:0 4px;}
+.wfline.done{background:#059669;}
+.card{background:#fff;border-radius:12px;padding:18px 22px;box-shadow:0 2px 8px rgba(0,0,0,.07);margin-bottom:14px;}
+.ch{font-size:16px;font-weight:700;color:#1e293b;margin-bottom:14px;display:flex;align-items:center;gap:9px;flex-wrap:wrap;}
+.tb{width:100%;border-collapse:collapse;font-size:14px;}
+.tb th{background:#f1f5f9;padding:9px 11px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap;font-size:13px;}
+.tb td{padding:9px 11px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.tb tbody tr:hover td{background:#f8fafc;}
+.tb tfoot td{background:#f1f5f9;font-weight:700;padding:9px 11px;}
+.sec-hd{background:#dde6f0!important;font-size:13px;font-weight:700;color:#334155;padding:7px 10px!important;}
+.fi{border:1px solid #d1d5db;border-radius:7px;padding:9px 12px;font-size:14px;width:100%;font-family:inherit;transition:border .15s;background:#fff;}
+.fi:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.12);}
+.fi.auto{background:#f0fdf4;border-color:#6ee7b7;color:#065f46;}
+.fi-n{border:1px solid #d1d5db;border-radius:6px;padding:7px 8px;font-size:14px;text-align:right;font-family:'Courier New',monospace;background:#fff;transition:border .15s;box-sizing:border-box;}
+.fi-n:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.14);}
+.fl{font-size:13px;font-weight:700;color:#374151;margin-bottom:4px;display:block;}
+.fg{margin-bottom:14px;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:7px;font-size:14px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:all .18s;white-space:nowrap;}
+.blue{background:#1e40af;color:#fff;}.blue:hover{background:#1d4ed8;transform:translateY(-1px);box-shadow:0 3px 10px rgba(30,64,175,.3);}
+.gray{background:#f1f5f9;color:#374151;border:1px solid #d1d5db;}.gray:hover{background:#e5e7eb;}
+.grn{background:#059669;color:#fff;}.grn:hover{background:#047857;transform:translateY(-1px);box-shadow:0 3px 10px rgba(5,150,105,.3);}
+.red{background:#dc2626;color:#fff;}.red:hover{background:#b91c1c;}
+.sm{padding:6px 13px;font-size:13px;}
+.xs{padding:4px 9px;font-size:12px;}
+.btn:active{transform:translateY(0) !important;}
+.bk{display:inline-flex;align-items:center;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700;}
+.ok{background:#d1fae5;color:#065f46;}.ng{background:#fee2e2;color:#991b1b;}
+.warn{background:#fef3c7;color:#92400e;}.blue-bk{background:#dbeafe;color:#1e40af;}
+.gray-bk{background:#e2e8f0;color:#475569;}
+.ra{background:#fef3c7;color:#92400e;padding:3px 9px;border-radius:5px;font-size:12px;font-weight:900;}
+.rb{background:#dbeafe;color:#1e40af;padding:3px 9px;border-radius:5px;font-size:12px;font-weight:900;}
+.rc{background:#f3f4f6;color:#475569;padding:3px 9px;border-radius:5px;font-size:12px;font-weight:900;}
+.cg-card{border:2px solid #e2e8f0;border-radius:10px;padding:14px;cursor:pointer;transition:all .18s;background:#fff;}
+.cg-card:hover{border-color:#93c5fd;background:#f0f7ff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(59,130,246,.12);}
+.cg-card.sel{border-color:#1e40af;background:#eff6ff;box-shadow:0 0 0 3px rgba(30,64,175,.12);}
+.ar{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #f1f5f9;}
+.ar:last-child{border-bottom:none;}
+.av{font-family:'Courier New',monospace;font-weight:700;font-size:15px;}
+.deduct{color:#dc2626;}.add{color:#059669;}
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;align-items:center;justify-content:center;}
+.mo.open{display:flex;}
+.mb{background:#fff;border-radius:14px;padding:26px;box-shadow:0 24px 60px rgba(0,0,0,.25);max-height:88vh;overflow-y:auto;}
+.mo-title{font-size:18px;font-weight:700;color:#1e293b;}
+.diff-bg{background:#fff5f5!important;}
+.diff-bg td{color:#dc2626;}
+#site-log{font-family:'Courier New',monospace;font-size:12px;background:#0f172a;color:#4ade80;padding:10px 12px;border-radius:8px;height:100px;overflow-y:auto;white-space:pre;margin-top:10px;}
+#detail-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.dtbl{width:100%;border-collapse:collapse;font-size:13px;table-layout:auto;}
+.dtbl th{background:#f1f5f9;padding:7px 8px;text-align:left;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;white-space:nowrap;font-size:12px;}
+.dtbl td{padding:5px 6px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.dtbl tfoot td{background:#f1f5f9;font-weight:700;padding:7px 8px;font-size:13px;}
+.col-name{min-width:120px;max-width:300px;word-break:break-all;}
+.col-qty{width:78px;min-width:72px;}
+.col-unit{width:36px;min-width:32px;text-align:center;}
+.col-price{width:74px;min-width:60px;text-align:right;}
+.col-amt{width:90px;min-width:76px;text-align:right;}
+.col-memo{width:90px;min-width:70px;}
+.col-ins{width:26px;min-width:24px;text-align:center;}
+.col-del{width:24px;min-width:22px;text-align:center;}
+.col-pa{width:64px;min-width:54px;text-align:right;}
+.col-pb{width:64px;min-width:54px;text-align:right;}
+.col-pc{width:64px;min-width:54px;text-align:right;}
+.col-ap{width:74px;min-width:64px;text-align:right;font-weight:900;}
+.editable{cursor:pointer;text-decoration:underline dotted #94a3b8;border-radius:3px;}
+.editable:hover{background:#eff6ff;color:#1e40af;}
+.ins-btn{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:15px;padding:0 2px;}
+.ins-btn:hover{color:#2563eb;}
+.del-btn{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:15px;padding:0 2px;}
+.del-btn:hover{color:#dc2626;}
+.loader{border:3px solid #e2e8f0;border-top:3px solid #3b82f6;border-radius:50%;width:18px;height:18px;animation:spin 1s linear infinite;display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tbtn{padding:8px 18px;font-size:14px;font-weight:700;cursor:pointer;color:#64748b;background:none;border:none;border-bottom:3px solid transparent;transition:all .15s;white-space:nowrap;}
+.tbtn.on{color:#1e40af;border-bottom-color:#1e40af;}
+.tpane{display:none;}.tpane.on{display:block;}
+.hrow{display:grid;grid-template-columns:100px 1fr 135px 115px 100px 28px;gap:6px;margin-bottom:8px;align-items:center;}
+.jtbl{width:100%;border-collapse:collapse;font-size:14px;}
+
+.jtbl th{background:#f1f5f9;padding:8px 10px;font-weight:700;color:#374151;border-bottom:2px solid #e2e8f0;font-size:13px;text-align:right;}
+.jtbl th:first-child{text-align:left;}
+.jtbl td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle;text-align:right;}
+.jtbl td:first-child{text-align:left;}
+.jtbl tbody tr:hover td{background:#fafafa;}
+.jtbl tfoot td{background:#f1f5f9;font-weight:700;padding:8px 10px;}
+
+/* ══ 内訳2列グリッド ══ */
+/* #cnt にcontainer指定 → コンテンツ幅基準でブレーク */
+#cnt{container-type:inline-size;}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start;}
+@container(max-width:780px){.detail-grid{grid-template-columns:1fr;}}
+/* container未対応ブラウザ用フォールバック（サイドバー215px込みで計算） */
+@media(max-width:1020px){.detail-grid{grid-template-columns:1fr;}}
+.sec-card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
+.sec-card-hd{background:#dde6f0;font-size:12px;font-weight:700;color:#334155;padding:6px 10px;border-bottom:1px solid #e2e8f0;}
+.sec-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
+.sec-tbl th{background:#f8fafc;padding:4px 5px;text-align:left;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;white-space:nowrap;font-size:11px;overflow:hidden;}
+.sec-tbl td{padding:4px 5px;border-bottom:1px solid #f8fafc;vertical-align:middle;overflow:hidden;}
+.sec-tbl tbody tr:last-child td{border-bottom:none;}
+.sec-tbl tbody tr:hover td{background:#f8faff;}
+/* 造成列幅: name=auto, qty=60, unit=24, price=62, amt=70, act=38 */
+.s-col-name{width:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.s-col-qty{width:68px;min-width:68px;}
+.s-col-unit{width:24px;text-align:center;font-size:11px;color:#64748b;}
+.s-col-price{width:60px;box-sizing:border-box;text-align:right;}
+.s-col-amt{width:70px;text-align:right;}
+.s-col-act{width:38px;text-align:center;white-space:nowrap;padding:0!important;}
+/* 外構列幅: name=auto, qty=60, unit=24, pa=60(✎), ap=60(適用), amt=68, act=34 ← B/C非表示 */
+.g-col-pa{width:60px;text-align:right;}
+.g-col-pb{display:none;}/* 外構でB/Cは通常非表示 */
+.g-col-pc{display:none;}
+.g-col-ap{width:60px;text-align:right;font-weight:900;}
+/* sec-cardがある程度幅あるときだけB/Cを表示 */
+@container(min-width:520px){.g-col-pb{display:table-cell;width:46px;text-align:right;font-size:10px;}.g-col-pc{display:table-cell;width:46px;text-align:right;font-size:10px;}}
+@media(min-width:1400px){.g-col-pb{display:table-cell;width:46px;text-align:right;font-size:10px;}.g-col-pc{display:table-cell;width:46px;text-align:right;font-size:10px;}}
+.detail-subtotal{background:#f1f5f9;border-radius:7px;padding:9px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:14px;}
+
+/* ═══ 横スクロールバー固定（画面下部に常時表示） ═══ */
+.tbl-outer{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;}
+/* overflow-x:auto の要素のスクロールバーが
+   コンテンツの末尾ではなくビューポート下部に来るよう
+   各ページの .overflow-x:auto ラッパーを置き換える */
+.pg{display:none;}.pg.on{display:block;}
+/* cnt: 縦スクロール可、横は隠す */
+#cnt{flex:1;overflow-y:auto;overflow-x:hidden;padding:18px 22px;}
+/* card-fill: テーブルカードが画面内でスクロールできるようにする */
+.card-fill{display:flex;flex-direction:column;}
+.card-fill .tbl-outer{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+
+/* 個人情報パネル */
+.pi-lock{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;border:2px solid #f59e0b;background:#fef3c7;color:#92400e;transition:all .18s;}
+.pi-lock:hover{background:#fde68a;}
+.pi-lock.unlocked{border-color:#059669;background:#d1fae5;color:#065f46;}
+.pi-section{font-size:12px;font-weight:700;color:#7c3aed;margin:12px 0 6px;padding-bottom:4px;border-bottom:2px solid #ede9fe;display:flex;align-items:center;gap:6px;}
+.pi-row{display:flex;align-items:center;padding:5px 0;border-bottom:1px dashed #f3f4f6;gap:10px;}
+.pi-label{font-size:12px;color:#64748b;min-width:120px;flex-shrink:0;}
+.pi-value{font-size:13px;color:#1e293b;font-weight:500;}
+</style>
+</head>
+<body>
+<div id="wrap">
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside id="sb">
+  <div class="sbl"><h1>請求チェック</h1><p>Invoice Check v4</p></div>
+  <div class="sbg">チェック作業</div>
+  <div class="sbn on" id="nav-check" onclick="goPg('check')"><i class="fa-solid fa-clipboard-check"></i>請求書チェック</div>
+  <div class="sbn" id="nav-log" onclick="goPg('log')"><i class="fa-solid fa-history"></i>チェック履歴</div>
+  <div class="sbg">マスター管理</div>
+  <div class="sbn" id="nav-cm" onclick="goPg('cm')"><i class="fa-solid fa-hard-hat"></i>職人マスター</div>
+  <div class="sbn" id="nav-site" onclick="goPg('site')"><i class="fa-solid fa-building"></i>現場マスター</div>
+  <div class="sbn" id="nav-rank" onclick="goPg('rank')"><i class="fa-solid fa-star"></i>ランク管理</div>
+  <div class="sbn" id="nav-vehicle" onclick="goPg('vehicle')"><i class="fa-solid fa-car"></i>車両管理</div>
+  <div class="sbn" id="nav-import" onclick="goPg('import')"><i class="fa-solid fa-box-archive"></i>一括取込</div>
+  <div class="sbf">ヒューマンヤード㈱</div>
+</aside>
+
+<!-- ═══ BODY ═══ -->
+<div id="body">
+<div id="bar">
+  <span id="bar-title">請求書チェック</span>
+  <span style="margin-left:auto;font-size:11px;color:#94a3b8;" id="save-lbl"></span>
+</div>
+<div id="cnt">
+
+<!-- ══ PAGE: CHECK ══ -->
+<div id="pg-check" class="pg on">
+
+  <!-- workflow bar -->
+  <div class="wfbar" id="wfbar"></div>
+
+  <!-- STEP 1: 職人選択 -->
+  <div id="sp1" class="sp on">
+    <div class="card">
+      <div class="ch"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人を選択</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;">
+        <input class="fi" id="s1-q" placeholder="名前で絞り込み..." oninput="renderCGrid()" style="max-width:200px;">
+        <select class="fi" id="s1-t" onchange="renderCGrid()" style="max-width:110px;">
+          <option value="">全区分</option><option value="職人">職人（自社）</option><option value="社員">社員</option><option value="外注">外注</option><option value="サポート">サポート</option>
+        </select>
+      </div>
+      <div id="cgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:400px;overflow-y:auto;"></div>
+      <div style="margin-top:12px;text-align:right;">
+        <button class="btn blue" id="s1btn" onclick="goStep(2)" disabled>ヘッド入力へ <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: ヘッド入力 -->
+  <div id="sp2" class="sp">
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="card" style="margin-bottom:0">
+        <div class="ch"><i class="fa-solid fa-file-invoice" style="color:#3b82f6"></i>ヘッド入力</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;align-items:flex-end;">
+          <div class="fg" style="margin-bottom:0">
+            <label class="fl">何月分の請求書か</label>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <input class="fi" id="inv-y" type="number" min="2020" max="2099" placeholder="年" style="width:72px;font-size:15px;font-weight:700;">
+              <span>年</span>
+              <input class="fi" id="inv-m" type="number" min="1" max="12" placeholder="月" style="width:58px;font-size:15px;font-weight:700;">
+              <span>月分</span>
+            </div>
+          </div>
+        </div>
+        <div class="ch" style="font-size:12px;margin-bottom:6px;"><i class="fa-solid fa-list-ul" style="color:#6366f1"></i>現場一覧
+          <span style="font-size:12px;font-weight:400;color:#64748b;background:#f8fafc;padding:3px 8px;border-radius:4px;">工番を入力→自動補完　Enterで次の工番欄へ</span>
+        </div>
+        <div style="display:grid;grid-template-columns:100px minmax(180px,2fr) minmax(120px,1fr) minmax(90px,1fr) 100px 28px;gap:6px;padding:0 2px;margin-bottom:6px;">
+          <span style="font-size:13px;color:#64748b;font-weight:700;">工番</span>
+          <span style="font-size:12px;color:#94a3b8;font-weight:700;">現場名（自動）</span>
+          <span style="font-size:12px;color:#94a3b8;font-weight:700;">元請先（自動）</span>
+          <span style="font-size:12px;color:#94a3b8;font-weight:700;">担当者（自動）</span>
+          <span style="font-size:12px;color:#94a3b8;font-weight:700;">金額</span>
+          <span></span>
+        </div>
+        <div id="head-rows"></div>
+        <div style="margin-top:12px;text-align:right;display:flex;justify-content:flex-end;gap:8px;">
+          <button class="btn gray" onclick="goStep(1)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
+          <button class="btn blue" onclick="goStep(3)">内訳チェックへ <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+      <!-- 職人情報サイド（折りたたみ式） -->
+      <div class="card" style="margin-bottom:0;">
+        <details>
+          <summary style="cursor:pointer;font-size:14px;font-weight:700;color:#334155;display:flex;align-items:center;gap:8px;list-style:none;outline:none;">
+            <i class="fa-solid fa-id-card" style="color:#6366f1"></i>職人情報
+            <span style="font-size:12px;font-weight:400;color:#94a3b8;margin-left:4px;">▼ クリックで展開</span>
+            <span id="s2-badge" style="background:#dbeafe;color:#1e40af;padding:2px 10px;border-radius:999px;font-size:14px;font-weight:700;margin-left:8px;"></span>
+          </summary>
+          <div id="s2-cinfo" style="font-size:13px;line-height:1.9;margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:4px 24px;"></div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: 内訳チェック -->
+  <div id="sp3" class="sp">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <div class="ch" style="margin-bottom:0;"><i class="fa-solid fa-table-list" style="color:#6366f1"></i>内訳チェック</div>
+        <select class="fi" id="d-site" onchange="loadDSite()" style="width:180px;display:inline-block;"></select>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:11px;font-weight:700;">ランク</span>
+          <select class="fi" id="d-rank" onchange="reRenderDetail()" style="width:55px;display:inline-block;">
+            <option>A</option><option>B</option><option>C</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:0;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-left:auto;">
+          <button class="tbtn on" id="dtb-s" onclick="switchDTab('s')">造成</button>
+          <button class="tbtn" id="dtb-g" onclick="switchDTab('g')">外構</button>
+        </div>
+        <div style="font-size:11px;font-weight:700;">合計：<span id="d-grand" style="font-size:13px;font-weight:900;color:#1e40af;font-family:'Courier New',monospace;">¥0</span></div>
+      </div>
+
+      <div id="detail-wrap">
+        <!-- 造成 -->
+        <div id="dp-s" class="tpane on">
+          <div id="tb-s" class="detail-grid"></div>
+          <div class="detail-subtotal">
+            <span>造成 小計</span>
+            <span id="sub-s" style="font-family:'Courier New',monospace;color:#1e40af;">¥0</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <button class="btn gray sm" onclick="addFreeRowS()"><i class="fa-solid fa-plus"></i> 行追加（造成）</button>
+            <label class="btn gray sm" style="cursor:pointer;"><i class="fa-solid fa-file-excel"></i> Excelテンプレート取込<input type="file" accept=".xlsx,.xls" style="display:none;" onchange="importDetailTemplate(this,'s')"></label>
+            <button class="btn gray sm" onclick="exportDetailTemplate('s')"><i class="fa-solid fa-download"></i> テンプレート出力</button>
+          </div>
+        </div>
+        <!-- 外構 -->
+        <div id="dp-g" class="tpane">
+          <div id="tb-g" class="detail-grid"></div>
+          <div class="detail-subtotal">
+            <span>外構 小計</span>
+            <span id="sub-g" style="font-family:'Courier New',monospace;color:#059669;">¥0</span>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <button class="btn gray sm" onclick="addFreeRowG()"><i class="fa-solid fa-plus"></i> 行追加（外構）</button>
+            <label class="btn gray sm" style="cursor:pointer;"><i class="fa-solid fa-file-excel"></i> Excelテンプレート取込<input type="file" accept=".xlsx,.xls" style="display:none;" onchange="importDetailTemplate(this,'g')"></label>
+            <button class="btn gray sm" onclick="exportDetailTemplate('g')"><i class="fa-solid fa-download"></i> テンプレート出力</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;text-align:right;display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn gray" onclick="goStep(2)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
+        <button class="btn blue" onclick="goStep(4)">実績図突合へ <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4: 実績図突合 -->
+  <div id="sp4" class="sp">
+    <div class="card">
+      <div class="ch" style="flex-wrap:wrap;gap:8px;">
+        <i class="fa-solid fa-pen-ruler" style="color:#7c3aed"></i>実績図 数量突合
+        <span style="font-size:11px;color:#94a3b8;font-weight:400;">Enter=次行 / Esc=クリア</span>
+        <select class="fi" id="j-site" onchange="loadJSite()" style="width:200px;"></select>
+        <!-- 常時表示ボタン群 -->
+        <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap;">
+          <button class="btn gray sm" onclick="addJRow()"><i class="fa-solid fa-plus"></i> 品目追加</button>
+          <button class="btn blue sm" onclick="runMatch()"><i class="fa-solid fa-scale-balanced"></i> 突合実行</button>
+          <button class="btn gray sm" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
+          <button class="btn blue" onclick="goStep(5)">金額確認へ <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+      <!-- 突合結果をヘッダー下に常時表示 -->
+      <div id="j-result-top" style="margin-bottom:8px;"></div>
+
+      <!-- 突合テーブル：内訳から自動生成 + 追加行 -->
+      <div style="overflow-x:auto;">
+        <div style="font-size:13px;color:#64748b;margin-bottom:8px;background:#eff6ff;padding:8px 12px;border-radius:6px;">
+          <i class="fa-solid fa-circle-info" style="color:#3b82f6;"></i>
+          数量入力中は <b>Enter</b> で次の入力欄へ（同じ品目内）。<b>Tab</b> で次の品目行へ移動します。
+        </div>
+        <table class="jtbl">
+          <thead>
+            <tr>
+              <th style="text-align:left;width:70px;">区分</th>
+              <th style="text-align:left;min-width:180px;">品目</th>
+              <th style="width:80px;text-align:right;">内訳数量</th>
+              <th style="color:#7c3aed;">実績入力（Enterで追加・最大20）</th>
+              <th style="width:90px;text-align:right;color:#1e40af;">実績合計</th>
+              <th style="width:70px;text-align:right;">差異</th>
+              <th style="width:28px;"></th>
+            </tr>
+          </thead>
+          <tbody id="tb-j"></tbody>
+          <tfoot>
+            <tr><td colspan="7" style="text-align:left;padding:8px 10px;">
+              <button class="btn gray sm" onclick="addJRow()"><i class="fa-solid fa-plus"></i> 品目追加</button>
+              <button class="btn blue sm" onclick="runMatch()" style="margin-left:8px;"><i class="fa-solid fa-scale-balanced"></i> 突合実行</button>
+            </td></tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div id="j-result" style="margin-top:10px;"></div>
+
+      <div style="margin-top:10px;text-align:right;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="btn gray" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
+        <button class="btn blue" onclick="goStep(5)">金額確認へ <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5: 金額確認 -->
+  <div id="sp5" class="sp">
+    <div style="display:grid;grid-template-columns:1fr 270px;gap:12px;align-items:start;">
+
+      <!-- 左：計算 -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="ch"><i class="fa-solid fa-calculator" style="color:#059669"></i>金額計算</div>
+        <!-- 現場別 -->
+        <div style="background:#f8fafc;border-radius:6px;padding:10px;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:6px;">各現場 内訳</div>
+          <div id="site-bk"></div>
+          <div class="ar" style="border-top:2px solid #e2e8f0;margin-top:6px;padding-top:6px;">
+            <span style="font-weight:700;">工事計（合計）</span><span class="av" id="c-koujikei">¥0</span>
+          </div>
+          <div class="ar"><span>消費税（10%）</span><span class="av" id="c-tax">¥0</span></div>
+          <div class="ar" style="border-top:2px solid #334155;margin-top:4px;padding-top:6px;">
+            <span style="font-weight:700;font-size:13px;">合計</span>
+            <span class="av" id="c-total" style="font-size:16px;font-weight:900;color:#1e40af;">¥0</span>
+          </div>
+        </div>
+        <!-- 控除 -->
+        <div style="background:#fff8f8;border-radius:6px;padding:10px;margin-bottom:8px;border:1px solid #fde8e8;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+            <span style="font-size:11px;font-weight:700;color:#dc2626;"><i class="fa-solid fa-minus-circle"></i> 控除</span>
+            <button class="btn gray xs" onclick="addDRow()"><i class="fa-solid fa-plus"></i> 追加</button>
+          </div>
+          <div class="ar"><span style="font-size:12px;">安全協力会費（合計×1%）</span><span class="av deduct" id="c-anzen">—</span></div>
+          <div class="ar">
+            <span style="font-size:12px;">事務手数料</span>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span style="font-size:13px;color:#dc2626;font-weight:700;">−¥</span>
+              <input type="number" class="fi-n" id="jimu-fee" value="1000" min="0"
+                onchange="recalc()" style="width:90px;font-size:14px;">
+            </div>
+          </div>
+          <div id="d-rows"></div>
+          <div class="ar" style="border-top:1px solid #fde8e8;margin-top:4px;padding-top:4px;">
+            <span style="font-weight:700;font-size:12px;">減算合計</span><span class="av deduct" id="c-dtot">¥0</span>
+          </div>
+        </div>
+        <!-- 加算 -->
+        <div style="background:#f0fdf4;border-radius:6px;padding:10px;margin-bottom:8px;border:1px solid #d1fae5;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+            <span style="font-size:11px;font-weight:700;color:#059669;"><i class="fa-solid fa-plus-circle"></i> 加算</span>
+            <button class="btn gray xs" onclick="addARow()"><i class="fa-solid fa-plus"></i> 追加</button>
+          </div>
+          <div id="a-rows"><div style="font-size:11px;color:#94a3b8;">（加算なし）</div></div>
+          <div class="ar" style="border-top:1px solid #d1fae5;margin-top:4px;padding-top:4px;">
+            <span style="font-weight:700;font-size:12px;">加算合計</span><span class="av add" id="c-atot">¥0</span>
+          </div>
+        </div>
+        <!-- 建退共 -->
+        <div class="ar" style="padding:7px 0;">
+          <span style="font-size:12px;">（内金）建退共</span>
+          <input type="number" class="fi-n" id="kentaikyo" placeholder="0" oninput="recalc()" style="width:100px;">
+        </div>
+        <!-- 支払 -->
+        <div style="background:#1e293b;border-radius:7px;padding:12px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
+          <span style="color:#94a3b8;font-weight:700;">支払金額</span>
+          <span style="color:#fff;font-size:18px;font-weight:900;font-family:'Courier New',monospace;" id="c-pay">¥0</span>
+        </div>
+      </div>
+
+      <!-- 右：確認 -->
+      <div class="card" style="margin-bottom:0;">
+        <div class="ch"><i class="fa-solid fa-check-double" style="color:#1e40af"></i>最終確認</div>
+        <div class="fg">
+          <label class="fl">請求書記載 支払金額</label>
+          <input class="fi" type="number" id="inv-stated" placeholder="請求書の金額" oninput="chkMatch()">
+          <div id="match-res" style="font-size:11px;font-weight:700;margin-top:3px;"></div>
+        </div>
+        <div class="fg">
+          <label class="fl">チェック担当者</label>
+          <input class="fi" id="approver" placeholder="担当者名">
+        </div>
+        <div class="fg">
+          <label class="fl">備考・メモ</label>
+          <textarea class="fi" id="f-memo" rows="3" placeholder="確認メモ..."></textarea>
+        </div>
+        <button class="btn grn" style="width:100%;justify-content:center;" onclick="saveLog()">
+          <i class="fa-solid fa-circle-check"></i> チェック完了・保存
+        </button>
+        <button class="btn gray" style="width:100%;justify-content:center;margin-top:6px;" onclick="goStep(4)">
+          <i class="fa-solid fa-arrow-left"></i> 戻る
+        </button>
+        <button class="btn gray sm" style="width:100%;justify-content:center;margin-top:6px;" onclick="resetSess()">
+          <i class="fa-solid fa-rotate-left"></i> 新しいチェック開始
+        </button>
+      </div>
+    </div>
+  </div>
+</div><!-- /pg-check -->
+
+<!-- ══ PAGE: LOG ══ -->
+<div id="pg-log" class="pg">
+  <div class="card" style="display:flex;flex-direction:column;max-height:calc(100vh - 120px);">
+    <div class="ch"><i class="fa-solid fa-history" style="color:#6366f1"></i>チェック履歴
+      <div style="margin-left:auto;display:flex;gap:6px;">
+        <input class="fi" placeholder="絞り込み..." style="width:160px;" oninput="renderLogs(this.value)">
+        <button class="btn gray sm" onclick="exportLogs()"><i class="fa-solid fa-download"></i> CSV</button>
+        <button class="btn red sm" onclick="if(confirm('全削除？'))clearLogs()"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;overflow-y:auto;flex:1;min-height:0;">
+      <table class="tb">
+        <thead><tr><th>日時</th><th>職人名</th><th>月分</th><th>現場</th><th>支払金額</th><th>担当者</th><th>メモ</th><th></th></tr></thead>
+        <tbody id="log-tb"><tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px;">履歴なし</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: CRAFTSMAN ══ -->
+<div id="pg-cm" class="pg">
+  <div class="card" style="display:flex;flex-direction:column;max-height:calc(100vh - 120px);">
+    <div class="ch"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人マスター</div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.8;">
+      <b style="color:#1e40af;"><i class="fa-solid fa-info-circle"></i> CSV取込フォーマット（1行目：ヘッダー行）</b><br>
+      <code style="background:#dbeafe;padding:1px 4px;border-radius:3px;font-size:11px;">職人名, 区分, 拠点, インボイス, 労災組合費, 健康保険料, 駐車場代, 道具代, 電話代, 車両リース費, リース元管理番号, ナンバープレート, その他控除, メモ</code><br>
+      ・<b>インボイス列</b>：T + 13桁数字（例：T8040001127500）。空欄または数字のみ→未対応扱い<br>
+      ・<b>拠点列</b>：「松戸」「千葉」「千葉松戸」など<br>
+      ・<b>金額列</b>（労災〜その他）：月額円。不要は 0 または空欄
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+      <button class="btn blue sm" onclick="openCMM()"><i class="fa-solid fa-plus"></i> 新規登録</button>
+      <label class="btn gray sm" style="cursor:pointer;"><i class="fa-solid fa-file-excel"></i> Excel取込<input type="file" accept=".csv,.xlsx,.xls" style="display:none;" onchange="importCM(this)"></label>
+      <button class="btn gray sm" onclick="exportCMDialog()"><i class="fa-solid fa-file-excel"></i> Excel出力</button>
+      <button class="btn" id="cm-exp-btn" onclick="showExpList()"
+        style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;font-size:13px;font-weight:700;padding:7px 13px;border-radius:7px;cursor:pointer;">
+        <i class="fa-solid fa-calendar-xmark"></i> 期限管理
+      </button>
+      <input class="fi" id="cm-search" placeholder="名前で検索..." style="width:160px;" oninput="renderCMT()">
+      <button class="btn gray sm" id="cm-retired-btn" onclick="toggleRetiredView()" style="border:1px solid #d1d5db;">
+        <i class="fa-solid fa-eye-slash"></i> 退職者を表示
+      </button>
+      <button class="pi-lock" id="pi-lock-btn" onclick="togglePIMode()">
+        <i class="fa-solid fa-lock"></i> 個人情報モード
+      </button>
+      <span id="cm-count" style="font-size:12px;color:#94a3b8;"></span>
+    </div>
+    <div style="overflow-x:auto;overflow-y:auto;flex:1;min-height:0;">
+      <table class="tb">
+        <thead><tr><th>在籍</th><th>職人名</th><th>屋号</th><th>区分</th><th>拠点</th><th>インボイス番号</th><th>状態</th><th>労災</th><th>健保</th><th>駐車</th><th>道具</th><th>電話</th><th>車両</th><th>リース管理番号</th><th>ナンバー</th><th>他控除</th><th>更新日</th><th>期限</th><th></th></tr></thead>
+        <tbody id="cm-tb"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: SITE ══ -->
+<div id="pg-site" class="pg">
+  <div class="card">
+    <div class="ch"><i class="fa-solid fa-building" style="color:#3b82f6"></i>現場マスター
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+        <span id="site-count" class="bk gray-bk"></span>
+        <button class="btn gray sm" onclick="exportSites()"><i class="fa-solid fa-download"></i> CSV</button>
+      </div>
+    </div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px;margin-bottom:10px;font-size:11px;line-height:1.8;">
+      <b style="color:#1e40af;"><i class="fa-solid fa-info-circle"></i> テキストファイル取込仕様（UTF-16LE）</b><br>
+      1行目：ヘッダー行（スキップ） / 2行目：<code style="background:#dbeafe;padding:0 3px;">&lt;1&gt;</code> 形式の項目番号行（自動スキップ）<br>
+      列：[0]工番 [1]サブコード [2]現場名 [22]施主 [43]着手日 [45]完了日 [47]元請先 [49]担当者 [55]拠点
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;">
+      <label class="btn blue sm" style="cursor:pointer;" id="site-import-btn">
+        <span id="site-imp-loader" style="display:none;" class="loader"></span>
+        <i class="fa-solid fa-file-lines" id="site-imp-icon"></i> テキスト取込
+        <input type="file" accept=".txt,.csv" style="display:none;" onchange="importSite(this)">
+      </label>
+    </div>
+    <div id="site-log" style="display:none;"></div>
+    <div style="margin-top:10px;font-size:12px;color:#64748b;"><i class="fa-solid fa-circle-info"></i> 現場マスターは件数が多いため一覧表示はありません。チェック作業時に工番で検索されます。</div>
+  </div>
+</div>
+
+<!-- ══ PAGE: RANK ══ -->
+<div id="pg-rank" class="pg">
+  <div class="card">
+    <div class="ch"><i class="fa-solid fa-star" style="color:#f59e0b"></i>ランク管理（元請け別）
+      <button class="btn blue sm" style="margin-left:auto;" onclick="openRankM()"><i class="fa-solid fa-plus"></i> 追加</button>
+    </div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:10px;">現場マスターに登録されている元請け先に標準ランクを設定します。チェック時に個別上書きも可能です。</div>
+    <div style="overflow-x:auto;">
+      <table class="tb">
+        <thead><tr><th>元請け名</th><th>標準ランク</th><th>備考</th><th></th></tr></thead>
+        <tbody id="rank-tb"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: VEHICLE ══ -->
+<div id="pg-vehicle" class="pg">
+  <!-- 集計サマリー -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:14px;" id="vehicle-summary"></div>
+
+  <div class="card">
+    <div class="ch"><i class="fa-solid fa-car" style="color:#0891b2"></i>車両管理（リース費用）
+      <div style="margin-left:auto;display:flex;gap:7px;flex-wrap:wrap;align-items:center;">
+        <button class="btn blue sm" onclick="openVehicleM()"><i class="fa-solid fa-plus"></i> 車両追加</button>
+        <button class="btn gray sm" onclick="syncAllVehicleTotals()" title="全職人の車両合計を職人マスターに反映"><i class="fa-solid fa-rotate"></i> 全員を職人マスターへ同期</button>
+        <button class="btn gray sm" onclick="exportVehicles()"><i class="fa-solid fa-download"></i> Excel出力</button>
+        <label class="btn gray sm" style="cursor:pointer;"><i class="fa-solid fa-file-excel"></i> Excel取込<input type="file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="importVehicles(this)"></label>
+      </div>
+    </div>
+
+    <!-- フィルター -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+      <input class="fi" id="v-search" placeholder="職人名・管理番号で検索..." style="max-width:220px;" oninput="renderVehicles()">
+      <select class="fi" id="v-status" onchange="renderVehicles()" style="max-width:130px;">
+        <option value="">全ステータス</option>
+        <option value="active">契約中</option>
+        <option value="returned">返却済</option>
+      </select>
+      <select class="fi" id="v-lessor" onchange="renderVehicles()" style="max-width:160px;">
+        <option value="">全リース業者</option>
+      </select>
+    </div>
+
+    <div style="overflow-x:auto;overflow-y:visible;flex:1;min-height:0;">
+      <table class="tb" id="vehicle-table">
+        <thead><tr>
+          <th>区分</th>
+          <th>職人マスター名</th>
+          <th>担当者名（任意）</th>
+          <th>管理番号</th>
+          <th>車種・車名</th>
+          <th>リース業者</th>
+          <th style="text-align:right;">月額（税込）</th>
+          <th style="text-align:right;">固定費</th>
+          <th style="text-align:right;">合計請求</th>
+          <th>契約開始</th>
+          <th>契約終了</th>
+          <th>ステータス</th>
+          <th>備考</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="vehicle-tb"><tr><td colspan="12" style="text-align:center;color:#94a3b8;padding:20px;">車両データなし</td></tr></tbody>
+        <tfoot id="vehicle-tfoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PAGE: IMPORT ══ -->
+<div id="pg-import" class="pg">
+  <div class="card">
+    <div class="ch"><i class="fa-solid fa-box-archive" style="color:#7c3aed"></i>データ一括取込
+      <span style="font-size:12px;font-weight:400;color:#64748b;margin-left:8px;">複数のマスターデータをまとめて登録・更新できます</span>
+    </div>
+
+    <!-- ドロップゾーン -->
+    <div id="bulk-dropzone"
+      style="border:2px dashed #a5b4fc;border-radius:12px;padding:40px 24px;text-align:center;cursor:pointer;background:#fafaff;transition:all .2s;position:relative;margin-bottom:20px;"
+      ondragover="event.preventDefault();this.style.background='#ede9fe';this.style.borderColor='#7c3aed';"
+      ondragleave="this.style.background='#fafaff';this.style.borderColor='#a5b4fc';"
+      ondrop="handleBulkDrop(event)">
+      <input type="file" multiple accept=".csv,.xlsx,.xls,.txt"
+        style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;"
+        onchange="handleBulkFiles(this.files)">
+      <i class="fa-solid fa-cloud-arrow-up" style="font-size:40px;color:#7c3aed;margin-bottom:12px;"></i>
+      <div style="font-size:16px;font-weight:700;color:#4c1d95;margin-bottom:6px;">ファイルをドラッグ＆ドロップ</div>
+      <div style="font-size:13px;color:#64748b;">またはクリックしてファイルを選択（複数可）</div>
+      <div style="margin-top:12px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+        <span class="bk blue-bk">職人マスター .csv/.xlsx</span>
+        <span class="bk gray-bk">車両管理 .xlsx</span>
+        <span class="bk" style="background:#d1fae5;color:#065f46;">現場マスター .txt</span>
+      </div>
+    </div>
+
+    <!-- 取込ログ -->
+    <div id="bulk-log-wrap" style="display:none;">
+      <div style="font-size:13px;font-weight:700;color:#334155;margin-bottom:8px;"><i class="fa-solid fa-terminal" style="color:#7c3aed;"></i> 処理ログ</div>
+      <div id="bulk-log" style="font-family:'Courier New',monospace;font-size:12px;background:#0f172a;color:#a5f3fc;padding:12px;border-radius:8px;min-height:80px;max-height:220px;overflow-y:auto;white-space:pre-wrap;"></div>
+    </div>
+
+    <!-- ファイル種別の説明 -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:20px;">
+      <div class="card" style="margin-bottom:0;border:1px solid #dbeafe;">
+        <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人マスター</div>
+        <div style="font-size:12px;color:#475569;line-height:1.8;">
+          ファイル名に「職人」を含む CSV / Excel<br>
+          列：職人名, 区分, 拠点, インボイス, 労災, 健保, 駐車, 道具, 電話, 車両, 車番, 他控除, メモ
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:0;border:1px solid #d1fae5;">
+        <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-building" style="color:#3b82f6"></i>現場マスター</div>
+        <div style="font-size:12px;color:#475569;line-height:1.8;">
+          ファイル名に「現場」または拡張子 .txt<br>
+          エンコード：UTF-16LE（システムからのエクスポート形式）
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:0;border:1px solid #ede9fe;">
+        <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-car" style="color:#7c3aed"></i>車両管理</div>
+        <div style="font-size:12px;color:#475569;line-height:1.8;">
+          ファイル名に「車両」または「リース」を含む CSV / Excel<br>
+          列：職人名, 管理番号, 車種, リース業者, 月額, 固定費…
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ Modal: PI View ══ -->
+<div id="mo-pi-view" class="mo">
+<div class="mb" style="width:580px;max-height:85vh;overflow-y:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;position:sticky;top:0;background:#fff;padding-bottom:10px;border-bottom:2px solid #ede9fe;">
+    <div>
+      <div style="font-size:11px;font-weight:700;color:#7c3aed;"><i class="fa-solid fa-shield-halved"></i> 個人情報（取扱注意）</div>
+      <div style="font-size:17px;font-weight:700;color:#1e293b;margin-top:2px;" id="pi-view-name"></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn blue sm" onclick="openCMM(document.getElementById('pi-view-name').dataset.id);closePIView();">
+        <i class="fa-solid fa-edit"></i> 編集
+      </button>
+      <button onclick="closePIView()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&times;</button>
+    </div>
+  </div>
+  <div id="pi-view-body"></div>
+</div></div>
+
+<!-- ══ Modal: Expiry List ══ -->
+<div id="mo-exp-list" class="mo">
+<div class="mb" style="width:800px;max-height:85vh;overflow-y:auto;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;position:sticky;top:0;background:#fff;padding-bottom:10px;border-bottom:2px solid #e2e8f0;">
+    <div>
+      <div style="font-size:18px;font-weight:700;"><i class="fa-solid fa-calendar-xmark" style="color:#dc2626;"></i> 期限管理</div>
+      <div style="font-size:12px;color:#64748b;margin-top:2px;">免許・保険の期限切れ・期限間近の職人一覧</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select class="fi" id="exp-filter" onchange="renderExpList()" style="width:130px;font-size:13px;">
+        <option value="all">全て表示</option>
+        <option value="expired">期限切れのみ</option>
+        <option value="near30">30日以内</option>
+        <option value="near90">90日以内</option>
+        <option value="health">健診要受診</option>
+      </select>
+      <button onclick="document.getElementById('mo-exp-list').classList.remove('open')"
+        style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&times;</button>
+    </div>
+  </div>
+  <div id="exp-list-body"></div>
+</div></div>
+
+<!-- ══ Modal: Export CM ══ -->
+<div id="mo-export-cm" class="mo">
+<div class="mb" style="width:420px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <span style="font-size:16px;font-weight:700;">職人マスター CSV出力</span>
+    <button onclick="closeExportCM()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&times;</button>
+  </div>
+  <div style="background:#f8fafc;border-radius:8px;padding:14px;margin-bottom:14px;">
+    <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;font-weight:700;">
+      <input type="checkbox" id="export-pi-chk" style="width:18px;height:18px;accent-color:#7c3aed;">
+      <span>個人情報を含める</span>
+    </label>
+    <div style="font-size:12px;color:#64748b;margin-top:6px;padding-left:28px;">
+      生年月日・住所・保険番号・免許情報等を含みます。<br>
+      <span style="color:#dc2626;font-weight:700;">⚠ パスワードが必要です（取扱注意）</span>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;">
+    <button class="btn gray" onclick="closeExportCM()">キャンセル</button>
+    <button class="btn blue" onclick="doExportCM()"><i class="fa-solid fa-file-excel"></i> Excel出力する</button>
+  </div>
+</div></div>
+
+</div><!-- /cnt -->
+</div><!-- /body -->
+</div><!-- /wrap -->
+
+<!-- ══ Modal: Craftsman ══ -->
+<div id="mo-cm" class="mo">
+<div class="mb" style="width:700px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <span style="font-weight:700;font-size:16px;">職人マスター編集</span>
+    <button onclick="closeCMM()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&times;</button>
+  </div>
+  <input type="hidden" id="cm-id">
+  <!-- タブ -->
+  <div style="display:flex;border-bottom:2px solid #e2e8f0;margin-bottom:14px;gap:0;">
+    <button class="tbtn on" id="cm-tab-basic" onclick="switchCMTab('basic')"><i class="fa-solid fa-hard-hat"></i> 基本情報・控除</button>
+    <button class="tbtn" id="cm-tab-pi" onclick="switchCMTab('pi')"><i class="fa-solid fa-shield-halved"></i> 個人情報 <span style="font-size:10px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:3px;margin-left:4px;">🔒</span></button>
+  </div>
+
+  <!-- === 基本情報タブ === -->
+  <div id="cm-pane-basic" class="tpane on">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:6px;">
+      <div class="fg"><label class="fl">職人名 *</label><input class="fi" id="cm-name" style="font-size:15px;font-weight:700;"></div>
+      <div class="fg"><label class="fl">屋号・会社名</label><input class="fi" id="cm-company" placeholder="例：田中左官工業、個人の場合は空欄"></div>
+      <div class="fg"><label class="fl">拠点</label><input class="fi" id="cm-type" placeholder="例：松戸、千葉"></div>
+      <div class="fg"><label class="fl">区分</label>
+        <select class="fi" id="cm-category">
+          <option value="職人">職人（自社）</option>
+          <option value="社員">社員</option>
+          <option value="外注">外注</option>
+          <option value="サポート">サポート</option>
+          <option value="その他">その他</option>
+        </select>
+      </div>
+      <div class="fg" style="grid-column:1/-1;">
+        <label class="fl">インボイス番号（T+13桁。空欄=未対応）</label>
+        <input class="fi" id="cm-inv" placeholder="例：T8040001127500" oninput="chkInv()">
+        <div id="cm-inv-hint" style="font-size:10px;margin-top:2px;"></div>
+      </div>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:#dc2626;margin:10px 0 6px;"><i class="fa-solid fa-minus-circle"></i> 固定控除（月額・不要は0）</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;">
+      <div class="fg"><label class="fl">労災組合費</label><input class="fi" type="number" id="cm-rosai" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">健康保険料</label><input class="fi" type="number" id="cm-kenko" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">駐車場代</label><input class="fi" type="number" id="cm-parking" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">道具代</label><input class="fi" type="number" id="cm-tools" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">電話代</label><input class="fi" type="number" id="cm-phone" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">車両リース費</label><input class="fi" type="number" id="cm-vehicle" placeholder="0" min="0"></div>
+      <div class="fg"><label class="fl">リース元管理番号</label><input class="fi" id="cm-vno" placeholder="例：Z12345（リース会社の番号）"></div>
+    <div class="fg"><label class="fl">ナンバープレート</label><input class="fi" id="cm-plate" placeholder="例：品川300あ1234"></div>
+      <div class="fg"><label class="fl">その他控除</label><input class="fi" type="number" id="cm-other" placeholder="0" min="0"></div>
+    </div>
+    <div class="fg"><label class="fl">メモ</label><textarea class="fi" id="cm-memo" rows="2"></textarea></div>
+  </div>
+
+  <!-- === 個人情報タブ === -->
+  <div id="cm-pane-pi" class="tpane">
+    <div id="cm-pi-lock-warn" style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:14px;text-align:center;margin-bottom:12px;">
+      <i class="fa-solid fa-lock" style="color:#f59e0b;font-size:20px;"></i>
+      <div style="font-weight:700;color:#92400e;margin-top:6px;">個人情報はロックされています</div>
+      <div style="font-size:12px;color:#78350f;margin-top:4px;">個人情報モードを有効にしてから編集してください</div>
+    </div>
+    <div id="cm-pi-fields" style="display:none;">
+      <div class="pi-section"><i class="fa-solid fa-user"></i> 基本個人情報</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;">
+        <div class="fg"><label class="fl">生年月日</label><input class="fi" type="date" id="pi-dob"></div>
+        <div class="fg"><label class="fl">雇入年月日</label><input class="fi" type="date" id="pi-hire"></div>
+        <div class="fg"><label class="fl">外構工事開始日</label><input class="fi" type="date" id="pi-gaiko-start"></div>
+        <div class="fg"><label class="fl">郵便番号</label><input class="fi" id="pi-zip" placeholder="123-4567"></div>
+        <div class="fg" style="grid-column:2/-1;"><label class="fl">現住所</label><input class="fi" id="pi-addr" placeholder="都道府県から"></div>
+        <div class="fg"><label class="fl">電話番号</label><input class="fi" id="pi-tel" placeholder="03-0000-0000"></div>
+        <div class="fg"><label class="fl">FAX</label><input class="fi" id="pi-fax" placeholder="03-0000-0000"></div>
+        <div class="fg"><label class="fl">携帯番号</label><input class="fi" id="pi-mobile" placeholder="090-0000-0000"></div>
+      </div>
+      <div class="pi-section"><i class="fa-solid fa-house"></i> 緊急連絡先</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
+        <div class="fg"><label class="fl">緊急連絡先 氏名</label><input class="fi" id="pi-emg-name" placeholder="続柄・名前"></div>
+        <div class="fg"><label class="fl">緊急連絡先 電話</label><input class="fi" id="pi-emg-tel" placeholder="090-0000-0000"></div>
+        <div class="fg" style="grid-column:1/-1;"><label class="fl">緊急連絡先 住所</label><input class="fi" id="pi-emg-addr" placeholder="都道府県から"></div>
+      </div>
+      <div class="pi-section"><i class="fa-solid fa-heart-pulse"></i> 健康・保険</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;">
+        <div class="fg"><label class="fl">最近の健康診断日</label><input class="fi" type="date" id="pi-health-date"></div>
+        <div class="fg"><label class="fl">血液型</label><select class="fi" id="pi-blood-type"><option value="">不明</option><option>A型</option><option>B型</option><option>O型</option><option>AB型</option></select></div>
+        <div class="fg"><label class="fl">血圧（最高）</label><input class="fi" type="number" id="pi-bp-high" placeholder="120"></div>
+        <div class="fg"><label class="fl">血圧（最低）</label><input class="fi" type="number" id="pi-bp-low" placeholder="80"></div>
+        <div class="fg"><label class="fl">労災保険番号</label><input class="fi" id="pi-rousai-no" placeholder="番号"></div>
+        <div class="fg"><label class="fl">労災保険期限</label><input class="fi" type="date" id="pi-rousai-exp"></div>
+        <div class="fg"></div>
+        <div class="fg"><label class="fl">健康保険 記号</label><input class="fi" id="pi-hoken-kigo" placeholder="例：12345"></div>
+        <div class="fg"><label class="fl">健康保険 番号</label><input class="fi" id="pi-hoken-no" placeholder="例：67890"></div>
+        <div class="fg"><label class="fl">健康保険期限</label><input class="fi" type="date" id="pi-hoken-exp"></div>
+        <div class="fg"><label class="fl">年金番号</label><input class="fi" id="pi-nenkin-no" placeholder="番号"></div>
+        <div class="fg"><label class="fl">年金期限</label><input class="fi" type="date" id="pi-nenkin-exp"></div>
+        <div class="fg"></div>
+      </div>
+      <div class="pi-section"><i class="fa-solid fa-id-card"></i> 免許・資格</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
+        <div class="fg"><label class="fl">運転免許番号</label><input class="fi" id="pi-license-no" placeholder="12桁番号"></div>
+        <div class="fg"><label class="fl">運転免許期限</label><input class="fi" type="date" id="pi-license-exp"></div>
+        <div class="fg" style="grid-column:1/-1;"><label class="fl">資格・免許（複数可）</label><textarea class="fi" id="pi-qualifications" rows="3" placeholder="例：&#10;施工管理技士 2級（建築）- 2025/03/31&#10;玉掛け技能講習 - 期限なし"></textarea></div>
+        <div class="fg" style="grid-column:1/-1;"><label class="fl">備考・メモ</label><textarea class="fi" id="pi-memo" rows="2"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+    <button class="btn gray" onclick="closeCMM()">キャンセル</button>
+    <button class="btn blue" onclick="saveCM()"><i class="fa-solid fa-save"></i> 保存</button>
+  </div>
+</div></div>
+
+<!-- ══ Modal: Rank ══ -->
+<div id="mo-rank" class="mo">
+<div class="mb" style="width:420px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <span style="font-weight:700;font-size:14px;">ランク設定</span>
+    <button onclick="closeRankM()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;">&times;</button>
+  </div>
+  <input type="hidden" id="rank-id">
+  <div class="fg">
+    <label class="fl">元請け名 * （取り込んだ現場マスターから選択または手入力）</label>
+    <input class="fi" id="rank-owner" list="owner-list" placeholder="元請け名を入力または選択">
+    <datalist id="owner-list"></datalist>
+  </div>
+  <div class="fg"><label class="fl">標準ランク</label>
+    <select class="fi" id="rank-lv"><option value="A">A（最高）</option><option value="B">B（標準）</option><option value="C">C</option></select>
+  </div>
+  <div class="fg"><label class="fl">備考</label><input class="fi" id="rank-memo"></div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+    <button class="btn gray" onclick="closeRankM()">キャンセル</button>
+    <button class="btn blue" onclick="saveRank()">保存</button>
+  </div>
+</div></div>
+
+<!-- ══ Modal: Price Edit ══ -->
+<div id="mo-price" class="mo">
+<div class="mb" style="width:320px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <span style="font-weight:700;font-size:13px;" id="price-item-name"></span>
+    <button onclick="closePriceM()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:18px;">&times;</button>
+  </div>
+  <div id="price-fields"></div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;">
+    <button class="btn gray" onclick="closePriceM()">キャンセル</button>
+    <button class="btn blue" onclick="applyPriceEdit()">適用</button>
+  </div>
+</div></div>
+
+<!-- ══ Modal: Vehicle ══ -->
+<div id="mo-vehicle" class="mo">
+<div class="mb" style="width:640px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <span class="mo-title">車両登録・編集</span>
+    <button onclick="closeVehicleM()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;">&times;</button>
+  </div>
+  <input type="hidden" id="v-id">
+  <div style="background:#f8fafc;border-radius:7px;padding:12px;margin-bottom:12px;">
+    <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:10px;"><i class="fa-solid fa-user-tag"></i> 利用者情報</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px;">
+      <div class="fg" style="margin-bottom:0;">
+        <label class="fl">職人マスターから選択 *<span style="font-size:10px;font-weight:400;color:#94a3b8;margin-left:6px;">選ぶと区分が自動表示</span></label>
+        <input class="fi" id="v-craftsman" list="v-cm-list" placeholder="名前を入力または選択"
+          oninput="onVCraftsmanInput(this.value)" style="font-size:14px;font-weight:700;">
+        <datalist id="v-cm-list"></datalist>
+      </div>
+      <div class="fg" style="margin-bottom:0;">
+        <label class="fl">担当者名（任意）<span style="font-size:10px;font-weight:400;color:#94a3b8;margin-left:6px;">外注内の個別担当者名など</span></label>
+        <input class="fi" id="v-company" placeholder="例：山田 太郎（省略可）">
+      </div>
+    </div>
+    <!-- 自動反映エリア -->
+    <div id="v-cm-info" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 12px;font-size:13px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+      <span id="v-cm-category-badge"></span>
+      <span id="v-cm-branch-info" style="color:#475569;"></span>
+      <span id="v-cm-invoice-info" style="color:#475569;"></span>
+    </div>
+    <!-- 区分の手動上書き（オプション） -->
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+      <span style="font-size:12px;color:#94a3b8;">区分上書き（任意）：</span>
+      <select class="fi" id="v-user-type" style="width:160px;font-size:12px;">
+        <option value="">マスターから自動</option>
+        <option value="自社">自社（職人・社員）</option>
+        <option value="外注">外注</option>
+      </select>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="fg">
+      <label class="fl">管理番号</label>
+      <input class="fi" id="v-mgmt-no" placeholder="例：品川300あ1234">
+    </div>
+    <div class="fg">
+      <label class="fl">車種・車名</label>
+      <input class="fi" id="v-car-name" placeholder="例：ハイエース バン">
+    </div>
+    <div class="fg">
+      <label class="fl">リース業者</label>
+      <input class="fi" id="v-lessor-name" placeholder="例：東京レンタル㈱">
+    </div>
+    <div class="fg">
+      <label class="fl">月額リース料（税込）</label>
+      <input class="fi" type="number" id="v-monthly" placeholder="0" min="0">
+    </div>
+    <div class="fg">
+      <label class="fl">固定費（月額）</label>
+      <input class="fi" type="number" id="v-fixed" placeholder="0" min="0">
+      <div style="font-size:11px;color:#64748b;margin-top:2px;">月額リース料＋固定費＝合計請求額</div>
+    </div>
+    <div class="fg">
+      <label class="fl">契約開始日</label>
+      <input class="fi" type="date" id="v-start">
+    </div>
+    <div class="fg">
+      <label class="fl">契約終了日</label>
+      <input class="fi" type="date" id="v-end">
+    </div>
+    <div class="fg">
+      <label class="fl">ステータス</label>
+      <select class="fi" id="v-stat">
+        <option value="active">契約中</option>
+        <option value="returned">返却済</option>
+      </select>
+    </div>
+    <div class="fg" style="grid-column:1/-1;">
+      <label class="fl">備考</label>
+      <textarea class="fi" id="v-note" rows="2" placeholder="例：10月分 運転席シートガラス破損交換"></textarea>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+    <button class="btn gray" onclick="closeVehicleM()">キャンセル</button>
+    <button class="btn blue" onclick="saveVehicle()"><i class="fa-solid fa-save"></i> 保存</button>
+  </div>
+</div></div>
+
+
+<script>
+// ══════════════════════════════════════
+// DB: IndexedDB via Dexie (sites), localStorage for small data
+// ══════════════════════════════════════
+const db = new Dexie('HY_Check3');
+db.version(1).stores({ sites: 'code' });
+
+const LS = { CM:'hy3_cm', RANKS:'hy3_ranks', LOGS:'hy3_logs' };
+const lsLoad = k => { try { return JSON.parse(localStorage.getItem(k)||'[]'); } catch(e){ return []; }};
+const lsSave = (k,v) => localStorage.setItem(k, JSON.stringify(v));
+const uid = () => Date.now().toString(36)+Math.random().toString(36).substr(2,5);
+
+let craftsmen = lsLoad(LS.CM);
+// 過去にサンプル行が取り込まれていた場合に自動クリーンアップ
+(()=>{
+  const before=craftsmen.length;
+  craftsmen=craftsmen.filter(c=>{
+    const n=String(c.name||'');
+    const m=String(c.memo||'');
+    return !n.includes('サンプル')&&!n.startsWith('★')&&!m.includes('サンプルデータ')&&!m.includes('自動除外');
+  });
+  if(craftsmen.length<before){
+    lsSave(LS.CM, craftsmen);
+    console.log(`サンプルデータ ${before-craftsmen.length}件を自動削除しました`);
+  }
+})();
+let ranks = lsLoad(LS.RANKS);
+let logs = lsLoad(LS.LOGS);
+
+// ══════════════════════════════════════
+// PAGE NAV
+// ══════════════════════════════════════
+const PT = {check:'請求書チェック',log:'チェック履歴',cm:'職人マスター',site:'現場マスター',rank:'ランク管理',vehicle:'車両管理',import:'データ一括取込'};
+function goPg(id){
+  document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.sbn').forEach(n=>n.classList.remove('on'));
+  document.getElementById('pg-'+id).classList.add('on');
+  document.getElementById('nav-'+id).classList.add('on');
+  document.getElementById('bar-title').textContent = PT[id]||id;
+  if(id==='cm') renderCMT();
+  if(id==='log') renderLogs();
+  if(id==='rank'){ populateOwnerList(); renderRankT(); }
+  if(id==='vehicle'){ renderVehicles(); }
+  if(id==='import'){ /* no init needed */ }
+  if(id==='check') renderCGrid();
+}
+
+// ══════════════════════════════════════
+// WORKFLOW
+// ══════════════════════════════════════
+let wfStep=1, wfDone=new Set();
+const WF_LABELS=['職人選択','ヘッド入力','内訳チェック','実績図突合','金額確認'];
+
+function renderWfBar(){
+  const bar=document.getElementById('wfbar');
+  let h='';
+  for(let i=1;i<=5;i++){
+    const done=wfDone.has(i), cur=i===wfStep;
+    h+=`<div style="display:flex;align-items:center;gap:4px;cursor:pointer;" onclick="goStep(${i})">
+      <div class="wfc ${done?'done':cur?'cur':''}">${done?'<i class="fa-solid fa-check" style="font-size:9px;"></i>':i}</div>
+      <div class="wfl ${done?'done':cur?'cur':''}">${WF_LABELS[i-1]}</div>
+    </div>`;
+    if(i<5) h+=`<div class="wfline ${wfDone.has(i)?'done':''}"></div>`;
+  }
+  h+=`<div style="margin-left:auto;flex-shrink:0;"><button class="btn gray sm" onclick="resetSess()" style="white-space:nowrap;"><i class="fa-solid fa-rotate-left"></i> 新規</button></div>`;
+  bar.innerHTML=h;
+}
+
+function goStep(n){
+  if(n===2&&!sess.cid){alert('職人を選択してください');return;}
+  if(n===3&&!sess.cid){alert('職人を選択してください');return;}
+  wfStep=n;
+  renderWfBar();
+  document.querySelectorAll('.sp').forEach(s=>s.classList.remove('on'));
+  document.getElementById('sp'+n).classList.add('on');
+  if(n===2) initS2();
+  if(n===3) initS3();
+  if(n===4) initS4();
+  if(n===5){ initDRows(); recalc(); }
+}
+
+function resetSess(){
+  sess={ cid:null, headRows:[{code:'',name:'',owner:'',manager:'',amount:''}],
+    dSite:null, dData:{}, jData:{}, dRows:[], aRows:[] };
+  wfStep=1; wfDone.clear(); renderWfBar();
+  document.querySelectorAll('.sp').forEach(s=>s.classList.remove('on'));
+  document.getElementById('sp1').classList.add('on');
+  renderCGrid();
+}
+
+// ══════════════════════════════════════
+// SESSION
+// ══════════════════════════════════════
+let sess={
+  cid:null,
+  headRows:[{code:'',name:'',owner:'',manager:'',amount:''}],
+  dSite:null, dData:{}, jData:{}, dRows:[], aRows:[]
+};
+
+// ══════════════════════════════════════
+// STEP 1
+// ══════════════════════════════════════
+function renderCGrid(){
+  const q=(document.getElementById('s1-q')?.value||'').toLowerCase();
+  const t=document.getElementById('s1-t')?.value||'';
+  const g=document.getElementById('cgrid'); if(!g) return;
+  const list=craftsmen.filter(c=>!c.retired&&(!q||c.name.toLowerCase().includes(q))&&(!t||(c.category||'職人')===t));
+  if(!list.length){
+    g.innerHTML=`<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:30px;">
+      ${craftsmen.length===0?`<button class="btn gray" onclick="goPg('cm')">職人マスターを登録する</button>`:'条件に一致する職人がいません'}</div>`;
+    return;
+  }
+  g.innerHTML=list.map(c=>`
+    <div class="cg-card ${sess.cid===c.id?'sel':''}" onclick="selC('${c.id}')">
+      <div style="font-weight:700;font-size:15px;color:#1e293b;">${c.name}</div>
+      <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
+        <span class="bk gray-bk">${c.type||'常用'}</span>
+        ${c.invoice&&/^T\d{13}$/.test(c.invoice)?`<span class="bk blue-bk" title="${c.invoice}">インボイス</span>`:'<span class="bk warn">未対応</span>'}
+      </div>
+      <div style="font-size:12px;color:#64748b;margin-top:4px;">${c.branch||''}</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">${deductSummary(c)}</div>
+    </div>`).join('');
+}
+function deductSummary(c){
+  const x=[];
+  if(c.rosai>0)x.push('労災');if(c.kenko>0)x.push('健保');if(c.parking>0)x.push('駐車');
+  if(c.tools>0)x.push('道具');if(c.vehicle>0)x.push('車両');if(c.otherDeduct>0)x.push('他');
+  return x.length?x.join('・'):'控除なし';
+}
+function selC(id){ sess.cid=id; document.getElementById('s1btn').disabled=false; renderCGrid(); }
+
+// ══════════════════════════════════════
+// STEP 2
+// ══════════════════════════════════════
+function initS2(){
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  const badge=document.getElementById('s2-badge'); if(badge) badge.textContent=c?.name||'';
+  if(c){
+    let h=`<div style="font-size:15px;"><b>拠点：</b>${c.branch||c.type||'—'}</div>
+      <div><b>インボイス：</b>${c.invoice||'未登録'}</div>`;
+    if(c.rosai>0)h+=`<div style="font-size:14px;">労災組合費：¥${Number(c.rosai).toLocaleString()}</div>`;
+    if(c.kenko>0)h+=`<div style="font-size:14px;">健康保険料：¥${Number(c.kenko).toLocaleString()}</div>`;
+    if(c.parking>0)h+=`<div>駐車：¥${Number(c.parking).toLocaleString()}</div>`;
+    if(c.tools>0)h+=`<div>道具：¥${Number(c.tools).toLocaleString()}</div>`;
+    if(c.phone>0)h+=`<div>電話：¥${Number(c.phone).toLocaleString()}</div>`;
+    if(c.vehicle>0)h+=`<div style="font-size:14px;">車両リース：¥${Number(c.vehicle).toLocaleString()}</div>`;
+    if(c.otherDeduct>0)h+=`<div style="font-size:14px;">その他控除：¥${Number(c.otherDeduct).toLocaleString()}</div>`;
+    if(c.memo)h+=`<div style="color:#64748b;font-size:13px;margin-top:6px;">${c.memo}</div>`;
+    document.getElementById('s2-cinfo').innerHTML=h;
+  }
+  renderHeadRows();
+}
+function renderHeadRows(){
+  const el=document.getElementById('head-rows'); if(!el) return;
+  // 編集可能列インデックス: 0=工番, 4=金額（1-3は自動補完なので矢印キーで通過）
+  el.innerHTML=sess.headRows.map((r,i)=>`
+    <div style="display:grid;grid-template-columns:100px minmax(180px,2fr) minmax(120px,1fr) minmax(90px,1fr) 100px 28px;gap:6px;margin-bottom:8px;align-items:center;">
+      <input class="fi hr-inp" id="hr-code-${i}" data-row="${i}" data-col="0" value="${r.code}" placeholder="工番"
+        oninput="sess.headRows[${i}].code=this.value;lookupSite(${i})"
+        onkeydown="headKD(event,${i},0)"
+        style="font-size:15px;font-weight:700;">
+      <input class="fi auto" value="${r.name}" placeholder="（自動補完）" readonly id="hr-n-${i}"
+        style="font-size:14px;" tabindex="-1">
+      <input class="fi auto" value="${r.owner}" placeholder="（自動補完）" readonly id="hr-o-${i}"
+        style="font-size:13px;" tabindex="-1">
+      <input class="fi auto" value="${r.manager}" placeholder="（自動補完）" readonly id="hr-m-${i}"
+        style="font-size:13px;" tabindex="-1">
+      <input class="fi hr-inp" id="hr-amt-${i}" data-row="${i}" data-col="4" type="number" value="${r.amount||''}" placeholder="金額"
+        oninput="sess.headRows[${i}].amount=Number(this.value);recalc()"
+        onkeydown="headKD(event,${i},4)"
+        style="font-size:14px;text-align:right;">
+      <button onclick="rmHRow(${i})" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:18px;padding:0;line-height:1;">×</button>
+    </div>`).join('');
+}
+async function lookupSite(i){
+  const code=sess.headRows[i].code.trim(); if(!code) return;
+  const site = await db.sites.get(code) || await db.sites.get(code.padStart(5,'0'));
+  if(site){
+    sess.headRows[i].name=site.name||'';
+    sess.headRows[i].owner=site.owner||'';
+    sess.headRows[i].manager=site.manager||'';
+    // Apply rank from rank master or site default
+    const rk=ranks.find(r=>site.owner&&site.owner.includes(r.owner));
+    sess.headRows[i]._rank=rk?rk.rank:(site.rank||'B');
+  } else {
+    sess.headRows[i].name=''; sess.headRows[i].owner=''; sess.headRows[i].manager=''; sess.headRows[i]._rank='B';
+  }
+  setVal('hr-n-'+i, sess.headRows[i].name);
+  setVal('hr-o-'+i, sess.headRows[i].owner);
+  setVal('hr-m-'+i, sess.headRows[i].manager);
+}
+// ヘッド入力のキーボードナビゲーション
+// col: 0=工番, 4=金額（編集可能な2列のみ）
+const HR_COLS=[0,4]; // 編集可能列の順序
+function headKD(e,row,col){
+  const key=e.key;
+  const rows=sess.headRows;
+  const maxRow=rows.length-1;
+  const colIdx=HR_COLS.indexOf(col);
+
+  // Enter / ArrowDown → 同列・次行
+  if(key==='Enter'||key==='ArrowDown'){
+    e.preventDefault();
+    if(row>=maxRow){ addHRow(); }
+    else { focusHR(row+1,col); }
+    return;
+  }
+  // ArrowUp → 同列・前行
+  if(key==='ArrowUp'){
+    e.preventDefault();
+    if(row>0) focusHR(row-1,col);
+    return;
+  }
+  // Tab / ArrowRight → 同行・次の編集可能列、末列なら次行の最初の列
+  if((key==='Tab'&&!e.shiftKey)||key==='ArrowRight'){
+    // ArrowRight は文字入力中は干渉しないようテキストカーソルが末尾のときだけ移動
+    if(key==='ArrowRight'){
+      const inp=e.target;
+      if(inp.type!=='number'){
+        // テキスト: カーソルが末尾でなければ通常移動
+        if(inp.selectionStart<inp.value.length) return;
+      }
+    }
+    e.preventDefault();
+    const nextColIdx=colIdx+1;
+    if(nextColIdx<HR_COLS.length){
+      focusHR(row,HR_COLS[nextColIdx]);
+    } else {
+      // 末列 → 次行の先頭列
+      if(row>=maxRow){ addHRow(); }
+      else { focusHR(row+1,HR_COLS[0]); }
+    }
+    return;
+  }
+  // Shift+Tab / ArrowLeft → 同行・前の編集可能列、先頭列なら前行の末列
+  if((key==='Tab'&&e.shiftKey)||key==='ArrowLeft'){
+    if(key==='ArrowLeft'){
+      const inp=e.target;
+      if(inp.type!=='number'){
+        if(inp.selectionStart>0) return;
+      }
+    }
+    e.preventDefault();
+    const prevColIdx=colIdx-1;
+    if(prevColIdx>=0){
+      focusHR(row,HR_COLS[prevColIdx]);
+    } else {
+      // 先頭列 → 前行の末列
+      if(row>0) focusHR(row-1,HR_COLS[HR_COLS.length-1]);
+    }
+    return;
+  }
+}
+function focusHR(row,col){
+  setTimeout(()=>{
+    let el;
+    if(col===0) el=document.getElementById('hr-code-'+row);
+    else if(col===4) el=document.getElementById('hr-amt-'+row);
+    if(el){ el.focus(); el.select(); }
+  },30);
+}
+// 旧互換
+function headCodeEnter(e,i){ headKD(e,i,0); }
+function addHRow(){ sess.headRows.push({code:'',name:'',owner:'',manager:'',amount:''}); renderHeadRows(); setTimeout(()=>{ const el=document.getElementById('hr-code-'+(sess.headRows.length-1)); if(el){ el.focus(); el.select(); } },50); }
+function rmHRow(i){ sess.headRows.splice(i,1); if(!sess.headRows.length) sess.headRows.push({code:'',name:'',owner:'',manager:'',amount:''}); renderHeadRows(); }
+
+// ══════════════════════════════════════
+// STEP 3: 内訳
+// ══════════════════════════════════════
+// ── Data definitions ──
+const SOZEI_DEF=[
+  {sec:"ブロック・型枠化粧ブロック",items:[
+    {n:"重量ブロック C種 t100",u:"本",p:190},
+    {n:"重量ブロック C種 t120",u:"本",p:210},
+    {n:"重量ブロック C種 t150",u:"本",p:270},
+    {n:"化粧ブロック t120 目地無し",u:"本",p:260},
+    {n:"化粧ブロック t150 目地無し",u:"本",p:270},
+    {n:"型枠化粧ブロック t150 目地無し",u:"本",p:240},
+    {n:"型枠化粧ブロック t150 中込",u:"本",p:100},
+    {n:"型枠化粧ブロック t180 目地無し",u:"本",p:280},
+    {n:"型枠化粧ブロック t180 中込",u:"本",p:100},
+    {n:"型枠化粧ブロック t210 目地無し",u:"本",p:310},
+    {n:"型枠化粧ブロック t210 中込",u:"本",p:140},
+    {n:"型枠化粧ブロック t240 目地無し",u:"本",p:350},
+    {n:"型枠化粧ブロック t240 中込",u:"本",p:140},
+    {n:"ブロック 加工費",u:"本",p:150}
+  ]},
+  {sec:"天端・基礎補助",items:[
+    {n:"エラスタイト",u:"m",p:100},
+    {n:"ブロック天端 テープ養生 薄塗仕上げ",u:"m",p:100},
+    {n:"コア抜き ブロック上",u:"箇所",p:930},
+    {n:"コア抜き RC上",u:"箇所",p:2000},
+    {n:"水抜き穴加工",u:"箇所",p:500}
+  ]},
+  {sec:"ブロック積ベース・アンカー・縁石",items:[
+    {n:"ブロック積ベース 50〜100mm",u:"m",p:560},
+    {n:"ブロック積ベース t100mm未満",u:"m",p:830},
+    {n:"ブロック積ベース t100mm以上",u:"m",p:1030},
+    {n:"ホールインアンカー",u:"本",p:100},
+    {n:"ケミカルアンカー",u:"本",p:150},
+    {n:"縁石 100×100×600",u:"本",p:280},
+    {n:"縁石 120以上×120以上×600",u:"本",p:370},
+    {n:"階段・土間 荒打 小（〜0.5㎡）",u:"箇所",p:750},
+    {n:"階段・土間 荒打 大（〜3㎡）",u:"箇所",p:1670},
+    {n:"階段・土間 仕上 小（〜0.5㎡）",u:"箇所",p:1670},
+    {n:"階段・土間 仕上 大（〜3㎡）",u:"箇所",p:2600},
+    {n:"ボーダーベース 〜W200",u:"m",p:470},
+    {n:"ボーダーベース 〜W300",u:"m",p:750},
+    {n:"ボーダーベース 〜W400",u:"m",p:930}
+  ]},
+  {sec:"メッシュフェンス",items:[
+    {n:"メッシュフェンス H600〜H800 フリー本体",u:"枚",p:560},
+    {n:"メッシュフェンス H600〜H800 間柱本体",u:"枚",p:620},
+    {n:"メッシュフェンス H600〜H800 柱",u:"本",p:560},
+    {n:"メッシュフェンス H1000〜H1200以上 フリー本体",u:"枚",p:1000},
+    {n:"メッシュフェンス H1000〜H1200以上 間柱本体",u:"枚",p:1100},
+    {n:"メッシュフェンス H1000〜H1200以上 柱",u:"本",p:1000}
+  ]},
+  {sec:"アルミフェンス",items:[
+    {n:"アルミフェンス H600〜H1000 フリー本体",u:"枚",p:610},
+    {n:"アルミフェンス H600〜H1000 間柱本体",u:"本",p:510},
+    {n:"アルミフェンス H600〜H1000 切詰め加工",u:"枚",p:3000},
+    {n:"アルミフェンス H1200以上 フリー本体",u:"枚",p:1100},
+    {n:"アルミフェンス H1200以上 間柱本体",u:"本",p:1000},
+    {n:"アルミフェンス H1200以上 切詰め加工",u:"本",p:4000},
+    {n:"アルミフェンス 多段柱 H1400以上 柱",u:"本",p:1530}
+  ]},
+  {sec:"調整・写真",items:[
+    {n:"塩ビ管 レベル調整",u:"箇所",p:500},
+    {n:"メーター・散水栓 レベル調整",u:"箇所",p:1000},
+    {n:"写真撮影費 外構・造成",u:"式",p:4000},
+    {n:"常用（人工）",u:"人工",p:18000},
+    {n:"常用（時間）",u:"h",p:2250}
+  ]}
+];
+const GAIKO_DEF=[
+  {sec:"ブロック・型枠化粧ブロック",items:[
+    {n:"重量ブロック C種 t100",u:"本",a:210,b:220,c:230},
+    {n:"重量ブロック C種 t120",u:"本",a:230,b:240,c:250},
+    {n:"重量ブロック C種 t150",u:"本",a:300,b:310,c:320},
+    {n:"化粧ブロック t120 目地無し",u:"本",a:290,b:300,c:310},
+    {n:"化粧ブロック t150 目地無し",u:"本",a:300,b:310,c:320},
+    {n:"型枠化粧ブロック t150 目地無し",u:"本",a:260,b:280,c:290},
+    {n:"型枠化粧ブロック t150 中込",u:"本",a:110,b:120,c:130},
+    {n:"型枠化粧ブロック t180 目地無し",u:"本",a:310,b:320,c:340},
+    {n:"型枠化粧ブロック t180 中込",u:"本",a:110,b:120,c:130},
+    {n:"型枠化粧ブロック t210 目地無し",u:"本",a:340,b:360,c:370},
+    {n:"型枠化粧ブロック t210 中込",u:"本",a:150,b:160,c:170},
+    {n:"型枠化粧ブロック t240 目地無し",u:"本",a:390,b:400,c:420},
+    {n:"型枠化粧ブロック t240 中込",u:"本",a:150,b:160,c:170},
+    {n:"ブロック 加工費",u:"本",a:160,b:170,c:180}
+  ]},
+  {sec:"天端・基礎補助",items:[
+    {n:"エラスタイト",u:"m",a:110,b:120,c:130},
+    {n:"ブロック天端 テープ養生 薄塗仕上げ",u:"m",a:110,b:120,c:130},
+    {n:"コア抜き ブロック上",u:"箇所",a:1020,b:1070,c:1120},
+    {n:"コア抜き RC上",u:"箇所",a:2200,b:2300,c:2400},
+    {n:"水抜き穴加工",u:"箇所",a:550,b:580,c:600}
+  ]},
+  {sec:"笠木",items:[
+    {n:"笠木 W120",u:"枚",a:220,b:240,c:260},
+    {n:"笠木 W150",u:"枚",a:240,b:260,c:280},
+    {n:"笠木 〜L500",u:"枚",a:250,b:270,c:290},
+    {n:"笠木 〜L1200",u:"枚",a:490,b:520,c:570},
+    {n:"笠木 〜□500",u:"枚",a:390,b:410,c:450},
+    {n:"笠木 乱形石",u:"m",a:1460,b:1530,c:1670}
+  ]},
+  {sec:"ピンコロ・レンガ",items:[
+    {n:"ピンコロ 半ピン・□90",u:"個",a:110,b:120,c:130},
+    {n:"ピンコロ 2丁掛け",u:"個",a:150,b:160,c:170},
+    {n:"ピンコロ 3丁掛け",u:"個",a:200,b:210,c:230},
+    {n:"レンガ ショコラ",u:"本",a:160,b:170,c:190},
+    {n:"レンガ ショコラ キャップ",u:"本",a:160,b:170,c:190}
+  ]},
+  {sec:"ブロック積ベース・アンカー",items:[
+    {n:"ブロック積ベース 50〜100mm",u:"m",a:620,b:640,c:680},
+    {n:"ブロック積ベース t100mm未満",u:"m",a:910,b:960,c:1000},
+    {n:"ブロック積ベース t100mm以上",u:"m",a:1130,b:1190,c:1240},
+    {n:"ホールインアンカー",u:"本",a:110,b:120,c:130},
+    {n:"ケミカルアンカー",u:"本",a:160,b:170,c:190},
+    {n:"ボーダーベース 〜W200",u:"m",a:520,b:540,c:570},
+    {n:"ボーダーベース 〜W300",u:"m",a:830,b:860,c:910},
+    {n:"ボーダーベース 〜W400",u:"m",a:1020,b:1070,c:1120}
+  ]},
+  {sec:"メッシュフェンス",items:[
+    {n:"メッシュフェンス H600〜H800 フリー本体",u:"枚",a:590,b:620,c:670},
+    {n:"メッシュフェンス H600〜H800 間柱本体",u:"枚",a:650,b:680,c:740},
+    {n:"メッシュフェンス H600〜H800 柱",u:"本",a:590,b:620,c:670},
+    {n:"メッシュフェンス H1000〜H1200以上 フリー本体",u:"枚",a:1270,b:1330,c:1450},
+    {n:"メッシュフェンス H1000〜H1200以上 間柱本体",u:"枚",a:1330,b:1400,c:1520},
+    {n:"メッシュフェンス H1000〜H1200以上 柱",u:"本",a:1270,b:1330,c:1450}
+  ]},
+  {sec:"アルミフェンス",items:[
+    {n:"アルミフェンス H600〜H1000 フリー本体",u:"枚",a:620,b:650,c:710},
+    {n:"アルミフェンス H600〜H1000 間柱本体",u:"本",a:520,b:540,c:590},
+    {n:"アルミフェンス H600〜H1000 切詰加工",u:"箇所",a:3070,b:3210,c:3500},
+    {n:"アルミフェンス H1200以上 フリー本体",u:"枚",a:1120,b:1180,c:1280},
+    {n:"アルミフェンス H1200以上 間柱本体",u:"本",a:1030,b:1080,c:1180},
+    {n:"アルミフェンス H1200以上 切詰加工",u:"箇所",a:4100,b:4290,c:4680},
+    {n:"アルミフェンス 多段柱 H1400以上",u:"本",a:1610,b:1680,c:1840}
+  ]},
+  {sec:"土間下地",items:[
+    {n:"土間下地 転圧",u:"㎡",a:60,b:70,c:80},
+    {n:"土間下地 砕石敷き",u:"㎡",a:150,b:160,c:170},
+    {n:"土間下地 メッシュ引き",u:"㎡",a:170,b:180,c:190},
+    {n:"土間下地 荒均し",u:"㎡",a:440,b:460,c:480},
+    {n:"土間下地 ネコ押し",u:"㎡",a:340,b:360,c:370},
+    {n:"土間下地 面取",u:"m",a:110,b:120,c:130},
+    {n:"土間下地 ポイント荒打ち □300",u:"箇所",a:310,b:320,c:340},
+    {n:"土間下地 □400",u:"箇所",a:410,b:430,c:450},
+    {n:"土間下地 □500",u:"箇所",a:520,b:540,c:570},
+    {n:"土間下地 □600",u:"箇所",a:620,b:640,c:680}
+  ]},
+  {sec:"土間仕上",items:[
+    {n:"土間仕上 背板",u:"m",a:340,b:360,c:370},
+    {n:"土間仕上 目地（押し・伸縮共）",u:"m",a:300,b:310,c:320},
+    {n:"土間仕上 刷毛引・金鏝共",u:"㎡",a:880,b:920,c:960},
+    {n:"土間仕上 カラークリート",u:"㎡",a:920,b:970,c:1010},
+    {n:"土間仕上 デザインクリート・ステンシル",u:"㎡",a:1940,b:2020,c:2120},
+    {n:"土間仕上 直洗い出し",u:"㎡",a:1840,b:1920,c:2010},
+    {n:"土間仕上 洗い出し・ストーンフィーネ",u:"㎡",a:3060,b:3200,c:3340}
+  ]},
+  {sec:"目地有り・見切り",items:[
+    {n:"目地有り 方形石貼り □100",u:"㎡",a:5570,b:5820,c:6070},
+    {n:"目地有り □200",u:"㎡",a:4480,b:4680,c:4880},
+    {n:"目地有り □300",u:"㎡",a:3870,b:4050,c:4220},
+    {n:"目地有り □300〜",u:"㎡",a:4160,b:4350,c:4540},
+    {n:"目地有り 乱形石貼り",u:"㎡",a:5930,b:6200,c:6470},
+    {n:"見切り 平板 □1020",u:"枚",a:130,b:140,c:150},
+    {n:"見切り □200",u:"枚",a:160,b:170,c:180},
+    {n:"見切り □300",u:"枚",a:340,b:360,c:370},
+    {n:"見切り □3060",u:"枚",a:450,b:470,c:490},
+    {n:"見切り □400",u:"枚",a:450,b:470,c:490},
+    {n:"見切り □450",u:"枚",a:570,b:600,c:620},
+    {n:"見切り □600",u:"枚",a:910,b:960,c:1000},
+    {n:"見切り 平板廻りマス加工（丸）",u:"箇所",a:880,b:920,c:960}
+  ]},
+  {sec:"縁石・手すり",items:[
+    {n:"縁石 100×100×600",u:"本",a:310,b:320,c:340},
+    {n:"縁石 120以上×120以上×600",u:"本",a:410,b:430,c:450},
+    {n:"手すり 笠木",u:"本",a:760,b:790,c:860},
+    {n:"手すり ビーム",u:"本",a:1580,b:1650,c:1800},
+    {n:"手すり 柱",u:"本",a:760,b:790,c:860},
+    {n:"手すり 切詰め加工",u:"箇所",a:530,b:550,c:600}
+  ]},
+  {sec:"ポスト・機能門柱・宅配BOX",items:[
+    {n:"ポスト 埋め込み・壁付け",u:"個",a:1580,b:1650,c:1800},
+    {n:"機能門柱 1本足",u:"基",a:3410,b:3580,c:3910},
+    {n:"機能門柱 2本足",u:"基",a:5360,b:5610,c:6120},
+    {n:"機能門柱 3本足",u:"基",a:7000,b:7700,c:8400},
+    {n:"宅配BOX 壁掛け/埋込/据置",u:"基",a:3470,b:3630,c:3960},
+    {n:"宅配BOX ポール建て",u:"基",a:4380,b:4590,c:5000}
+  ]},
+  {sec:"照明・設備",items:[
+    {n:"照明 ポールライト",u:"台",a:2100,b:2200,c:2400},
+    {n:"照明 門柱灯",u:"個",a:1580,b:1650,c:1800},
+    {n:"照明 PF管配管 20m以下",u:"m",a:110,b:120,c:130},
+    {n:"照明 インターホン取付",u:"基",a:2310,b:2420,c:2640},
+    {n:"照明 ケーブル配線",u:"m",a:320,b:330,c:360}
+  ]},
+  {sec:"調整・写真",items:[
+    {n:"塩ビ管 レベル調整",u:"箇所",a:550,b:580,c:600},
+    {n:"メーター・散水栓 レベル調整",u:"箇所",a:1100,b:1150,c:1200},
+    {n:"写真撮影費 外構・造成",u:"式",a:4400,b:4600,c:4800},
+    {n:"写真撮影費 元請別※1",u:"式",a:10000,b:10000,c:10000},
+    {n:"常用（人工）",u:"人工",a:18000,b:18000,c:18000},
+    {n:"常用（時間）",u:"h",a:2250,b:2250,c:2250}
+  ]}
+];
+
+function buildSRows(){ return SOZEI_DEF.flatMap(s=>s.items.map(it=>({n:it.n,u:it.u,p:it.p||0,qty:0,memo:'',free:false}))); }
+function buildGRows(){ return GAIKO_DEF.flatMap(s=>s.items.map(it=>({n:it.n,u:it.u,a:it.a||0,b:it.b||0,c:it.c||0,qty:0,memo:'',free:false}))); }
+
+function initS3(){
+  const sel=document.getElementById('d-site');
+  const rows=sess.headRows.filter(r=>r.code);
+  sel.innerHTML=rows.length?rows.map(r=>`<option value="${r.code}">${r.code}　${r.name}</option>`).join(''):'<option value="">（現場なし）</option>';
+  if(!sess.dSite&&rows.length) sess.dSite=rows[0].code;
+  if(sess.dSite) sel.value=sess.dSite;
+  loadDSite();
+}
+function loadDSite(){
+  const code=document.getElementById('d-site').value; if(!code) return;
+  sess.dSite=code;
+  const hr=sess.headRows.find(r=>r.code===code);
+  if(hr?._rank) document.getElementById('d-rank').value=hr._rank;
+  if(!sess.dData[code]) sess.dData[code]={s:buildSRows(),g:buildGRows()};
+  reRenderDetail();
+}
+function switchDTab(t){
+  ['s','g'].forEach(x=>{ document.getElementById('dp-'+x).classList.toggle('on',x===t); document.getElementById('dtb-'+x).classList.toggle('on',x===t); });
+}
+function reRenderDetail(){
+  const code=document.getElementById('d-site')?.value; if(!code) return;
+  renderSTbl(code); renderGTbl(code); updateGrand(code);
+}
+
+// ── SOZEI table (2列グリッド) ──
+function renderSTbl(code){
+  const rows=sess.dData[code]?.s||[];
+  const wrap=document.getElementById('tb-s'); if(!wrap) return;
+  const allItems=SOZEI_DEF.flatMap(s=>s.items);
+  let idx=0;
+  // セクションカードHTML
+  let cards='';
+  SOZEI_DEF.forEach(sec=>{
+    let rowsHtml='';
+    sec.items.forEach(()=>{
+      const r=rows[idx]||{qty:0,memo:''};
+      const defItem=allItems[idx];
+      const name=r.n||defItem.n;
+      const unit=r.u||defItem.u;
+      const price=r.p||0;
+      const qty=Number(r.qty)||0;
+      const amt=qty*price;
+      const sn=name.replace(/'/g,"\'");
+      rowsHtml+=`<tr>
+        <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditS('${code}',${idx},this)">${name}</span></td>
+        <td class="s-col-qty"><input type="number" class="fi-n s-qty-inp" value="${qty||''}" min="0" placeholder="0"
+          data-code="${code}" data-idx="${idx}"
+          onchange="setSQty('${code}',${idx},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
+        <td class="s-col-unit">${unit}</td>
+        <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${idx},'${sn}')">¥${price.toLocaleString()}</span></td>
+        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+        <td class="s-col-act">
+          <button class="ins-btn" onclick="insertSRow('${code}',${idx})" title="下に行挿入">＋</button>
+          <button class="del-btn" onclick="delSRow('${code}',${idx})">×</button>
+        </td>
+      </tr>`;
+      idx++;
+    });
+    cards+=`<div class="sec-card">
+      <div class="sec-card-hd">${sec.sec}</div>
+      <table class="sec-tbl">
+        <thead><tr>
+          <th class="s-col-name">項目</th>
+          <th class="s-col-qty">数量</th>
+          <th class="s-col-unit">単位</th>
+          <th class="s-col-price">単価✎</th>
+          <th class="s-col-amt">金額</th>
+          <th class="s-col-act"></th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+  });
+  // フリー行（追加行）
+  const freeRows=rows.slice(idx).filter(r=>r.free);
+  if(freeRows.length){
+    let fHtml='';
+    for(let i=idx;i<rows.length;i++){
+      const r=rows[i]; if(!r.free) continue;
+      const amt=(Number(r.qty)||0)*(r.p||0);
+      fHtml+=`<tr>
+        <td class="s-col-name"><input class="fi" value="${r.n||''}" oninput="sess.dData['${code}'].s[${i}].n=this.value" style="font-size:12px;"></td>
+        <td class="s-col-qty"><input type="number" class="fi-n s-qty-inp" value="${r.qty||''}" min="0" placeholder="0"
+          data-code="${code}" data-idx="${i}"
+          onchange="setSQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
+        <td class="s-col-unit"><input class="fi" value="${r.u||''}" oninput="sess.dData['${code}'].s[${i}].u=this.value" style="width:28px;font-size:11px;"></td>
+        <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${i},'${(r.n||'').replace(/'/g,"\'")}')">¥${(r.p||0).toLocaleString()}</span></td>
+        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+        <td class="s-col-memo"><input class="fi" value="${r.memo||''}" placeholder="備考" oninput="sess.dData['${code}'].s[${i}].memo=this.value" style="font-size:11px;"></td>
+        <td class="s-col-act"><button class="del-btn" onclick="delSRow('${code}',${i})">×</button></td>
+      </tr>`;
+    }
+    cards+=`<div class="sec-card" style="grid-column:1/-1;">
+      <div class="sec-card-hd">追加行（手入力）</div>
+      <table class="sec-tbl"><thead><tr>
+        <th class="s-col-name">項目名</th><th class="s-col-qty">数量</th><th class="s-col-unit">単位</th>
+        <th class="s-col-price">単価✎</th><th class="s-col-amt">金額</th><th class="s-col-memo">備考</th><th class="s-col-act"></th>
+      </tr></thead><tbody>${fHtml}</tbody></table>
+    </div>`;
+  }
+  wrap.innerHTML=cards;
+  updateSub(code);
+}
+function sRow(code,i,name,unit,price,qty,amt,memo,isFree){
+  const sn=name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/`/g,'\\`');
+  return `<tr>
+    <td class="col-name">${isFree
+      ?`<input class="fi" value="${name}" oninput="sess.dData['${code}'].s[${i}].n=this.value" style="font-size:13px;">`
+      :`<span class="editable" style="padding-left:8px;font-size:13px;display:inline-block;min-width:60px;" ondblclick="nameEditS('${code}',${i},this)">${name}</span>`}</td>
+    <td class="col-qty"><input type="number" class="fi-n s-qty-inp" value="${qty||''}" min="0" placeholder="0"
+      data-code="${code}" data-idx="${i}"
+      onchange="setSQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:70px;"></td>
+    <td class="col-unit" style="text-align:center;font-size:13px;color:#475569;">${isFree?`<input class="fi" value="${unit||''}" oninput="sess.dData['${code}'].s[${i}].u=this.value" style="font-size:12px;width:40px;">`:unit}</td>
+    <td class="col-price" style="text-align:right;"><span class="editable" style="font-size:13px;font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${i},'${sn}')" title="ダブルクリックで変更">¥${(price||0).toLocaleString()}</span></td>
+    <td class="col-amt" style="text-align:right;font-family:'Courier New',monospace;font-weight:700;font-size:13px;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+    <td class="col-memo"><input class="fi" value="${memo||''}" placeholder="備考" oninput="sess.dData['${code}'].s[${i}].memo=this.value" style="font-size:12px;"></td>
+    <td class="col-ins"><button class="ins-btn" onclick="insertSRow('${code}',${i})" title="この下に行を挿入">＋</button></td>
+    <td class="col-del"><button class="del-btn" onclick="delSRow('${code}',${i})" title="行を削除">×</button></td>
+  </tr>`;
+}
+function setSQty(code,i,v){
+  if(!sess.dData[code]) return;
+  const r=sess.dData[code].s[i];
+  r.qty=Number(v)||0;
+  const amt=r.qty*(r.p||0);
+  // DOM: 対象行の col-amt を直接更新
+  const inp=document.querySelector(`#dp-s .s-qty-inp[data-code="${code}"][data-idx="${i}"]`);
+  if(inp){
+    const amtCell=inp.closest('tr')?.querySelector('.s-col-amt');
+    if(amtCell) amtCell.textContent=amt>0?'¥'+amt.toLocaleString():'';
+  }
+  updateSub(code); updateGrand(code);
+}
+function updateSub(code){
+  const rows=sess.dData[code]?.s||[];
+  const t=rows.reduce((s,r)=>s+(Number(r.qty)||0)*(r.p||0),0);
+  setTxt('sub-s','¥'+t.toLocaleString()); return t;
+}
+function addFreeRowS(){ const c=document.getElementById('d-site')?.value; if(!c) return; if(!sess.dData[c]) return; sess.dData[c].s.push({n:'',u:'',p:0,qty:0,memo:'',free:true}); renderSTbl(c); }
+function rmFreeS(code,i){ sess.dData[code].s.splice(i,1); renderSTbl(code); updateGrand(code); }
+
+// ── GAIKO table (2列グリッド) ──
+function renderGTbl(code){
+  const rows=sess.dData[code]?.g||[];
+  const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
+  const wrap=document.getElementById('tb-g'); if(!wrap) return;
+  const allItems=GAIKO_DEF.flatMap(s=>s.items);
+  const rankCls=rank==='a'?'ra':rank==='b'?'rb':'rc';
+  let idx=0;
+  let cards='';
+  GAIKO_DEF.forEach(sec=>{
+    let rowsHtml='';
+    sec.items.forEach(()=>{
+      const r=rows[idx]||{qty:0,memo:''};
+      const defItem=allItems[idx];
+      const name=r.n||defItem.n;
+      const unit=r.u||defItem.u;
+      const pa=r.a||0, pb=r.b||0, pc=r.c||0;
+      const ap=rank==='a'?pa:rank==='b'?pb:pc;
+      const qty=Number(r.qty)||0;
+      const amt=qty*ap;
+      const sn=name.replace(/'/g,"\'");
+      rowsHtml+=`<tr>
+        <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditG('${code}',${idx},this)">${name}</span></td>
+        <td class="s-col-qty"><input type="number" class="fi-n g-qty-inp" value="${qty||''}" min="0" placeholder="0"
+          data-code="${code}" data-idx="${idx}"
+          onchange="setGQty('${code}',${idx},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
+        <td class="s-col-unit">${unit}</td>
+        <td class="g-col-pa"><span class="editable" style="font-family:'Courier New',monospace;font-size:11px;color:#64748b;" ondblclick="openPriceG('${code}',${idx},'${sn}')">¥${pa.toLocaleString()}</span></td>
+        <td class="g-col-pb" style="font-size:11px;color:#94a3b8;font-family:'Courier New',monospace;">¥${pb.toLocaleString()}</td>
+        <td class="g-col-pc" style="font-size:11px;color:#94a3b8;font-family:'Courier New',monospace;">¥${pc.toLocaleString()}</td>
+        <td class="g-col-ap"><span class="${rankCls}" style="font-family:'Courier New',monospace;font-size:12px;">¥${ap.toLocaleString()}</span></td>
+        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+        <td class="s-col-act">
+          <button class="ins-btn" onclick="insertGRow('${code}',${idx})" title="下に行挿入">＋</button>
+          <button class="del-btn" onclick="delGRow('${code}',${idx})">×</button>
+        </td>
+      </tr>`;
+      idx++;
+    });
+    cards+=`<div class="sec-card">
+      <div class="sec-card-hd">${sec.sec}</div>
+      <table class="sec-tbl">
+        <thead><tr>
+          <th class="s-col-name">項目</th>
+          <th class="s-col-qty">数量</th>
+          <th class="s-col-unit">単位</th>
+          <th class="g-col-pa">A単価✎</th>
+          <th class="g-col-pb">B</th>
+          <th class="g-col-pc">C</th>
+          <th class="g-col-ap">適用</th>
+          <th class="s-col-amt">金額</th>
+          <th class="s-col-act"></th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+  });
+  // フリー行
+  const freeStart=idx;
+  for(let i=freeStart;i<rows.length;i++){
+    const r=rows[i]; if(!r.free) continue;
+    const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||r.p||0);
+    const amt=(Number(r.qty)||0)*ap;
+    // included in a single free card - build separately below
+  }
+  const freeItems=rows.slice(idx).filter(r=>r.free);
+  if(freeItems.length){
+    let fHtml='';
+    for(let i=idx;i<rows.length;i++){
+      const r=rows[i]; if(!r.free) continue;
+      const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||r.p||0);
+      const amt=(Number(r.qty)||0)*ap;
+      fHtml+=`<tr>
+        <td><input class="fi" value="${r.n||''}" oninput="sess.dData['${code}'].g[${i}].n=this.value" style="font-size:12px;"></td>
+        <td><input type="number" class="fi-n g-qty-inp" value="${r.qty||''}" min="0" placeholder="0"
+          data-code="${code}" data-idx="${i}"
+          onchange="setGQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
+        <td style="font-size:11px;"><input class="fi" value="${r.u||''}" oninput="sess.dData['${code}'].g[${i}].u=this.value" style="width:28px;font-size:11px;"></td>
+        <td><input type="number" class="fi-n" value="${r.a||''}" placeholder="A" oninput="sess.dData['${code}'].g[${i}].a=Number(this.value)" style="width:54px;font-size:11px;"></td>
+        <td><input type="number" class="fi-n" value="${r.b||''}" placeholder="B" oninput="sess.dData['${code}'].g[${i}].b=Number(this.value)" style="width:50px;font-size:11px;"></td>
+        <td><input type="number" class="fi-n" value="${r.c||''}" placeholder="C" oninput="sess.dData['${code}'].g[${i}].c=Number(this.value)" style="width:50px;font-size:11px;"></td>
+        <td><span class="${rankCls}" style="font-family:'Courier New',monospace;font-size:12px;">¥${ap.toLocaleString()}</span></td>
+        <td style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+        <td><input class="fi" value="${r.memo||''}" placeholder="備考" oninput="sess.dData['${code}'].g[${i}].memo=this.value" style="font-size:11px;"></td>
+        <td><button class="del-btn" onclick="delGRow('${code}',${i})">×</button></td>
+      </tr>`;
+    }
+    cards+=`<div class="sec-card" style="grid-column:1/-1;">
+      <div class="sec-card-hd">追加行（手入力）</div>
+      <table class="sec-tbl"><thead><tr>
+        <th>項目名</th><th>数量</th><th>単位</th><th>A単価</th><th>B</th><th>C</th><th>適用</th><th>金額</th><th>備考</th><th></th>
+      </tr></thead><tbody>${fHtml}</tbody></table>
+    </div>`;
+  }
+  wrap.innerHTML=cards;
+  updateGSub(code);
+}
+function gRow(code,i,name,unit,pa,pb,pc,ap,qty,amt,memo,isFree,rank){
+  const rankCls=rank==='a'?'ra':rank==='b'?'rb':'rc';
+  const sn=name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/`/g,'\\`');
+  return `<tr>
+    <td class="col-name">${isFree
+      ?`<input class="fi" value="${name}" oninput="sess.dData['${code}'].g[${i}].n=this.value" style="font-size:13px;">`
+      :`<span class="editable" style="padding-left:8px;font-size:13px;display:inline-block;min-width:60px;" ondblclick="nameEditG('${code}',${i},this)">${name}</span>`}</td>
+    <td class="col-qty"><input type="number" class="fi-n g-qty-inp" value="${qty||''}" min="0" placeholder="0"
+      data-code="${code}" data-idx="${i}"
+      onchange="setGQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:70px;"></td>
+    <td class="col-unit" style="text-align:center;font-size:13px;color:#475569;">${isFree?`<input class="fi" value="${unit||''}" oninput="sess.dData['${code}'].g[${i}].u=this.value" style="font-size:12px;width:40px;">`:unit}</td>
+    <td class="col-pa" style="text-align:right;"><span class="editable" style="font-size:12px;font-family:'Courier New',monospace;color:#64748b;" ondblclick="openPriceG('${code}',${i},'${sn}')" title="ダブルクリックで単価変更">¥${(pa||0).toLocaleString()}</span></td>
+    <td class="col-pb" style="text-align:right;font-size:12px;color:#94a3b8;font-family:'Courier New',monospace;">¥${(pb||0).toLocaleString()}</td>
+    <td class="col-pc" style="text-align:right;font-size:12px;color:#94a3b8;font-family:'Courier New',monospace;">¥${(pc||0).toLocaleString()}</td>
+    <td class="col-ap" style="text-align:right;"><span class="${rankCls}" style="font-family:'Courier New',monospace;font-size:13px;">¥${(ap||0).toLocaleString()}</span></td>
+    <td class="col-amt" style="text-align:right;font-family:'Courier New',monospace;font-weight:700;font-size:13px;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+    <td class="col-memo"><input class="fi" value="${memo||''}" placeholder="備考" oninput="sess.dData['${code}'].g[${i}].memo=this.value" style="font-size:12px;"></td>
+    <td class="col-ins"><button class="ins-btn" onclick="insertGRow('${code}',${i})" title="この下に行を挿入">＋</button></td>
+    <td class="col-del"><button class="del-btn" onclick="delGRow('${code}',${i})" title="行を削除">×</button></td>
+  </tr>`;
+}
+function setGQty(code,i,v){
+  if(!sess.dData[code]) return;
+  const r=sess.dData[code].g[i];
+  r.qty=Number(v)||0;
+  const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
+  const ap=rank==='a'?r.a:rank==='b'?r.b:(r.c||r.p||0);
+  const amt=r.qty*(ap||0);
+  // DOM: 対象行の col-amt を直接更新
+  const inp=document.querySelector(`#dp-g .g-qty-inp[data-code="${code}"][data-idx="${i}"]`);
+  if(inp){
+    const amtCell=inp.closest('tr')?.querySelector('.s-col-amt');
+    if(amtCell) amtCell.textContent=amt>0?'¥'+amt.toLocaleString():'';
+  }
+  updateGSub(code); updateGrand(code);
+}
+function updateGSub(code){
+  const rows=sess.dData[code]?.g||[];
+  const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
+  const t=rows.reduce((s,r)=>s+(Number(r.qty)||0)*(rank==='a'?r.a:rank==='b'?r.b:r.c||r.p||0),0);
+  setTxt('sub-g','¥'+t.toLocaleString()); return t;
+}
+function addFreeRowG(){ const c=document.getElementById('d-site')?.value; if(!c) return; sess.dData[c].g.push({n:'',u:'',a:0,b:0,c:0,qty:0,memo:'',free:true}); renderGTbl(c); }
+function rmFreeG(code,i){ sess.dData[code].g.splice(i,1); renderGTbl(code); updateGrand(code); }
+
+function updateGrand(code){
+  const s=updateSub(code), g=updateGSub(code);
+  setTxt('d-grand','¥'+(s+g).toLocaleString());
+}
+
+// numpad
+function numKD(e,inp){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    // 現在の値でchangeイベントを確実に発火させてから次へ
+    inp.dispatchEvent(new Event('change'));
+    const all=Array.from(document.querySelectorAll('.fi-n'));
+    const i=all.indexOf(inp);
+    if(i<all.length-1) all[i+1].focus();
+  }
+  if(e.key==='Escape'){inp.value='';inp.dispatchEvent(new Event('change'));inp.blur();}
+}
+
+// ── Price edit modal ──
+let priceCtx={type:'',code:'',idx:0};
+function openPriceS(code,idx,name){
+  priceCtx={type:'s',code,idx};
+  const r=sess.dData[code]?.s[idx]||{};
+  document.getElementById('price-item-name').textContent=name;
+  document.getElementById('price-fields').innerHTML=`<div class="fg"><label class="fl">単価</label><input class="fi" type="number" id="pe-p" value="${r.p||0}" min="0"></div>`;
+  document.getElementById('mo-price').classList.add('open');
+}
+function openPriceG(code,idx,name){
+  priceCtx={type:'g',code,idx};
+  const r=sess.dData[code]?.g[idx]||{};
+  document.getElementById('price-item-name').textContent=name;
+  document.getElementById('price-fields').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+      <div class="fg"><label class="fl">A単価</label><input class="fi" type="number" id="pe-a" value="${r.a||0}" min="0"></div>
+      <div class="fg"><label class="fl">B単価</label><input class="fi" type="number" id="pe-b" value="${r.b||0}" min="0"></div>
+      <div class="fg"><label class="fl">C単価</label><input class="fi" type="number" id="pe-c" value="${r.c||0}" min="0"></div>
+    </div>`;
+  document.getElementById('mo-price').classList.add('open');
+}
+function closePriceM(){ document.getElementById('mo-price').classList.remove('open'); }
+function applyPriceEdit(){
+  const {type,code,idx}=priceCtx;
+  if(type==='s'){ sess.dData[code].s[idx].p=Number(document.getElementById('pe-p').value)||0; renderSTbl(code); }
+  else { sess.dData[code].g[idx].a=Number(document.getElementById('pe-a').value)||0; sess.dData[code].g[idx].b=Number(document.getElementById('pe-b').value)||0; sess.dData[code].g[idx].c=Number(document.getElementById('pe-c').value)||0; renderGTbl(code); }
+  updateGrand(code); closePriceM();
+}
+
+// ══════════════════════════════════════
+// STEP 4: 実績図
+// Build rows from detail data (items with qty>0), + free add
+// ══════════════════════════════════════
+function initS4(){
+  const sel=document.getElementById('j-site');
+  const rows=sess.headRows.filter(r=>r.code);
+  sel.innerHTML='<option value="">現場を選択...</option>'+rows.map(r=>`<option value="${r.code}">${r.code}　${r.name}</option>`).join('');
+  document.getElementById('tb-j').innerHTML='<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:16px;">現場を選択すると内訳の品目が自動表示されます</td></tr>';
+  document.getElementById('j-result').innerHTML='';
+}
+function loadJSite(){
+  const code=document.getElementById('j-site').value; if(!code) return;
+  // Always rebuild from detail data to pick up latest quantities
+  buildJRows(code);
+  renderJTbl(code);
+}
+function buildJRows(code){
+  const d=sess.dData[code];
+  if(!d){ sess.jData[code]=[{name:'',unit:'',detailQty:0,label:'追加',entries:[''],isFree:true}]; return; }
+  const rank=(document.getElementById('d-rank')?.value||'B');
+  const rows=[];
+  // 造成：数量が入力されているものだけ
+  d.s.forEach(r=>{
+    const qty=Number(r.qty)||0;
+    if(qty<=0 && !r.free) return;
+    if(!r.n) return;
+    rows.push({name:r.n, unit:r.u, detailQty:qty, entries:[''], isFree:r.free||false, type:'sozei', label:'造成'});
+  });
+  // 外構：数量が入力されているものだけ（ランクラベル付き）
+  d.g.forEach(r=>{
+    const qty=Number(r.qty)||0;
+    if(qty<=0 && !r.free) return;
+    if(!r.n) return;
+    rows.push({name:r.n, unit:r.u, detailQty:qty, entries:[''], isFree:r.free||false, type:'gaiko', label:'外構 '+rank});
+  });
+  // 何も入力がない場合は空行1つ
+  if(!rows.length) rows.push({name:'',unit:'',detailQty:0,label:'追加',entries:[''],isFree:true});
+  sess.jData[code]=rows;
+}
+function renderJTbl(code){
+  const rows=sess.jData[code]||[];
+  const tbody=document.getElementById('tb-j'); if(!tbody) return;
+  if(!rows.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px;">現場を選択すると内訳の品目が表示されます。「品目追加」で手動追加も可能です。</td></tr>';
+    return;
+  }
+  // Group by type for section headers
+  let lastType='';
+  const rowsHtml=rows.map((r,i)=>{
+    const entries=r.entries&&r.entries.length?r.entries:[''];
+    const tot=entries.reduce((s,v)=>s+(Number(v)||0),0);
+    const diff=tot-(Number(r.detailQty)||0);
+    const hasDiff=tot>0&&diff!==0;
+    const entryHtml='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'+
+      entries.map((v,ei)=>`<input type="number" class="fi-n ji-inp" value="${v||''}" min="0" placeholder="0"
+        data-code="${code}" data-row="${i}" data-ei="${ei}"
+        onchange="setJEntry('${code}',${i},${ei},this.value)"
+        onkeydown="jissekiKD(event,this,'${code}',${i},${ei})"
+        style="width:68px;">`).join('')+'</div>';
+    // Label badge
+    const lbl=r.label||'';
+    const lclr=r.type==='sozei'?'#78716c':(lbl.includes('A')?'#92400e':lbl.includes('B')?'#1e40af':'#374151');
+    const lbg=r.type==='sozei'?'#f5f0eb':(lbl.includes('A')?'#fef3c7':lbl.includes('B')?'#dbeafe':'#f3f4f6');
+    const lblHtml=lbl?`<span style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:${lbg};color:${lclr};white-space:nowrap;">${lbl}</span>`:'';
+    return `<tr class="${hasDiff?'diff-bg':''}">
+      <td style="vertical-align:middle;">${lblHtml}</td>
+      <td style="font-size:14px;vertical-align:middle;">${r.isFree
+        ?`<input class="fi" value="${r.name}" oninput="sess.jData['${code}'][${i}].name=this.value" style="font-size:13px;width:180px;">`
+        :r.name}</td>
+      <td style="text-align:right;font-weight:700;font-family:'Courier New',monospace;font-size:14px;vertical-align:middle;">${r.detailQty>0?r.detailQty:'—'}</td>
+      <td style="vertical-align:middle;">${entryHtml}</td>
+      <td style="text-align:right;font-weight:900;font-family:'Courier New',monospace;font-size:15px;vertical-align:middle;color:${hasDiff?'#dc2626':tot>0?'#059669':'#94a3b8'};">${tot||''}</td>
+      <td style="text-align:right;font-weight:700;font-family:'Courier New',monospace;font-size:14px;vertical-align:middle;color:${diff!==0&&tot>0?'#dc2626':'#059669'};">${tot>0?(diff>0?'+':'')+diff:''}</td>
+      <td style="vertical-align:middle;"><button onclick="rmJRow('${code}',${i})" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;">×</button></td>
+    </tr>`;
+  });
+  tbody.innerHTML=rowsHtml.join('');
+}
+function jissekiKD(e,inp,code,rowI,ei){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    // まず現在の値を確実に保存
+    const curVal=inp.value;
+    setJEntry(code,rowI,ei,curVal);
+    const row=sess.jData[code][rowI];
+    if(!row) return;
+    if(!row.entries) row.entries=[''];
+    const maxEntries=20;
+    const nextEi=ei+1;
+    if(nextEi<row.entries.length){
+      // 次のスロットへ移動
+      setTimeout(()=>{
+        const target=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${nextEi}"]`);
+        if(target){ target.focus(); target.select(); }
+      },10);
+    } else if(row.entries.length<maxEntries){
+      // 新しいスロットを追加してentryセルだけ再描画（td[3]）
+      row.entries.push('');
+      rebuildEntryCell(code, rowI);
+      setTimeout(()=>{
+        const newInp=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${nextEi}"]`);
+        if(newInp){ newInp.focus(); newInp.select(); }
+      },20);
+    }
+    return;
+  }
+  if(e.key==='Tab'){
+    e.preventDefault();
+    // 現在の値を保存してから次行へ
+    setJEntry(code,rowI,ei,inp.value);
+    tabToNextJRow(code,rowI);
+  }
+  if(e.key==='Escape'){
+    inp.value='';
+    setJEntry(code,rowI,ei,'');
+    inp.blur();
+  }
+}
+// entry セル（td[3]）だけ再描画する
+function rebuildEntryCell(code, rowI){
+  const row=sess.jData[code]?.[rowI]; if(!row) return;
+  const tr=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"]`)?.closest('tr');
+  if(!tr) return;
+  const entryTd=tr.querySelectorAll('td')[3]; // 0=label 1=name 2=detailQty 3=entries
+  if(!entryTd) return;
+  entryTd.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'+
+    row.entries.map((v,idx)=>`<input type="number" class="fi-n ji-inp" value="${v||''}" min="0" placeholder="0"
+      data-code="${code}" data-row="${rowI}" data-ei="${idx}"
+      onchange="setJEntry('${code}',${rowI},${idx},this.value)"
+      onkeydown="jissekiKD(event,this,'${code}',${rowI},${idx})"
+      style="width:68px;">`).join('')+'</div>';
+}
+function tabToNextJRow(code,rowI){
+  const rows=sess.jData[code]||[];
+  const nextRow=rowI+1;
+  if(nextRow<rows.length){
+    setTimeout(()=>{
+      const target=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${nextRow}"][data-ei="0"]`);
+      if(target){ target.focus(); target.select(); }
+    },30);
+  } else {
+    // 最終行なら新しい行を追加
+    addJRow();
+  }
+}
+function setJEntry(code,i,ei,v){
+  const row=sess.jData[code]?.[i];
+  if(!row) return;
+  if(!row.entries) row.entries=[];
+  while(row.entries.length<=ei) row.entries.push('');
+  row.entries[ei]=v;
+  // update total & diff cells in-place (new layout: td[0]=name, td[1]=detailQty, td[2]=entries, td[3]=total, td[4]=diff)
+  const entries=row.entries;
+  const tot=entries.reduce((s,x)=>s+(Number(x)||0),0);
+  const diff=tot-(Number(row.detailQty)||0);
+  const hasDiff=tot>0&&diff!==0;
+  const tr=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${i}"]`)?.closest('tr');
+  if(tr){
+    tr.className=hasDiff?'diff-bg':'';
+    const tds=tr.querySelectorAll('td');
+    if(tds[4]){ tds[4].textContent=tot||''; tds[4].style.color=hasDiff?'#dc2626':tot>0?'#059669':'#94a3b8'; }
+    if(tds[5]){ tds[5].textContent=tot>0?(diff>0?'+':'')+diff:''; tds[5].style.color=diff!==0&&tot>0?'#dc2626':'#059669'; }
+  }
+}
+function addJRow(){
+  const code=document.getElementById('j-site').value; if(!code){ alert('現場を選択してください'); return; }
+  if(!sess.jData[code]) sess.jData[code]=[];
+  sess.jData[code].push({name:'',unit:'',detailQty:0,entries:[''],isFree:true});
+  renderJTbl(code);
+  setTimeout(()=>{
+    const lastRow=sess.jData[code].length-1;
+    const target=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${lastRow}"][data-ei="0"]`);
+    if(target){ target.focus(); target.select(); }
+  },50);
+}
+function rmJRow(code,i){ sess.jData[code].splice(i,1); renderJTbl(code); }
+function runMatch(){
+  const code=document.getElementById('j-site').value;
+  if(!code){ alert('現場を選択してください'); return; }
+  const rows=sess.jData[code]||[];
+  const entered=rows.filter(r=>(r.entries||[]).some(v=>Number(v)>0));
+  if(!entered.length){
+    document.getElementById('j-result').innerHTML='<div style="background:#fef3c7;border-radius:6px;padding:10px 14px;font-size:13px;font-weight:700;color:#92400e;"><i class="fa-solid fa-triangle-exclamation"></i> 実績数量がまだ入力されていません</div>';
+    return;
+  }
+  const diffs=entered.filter(r=>{ const tot=(r.entries||[]).reduce((s,v)=>s+(Number(v)||0),0); return tot!==(Number(r.detailQty)||0); });
+  const okHtml='<div style="background:#d1fae5;border-radius:7px;padding:8px 14px;font-size:14px;font-weight:700;color:#065f46;"><i class="fa-solid fa-check-circle"></i> 全品目 差異なし</div>';
+  const ngHtml=`<div style="background:#fef3c7;border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;color:#92400e;"><i class="fa-solid fa-triangle-exclamation"></i> 差異 ${diffs.length}件：${diffs.map(r=>r.name).join('、')}</div>`;
+  const html=diffs.length?ngHtml:okHtml;
+  const res=document.getElementById('j-result'); if(res) res.innerHTML=html;
+  const resTop=document.getElementById('j-result-top'); if(resTop) resTop.innerHTML=html;
+}
+
+// ══════════════════════════════════════
+// STEP 5: 金額
+// ══════════════════════════════════════
+function initDRows(){
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  if(!sess.dRows.length&&c){
+    // 基本控除（車両リース以外）
+    const base=[
+      {id:uid(),label:'労災組合費',amount:Number(c.rosai)||0},
+      {id:uid(),label:'健康保険料',amount:Number(c.kenko)||0},
+      {id:uid(),label:'駐車場代',amount:Number(c.parking)||0},
+      {id:uid(),label:'道具代',amount:Number(c.tools)||0},
+      {id:uid(),label:'電話代',amount:Number(c.phone)||0},
+      {id:uid(),label:'その他控除',amount:Number(c.otherDeduct)||0},
+    ].filter(x=>x.amount>0);
+
+    // 車両管理から個別展開（契約中のものを1台ずつ）
+    const vRows=vehicles
+      .filter(v=>v.craftsmanName===c.name && v.status==='active')
+      .map(v=>{
+        const amt=(Number(v.monthly)||0)+(Number(v.fixed)||0);
+        const label=`車両 ${v.mgmtNo||''} ${v.carName||''}`.trim();
+        return {id:uid(), label, amount:amt, vehicleId:v.id};
+      })
+      .filter(x=>x.amount>0);
+
+    // 車両管理に登録がない場合は職人マスターの vehicle 値を使う（旧来互換）
+    if(!vRows.length && Number(c.vehicle)>0){
+      vRows.push({id:uid(), label:'車両リース費', amount:Number(c.vehicle)});
+    }
+
+    sess.dRows=[...base,...vRows];
+  }
+  recalc();
+}
+function recalc(){
+  const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
+  let work=0;
+  let bk='';
+  sess.headRows.filter(r=>r.code).forEach(row=>{
+    let st=0;
+    const d=sess.dData[row.code];
+    if(d){
+      const s=d.s.reduce((acc,r)=>acc+(Number(r.qty)||0)*(r.p||0),0);
+      const g=d.g.reduce((acc,r)=>acc+(Number(r.qty)||0)*(rank==='a'?r.a:rank==='b'?r.b:r.c||r.p||0),0);
+      st=s+g;
+    } else if(row.amount) st=Number(row.amount)||0;
+    work+=st;
+    if(st>0) bk+=`<div class="ar"><span style="font-size:11px;">${row.code} ${row.name}</span><span class="av" style="font-size:12px;">¥${st.toLocaleString()}</span></div>`;
+  });
+  setTxt('site-bk',bk||'<div style="font-size:11px;color:#94a3b8;">（内訳データなし）</div>',true);
+  const tax=Math.floor(work*.1), total=work+tax;
+  setTxt('c-koujikei','¥'+work.toLocaleString());
+  setTxt('c-tax','¥'+tax.toLocaleString());
+  setTxt('c-total','¥'+total.toLocaleString());
+  const anzen=Math.floor(total*.01)*-1;
+  setTxt('c-anzen',anzen===0?'—':'−¥'+Math.abs(anzen).toLocaleString());
+  const jimuFee=Number(document.getElementById('jimu-fee')?.value)||1000;
+  let dTot=jimuFee+(anzen!==0?Math.abs(anzen):0);
+  // deduct rows
+  let dHtml='';
+  sess.dRows.forEach(r=>{ dTot+=Number(r.amount)||0; dHtml+=`<div class="ar"><div style="display:flex;align-items:center;gap:4px;"><input class="fi" value="${r.label}" style="width:130px;font-size:13px;padding:5px 8px;" oninput="updDR('${r.id}','label',this.value)"></div><div style="display:flex;align-items:center;gap:4px;"><span style="font-size:13px;color:#dc2626;font-weight:700;">−¥</span><input type="number" class="fi-n" value="${r.amount}" min="0" onchange="updDR('${r.id}','amount',Number(this.value));recalc()" style="width:100px;font-size:14px;"><button onclick="rmDR('${r.id}');recalc()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;">×</button></div></div>`; });
+  setTxt('d-rows',dHtml||'',true);
+  setTxt('c-dtot','−¥'+dTot.toLocaleString());
+  // add rows
+  let aTot=0;
+  let aHtml='';
+  sess.aRows.forEach(r=>{ aTot+=Number(r.amount)||0; aHtml+=`<div class="ar"><div style="display:flex;align-items:center;gap:4px;"><input class="fi" value="${r.label}" style="width:130px;font-size:13px;padding:5px 8px;" oninput="updAR('${r.id}','label',this.value)"></div><div style="display:flex;align-items:center;gap:4px;"><span style="font-size:13px;color:#059669;font-weight:700;">+¥</span><input type="number" class="fi-n" value="${r.amount}" min="0" onchange="updAR('${r.id}','amount',Number(this.value));recalc()" style="width:100px;font-size:14px;"><button onclick="rmAR('${r.id}');recalc()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;">×</button></div></div>`; });
+  setTxt('a-rows',aHtml||'<div style="font-size:11px;color:#94a3b8;">（加算なし）</div>',true);
+  setTxt('c-atot','¥'+aTot.toLocaleString());
+  const kent=Number(document.getElementById('kentaikyo')?.value)||0;
+  const pay=total-dTot+aTot-kent;
+  setTxt('c-pay','¥'+pay.toLocaleString());
+}
+function updDR(id,f,v){ const r=sess.dRows.find(x=>x.id===id); if(r){r[f]=v;} recalc(); }
+function rmDR(id){ sess.dRows=sess.dRows.filter(x=>x.id!==id); recalc(); }
+function addDRow(){ sess.dRows.push({id:uid(),label:'',amount:0}); recalc(); }
+function updAR(id,f,v){ const r=sess.aRows.find(x=>x.id===id); if(r){r[f]=v;} recalc(); }
+function rmAR(id){ sess.aRows=sess.aRows.filter(x=>x.id!==id); recalc(); }
+function addARow(){ sess.aRows.push({id:uid(),label:'',amount:0}); recalc(); }
+function chkMatch(){
+  const s=Number(document.getElementById('inv-stated')?.value)||0;
+  const c=parseAmt(document.getElementById('c-pay')?.textContent);
+  const el=document.getElementById('match-res'); if(!el||!s) return;
+  const d=s-c;
+  el.innerHTML=d===0?'<span style="color:#059669;">✓ 金額一致</span>':`<span style="color:#dc2626;">✗ 差異 ${d>0?'+':''}¥${d.toLocaleString()}</span>`;
+}
+
+function saveLog(){
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  const y=document.getElementById('inv-y')?.value, m=document.getElementById('inv-m')?.value;
+  const log={
+    id:uid(), ts:new Date().toISOString(),
+    craftsmanName:c?.name||'不明',
+    period:y&&m?`${y}年${m}月分`:'—',
+    sites:sess.headRows.filter(r=>r.code).map(r=>r.code+' '+r.name).join(' / '),
+    payment:document.getElementById('c-pay')?.textContent||'—',
+    approver:document.getElementById('approver')?.value||'—',
+    memo:document.getElementById('f-memo')?.value||''
+  };
+  logs.unshift(log); lsSave(LS.LOGS,logs);
+  wfDone.add(5); renderWfBar();
+  alert('✓ チェック完了しました。履歴に保存しました。');
+  resetSess();
+}
+
+// ══════════════════════════════════════
+// CRAFTSMAN MASTER
+// ══════════════════════════════════════
+let cmShowRetired=false;
+
+// サンプルデータ判定（名前・メモのどちらかに含まれれば除外）
+function isSampleEntry(c){
+  const n=String(c.name||'');
+  const m=String(c.memo||'');
+  return n.startsWith('★')||n.includes('サンプル')||m.includes('サンプルデータ')||m.includes('自動除外');
+}
+
+function toggleRetiredView(){
+  cmShowRetired=!cmShowRetired;
+  const btn=document.getElementById('cm-retired-btn');
+  if(btn){
+    btn.innerHTML=cmShowRetired
+      ?'<i class="fa-solid fa-eye"></i> 退職者を非表示'
+      :'<i class="fa-solid fa-eye-slash"></i> 退職者を表示';
+    btn.style.borderColor=cmShowRetired?'#f59e0b':'#d1d5db';
+    btn.style.color=cmShowRetired?'#92400e':'';
+  }
+  renderCMT();
+}
+function renderCMT(){
+  // 毎回サンプルを除去
+  const before=craftsmen.length;
+  craftsmen=craftsmen.filter(c=>!isSampleEntry(c));
+  if(craftsmen.length<before) lsSave(LS.CM,craftsmen);
+
+  const q=(document.getElementById('cm-search')?.value||'').toLowerCase();
+  const tb=document.getElementById('cm-tb'); if(!tb) return;
+  const all=craftsmen.filter(c=>c.name.toLowerCase().includes(q));
+  const list=cmShowRetired?all:all.filter(c=>!c.retired);
+  const retiredCount=all.filter(c=>c.retired).length;
+  const cntEl=document.getElementById('cm-count');
+  if(cntEl) cntEl.textContent=`${list.length}名表示${retiredCount>0?` / 退職者${retiredCount}名`:''}`;
+  if(!list.length){ tb.innerHTML='<tr><td colspan="15" style="text-align:center;color:#94a3b8;padding:20px;">'+(all.length?'退職者のみ（表示ボタンで確認）':'未登録')+'</td></tr>'; return; }
+  const AMT_FIELDS=[
+    {k:'rosai',label:'労災'},
+    {k:'kenko',label:'健保'},
+    {k:'parking',label:'駐車'},
+    {k:'tools',label:'道具'},
+    {k:'phone',label:'電話'},
+    {k:'vehicle',label:'車両',fromVehicle:true},
+    {k:'otherDeduct',label:'他控除'}
+  ];
+  tb.innerHTML=list.map(c=>{
+    const expB=piExpBadge(c);
+    const rowBg=expB&&expB.includes('期限切れ')?'background:#fff5f5;':
+                expB&&expB.includes('30日以内')?'background:#fffbeb;':'';
+    return `<tr id="cmrow-${c.id}" style="${rowBg}">
+    <td style="text-align:center;">
+      ${c.retired
+        ?`<span class="bk" style="background:#fef3c7;color:#92400e;cursor:pointer;" title="クリックで復帰" onclick="toggleCMRetired('${c.id}')">退職</span>`
+        :`<span class="bk ok" style="cursor:pointer;" title="クリックで退職処理" onclick="toggleCMRetired('${c.id}')">在籍</span>`}
+    </td>
+    <td>
+      <div style="font-weight:700;font-size:14px;${c.retired?'color:#94a3b8;text-decoration:line-through;':''}">
+        ${c.name}
+        ${piMode?`<button class="btn gray xs" style="margin-left:6px;" onclick="openPIView('${c.id}')"><i class="fa-solid fa-shield-halved" style="color:#7c3aed;"></i></button>`:''}
+      </div>
+    </td>
+    <td style="font-size:13px;color:#475569;">${c.company||'—'}</td>
+    <td>${(()=>{const cat=c.category||'職人';const catClr={'職人':'gray-bk','社員':'blue-bk','外注':'warn','サポート':'ok','その他':'gray-bk'};return `<span class="bk ${catClr[cat]||'gray-bk'}">${cat}</span>`;})()}</td>
+    <td style="font-size:13px;">${c.branch||c.type||'—'}</td>
+    <td style="font-size:12px;font-family:'Courier New',monospace;color:#334155;">${c.invoice||'—'}</td>
+    <td>${c.invoice&&/^T\d{13}$/.test(c.invoice)?'<span class="bk ok">対応</span>':'<span class="bk warn">未対応</span>'}</td>
+    ${AMT_FIELDS.map(f=>{
+      const vTotal=f.fromVehicle?vehicles.filter(v=>v.craftsmanName===c.name&&v.status==='active').reduce((s,v)=>s+(Number(v.monthly)||0)+(Number(v.fixed)||0),0):null;
+      const vCount=f.fromVehicle?vehicles.filter(v=>v.craftsmanName===c.name&&v.status==='active').length:0;
+      const dispVal=f.fromVehicle?(vTotal||c[f.k]||0):(c[f.k]||0);
+      const fromVM=f.fromVehicle&&vCount>0;
+      return `<td style="text-align:right;cursor:pointer;" title="${fromVM?`車両管理より自動集計（${vCount}台）。ダブルクリックで手動上書き`:'ダブルクリックで編集'}" ondblclick="inlineEditAmt('${c.id}','${f.k}',this)">${dispVal>0?`<span class="editable" style="font-family:monospace;${fromVM?'color:#0891b2;':''}">${fromVM?'<i class=\"fa-solid fa-car\" style=\"font-size:9px;margin-right:2px;\"></i>':''}¥${Number(dispVal).toLocaleString()}</span>`:'<span style="color:#cbd5e1;">—</span>'}</td>`;
+    }).join('')}
+    <td style="font-size:10px;color:#94a3b8;">${c.updatedAt||'—'}</td>
+    <td>
+      <button class="btn gray xs" onclick="openCMM('${c.id}')"><i class="fa-solid fa-edit"></i></button>
+      <button class="btn red xs" onclick="delCM('${c.id}')"><i class="fa-solid fa-trash"></i></button>
+    </td>
+  </tr>`}).join('');
+}
+function openCMM(id){
+  const mo=document.getElementById('mo-cm'); mo.classList.add('open');
+  const c=id?craftsmen.find(x=>x.id===id):null;
+  setVal('cm-id',id||''); setVal('cm-name',c?.name||'');
+  setVal('cm-company',c?.company||'');
+  document.getElementById('cm-category').value=c?.category||'職人';
+  document.getElementById('cm-type').value=c?.type||'';
+  setVal('cm-inv',c?.invoice||''); setVal('cm-rosai',c?.rosai||''); setVal('cm-kenko',c?.kenko||'');
+  setVal('cm-parking',c?.parking||''); setVal('cm-tools',c?.tools||''); setVal('cm-phone',c?.phone||'');
+  setVal('cm-vehicle',c?.vehicle||''); setVal('cm-vno',c?.vehicleNo||''); setVal('cm-plate',c?.plate||''); setVal('cm-other',c?.otherDeduct||'');
+  setVal('cm-memo',c?.memo||''); document.getElementById('cm-inv-hint').textContent='';
+  // タブをbasicに戻す
+  switchCMTab('basic');
+  // 個人情報フィールド
+  const pi=c?.pi||{};
+  const piFields=['dob','hire','gaiko-start','zip','addr','tel','fax','mobile',
+    'emg-name','emg-tel','emg-addr','health-date','blood-type','bp-high','bp-low',
+    'rousai-no','rousai-exp','hoken-no','hoken-exp','nenkin-no','nenkin-exp',
+    'license-no','license-exp','qualifications','memo'];
+  piFields.forEach(f=>{
+    const el=document.getElementById('pi-'+f); if(!el) return;
+    const key=f.replace(/-([a-z])/g,(_,c)=>c.toUpperCase()).replace(/-/g,'');
+    const val=pi[key]||pi[f.replace('-','_')]||'';
+    if(el.tagName==='SELECT') el.value=val; else setVal('pi-'+f, val);
+  });
+  // 個人情報フィールドのロック状態更新
+  updatePIFieldsLock();
+}
+function switchCMTab(tab){
+  ['basic','pi'].forEach(t=>{
+    document.getElementById('cm-tab-'+t)?.classList.toggle('on',t===tab);
+    document.getElementById('cm-pane-'+t)?.classList.toggle('on',t===tab);
+  });
+  if(tab==='pi') updatePIFieldsLock();
+}
+function closeCMM(){ document.getElementById('mo-cm').classList.remove('open'); }
+function chkInv(){ const v=document.getElementById('cm-inv').value.trim(), h=document.getElementById('cm-inv-hint'); if(!v){h.textContent='空欄→未対応';h.style.color='#d97706';}else if(/^T\d{13}$/.test(v)){h.textContent='✓ 正しい形式';h.style.color='#059669';}else{h.textContent='形式: T+13桁数字';h.style.color='#dc2626';} }
+function saveCM(){
+  const name=document.getElementById('cm-name').value.trim(); if(!name){alert('職人名を入力してください');return;}
+  const id=document.getElementById('cm-id').value||uid();
+  const g=id=>document.getElementById(id);
+  // 個人情報（piModeのときのみ保存）
+  let pi={};
+  if(piMode){
+    pi={
+      dob:g('pi-dob')?.value||'', hire:g('pi-hire')?.value||'',
+      gaikoStart:g('pi-gaiko-start')?.value||'',
+      zip:g('pi-zip')?.value||'', addr:g('pi-addr')?.value||'',
+      tel:g('pi-tel')?.value||'', fax:g('pi-fax')?.value||'', mobile:g('pi-mobile')?.value||'',
+      emgName:g('pi-emg-name')?.value||'', emgTel:g('pi-emg-tel')?.value||'', emgAddr:g('pi-emg-addr')?.value||'',
+      healthDate:g('pi-health-date')?.value||'',
+      bloodType:g('pi-blood-type')?.value||'',
+      bpHigh:g('pi-bp-high')?.value||'', bpLow:g('pi-bp-low')?.value||'',
+      rousaiNo:g('pi-rousai-no')?.value||'', rousaiExp:g('pi-rousai-exp')?.value||'',
+      hokenKigo:g('pi-hoken-kigo')?.value||'', hokenNo:g('pi-hoken-no')?.value||'', hokenExp:g('pi-hoken-exp')?.value||'',
+      nenkinNo:g('pi-nenkin-no')?.value||'', nenkinExp:g('pi-nenkin-exp')?.value||'',
+      licenseNo:g('pi-license-no')?.value||'', licenseExp:g('pi-license-exp')?.value||'',
+      qualifications:g('pi-qualifications')?.value||'', memo:g('pi-memo')?.value||''
+    };
+  } else {
+    // piModeでないときは既存のpi情報を維持
+    const existing=craftsmen.find(x=>x.id===id);
+    if(existing?.pi) pi=existing.pi;
+  }
+  const obj={id,name,company:g('cm-company')?.value.trim()||'',type:'常用',category:g('cm-category').value,branch:g('cm-type').value,invoice:g('cm-inv').value.trim(),
+    rosai:+g('cm-rosai').value||0,kenko:+g('cm-kenko').value||0,
+    parking:+g('cm-parking').value||0,tools:+g('cm-tools').value||0,
+    phone:+g('cm-phone').value||0,vehicle:+g('cm-vehicle').value||0,
+    vehicleNo:g('cm-vno').value,plate:g('cm-plate')?.value||'',otherDeduct:+g('cm-other').value||0,
+    memo:g('cm-memo').value,pi,updatedAt:new Date().toLocaleDateString('ja-JP')};
+  const ex=craftsmen.find(x=>x.id===id);
+  if(ex) Object.assign(ex,obj); else craftsmen.push(obj);
+  lsSave(LS.CM,craftsmen); closeCMM(); renderCMT();
+}
+function delCM(id){ if(!confirm('削除しますか？')) return; craftsmen=craftsmen.filter(c=>c.id!==id); lsSave(LS.CM,craftsmen); renderCMT(); }
+function toggleCMRetired(id){
+  const c=craftsmen.find(x=>x.id===id); if(!c) return;
+  if(c.retired){
+    if(!confirm(`「${c.name}」を復帰させますか？`)) return;
+    c.retired=false; c.retiredAt='';
+  } else {
+    if(!confirm(`「${c.name}」を退職処理しますか？\n非表示になります。退職者表示ボタンで確認できます。`)) return;
+    c.retired=true; c.retiredAt=new Date().toLocaleDateString('ja-JP');
+  }
+  c.updatedAt=new Date().toLocaleDateString('ja-JP');
+  lsSave(LS.CM,craftsmen); renderCMT();
+}
+function toggleCMRetired(id){
+  const c=craftsmen.find(x=>x.id===id); if(!c) return;
+  if(c.retired){
+    if(!confirm(`「${c.name}」を復帰させますか？`)) return;
+    c.retired=false; c.retiredAt='';
+  } else {
+    if(!confirm(`「${c.name}」を退職処理しますか？\n（非表示になります。退職者表示ボタンで確認できます）`)) return;
+    c.retired=true; c.retiredAt=new Date().toLocaleDateString('ja-JP');
+  }
+  c.updatedAt=new Date().toLocaleDateString('ja-JP');
+  lsSave(LS.CM,craftsmen); renderCMT();
+}
+// Excel日付シリアル値 → yyyy/mm/dd 文字列に変換
+function xlsDateToStr(v){
+  if(!v&&v!==0) return '';
+  // すでに文字列 (yyyy-mm-dd or yyyy/mm/dd)
+  if(typeof v==='string'){
+    const s=v.trim();
+    if(!s) return '';
+    // ハイフン区切りをスラッシュに
+    return s.replace(/-/g,'/');
+  }
+  // JS Date オブジェクト
+  if(v instanceof Date){
+    const y=v.getFullYear(), m=String(v.getMonth()+1).padStart(2,'0'), d=String(v.getDate()).padStart(2,'0');
+    return y+'/'+m+'/'+d;
+  }
+  // 数値 (Excelシリアル日付)
+  if(typeof v==='number'){
+    // Excel serial: 1900/1/1 = 1 (ただし1900年がうるう年扱いのバグがあるため+1調整)
+    const epoch=new Date(Date.UTC(1899,11,30)); // 1899-12-30
+    const ms=v*86400000;
+    const dt=new Date(epoch.getTime()+ms);
+    const y=dt.getUTCFullYear(), m=String(dt.getUTCMonth()+1).padStart(2,'0'), dd=String(dt.getUTCDate()).padStart(2,'0');
+    return y+'/'+m+'/'+dd;
+  }
+  return String(v);
+}
+
+function importCM(inp){
+  const f=inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  if(f.name.match(/\.(csv|txt)$/i)){
+    r.onload=e=>{
+      Papa.parse(e.target.result,{header:true,skipEmptyLines:true,complete:res=>{
+        const mode=confirm('「OK」→ 完全同期（Excelにない職人を削除）\n「キャンセル」→ 追加・更新のみ')?'sync':'merge';
+        processCMRows(res.data, null, mode);
+      }});
+    };
+    r.readAsText(f,'UTF-8');
+  } else {
+    r.onload=e=>{
+      // cellDates:true でDate型に変換、raw:false で文字列変換も試みる
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const ws1=wb.Sheets[wb.SheetNames[0]];
+      // raw:false で数値・日付を文字列に変換してから読む
+      const basicRows=XLSX.utils.sheet_to_json(ws1,{defval:''});
+      // サンプル行（「サンプルデータ」を含む行）を除外
+      const filteredRows=basicRows.filter(r=>{
+        const n=String(r['職人名']||'').trim();
+        const m=String(r['メモ']||r['メモ ']||'');
+        if(!n) return false;
+        if(n.startsWith('★')||n.includes('サンプル')) return false;
+        if(m.includes('サンプルデータ')||m.includes('自動除外')||m.includes('この行は取込時')) return false;
+        return true;
+      });
+      // 個人情報シートを確認
+      const piSheetName=wb.SheetNames.find(n=>n.includes('個人情報'));
+      let piRows=null;
+      if(piSheetName){
+        const pw=prompt('個人情報シートが検出されました。\nパスワードを入力してください（取り込まない場合はキャンセル）');
+        if(pw===PI_PASS){
+          const ws2=wb.Sheets[piSheetName];
+          piRows=XLSX.utils.sheet_to_json(ws2,{defval:''}).filter(r=>!String(r['職人名']||'').includes('サンプル'));
+        } else if(pw!==null){
+          alert('パスワードが違います。基本情報のみ取り込みます。');
+        }
+      }
+      // 完全同期か追加モードか選択
+      const mode=confirm('「OK」→ 完全同期（Excelにない職人を削除）\n「キャンセル」→ 追加・更新のみ')?'sync':'merge';
+      processCMRows(filteredRows, piRows, mode);
+    };
+    r.readAsArrayBuffer(f);
+  }
+  inp.value='';
+}
+function processCMRows(rows, piRows, mode){
+  // mode: 'sync'=完全同期（Excelにない職人を削除）, 'merge'=追加・更新のみ
+  const piMap={};
+  if(piRows) piRows.forEach(r=>{
+    const n=(r['職人名']||'').trim(); if(!n) return;
+    piMap[n]=r;
+  });
+  // 取込済み名前のセット（sync用）
+  const importedNames=new Set();
+  let a=0;
+  rows.forEach(r=>{
+    const name=(r['職人名']||r.name||'').trim(); if(!name) return;
+    importedNames.add(name);
+    const id=craftsmen.find(c=>c.name===name)?.id||uid();
+    const rawInv=(r['インボイス']||r['インボイス番号']||r.invoice||'').trim();
+    const inv=/^T\d+$/.test(rawInv)?rawInv:'';
+    const branch=r['拠点']||r['形態']||r.branch||'';
+    const category=r['区分']||r.category||'職人';
+    const obj={
+      id, name, type:'常用', category, branch,
+      company: r['屋号・会社名']||r['屋号']||'',
+      invoice: inv,
+      rosai:   Number(r['労災組合費(月額)']||r['労災組合費'])||0,
+      kenko:   Number(r['健康保険料(月額)']||r['健康保険料'])||0,
+      parking: Number(r['駐車場代(月額)']||r['駐車場代'])||0,
+      tools:   Number(r['道具代(月額)']||r['道具代'])||0,
+      phone:   Number(r['電話代(月額)']||r['電話代'])||0,
+      vehicle: Number(r['車両リース費(月額)']||r['車両リース費'])||0,
+      vehicleNo: r['リース元管理番号']||r['車両管理番号']||'',
+      plate:   r['ナンバープレート']||'',
+      otherDeduct: Number(r['その他控除(月額)']||r['その他控除'])||0,
+      memo:    r['メモ']||r.memo||'',
+      updatedAt: new Date().toLocaleDateString('ja-JP')
+    };
+    // 個人情報マージ
+    const pr=piMap[name];
+    if(pr){
+      obj.pi={
+        dob:        xlsDateToStr(pr['生年月日（例：1980/04/01　※ブラウザ入力はyyyy-mm-dd形式）']||pr['生年月日']||''),
+        hire:       xlsDateToStr(pr['雇入年月日']||''),
+        gaikoStart: xlsDateToStr(pr['外構工事開始日']||''),
+        zip:        pr['郵便番号（例：123-4567）']||pr['郵便番号']||'',
+        addr:       pr['現住所']||'',
+        tel:        pr['電話番号（例：03-1234-5678）']||pr['電話番号']||'',
+        fax:        pr['FAX']||'',
+        mobile:     pr['携帯番号']||'',
+        emgName:    pr['緊急連絡先 氏名（例：田中 花子（妻））']||pr['緊急連絡先 氏名']||'',
+        emgTel:     pr['緊急連絡先 電話']||'',
+        emgAddr:    pr['緊急連絡先 住所']||'',
+        healthDate: xlsDateToStr(pr['最近の健康診断日']||''),
+        bloodType:  pr['血液型']||'',
+        bpHigh:     pr['血圧 最高']||'',
+        bpLow:      pr['血圧 最低']||'',
+        rousaiNo:   pr['労災保険番号']||'',
+        rousaiExp:  xlsDateToStr(pr['労災保険期限']||''),
+        hokenKigo:  pr['健康保険 記号（例：12345）']||pr['健康保険 記号']||'',
+        hokenNo:    pr['健康保険 番号（例：67890）']||pr['健康保険 番号']||'',
+        hokenExp:   xlsDateToStr(pr['健康保険期限']||''),
+        nenkinNo:   pr['年金番号（例：1234-567890）']||pr['年金番号']||'',
+        nenkinExp:  xlsDateToStr(pr['年金期限']||''),
+        licenseNo:  pr['運転免許番号（12桁）']||pr['運転免許番号']||'',
+        licenseExp: xlsDateToStr(pr['運転免許期限（例：2026/05/31）']||pr['運転免許期限']||''),
+        qualifications: pr['資格・免許（複数は改行で区切り）']||pr['資格・免許']||'',
+        memo:       pr['個人情報メモ']||''
+      };
+    } else {
+      // 個人情報シートなし→既存のpi情報を維持
+      const existing=craftsmen.find(c=>c.id===id);
+      if(existing?.pi) obj.pi=existing.pi;
+    }
+    const ex=craftsmen.find(c=>c.id===id);
+    if(ex) Object.assign(ex,obj); else{craftsmen.push(obj);a++;}
+  });
+  // 完全同期モード: Excelにない職人を削除
+  let deleted=0;
+  if(mode==='sync'){
+    const before=craftsmen.length;
+    craftsmen=craftsmen.filter(c=>importedNames.has(c.name));
+    deleted=before-craftsmen.length;
+  }
+  lsSave(LS.CM,craftsmen);
+  renderCMT();
+  const piCount=Object.keys(piMap).length;
+  let msg=`取込完了：${a}件追加`;
+  if(piCount>0) msg+=` / 個人情報 ${piCount}名分マージ`;
+  if(deleted>0) msg+=` / ${deleted}件削除（同期）`;
+  alert(msg);
+}
+function exportCM(){ const h='職人名,区分,拠点,インボイス,労災組合費,健康保険料,駐車場代,道具代,電話代,車両リース費,車両管理番号,その他控除,メモ'; dlCSV(h+'\n'+craftsmen.map(c=>[c.name,c.category||'職人',c.branch||c.type||'',c.invoice,c.rosai,c.kenko,c.parking,c.tools,c.phone,c.vehicle,c.vehicleNo,c.otherDeduct,c.memo].map(v=>`"${v||''}"`).join(',')).join('\n'),'職人マスター.csv'); }
+
+// ══════════════════════════════════════
+// SITE MASTER (IndexedDB)
+// ══════════════════════════════════════
+async function importSite(inp){
+  const f=inp.files[0]; if(!f) return;
+  const logEl=document.getElementById('site-log');
+  logEl.style.display='block'; logEl.textContent='読込開始...\n';
+  document.getElementById('site-imp-loader').style.display='inline-block';
+  document.getElementById('site-imp-icon').style.display='none';
+  const log=msg=>{ logEl.textContent+=msg+'\n'; logEl.scrollTop=99999; };
+  try{
+    let raw=[];
+    if(f.name.match(/\.(txt|csv)$/i)){
+      log('エンコード: UTF-16LE で読み込み中...');
+      raw=await new Promise(res=>{
+        const r=new FileReader();
+        r.onload=e=>{ const t=new TextDecoder('utf-16le').decode(e.target.result).replace(/"/g,''); Papa.parse(t,{header:false,skipEmptyLines:true,complete:d=>res(d.data)}); };
+        r.readAsArrayBuffer(f);
+      });
+    } else {
+      log('Excel形式で読み込み中...');
+      raw=await new Promise(res=>{ const r=new FileReader(); r.onload=e=>{ const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); res(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''})); }; r.readAsArrayBuffer(f); });
+    }
+    log(`全行数: ${raw.length}行`);
+    if(raw.length>0) raw=raw.slice(1); // skip header
+    if(raw.length>0){ const v=String(raw[0][0]||''); if(v==='1'||(v.includes('<')&&v.includes('>'))){  raw=raw.slice(1); log('  → 項目番号行を検出。スキップ。'); } }
+    log(`データ行数: ${raw.length}行`);
+    const map=new Map();
+    raw.forEach(r=>{
+      const code=String(r[0]||'').trim(); if(!code) return;
+      const subCode=String(r[1]||'').trim();
+      const obj={ code, name:String(r[2]||'').trim(), customer:String(r[22]||'').trim(), startDate:String(r[43]||'').trim(), endDate:String(r[45]||'').trim(), owner:String(r[47]||'').trim(), manager:String(r[49]||'').trim(), branch:String(r[55]||'').trim(), rank:'B' };
+      if(!map.has(code)) map.set(code,obj);
+      else if(subCode==='') Object.assign(map.get(code),{...obj,rank:map.get(code).rank});
+    });
+    const arr=Array.from(map.values());
+    log(`ユニーク工番: ${arr.length}件`);
+    log('IndexedDBに保存中...');
+    await db.sites.clear();
+    // Batch insert for speed
+    const BATCH=500;
+    for(let i=0;i<arr.length;i+=BATCH){ await db.sites.bulkPut(arr.slice(i,i+BATCH)); log(`  保存中... ${Math.min(i+BATCH,arr.length)}/${arr.length}`); }
+    log(`✓ 完了！ ${arr.length}件 取込`);
+    const cnt=await db.sites.count();
+    const el=document.getElementById('site-count'); if(el) el.textContent=cnt+'件';
+    populateOwnerList();
+  } catch(e){ log(`エラー: ${e.message}`); }
+  document.getElementById('site-imp-loader').style.display='none';
+  document.getElementById('site-imp-icon').style.display='inline';
+  inp.value='';
+}
+async function exportSites(){
+  const all=await db.sites.toArray();
+  dlCSV('工番,現場名,元請先,担当者,着手日,完了日,拠点,ランク\n'+all.map(s=>[s.code,s.name,s.owner,s.manager,s.startDate,s.endDate,s.branch,s.rank].map(v=>`"${v||''}"`).join(',')).join('\n'),'現場マスター.csv');
+}
+async function initSiteCount(){
+  const cnt=await db.sites.count();
+  const el=document.getElementById('site-count'); if(el) el.textContent=cnt?cnt+'件':'未取込';
+}
+
+// ══════════════════════════════════════
+// RANK MASTER
+// ══════════════════════════════════════
+async function populateOwnerList(){
+  const dl=document.getElementById('owner-list'); if(!dl) return;
+  // Get unique owners from IndexedDB
+  const owners=new Set();
+  ranks.forEach(r=>owners.add(r.owner));
+  await db.sites.each(s=>{ if(s.owner) owners.add(s.owner); });
+  dl.innerHTML=Array.from(owners).sort().map(o=>`<option value="${o}">`).join('');
+}
+function renderRankT(){
+  const tb=document.getElementById('rank-tb'); if(!tb) return;
+  if(!ranks.length){ tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:20px;">未登録</td></tr>'; return; }
+  tb.innerHTML=ranks.map(r=>`<tr>
+    <td style="font-weight:700;">${r.owner}</td>
+    <td><span class="${r.rank==='A'?'ra':r.rank==='B'?'rb':'rc'}">${r.rank}</span></td>
+    <td style="font-size:11px;color:#64748b;">${r.memo||'—'}</td>
+    <td>
+      <button class="btn gray xs" onclick="openRankM('${r.id}')"><i class="fa-solid fa-edit"></i></button>
+      <button class="btn red xs" onclick="delRank('${r.id}')"><i class="fa-solid fa-trash"></i></button>
+    </td>
+  </tr>`).join('');
+}
+function openRankM(id){
+  populateOwnerList();
+  const mo=document.getElementById('mo-rank'); mo.classList.add('open');
+  const r=id?ranks.find(x=>x.id===id):null;
+  setVal('rank-id',id||''); setVal('rank-owner',r?.owner||'');
+  document.getElementById('rank-lv').value=r?.rank||'B';
+  setVal('rank-memo',r?.memo||'');
+}
+function closeRankM(){ document.getElementById('mo-rank').classList.remove('open'); }
+function saveRank(){
+  const owner=document.getElementById('rank-owner').value.trim(); if(!owner){alert('元請け名を入力');return;}
+  const id=document.getElementById('rank-id').value||uid();
+  const obj={id,owner,rank:document.getElementById('rank-lv').value,memo:document.getElementById('rank-memo').value};
+  const ex=ranks.find(r=>r.id===id); if(ex) Object.assign(ex,obj); else ranks.push(obj);
+  lsSave(LS.RANKS,ranks); closeRankM(); renderRankT();
+}
+function delRank(id){ if(!confirm('削除しますか？')) return; ranks=ranks.filter(r=>r.id!==id); lsSave(LS.RANKS,ranks); renderRankT(); }
+
+// ══════════════════════════════════════
+// LOGS
+// ══════════════════════════════════════
+function renderLogs(q=''){
+  const kw=(q||'').toLowerCase();
+  const tb=document.getElementById('log-tb'); if(!tb) return;
+  const list=kw?logs.filter(l=>l.craftsmanName.toLowerCase().includes(kw)||l.sites.toLowerCase().includes(kw)):logs;
+  if(!list.length){ tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px;">履歴なし</td></tr>'; return; }
+  tb.innerHTML=list.map(l=>`<tr>
+    <td style="font-size:11px;white-space:nowrap;">${new Date(l.ts).toLocaleString('ja-JP')}</td>
+    <td style="font-weight:700;">${l.craftsmanName}</td>
+    <td>${l.period||'—'}</td>
+    <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${l.sites}</td>
+    <td style="font-family:'Courier New',monospace;font-weight:700;">${l.payment}</td>
+    <td>${l.approver}</td>
+    <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;">${l.memo||'—'}</td>
+    <td><button class="btn red xs" onclick="delLog('${l.id}')"><i class="fa-solid fa-trash"></i></button></td>
+  </tr>`).join('');
+}
+function delLog(id){ if(!confirm('削除しますか？')) return; logs=logs.filter(l=>l.id!==id); lsSave(LS.LOGS,logs); renderLogs(); }
+function clearLogs(){ logs=[]; lsSave(LS.LOGS,logs); renderLogs(); }
+function exportLogs(){ dlCSV('日時,職人名,月分,現場,支払金額,担当者,メモ\n'+logs.map(l=>[l.ts,l.craftsmanName,l.period,l.sites,l.payment,l.approver,l.memo].map(v=>`"${v||''}"`).join(',')).join('\n'),'チェック履歴.csv'); }
+
+// ══════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════
+function setTxt(id,v,isHtml=false){ const el=document.getElementById(id); if(el){if(isHtml) el.innerHTML=v; else el.textContent=v;} }
+function setVal(id,v){ const el=document.getElementById(id); if(el) el.value=v; }
+function parseAmt(s){ return Number((s||'').replace(/[¥,]/g,''))||0; }
+function dlCSV(content,filename){ const b=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=filename; a.click(); }
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  renderWfBar();
+  renderCGrid();
+  initSiteCount();
+});
+
+// ── Name inline edit (called by sRow/gRow dblclick) ──
+function nameEditS(code,idx,span){
+  const old=sess.dData[code]?.s[idx]?.n||span.textContent;
+  const inp=document.createElement('input');
+  inp.className='fi'; inp.value=old; inp.style.fontSize='13px';
+  inp.onblur=()=>{ if(sess.dData[code]) sess.dData[code].s[idx].n=inp.value; reRenderDetail(); };
+  inp.onkeydown=e=>{ if(e.key==='Enter'||e.key==='Escape') inp.blur(); };
+  span.replaceWith(inp); inp.focus(); inp.select();
+}
+function nameEditG(code,idx,span){
+  const old=sess.dData[code]?.g[idx]?.n||span.textContent;
+  const inp=document.createElement('input');
+  inp.className='fi'; inp.value=old; inp.style.fontSize='13px';
+  inp.onblur=()=>{ if(sess.dData[code]) sess.dData[code].g[idx].n=inp.value; reRenderDetail(); };
+  inp.onkeydown=e=>{ if(e.key==='Enter'||e.key==='Escape') inp.blur(); };
+  span.replaceWith(inp); inp.focus(); inp.select();
+}
+// ── Insert row ──
+function insertSRow(code,idx){
+  if(!sess.dData[code]) return;
+  sess.dData[code].s.splice(idx+1,0,{n:'',u:'',p:0,qty:0,memo:'',free:true});
+  renderSTbl(code);
+  // focus the new name cell
+  setTimeout(()=>{
+    const rows=document.querySelectorAll('#tb-s .fi');
+    // find newly inserted input
+    const newInp=Array.from(rows).find((el,i)=>el.closest('tr')&&i>0);
+    if(newInp) newInp.focus();
+  },50);
+}
+function insertGRow(code,idx){
+  if(!sess.dData[code]) return;
+  sess.dData[code].g.splice(idx+1,0,{n:'',u:'',a:0,b:0,c:0,qty:0,memo:'',free:true});
+  renderGTbl(code);
+}
+// ── Delete row ──
+function delSRow(code,i){ if(!sess.dData[code]) return; sess.dData[code].s.splice(i,1); renderSTbl(code); updateGrand(code); }
+function delGRow(code,i){ if(!sess.dData[code]) return; sess.dData[code].g.splice(i,1); renderGTbl(code); updateGrand(code); }
+// legacy aliases
+function insertRowS(c,i){ insertSRow(c,i); }
+function insertRowG(c,i){ insertGRow(c,i); }
+function rmRowS(c,i){ delSRow(c,i); }
+function rmRowG(c,i){ delGRow(c,i); }
+// ── Excel template import/export ──
+function exportDetailTemplate(type){
+  const code=document.getElementById('d-site')?.value;
+  if(!code){ alert('現場を選択してください'); return; }
+  const rows=sess.dData[code]?.[type]||[];
+  const header=type==='s'?['項目名','単位','単価','数量','備考']:['項目名','単位','A単価','B単価','C単価','数量','備考'];
+  const data=[header,...rows.map(r=>type==='s'?[r.n,r.u,r.p,r.qty,r.memo]:[r.n,r.u,r.a,r.b,r.c,r.qty,r.memo])];
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,type==='s'?'造成':'外構');
+  XLSX.writeFile(wb,(type==='s'?'造成':'外構')+'内訳テンプレート.xlsx');
+}
+function importDetailTemplate(inp,type){
+  const f=inp.files[0]; if(!f) return;
+  const code=document.getElementById('d-site')?.value;
+  if(!code){ alert('現場を選択してください'); return; }
+  const r=new FileReader();
+  r.onload=e=>{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    if(data.length<2){ alert('データなし'); return; }
+    const rows=data.slice(1).map(row=>type==='s'
+      ?{n:String(row[0]||''),u:String(row[1]||''),p:Number(row[2])||0,qty:Number(row[3])||0,memo:String(row[4]||''),free:true}
+      :{n:String(row[0]||''),u:String(row[1]||''),a:Number(row[2])||0,b:Number(row[3])||0,c:Number(row[4])||0,qty:Number(row[5])||0,memo:String(row[6]||''),free:true}
+    );
+    if(!sess.dData[code]) sess.dData[code]={s:buildSRows(),g:buildGRows()};
+    // append to existing
+    rows.forEach(row=>sess.dData[code][type].push(row));
+    if(type==='s') renderSTbl(code); else renderGTbl(code);
+    updateGrand(code);
+    alert(rows.length+'行取込みました');
+  };
+  r.readAsArrayBuffer(f); inp.value='';
+}
+
+// ══════════════════════════════════════
+// VEHICLE MANAGEMENT
+// ══════════════════════════════════════
+const LS_V = 'hy3_vehicles';
+let vehicles = lsLoad(LS_V);
+
+function renderVehicles(){
+  const q=(document.getElementById('v-search')?.value||'').toLowerCase();
+  const statusF=document.getElementById('v-status')?.value||'';
+  const lessorF=document.getElementById('v-lessor')?.value||'';
+  const tb=document.getElementById('vehicle-tb'); if(!tb) return;
+
+  // populate lessor filter
+  const lessors=[...new Set(vehicles.map(v=>v.lessor).filter(Boolean))].sort();
+  const lSel=document.getElementById('v-lessor');
+  if(lSel){
+    const cur=lSel.value;
+    lSel.innerHTML='<option value="">全リース業者</option>'+lessors.map(l=>`<option value="${l}">${l}</option>`).join('');
+    if(cur) lSel.value=cur;
+  }
+
+  let list=vehicles.filter(v=>{
+    if(q&&!(v.craftsmanName||'').toLowerCase().includes(q)&&!(v.mgmtNo||'').toLowerCase().includes(q)&&!(v.carName||'').toLowerCase().includes(q)&&!(v.companyName||'').toLowerCase().includes(q)) return false;
+    if(statusF&&v.status!==statusF) return false;
+    if(lessorF&&v.lessor!==lessorF) return false;
+    return true;
+  });
+
+  // sort: active first, then by craftsman name
+  list.sort((a,b)=>{
+    if(a.status==='active'&&b.status!=='active') return -1;
+    if(a.status!=='active'&&b.status==='active') return 1;
+    return (a.craftsmanName||'').localeCompare(b.craftsmanName||'','ja');
+  });
+
+  if(!list.length){ tb.innerHTML='<tr><td colspan="12" style="text-align:center;color:#94a3b8;padding:20px;">該当なし</td></tr>'; renderVehicleSummary([]); return; }
+
+  tb.innerHTML=list.map(v=>{
+    const total=(Number(v.monthly)||0)+(Number(v.fixed)||0);
+    const statBadge=v.status==='active'?'<span class="bk ok">契約中</span>':'<span class="bk gray-bk">返却済</span>';
+    const utBg=v.userType==='外注'?'#fef3c7':'#dbeafe'; const utClr=v.userType==='外注'?'#92400e':'#1e40af';
+    return `<tr style="opacity:${v.status==='returned'?'0.6':'1'}">
+      <td><span class="bk" style="background:${utBg};color:${utClr};">${v.userType||'自社'}</span></td>
+      <td style="font-weight:700;font-size:14px;">${v.craftsmanName||'—'}</td>
+      <td style="font-size:13px;color:#64748b;">${v.companyName||''}</td>
+      <td style="font-family:'Courier New',monospace;font-size:13px;">${v.mgmtNo||'—'}</td>
+      <td>${v.carName||'—'}</td>
+      <td style="font-size:13px;">${v.lessor||'—'}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;cursor:pointer;" title="ダブルクリックで編集" ondblclick="inlineEditVAmt('${v.id}','monthly',this)"><span class="editable">¥${Number(v.monthly||0).toLocaleString()}</span></td>
+      <td style="text-align:right;font-family:'Courier New',monospace;cursor:pointer;" title="ダブルクリックで編集" ondblclick="inlineEditVAmt('${v.id}','fixed',this)"><span class="editable">¥${Number(v.fixed||0).toLocaleString()}</span></td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;">¥${total.toLocaleString()}</td>
+      <td style="font-size:12px;">${v.startDate||'—'}</td>
+      <td style="font-size:12px;">${v.endDate||'—'}</td>
+      <td>${statBadge}</td>
+      <td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${v.note||''}">${v.note||'—'}</td>
+      <td>
+        <button class="btn gray xs" onclick="openVehicleM('${v.id}')"><i class="fa-solid fa-edit"></i></button>
+        <button class="btn red xs" onclick="delVehicle('${v.id}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  // tfoot
+  const activeTot=list.filter(v=>v.status==='active').reduce((s,v)=>s+(Number(v.monthly)||0)+(Number(v.fixed)||0),0);
+  const allTot=list.reduce((s,v)=>s+(Number(v.monthly)||0)+(Number(v.fixed)||0),0);
+  const tf=document.getElementById('vehicle-tfoot');
+  if(tf) tf.innerHTML=`<tr style="background:#f1f5f9;font-weight:700;">
+    <td colspan="8" style="text-align:right;padding:8px 10px;">契約中 合計月額</td>
+    <td style="text-align:right;padding:8px 10px;font-family:'Courier New',monospace;color:#1e40af;font-size:15px;">¥${activeTot.toLocaleString()}</td>
+    <td colspan="5" style="padding:8px 10px;font-size:12px;color:#64748b;">全${list.length}件中 契約中${list.filter(v=>v.status==='active').length}件</td>
+  </tr>`;
+
+  renderVehicleSummary(list);
+}
+
+function renderVehicleSummary(list){
+  const el=document.getElementById('vehicle-summary'); if(!el) return;
+  const active=list.filter(v=>v.status==='active');
+  // Group by craftsman
+  const byPerson={};
+  active.forEach(v=>{ const n=v.craftsmanName||'不明'; if(!byPerson[n]) byPerson[n]={count:0,total:0}; byPerson[n].count++; byPerson[n].total+=(Number(v.monthly)||0)+(Number(v.fixed)||0); });
+  const people=Object.entries(byPerson).sort((a,b)=>b[1].total-a[1].total).slice(0,8);
+  const totalAmt=active.reduce((s,v)=>s+(Number(v.monthly)||0)+(Number(v.fixed)||0),0);
+  el.innerHTML=`
+    <div class="card" style="margin-bottom:0;background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;">
+      <div style="font-size:12px;opacity:.8;">契約中 台数</div>
+      <div style="font-size:28px;font-weight:900;">${active.length}<span style="font-size:14px;font-weight:400;"> 台</span></div>
+    </div>
+    <div class="card" style="margin-bottom:0;background:linear-gradient(135deg,#1e40af,#1d4ed8);color:#fff;">
+      <div style="font-size:12px;opacity:.8;">月額合計（契約中）</div>
+      <div style="font-size:22px;font-weight:900;font-family:'Courier New',monospace;">¥${totalAmt.toLocaleString()}</div>
+    </div>
+    ${people.map(([name,d])=>`
+    <div class="card" style="margin-bottom:0;">
+      <div style="font-size:12px;color:#64748b;font-weight:700;">${name}</div>
+      <div style="font-size:15px;font-weight:700;">${d.count}台 <span style="font-family:'Courier New',monospace;color:#1e40af;">¥${d.total.toLocaleString()}</span></div>
+    </div>`).join('')}
+  `;
+}
+
+function openVehicleM(id){
+  // Populate craftsman datalist
+  const dl=document.getElementById('v-cm-list');
+  if(dl) dl.innerHTML=craftsmen.map(c=>`<option value="${c.name}">`).join('');
+  const mo=document.getElementById('mo-vehicle'); mo.classList.add('open');
+  const v=id?vehicles.find(x=>x.id===id):null;
+  setVal('v-id',id||'');
+  document.getElementById('v-user-type').value=v?.userType||'';
+  setVal('v-craftsman',v?.craftsmanName||'');
+  setVal('v-company',v?.companyName||'');
+  // 既存データがあれば職人情報を表示
+  if(v?.craftsmanName) updateVCmInfo(v.craftsmanName);
+  setVal('v-mgmt-no',v?.mgmtNo||'');
+  setVal('v-car-name',v?.carName||'');
+  setVal('v-lessor-name',v?.lessor||'');
+  setVal('v-monthly',v?.monthly||'');
+  setVal('v-fixed',v?.fixed||'');
+  setVal('v-start',v?.startDate||'');
+  setVal('v-end',v?.endDate||'');
+  document.getElementById('v-stat').value=v?.status||'active';
+  setVal('v-note',v?.note||'');
+}
+function closeVehicleM(){ document.getElementById('mo-vehicle').classList.remove('open'); }
+// 全職人の車両合計を職人マスターに一括同期
+function syncAllVehicleTotals(){
+  const names=[...new Set(vehicles.map(v=>v.craftsmanName).filter(Boolean))];
+  names.forEach(name=>syncCraftsmanVehicleTotal(name));
+  renderCMT();
+  alert('職人マスターへの同期が完了しました（'+names.length+'名）');
+}
+function saveVehicle(){
+  const craftsmanName=document.getElementById('v-craftsman').value.trim();
+  if(!craftsmanName){alert('職人名を入力してください');return;}
+  const id=document.getElementById('v-id').value||uid();
+  // 区分: 手動上書きがあればそれを使用、なければマスターから取得
+  const manualType=document.getElementById('v-user-type').value;
+  const cm=craftsmen.find(c=>c.name===craftsmanName);
+  const userType=manualType||(cm?.category==='外注'?'外注':'自社');
+  const companyName=document.getElementById('v-company').value.trim();
+  const obj={id, craftsmanName, userType, companyName,
+    mgmtNo:document.getElementById('v-mgmt-no').value.trim(),
+    carName:document.getElementById('v-car-name').value.trim(),
+    lessor:document.getElementById('v-lessor-name').value.trim(),
+    monthly:Number(document.getElementById('v-monthly').value)||0,
+    fixed:Number(document.getElementById('v-fixed').value)||0,
+    startDate:document.getElementById('v-start').value,
+    endDate:document.getElementById('v-end').value,
+    status:document.getElementById('v-stat').value,
+    note:document.getElementById('v-note').value,
+    updatedAt:new Date().toLocaleDateString('ja-JP')
+  };
+  const ex=vehicles.find(v=>v.id===id);
+  if(ex) Object.assign(ex,obj); else vehicles.push(obj);
+  lsSave(LS_V,vehicles);
+  // 職人マスターの vehicle 合計を自動同期
+  syncCraftsmanVehicleTotal(craftsmanName);
+  closeVehicleM(); renderVehicles();
+}
+// 職人名で契約中車両の合計を職人マスターに書き戻す
+function syncCraftsmanVehicleTotal(craftsmanName){
+  const cm=craftsmen.find(c=>c.name===craftsmanName);
+  if(!cm) return;
+  const total=vehicles
+    .filter(v=>v.craftsmanName===craftsmanName && v.status==='active')
+    .reduce((s,v)=>(s+(Number(v.monthly)||0)+(Number(v.fixed)||0)),0);
+  cm.vehicle=total;
+  cm.updatedAt=new Date().toLocaleDateString('ja-JP');
+  lsSave(LS.CM,craftsmen);
+}
+function delVehicle(id){
+  if(!confirm('この車両データを削除しますか？')) return;
+  const target=vehicles.find(v=>v.id===id);
+  const craftsmanName=target?.craftsmanName;
+  vehicles=vehicles.filter(v=>v.id!==id);
+  lsSave(LS_V,vehicles);
+  if(craftsmanName) syncCraftsmanVehicleTotal(craftsmanName);
+  renderVehicles();
+}
+
+// インライン金額編集（車両）
+function inlineEditVAmt(id,field,td){
+  const v=vehicles.find(x=>x.id===id); if(!v) return;
+  const cur=Number(v[field])||0;
+  const inp=document.createElement('input');
+  inp.type='number'; inp.value=cur; inp.min='0';
+  inp.style.cssText='width:100px;font-family:monospace;font-size:13px;border:2px solid #0891b2;border-radius:5px;padding:3px 6px;text-align:right;';
+  inp.onblur=()=>{ v[field]=Number(inp.value)||0; v.updatedAt=new Date().toLocaleDateString('ja-JP'); lsSave(LS_V,vehicles); renderVehicles(); };
+  inp.onkeydown=e=>{ if(e.key==='Enter'||e.key==='Escape') inp.blur(); };
+  td.innerHTML=''; td.appendChild(inp); inp.focus(); inp.select();
+}
+
+function exportVehicles(){
+  const wb=XLSX.utils.book_new();
+  // Sheet1: 一覧
+  const header=['区分','職人マスター名','担当者名（任意）','管理番号','車種・車名','リース業者','月額リース料','固定費','合計請求','契約開始','契約終了','ステータス','備考','更新日'];
+  const data=[header,...vehicles.map(v=>[v.userType||'自社',v.companyName||'',v.craftsmanName,v.mgmtNo,v.carName,v.lessor,v.monthly,v.fixed,(Number(v.monthly)||0)+(Number(v.fixed)||0),v.startDate,v.endDate,v.status==='active'?'契約中':'返却済',v.note,v.updatedAt])];
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  // column widths
+  ws['!cols']=[{wch:14},{wch:16},{wch:18},{wch:20},{wch:12},{wch:10},{wch:12},{wch:12},{wch:12},{wch:8},{wch:30},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,'車両一覧');
+  // Sheet2: 人別集計
+  const byPerson={};
+  vehicles.filter(v=>v.status==='active').forEach(v=>{
+    const n=v.craftsmanName||'不明';
+    if(!byPerson[n]) byPerson[n]=[];
+    byPerson[n].push(v);
+  });
+  const s2header=['職人名','台数','月額合計'];
+  const s2data=[s2header,...Object.entries(byPerson).sort((a,b)=>b[1].reduce((s,v)=>(s+(Number(v.monthly)||0)+(Number(v.fixed)||0)),0)-a[1].reduce((s,v)=>(s+(Number(v.monthly)||0)+(Number(v.fixed)||0)),0)).map(([n,vs])=>[n,vs.length,vs.reduce((s,v)=>s+(Number(v.monthly)||0)+(Number(v.fixed)||0),0)])];
+  const ws2=XLSX.utils.aoa_to_sheet(s2data);
+  XLSX.utils.book_append_sheet(wb,ws2,'人別集計');
+  XLSX.writeFile(wb,'車両管理_'+new Date().toLocaleDateString('ja-JP').replace(/\//g,'')+'.xlsx');
+}
+
+function importVehicles(inp){
+  const f=inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const data=XLSX.utils.sheet_to_json(ws);
+    let a=0;
+    data.forEach(row=>{
+      const cn=(row['職人名']||'').trim(); if(!cn) return;
+      const id=vehicles.find(v=>v.mgmtNo&&v.mgmtNo===(row['管理番号']||'').trim()&&v.craftsmanName===cn)?.id||uid();
+      const obj={id, craftsmanName:cn,
+        mgmtNo:String(row['管理番号']||'').trim(),
+        carName:String(row['車種・車名']||row['車名']||'').trim(),
+        lessor:String(row['リース業者']||'').trim(),
+        monthly:Number(row['月額リース料']||row['請求額(税込)']||row['請求額']||0),
+        fixed:Number(row['固定費']||0),
+        startDate:String(row['契約開始']||row['契約開始日']||''),
+        endDate:String(row['契約終了']||row['契約終了日']||''),
+        status:(String(row['ステータス']||'')).includes('返却')?'returned':'active',
+        note:String(row['備考']||row['メモ']||''),
+        updatedAt:new Date().toLocaleDateString('ja-JP')
+      };
+      const ex=vehicles.find(v=>v.id===id);
+      if(ex) Object.assign(ex,obj); else{vehicles.push(obj);a++;}
+    });
+    lsSave(LS_V,vehicles); renderVehicles(); inp.value='';
+    alert('取込完了：'+a+'件追加');
+  };
+  r.readAsArrayBuffer(f); inp.value='';
+}
+
+// ══ インライン金額編集（職人マスター）══
+function inlineEditAmt(cmId, field, td){
+  const c=craftsmen.find(x=>x.id===cmId); if(!c) return;
+  const cur=Number(c[field])||0;
+  const inp=document.createElement('input');
+  inp.type='number'; inp.value=cur; inp.min='0';
+  inp.style.cssText='width:90px;font-family:monospace;font-size:13px;border:2px solid #1e40af;border-radius:5px;padding:3px 6px;text-align:right;';
+  inp.onblur=()=>{
+    c[field]=Number(inp.value)||0;
+    c.updatedAt=new Date().toLocaleDateString('ja-JP');
+    lsSave(LS.CM,craftsmen);
+    renderCMT();
+  };
+  inp.onkeydown=e=>{ if(e.key==='Enter'||e.key==='Escape') inp.blur(); };
+  td.innerHTML=''; td.appendChild(inp); inp.focus(); inp.select();
+}
+
+function toggleVExternalFields(){
+  // 旧互換のため残す（現在はonVCraftsmanInputが主役）
+}
+function onVCraftsmanInput(name){
+  updateVCmInfo(name);
+}
+function updateVCmInfo(name){
+  const cm=craftsmen.find(c=>c.name===name);
+  const infoEl=document.getElementById('v-cm-info');
+  const catEl=document.getElementById('v-cm-category-badge');
+  const brEl=document.getElementById('v-cm-branch-info');
+  const invEl=document.getElementById('v-cm-invoice-info');
+  if(!cm||!name){ if(infoEl) infoEl.style.display='none'; return; }
+  if(infoEl) infoEl.style.display='flex';
+  // 区分バッジ
+  const cat=cm.category||'職人';
+  const catColors={'職人':'#475569','社員':'#1e40af','外注':'#92400e','サポート':'#065f46','その他':'#475569'};
+  const catBgs={'職人':'#e2e8f0','社員':'#dbeafe','外注':'#fef3c7','サポート':'#d1fae5','その他':'#e2e8f0'};
+  if(catEl) catEl.innerHTML=`<span style="font-size:12px;font-weight:700;padding:2px 10px;border-radius:999px;background:${catBgs[cat]||'#e2e8f0'};color:${catColors[cat]||'#475569'};">${cat}</span>`;
+  if(brEl) brEl.textContent=cm.branch?`拠点：${cm.branch}`:'';
+  if(invEl) invEl.textContent=cm.invoice&&/^T\d{13}$/.test(cm.invoice)?`インボイス：${cm.invoice}`:'インボイス：未対応';
+  // 区分セレクトの値を自動セット（まだ手動指定がない場合）
+  const selType=document.getElementById('v-user-type');
+  if(selType&&!selType.value) selType.value=cat==='外注'?'外注':'自社';
+}
+
+// ══════════════════════════════════════
+// BULK IMPORT
+// ══════════════════════════════════════
+function handleBulkDrop(e){
+  e.preventDefault();
+  const dz=document.getElementById('bulk-dropzone');
+  dz.style.background='#fafaff'; dz.style.borderColor='#a5b4fc';
+  handleBulkFiles(e.dataTransfer.files);
+}
+async function handleBulkFiles(files){
+  if(!files||!files.length) return;
+  const logWrap=document.getElementById('bulk-log-wrap');
+  const logEl=document.getElementById('bulk-log');
+  logWrap.style.display='block';
+  logEl.textContent='';
+  const log=msg=>{ logEl.textContent+=msg+'\n'; logEl.scrollTop=99999; };
+  log('--- 処理開始 '+new Date().toLocaleTimeString('ja-JP')+' ---');
+  for(const f of Array.from(files)){
+    const name=f.name.toLowerCase();
+    log('\n📄 '+f.name);
+    try{
+      if(name.includes('職人')||(!name.includes('現場')&&!name.includes('車両')&&!name.includes('リース')&&(name.endsWith('.csv')||name.endsWith('.xlsx')||name.endsWith('.xls')))){
+        // 職人マスター
+        log('  → 職人マスターとして処理中...');
+        await new Promise(res=>{
+          const r=new FileReader();
+          if(name.endsWith('.csv')){
+            r.onload=e=>{Papa.parse(e.target.result,{header:true,skipEmptyLines:true,complete:d=>{ processCMRows(d.data); log('  ✓ '+d.data.length+'行処理'); res(); }});};
+            r.readAsText(f,'UTF-8');
+          } else {
+            r.onload=e=>{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]];const data=XLSX.utils.sheet_to_json(ws);processCMRows(data);log('  ✓ '+data.length+'行処理');res();};
+            r.readAsArrayBuffer(f);
+          }
+        });
+      } else if(name.includes('現場')||name.endsWith('.txt')){
+        // 現場マスター
+        log('  → 現場マスターとして処理中（UTF-16LE）...');
+        await importSite({files:[f]});
+        log('  ✓ 現場マスター処理完了');
+      } else if(name.includes('車両')||name.includes('リース')){
+        // 車両管理
+        log('  → 車両管理として処理中...');
+        await new Promise(res=>{
+          const r=new FileReader();
+          r.onload=e=>{const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]];const data=XLSX.utils.sheet_to_json(ws);importVehiclesData(data);log('  ✓ '+data.length+'行処理');res();};
+          r.readAsArrayBuffer(f);
+        });
+      } else {
+        log('  ⚠ ファイル種別を判定できませんでした（職人/現場/車両をファイル名に含めてください）');
+      }
+    } catch(e){ log('  ✗ エラー: '+e.message); }
+  }
+  log('\n--- 完了 ---');
+  // 各ページを更新
+  renderCMT(); renderVehicles(); renderSiteTable&&renderSiteTable();
+}
+function importVehiclesData(rows){
+  let a=0;
+  rows.forEach(r=>{
+    const cn=(r['職人名']||r['担当者']||'').trim(); if(!cn) return;
+    const id=vehicles.find(v=>v.mgmtNo&&v.mgmtNo===(r['管理番号']||'').trim()&&v.craftsmanName===cn)?.id||uid();
+    const obj={id, craftsmanName:cn,
+      userType:r['区分']||'自社',companyName:r['会社名']||'',
+      mgmtNo:String(r['管理番号']||'').trim(),
+      carName:String(r['車種・車名']||r['車名']||'').trim(),
+      lessor:String(r['リース業者']||'').trim(),
+      monthly:Number(r['月額リース料']||r['請求額(税込)']||r['請求額']||0),
+      fixed:Number(r['固定費']||0),
+      startDate:String(r['契約開始']||''),endDate:String(r['契約終了']||''),
+      status:(String(r['ステータス']||'')).includes('返却')?'returned':'active',
+      note:String(r['備考']||''),updatedAt:new Date().toLocaleDateString('ja-JP')
+    };
+    const ex=vehicles.find(v=>v.id===id);
+    if(ex) Object.assign(ex,obj); else{vehicles.push(obj);a++;}
+  });
+  lsSave(LS_V,vehicles);
+  // 職人マスターへ同期
+  const names=[...new Set(rows.map(r=>(r['職人名']||r['担当者']||'').trim()).filter(Boolean))];
+  names.forEach(n=>syncCraftsmanVehicleTotal(n));
+}
+
+// ══════════════════════════════════════
+// 個人情報モード管理
+// ══════════════════════════════════════
+const PI_PASS = '0071';
+let piMode = false; // セッション中のロック解除状態
+
+function togglePIMode(){
+  if(piMode){
+    // ロック
+    piMode=false;
+    updatePIBtn();
+    renderCMT();
+    return;
+  }
+  // ロック解除
+  const pw=prompt('個人情報モードのパスワードを入力してください');
+  if(pw===null) return;
+  if(pw!==PI_PASS){ alert('パスワードが違います'); return; }
+  piMode=true;
+  updatePIBtn();
+  renderCMT();
+}
+function updatePIBtn(){
+  const btn=document.getElementById('pi-lock-btn');
+  if(!btn) return;
+  if(piMode){
+    btn.className='pi-lock unlocked';
+    btn.innerHTML='<i class="fa-solid fa-lock-open"></i> 個人情報モード（解除中）';
+  } else {
+    btn.className='pi-lock';
+    btn.innerHTML='<i class="fa-solid fa-lock"></i> 個人情報モード';
+  }
+}
+function updatePIFieldsLock(){
+  const warn=document.getElementById('cm-pi-lock-warn');
+  const fields=document.getElementById('cm-pi-fields');
+  if(!warn||!fields) return;
+  warn.style.display=piMode?'none':'block';
+  fields.style.display=piMode?'block':'none';
+}
+
+// 個人情報閲覧モーダル（読取専用・一覧表示）
+function fmtExp(v){
+  if(!v) return '—';
+  const d=parseExpDate(v); if(!d) return v;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const diff=Math.floor((d-today)/(1000*60*60*24));
+  const label=v.replace(/-/g,'/');
+  if(diff<0) return label+` ⚠（${Math.abs(diff)}日超過）`;
+  if(diff<=30) return label+` ⏰（残${diff}日）`;
+  if(diff<=90) return label+` 📅（残${diff}日）`;
+  return label;
+}
+function expStyle(v){
+  if(!v) return '';
+  const d=parseExpDate(v); if(!d) return '';
+  const today=new Date(); today.setHours(0,0,0,0);
+  const diff=Math.floor((d-today)/(1000*60*60*24));
+  if(diff<0) return 'color:#dc2626;font-weight:700;';
+  if(diff<=30) return 'color:#dc2626;font-weight:700;';
+  if(diff<=90) return 'color:#d97706;font-weight:700;';
+  return 'color:#059669;';
+}
+function openPIView(id){
+  if(!piMode){ alert('個人情報モードを有効にしてください'); return; }
+  const c=craftsmen.find(x=>x.id===id); if(!c) return;
+  const pi=c.pi||{};
+  const fmt=v=>v||'—';
+  const mo=document.getElementById('mo-pi-view');
+  document.getElementById('pi-view-name').textContent=c.name+(c.company?` (${c.company})`:'');
+  document.getElementById('pi-view-body').innerHTML=`
+    <div class="pi-section"><i class="fa-solid fa-user"></i> 基本個人情報</div>
+    <div class="pi-row"><span class="pi-label">生年月日</span><span class="pi-value">${fmt(pi.dob)}</span></div>
+    <div class="pi-row"><span class="pi-label">雇入年月日</span><span class="pi-value">${fmt(pi.hire)}</span></div>
+    <div class="pi-row"><span class="pi-label">外構工事開始日</span><span class="pi-value">${fmt(pi.gaikoStart)}</span></div>
+    <div class="pi-row"><span class="pi-label">郵便番号</span><span class="pi-value">${fmt(pi.zip)}</span></div>
+    <div class="pi-row"><span class="pi-label">現住所</span><span class="pi-value">${fmt(pi.addr)}</span></div>
+    <div class="pi-row"><span class="pi-label">電話番号</span><span class="pi-value">${fmt(pi.tel)}</span></div>
+    <div class="pi-row"><span class="pi-label">FAX</span><span class="pi-value">${fmt(pi.fax)}</span></div>
+    <div class="pi-row"><span class="pi-label">携帯番号</span><span class="pi-value">${fmt(pi.mobile)}</span></div>
+    <div class="pi-section"><i class="fa-solid fa-house"></i> 緊急連絡先</div>
+    <div class="pi-row"><span class="pi-label">氏名</span><span class="pi-value">${fmt(pi.emgName)}</span></div>
+    <div class="pi-row"><span class="pi-label">電話</span><span class="pi-value">${fmt(pi.emgTel)}</span></div>
+    <div class="pi-row"><span class="pi-label">住所</span><span class="pi-value">${fmt(pi.emgAddr)}</span></div>
+    <div class="pi-section"><i class="fa-solid fa-heart-pulse"></i> 健康・保険</div>
+    <div class="pi-row"><span class="pi-label">最近の健康診断</span><span class="pi-value">${fmt(pi.healthDate)}</span></div>
+    <div class="pi-row"><span class="pi-label">血液型</span><span class="pi-value">${fmt(pi.bloodType)}</span></div>
+    <div class="pi-row"><span class="pi-label">血圧</span><span class="pi-value">${pi.bpHigh||'—'} / ${pi.bpLow||'—'}</span></div>
+    <div class="pi-row"><span class="pi-label">労災保険番号</span><span class="pi-value">${fmt(pi.rousaiNo)} <span style="${expStyle(pi.rousaiExp)}">期限：${fmtExp(pi.rousaiExp)}</span></span></div>
+    <div class="pi-row"><span class="pi-label">健康保険</span><span class="pi-value">記号：${fmt(pi.hokenKigo)}　番号：${fmt(pi.hokenNo)}　<span style="${expStyle(pi.hokenExp)}">期限：${fmtExp(pi.hokenExp)}</span></span></div>
+    <div class="pi-row"><span class="pi-label">年金番号</span><span class="pi-value">${fmt(pi.nenkinNo)} <span style="${expStyle(pi.nenkinExp)}">期限：${fmtExp(pi.nenkinExp)}</span></span></div>
+    <div class="pi-section"><i class="fa-solid fa-id-card"></i> 免許・資格</div>
+    <div class="pi-row"><span class="pi-label">運転免許番号</span><span class="pi-value">${fmt(pi.licenseNo)} <span style="${expStyle(pi.licenseExp)}">期限：${fmtExp(pi.licenseExp)}</span></span></div>
+    <div class="pi-row" style="flex-direction:column;align-items:flex-start;gap:4px;"><span class="pi-label">資格・免許</span><span class="pi-value" style="white-space:pre-wrap;font-size:12px;">${fmt(pi.qualifications)}</span></div>
+    ${pi.memo?`<div class="pi-row"><span class="pi-label">備考</span><span class="pi-value">${pi.memo}</span></div>`:''}
+  `;
+  mo.classList.add('open');
+}
+function closePIView(){ document.getElementById('mo-pi-view').classList.remove('open'); }
+
+// CSV出力ダイアログ（個人情報含む/含まない）
+function exportCMDialog(){
+  const mo=document.getElementById('mo-export-cm'); mo.classList.add('open');
+}
+function closeExportCM(){ document.getElementById('mo-export-cm').classList.remove('open'); }
+
+// ══ 個人情報 期限チェックバッジ ══
+// 日付文字列(yyyy/mm/dd or yyyy-mm-dd)をDateに変換
+function parseExpDate(v){
+  if(!v) return null;
+  if(v instanceof Date) return v;
+  const s=String(v).trim().replace(/\//g,'-'); // スラッシュをハイフンに統一
+  const d=new Date(s+'T00:00:00'); // ローカル時間のゼロ時
+  return isNaN(d.getTime())?null:d;
+}
+function piExpBadge(c){
+  if(!c.pi) return '';
+  const pi=c.pi;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const soon30=new Date(today); soon30.setDate(soon30.getDate()+30);
+  const soon90=new Date(today); soon90.setDate(soon90.getDate()+90);
+  // 免許・保険系の期限チェック
+  const expFields=[
+    {key:'rousaiExp', label:'労災保険'},
+    {key:'hokenExp',  label:'健康保険'},
+    {key:'nenkinExp', label:'年金'},
+    {key:'licenseExp',label:'運転免許'},
+  ];
+  const expired=[], near30=[], near90=[];
+  expFields.forEach(f=>{
+    const d=parseExpDate(pi[f.key]); if(!d) return;
+    if(d<today) expired.push(f.label);
+    else if(d<=soon30) near30.push(f.label);
+    else if(d<=soon90) near90.push(f.label);
+  });
+  // 健康診断: 1年以上前なら要受診
+  const healthWarn=[];
+  const hd=parseExpDate(pi.healthDate);
+  if(hd){
+    const oneYearAgo=new Date(today); oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
+    if(hd<oneYearAgo) healthWarn.push('健診要受診');
+  }
+  if(!expired.length&&!near30.length&&!near90.length&&!healthWarn.length) return '';
+  let b='';
+  if(expired.length)
+    b+=`<span class="bk ng" style="font-size:11px;font-weight:700;padding:3px 7px;" title="期限切れ: ${expired.join(' / ')}">⚠ 期限切れ</span> `;
+  if(near30.length)
+    b+=`<span class="bk" style="background:#fee2e2;color:#991b1b;font-size:11px;font-weight:700;padding:3px 7px;" title="30日以内に期限: ${near30.join(' / ')}">⏰ 30日以内</span> `;
+  if(near90.length)
+    b+=`<span class="bk warn" style="font-size:11px;padding:3px 7px;" title="90日以内に期限: ${near90.join(' / ')}">📅 90日以内</span> `;
+  if(healthWarn.length)
+    b+=`<span class="bk" style="background:#dbeafe;color:#1e40af;font-size:11px;font-weight:700;padding:3px 7px;" title="健康診断から1年以上経過">🏥 健診要受診</span>`;
+  return b;
+}
+
+// ══ 職人マスター XLSX出力（サンプル行付き） ══
+function doExportCM(){
+  const inclPI=document.getElementById('export-pi-chk').checked;
+  if(inclPI){
+    if(!piMode){
+      const pw=prompt('個人情報を含めるにはパスワードが必要です');
+      if(pw!==PI_PASS){ alert('パスワードが違います'); return; }
+    }
+  }
+  const wb=XLSX.utils.book_new();
+
+  // ── 基本情報シート ──
+  const baseHeader=['職人名','屋号・会社名','区分','拠点','インボイス番号','労災組合費(月額)','健康保険料(月額)','駐車場代(月額)','道具代(月額)','電話代(月額)','車両リース費(月額)','リース元管理番号','ナンバープレート','その他控除(月額)','メモ'];
+  // サンプル行（2行目）
+  const baseSample=['★サンプル記入例★','（屋号例）','職人','松戸','T1234567890123',2309,0,5000,0,0,0,'Z12345','品川300あ1234',0,'★この行は取込時に自動除外されます★'];
+  const baseRows=[baseHeader, baseSample, ...craftsmen.map(c=>[
+    c.name, c.company||'', c.category||'職人', c.branch||c.type||'',
+    c.invoice, c.rosai||0, c.kenko||0, c.parking||0, c.tools||0,
+    c.phone||0, c.vehicle||0, c.vehicleNo||'', c.plate||'', c.otherDeduct||0, c.memo||''
+  ])];
+  const ws1=XLSX.utils.aoa_to_sheet(baseRows);
+  ws1['!cols']=[{wch:14},{wch:18},{wch:10},{wch:10},{wch:16},{wch:14},{wch:14},{wch:12},{wch:10},{wch:10},{wch:14},{wch:16},{wch:14},{wch:20}];
+  // サンプル行に色付け（黄色）
+  if(ws1['A2']) ws1['A2'].s={fill:{patternType:'solid',fgColor:{rgb:'FFFDE7'}}};
+  XLSX.utils.book_append_sheet(wb, ws1, '職人マスター（基本）');
+
+  // ── 個人情報シート ──
+  if(inclPI){
+    const piHeader=[
+      '職人名','屋号・会社名',
+      '生年月日（例：1980/04/01　※ブラウザ入力はyyyy-mm-dd形式）','雇入年月日','外構工事開始日',
+      '郵便番号（例：123-4567）','現住所',
+      '電話番号（例：03-1234-5678）','FAX','携帯番号',
+      '緊急連絡先 氏名（例：田中 花子（妻））','緊急連絡先 電話','緊急連絡先 住所',
+      '最近の健康診断日','血液型','血圧 最高','血圧 最低',
+      '労災保険番号','労災保険期限',
+      '健康保険 記号（例：12345）','健康保険 番号（例：67890）','健康保険期限',
+      '年金番号（例：1234-567890）','年金期限',
+      '運転免許番号（12桁）','運転免許期限（例：2026/05/31）',
+      '資格・免許（複数は改行で区切り）','個人情報メモ'
+    ];
+    const piSample=[
+      '★サンプル記入例★','（屋号例）',
+      '1980/04/01','2015/06/01','2015/07/01',
+      '271-0000','千葉県松戸市〇〇町1-2-3',
+      '047-123-4567','047-123-4568','090-1234-5678',
+      '田中 花子（妻）','090-9876-5432','千葉県松戸市〇〇町1-2-3',
+      '2024/10/15','A型','128','82',
+      '123456789','2025/03/31',
+      '12345','67890','2026/01/31',
+      '1234-567890','',
+      '123456789012','2026/05/31',
+      '施工管理技士 2級（建築）\n玉掛け技能講習','サンプルデータ（削除してください）'
+    ];
+    const piRows=[piHeader, piSample, ...craftsmen.map(c=>{
+      const pi=c.pi||{};
+      return [
+        c.name, c.company||'',
+        pi.dob||'', pi.hire||'', pi.gaikoStart||'',
+        pi.zip||'', pi.addr||'',
+        pi.tel||'', pi.fax||'', pi.mobile||'',
+        pi.emgName||'', pi.emgTel||'', pi.emgAddr||'',
+        pi.healthDate||'', pi.bloodType||'', pi.bpHigh||'', pi.bpLow||'',
+        pi.rousaiNo||'', pi.rousaiExp||'',
+        pi.hokenKigo||'', pi.hokenNo||'', pi.hokenExp||'',
+        pi.nenkinNo||'', pi.nenkinExp||'',
+        pi.licenseNo||'', pi.licenseExp||'',
+        pi.qualifications||'', pi.memo||''
+      ];
+    })];
+    const ws2=XLSX.utils.aoa_to_sheet(piRows);
+    ws2['!cols']=piHeader.map((_,i)=>({wch:i<2?14:i===6||i===12?28:16}));
+    XLSX.utils.book_append_sheet(wb, ws2, '個人情報（取扱注意）');
+  }
+
+  XLSX.writeFile(wb, '職人マスター'+(inclPI?'（個人情報含む）':'')+'.xlsx');
+  closeExportCM();
+}
+
+
+// ══ 期限管理 ══
+function showExpList(){
+  document.getElementById('mo-exp-list').classList.add('open');
+  renderExpList();
+}
+function renderExpList(){
+  const filter=document.getElementById('exp-filter')?.value||'all';
+  const today=new Date(); today.setHours(0,0,0,0);
+  const soon30=new Date(today); soon30.setDate(soon30.getDate()+30);
+  const soon90=new Date(today); soon90.setDate(soon90.getDate()+90);
+  const oneYearAgo=new Date(today); oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
+
+  const expFields=[
+    {key:'rousaiExp', label:'労災保険'},
+    {key:'hokenExp',  label:'健康保険'},
+    {key:'nenkinExp', label:'年金'},
+    {key:'licenseExp',label:'運転免許'},
+  ];
+
+  // 全職人の期限情報を収集
+  const rows=[];
+  craftsmen.filter(c=>!c.retired).forEach(c=>{
+    const pi=c.pi||{};
+    expFields.forEach(f=>{
+      const d=parseExpDate(pi[f.key]); if(!d) return;
+      const diff=Math.floor((d-today)/(1000*60*60*24));
+      const status=diff<0?'expired':diff<=30?'near30':diff<=90?'near90':'ok';
+      if(filter==='all'&&status==='ok') return;
+      if(filter==='expired'&&status!=='expired') return;
+      if(filter==='near30'&&status!=='near30') return;
+      if(filter==='near90'&&!['near30','near90'].includes(status)) return;
+      if(filter==='health') return;
+      rows.push({name:c.name, branch:c.branch||'', field:f.label, date:pi[f.key], diff, status, id:c.id});
+    });
+    // 健康診断
+    const hd=parseExpDate(pi.healthDate);
+    if(hd&&hd<oneYearAgo){
+      const diff=Math.floor((today-hd)/(1000*60*60*24));
+      if(filter==='all'||filter==='health')
+        rows.push({name:c.name, branch:c.branch||'', field:'健康診断', date:pi.healthDate, diff:-diff, status:'health', id:c.id});
+    }
+  });
+
+  // ソート: 期限切れ優先、次に残日数が少ない順
+  rows.sort((a,b)=>{
+    const order={expired:0,health:1,near30:2,near90:3,ok:4};
+    if(order[a.status]!==order[b.status]) return order[a.status]-order[b.status];
+    return a.diff-b.diff;
+  });
+
+  const el=document.getElementById('exp-list-body'); if(!el) return;
+  if(!rows.length){
+    el.innerHTML='<div style="text-align:center;padding:30px;color:#94a3b8;font-size:14px;"><i class="fa-solid fa-circle-check" style="color:#059669;font-size:24px;margin-bottom:8px;display:block;"></i>期限切れ・期限間近の項目はありません</div>';
+    return;
+  }
+
+  const statusBadge={
+    expired:`<span class="bk ng" style="font-size:12px;font-weight:700;padding:3px 8px;">⚠ 期限切れ</span>`,
+    near30:`<span class="bk" style="background:#fee2e2;color:#991b1b;font-size:12px;font-weight:700;padding:3px 8px;">⏰ 30日以内</span>`,
+    near90:`<span class="bk warn" style="font-size:12px;padding:3px 8px;">📅 90日以内</span>`,
+    health:`<span class="bk blue-bk" style="font-size:12px;font-weight:700;padding:3px 8px;">🏥 健診要受診</span>`,
+  };
+
+  el.innerHTML=`
+    <table class="tb" style="font-size:14px;">
+      <thead><tr>
+        <th>職人名</th><th>拠点</th><th>項目</th><th>期限日</th><th>状態</th><th>残日数</th><th></th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(r=>`<tr style="${r.status==='expired'||r.status==='health'?'background:#fff5f5;':''}">
+          <td style="font-weight:700;">${r.name}</td>
+          <td style="font-size:12px;">${r.branch||'—'}</td>
+          <td style="font-size:13px;">${r.field}</td>
+          <td style="font-family:'Courier New',monospace;">${(r.date||'').replace(/-/g,'/')}</td>
+          <td>${statusBadge[r.status]||''}</td>
+          <td style="font-family:'Courier New',monospace;font-weight:700;color:${r.diff<0?'#dc2626':r.diff<=30?'#dc2626':r.diff<=90?'#d97706':'#059669'};">
+            ${r.status==='health'?`${Math.abs(r.diff)}日経過`:r.diff<0?`${Math.abs(r.diff)}日超過`:`残${r.diff}日`}
+          </td>
+          <td><button class="btn gray xs" onclick="openCMM('${r.id}');switchCMTab('pi');document.getElementById('mo-exp-list').classList.remove('open');">
+            <i class="fa-solid fa-edit"></i> 更新
+          </button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+</script>
+</body>
+</html>
