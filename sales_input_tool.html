@@ -299,6 +299,52 @@ while(LAYOUT_HEADER.length < 136) LAYOUT_HEADER.push("未使用");
 
 let M_GENBA=[], M_CUST=[], M_PROD=[], M_STAFF=[], exportData=[], currentSeq=1;
 
+/** ============================================================
+ * IndexedDB ヘルパー (localStorage容量超過対策)
+ * マスタデータ(現場/得意先/商品/担当者)はIndexedDBに保存
+ * ============================================================ */
+const IDB_NAME = 'SalesToolMasters';
+const IDB_VER  = 1;
+const IDB_STORE = 'masters';
+
+function _openIDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, IDB_VER);
+        req.onupgradeneeded = e => {
+            if (!e.target.result.objectStoreNames.contains(IDB_STORE))
+                e.target.result.createObjectStore(IDB_STORE);
+        };
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror  = e => reject(e.target.error);
+    });
+}
+async function idbSet(key, value) {
+    const db = await _openIDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror    = e => reject(e.target.error);
+    });
+}
+async function idbGet(key) {
+    const db = await _openIDB();
+    return new Promise((resolve, reject) => {
+        const req = db.transaction(IDB_STORE, 'readonly').objectStore(IDB_STORE).get(key);
+        req.onsuccess = e => resolve(e.target.result ?? null);
+        req.onerror   = e => reject(e.target.error);
+    });
+}
+async function idbClearAll() {
+    const db = await _openIDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror    = e => reject(e.target.error);
+    });
+}
+
 const defaultTemplates = [
     { label: "東栄住宅", cust: "㈱東栄住宅　松戸", prod: "売上", staff: "", transType: "1", method: "0:自動" },
     { label: "飯田産業", cust: "㈱飯田産業　松戸", prod: "売上", staff: "", transType: "1", method: "0:自動" },
@@ -306,8 +352,8 @@ const defaultTemplates = [
     { label: "トークス", cust: "㈱ﾄｰｸｽｺｰﾎﾟﾚｰｼｮﾝ　松戸", prod: "売上", staff: "", transType: "1", method: "0:自動" }
 ];
 
-document.addEventListener('DOMContentLoaded', () => {
-    loadMastersFromStorage();
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadMastersFromStorage();
     renderTemplates();
     initGrid();
     validateProduct();
@@ -508,6 +554,7 @@ function handlePaste(e) {
                 let val = cellData.trim();
                 if (input.classList.contains('date-col')) val = normalizeDateStr(val);
                 if (input.classList.contains('amount-col')) val = val.replace(/,/g, '');
+                if (input.classList.contains('job-code')) val = normalizeJobCode(val);
                 input.value = val;
                 input.dispatchEvent(new Event('change')); 
             }
@@ -615,7 +662,7 @@ async function handleDrop(e) {
             else if(n.includes("担当")) { await processStaffFile(f); count++; }
             else if(n.includes("テンプレート")) { await processTemplateFile(f); count++; }
         }
-        loadMastersFromStorage(); renderTemplates();
+        await loadMastersFromStorage(); renderTemplates();
         alert(count > 0 ? `${count}ファイルを読み込みました。` : "対象ファイルがありませんでした。");
     } catch(err) { alert("エラー: "+err.message); }
 }
@@ -634,52 +681,56 @@ async function processGenbaFile(f) {
     const rows = parseTSV(await readFileText(f));
     // t: r[49](AX列 現場担当者)
     const data = rows.map(r => ({ c:r[0]||"", s:r[1]||"", n:r[2]||"", sn:r[5]||"", t:r[49]||"", h:r[47]||"", i:(r[1]&&r[1].trim()!=="")?"有":"", cd:r[45]||"" })).filter(d=>d.c);
-    localStorage.setItem('MST_GENBA', JSON.stringify(data));
+    await idbSet('MST_GENBA', data);
 }
 async function processCustFile(f) {
     const rows = parseTSV(await readFileText(f));
     const data = rows.map(r => ({ c:r[0], n:r[1], v:r[2]||"" })).filter(d=>d.c);
-    localStorage.setItem('MST_CUST', JSON.stringify(data));
+    await idbSet('MST_CUST', data);
 }
 async function processProdFile(f) {
     const rows = parseTSV(await readFileText(f));
     const data = rows.map(r => ({ c:r[0], n:r[1] })).filter(d=>d.c);
-    localStorage.setItem('MST_PROD', JSON.stringify(data));
+    await idbSet('MST_PROD', data);
 }
 async function processStaffFile(f) {
     const rows = parseTSV(await readFileText(f));
     const data = rows.map(r => ({ c:r[0], n:r[1] })).filter(d=>d.c);
-    localStorage.setItem('MST_STAFF', JSON.stringify(data));
+    await idbSet('MST_STAFF', data);
 }
 async function processTemplateFile(f) {
     const rows = parseTSV(await readFileText(f));
     const data = rows.map(r => ({ label: r[0], cust: r[1], prod: r[2], staff: r[3], transType: r[4]||"1", method: r[5]||"0:自動" })).filter(d => d.label);
     localStorage.setItem('USER_TEMPLATES', JSON.stringify(data));
 }
-function loadMastersFromStorage() {
-    const ld = (key, id, listId, mapFn) => {
-        const s = localStorage.getItem(key);
-        if(s) {
-            const d = JSON.parse(s);
+async function loadMastersFromStorage() {
+    const ld = async (key, id, listId, mapFn) => {
+        const d = await idbGet(key);
+        if (d && d.length) {
             document.getElementById(id).innerText = `OK (${d.length})`;
             document.getElementById(id).className = 'text-success fw-bold';
-            if(listId) {
-                const dl = document.getElementById(listId); dl.innerHTML="";
-                d.forEach(v => { const op=document.createElement('option'); op.value=mapFn(v); dl.appendChild(op); });
+            if (listId) {
+                const dl = document.getElementById(listId); dl.innerHTML = "";
+                d.forEach(v => { const op = document.createElement('option'); op.value = mapFn(v); dl.appendChild(op); });
             }
             return d;
         }
         return [];
     };
-    M_GENBA = ld('MST_GENBA', 'st_genba', null, null);
-    document.getElementById('genbaStatus').innerHTML = `現場マスタ: ` + (M_GENBA.length?`<span class="status-ok">OK (${M_GENBA.length})</span>`:`<span class="status-ng">未読込</span>`);
-    M_CUST = ld('MST_CUST', 'st_cust', 'custOptions', m=>m.n);
-    M_PROD = ld('MST_PROD', 'st_prod', 'prodOptions', m=>m.n);
-    M_STAFF = ld('MST_STAFF', 'st_staff', 'staffOptions', m=>`${m.c} : ${m.n}`);
+    M_GENBA = await ld('MST_GENBA', 'st_genba', null, null);
+    document.getElementById('genbaStatus').innerHTML = `現場マスタ: ` + (M_GENBA.length ? `<span class="status-ok">OK (${M_GENBA.length})</span>` : `<span class="status-ng">未読込</span>`);
+    M_CUST  = await ld('MST_CUST',  'st_cust',  'custOptions',  m => m.n);
+    M_PROD  = await ld('MST_PROD',  'st_prod',  'prodOptions',  m => m.n);
+    M_STAFF = await ld('MST_STAFF', 'st_staff', 'staffOptions', m => `${m.c} : ${m.n}`);
     const t = localStorage.getItem('USER_TEMPLATES');
     document.getElementById('st_temp').innerText = t ? `カスタム (${JSON.parse(t).length}件)` : "標準のみ";
 }
-function clearMasters() { if(confirm("全消去しますか？")){ localStorage.clear(); location.reload(); } }
+async function clearMasters() {
+    if (!confirm("全消去しますか？")) return;
+    await idbClearAll();
+    localStorage.removeItem('USER_TEMPLATES');
+    location.reload();
+}
 
 function clearDetails() {
     if(!confirm("明細のみクリアしますか？")) return;
@@ -726,6 +777,13 @@ function validateProduct() {
     } else {
         setStatus('combo5', 'prodStatus', false);
     }
+}
+
+// 工番の正規化: 全角英数→半角 + 小文字化
+function normalizeJobCode(val) {
+    return val
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .toLowerCase();
 }
 
 function addGridRow() {
@@ -782,6 +840,14 @@ function addGridRow() {
         tr.querySelector('.i-col').value = hasSub ? "有" : "";
     };
     jobIn.addEventListener('change', searchHandler);
+    jobIn.addEventListener('input', function() {
+        const pos = this.selectionStart;
+        const normalized = normalizeJobCode(this.value);
+        if (normalized !== this.value) {
+            this.value = normalized;
+            this.setSelectionRange(pos, pos);
+        }
+    });
     subIn.addEventListener('change', searchHandler);
     
     dateIn.addEventListener('change', function() { this.value = normalizeDateStr(this.value); });
