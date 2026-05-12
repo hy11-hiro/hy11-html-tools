@@ -157,9 +157,13 @@
                 </div>
                 
                 <!-- 操作ボタンエリア -->
-                <div class="col-md-6 d-flex align-items-end gap-1">
+                <div class="col-md-6 d-flex align-items-end gap-1 flex-wrap">
                     <button class="btn btn-primary btn-sm flex-fill fw-bold" onclick="executeTransfer()">転記処理</button>
                     <button class="btn btn-success btn-sm flex-fill fw-bold" onclick="exportTextFile()">テキスト出力</button>
+                    <label class="btn btn-outline-info btn-sm flex-fill fw-bold mb-0" title="過去に出力した取込レイアウトTXTを読み込んで修正できます">
+                        📂 TXT読込・修正
+                        <input type="file" id="importTxtInput" accept=".txt" style="display:none;" onchange="importTextFile(this)">
+                    </label>
                     <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="clearDetails()">明細クリア</button>
                     <button class="btn btn-outline-danger btn-sm flex-fill" onclick="clearAll()">全消去</button>
                 </div>
@@ -211,7 +215,7 @@
             </div>
             <div class="modal-body">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <p class="small text-muted mb-0">※以下の内容でファイルが出力されます。不要な行は「削除」ボタンで消せます。</p>
+                    <p class="small text-muted mb-0">💡 セルをクリックすると直接編集できます。編集後はそのままテキスト出力できます。</p>
                     <button class="btn btn-sm btn-outline-danger" onclick="clearExportData()">全データクリア</button>
                 </div>
                 <div class="preview-container">
@@ -219,6 +223,7 @@
                 </div>
             </div>
             <div class="modal-footer">
+                <button class="btn btn-success" onclick="exportTextFile()">📄 テキスト出力</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
             </div>
         </div>
@@ -944,16 +949,25 @@ function showPreviewTable() {
     thDel.textContent = "操作";
     thDel.className = "del-col";
     trH.appendChild(thDel);
-
     thead.appendChild(trH);
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
     exportData.forEach((row, idx) => {
         const tr = document.createElement('tr');
-        row.forEach(cell => {
+        row.forEach((cell, colIdx) => {
             const td = document.createElement('td');
             td.textContent = cell;
+            td.contentEditable = true;
+            td.style.minWidth = '60px';
+            td.style.whiteSpace = 'nowrap';
+            td.addEventListener('blur', () => {
+                exportData[idx][colIdx] = td.textContent;
+                updateSummary();
+            });
+            // 編集中に背景色を変える
+            td.addEventListener('focus', () => td.style.backgroundColor = '#fffbe6');
+            td.addEventListener('blur',  () => td.style.backgroundColor = '');
             tr.appendChild(td);
         });
         const tdDel = document.createElement('td');
@@ -964,15 +978,20 @@ function showPreviewTable() {
         btnDel.onclick = () => deleteExportRow(idx);
         tdDel.appendChild(btnDel);
         tr.appendChild(tdDel);
-
         tbody.appendChild(tr);
     });
     table.appendChild(tbody);
 }
 
+function renumberExportData() {
+    exportData.forEach((row, i) => { row[2] = String(i + 1); });
+    currentSeq = exportData.length + 1;
+}
+
 function deleteExportRow(index) {
     if(!confirm("この行を削除しますか？")) return;
     exportData.splice(index, 1);
+    renumberExportData();
     showPreviewTable();
     updateSummary();
 }
@@ -1040,6 +1059,98 @@ function downloadMaster(type) {
     link.href = URL.createObjectURL(blob);
     link.download = filename;
     link.click();
+}
+
+// ============================================================
+// 取込レイアウトTXT 読み込み・修正機能
+// ============================================================
+
+// UTF-16LE (BOM付き) テキストをArrayBufferから文字列に変換
+function decodeUTF16LE(buffer) {
+    const bytes = new Uint8Array(buffer);
+    // BOM (FF FE) をスキップ
+    const start = (bytes[0] === 0xFF && bytes[1] === 0xFE) ? 2 : 0;
+    const u16 = new Uint16Array(buffer, start);
+    return String.fromCharCode(...u16);
+}
+
+// ダブルクォート囲みTSV行を配列にパース
+function parseQuotedTSVLine(line) {
+    const result = [];
+    let inQuote = false, cur = '';
+    for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') {
+            if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
+            else { inQuote = !inQuote; }
+        } else if (c === '\t' && !inQuote) {
+            result.push(cur); cur = '';
+        } else {
+            cur += c;
+        }
+    }
+    result.push(cur);
+    return result;
+}
+
+async function importTextFile(input) {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = ""; // 同じファイルを再選択できるようリセット
+
+    try {
+        // ArrayBufferで読み込んでUTF-16LE手動デコード
+        const buf = await new Promise((res, rej) => {
+            const r = new FileReader();
+            r.onload = e => res(e.target.result);
+            r.onerror = e => rej(e);
+            r.readAsArrayBuffer(file);
+        });
+
+        const text = decodeUTF16LE(buf);
+        const lines = text.split(/\r\n|\n|\r/).filter(l => l.trim() !== '');
+
+        if (lines.length < 2) { alert("データ行がありません。"); return; }
+
+        // 1行目がヘッダーかどうか確認(先頭セルが "伝票日付" なら飛ばす)
+        const firstRow = parseQuotedTSVLine(lines[0]);
+        const startLine = (firstRow[0] === '伝票日付' || firstRow[0] === '"伝票日付"') ? 1 : 0;
+
+        const newRows = [];
+        for (let i = startLine; i < lines.length; i++) {
+            const cols = parseQuotedTSVLine(lines[i]);
+            // 136列に揃える
+            while (cols.length < 136) cols.push("");
+            newRows.push(cols.slice(0, 136));
+        }
+
+        if (newRows.length === 0) { alert("有効なデータがありません。"); return; }
+
+        // 既存データがある場合は追記か置換か確認
+        if (exportData.length > 0) {
+            const choice = confirm(
+                `現在 ${exportData.length} 件の転記データがあります。\n\n` +
+                `[OK] = 既存データに追記する (合計 ${exportData.length + newRows.length} 件)\n` +
+                `[キャンセル] = 既存データを消して置換する (${newRows.length} 件)`
+            );
+            if (choice) {
+                exportData.push(...newRows);
+            } else {
+                exportData = newRows;
+            }
+        } else {
+            exportData = newRows;
+        }
+
+        renumberExportData();
+        showPreviewTable();
+        showPreviewModal();
+        updateSummary();
+        alert(`✅ ${newRows.length} 件を読み込みました。セルをクリックして修正後、テキスト出力してください。`);
+
+    } catch (err) {
+        alert("読み込みエラー: " + err.message);
+    }
 }
 
 function strToUTF16LE(str) {
