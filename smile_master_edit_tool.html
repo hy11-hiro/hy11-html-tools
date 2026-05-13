@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMILE マスター編集ツール v59</title>
+    <title>SMILE マスター編集ツール v60</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -31,7 +31,7 @@
         <div class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-6 shadow-md">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v59</h1>
+                    <h1 class="text-2xl font-bold flex items-center gap-3"><i data-lucide="database-zap" class="w-8 h-8 text-indigo-400"></i>SMILE マスター編集ツール v60</h1>
                     <p class="text-slate-300 text-sm mt-1 ml-11">SMILE V Air 連携用データの結合・編集・変換をサポートする統合ツール</p>
                 </div>
                 <div class="text-right hidden md:block"><span class="bg-indigo-600 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-400">UTF-16LE 対応</span></div>
@@ -557,10 +557,16 @@
                 <p id="loadingStep" class="text-xs text-slate-500"></p>
             </div>
             <!-- プログレスバー -->
-            <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                <div id="loadingBar" class="h-2 bg-indigo-500 rounded-full transition-all duration-300" style="width:0%"></div>
+            <div class="w-full space-y-1.5">
+                <div class="flex justify-between items-center">
+                    <p class="text-xs text-slate-400">処理が完了するまでお待ちください</p>
+                    <span id="loadingPercent" class="text-xs font-bold text-indigo-600 tabular-nums">0%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <div id="loadingBar" class="h-2.5 bg-indigo-500 rounded-full transition-all duration-300" style="width:0%"></div>
+                </div>
+                <p id="loadingDetail" class="text-xs text-slate-400 text-center min-h-[1em]"></p>
             </div>
-            <p class="text-xs text-slate-400">処理が完了するまでお待ちください</p>
         </div>
     </div>
 
@@ -587,14 +593,20 @@
             document.getElementById('loadingTitle').textContent = title;
             document.getElementById('loadingStep').textContent = step;
             document.getElementById('loadingBar').style.width = '0%';
+            document.getElementById('loadingPercent').textContent = '0%';
+            document.getElementById('loadingDetail').textContent = '';
             document.getElementById('loadingOverlay').classList.remove('hidden');
             lucide.createIcons();
         }
 
-        function updateLoading(step, pct = null) {
+        function updateLoading(step, pct = null, detail = null) {
             document.getElementById('loadingStep').textContent = step;
             if (pct !== null) {
                 document.getElementById('loadingBar').style.width = pct + '%';
+                document.getElementById('loadingPercent').textContent = Math.round(pct) + '%';
+            }
+            if (detail !== null) {
+                document.getElementById('loadingDetail').textContent = detail;
             }
         }
 
@@ -602,6 +614,8 @@
             _loadingLocked = false;
             document.getElementById('loadingOverlay').classList.add('hidden');
             document.getElementById('loadingBar').style.width = '0%';
+            document.getElementById('loadingPercent').textContent = '0%';
+            document.getElementById('loadingDetail').textContent = '';
         }
 
         function switchTab(tabId) {
@@ -627,25 +641,64 @@
         handleFileSelect('fileBranchSC', 'fileNameBranchSC', 'dropZoneBranchSC');
         handleFileSelect('fileMasterSC', 'fileNameMasterSC', 'dropZoneMasterSC');
 
+        // ============================================================
+        //  大容量ファイル対応: チャンク分割パーサー
+        //  UIスレッドをブロックせず、5万件超でも安全に処理する
+        // ============================================================
+        const CHUNK_SIZE = 3000; // 1チャンクあたりの処理行数
+
+        /**
+         * 現場マスターの行配列をチャンク分割して非同期処理する
+         * @param {string[]} lines       - 全行の配列
+         * @param {number}   startIdx   - データ開始行インデックス
+         * @param {Function} processLineFn - 1行を処理するコールバック (line, lineIndex) => void
+         * @param {number}   pctFrom    - 開始パーセント
+         * @param {number}   pctTo      - 終了パーセント
+         */
+        async function parseMasterChunked(lines, startIdx, processLineFn, pctFrom = 5, pctTo = 35) {
+            const dataTotal = lines.length - startIdx;
+            if (dataTotal <= 0) return;
+            const pctRange = pctTo - pctFrom;
+
+            for (let i = startIdx; i < lines.length; i += CHUNK_SIZE) {
+                const end = Math.min(i + CHUNK_SIZE, lines.length);
+                for (let j = i; j < end; j++) {
+                    processLineFn(lines[j], j);
+                }
+                const processed = Math.min(i + CHUNK_SIZE - startIdx, dataTotal);
+                const pct = pctFrom + Math.round((processed / dataTotal) * pctRange);
+                updateLoading(
+                    '現場マスターを解析中…',
+                    pct,
+                    `${processed.toLocaleString()} / ${dataTotal.toLocaleString()} 件`
+                );
+                // UIスレッドに制御を返してプログレスを描画
+                await new Promise(r => setTimeout(r, 0));
+            }
+            updateLoading('現場マスターの解析完了', pctTo, `${dataTotal.toLocaleString()} 件 完了`);
+        }
+
+        /**
+         * Excel または テキストファイルを読み込む（読込中メッセージ付き）
+         */
         function readExcelOrText(file) {
+            updateLoading(`ファイルを読み込み中… (${(file.size / 1024 / 1024).toFixed(1)} MB)`, null);
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const data = new Uint8Array(e.target.result);
-                    try { resolve(XLSX.read(data, {type: 'array'})); } 
+                    try { resolve(XLSX.read(data, {type: 'array', cellDates: false})); }
                     catch(ex) {
                         const reader2 = new FileReader();
                         reader2.onload = (e2) => resolve(e2.target.result);
+                        reader2.onerror = reject;
                         reader2.readAsText(file, "Shift_JIS");
                     }
                 };
-                reader.onerror = reject; reader.readAsArrayBuffer(file);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
             });
         }
-
-        function normalizeSubCode(val) { return val ? val.toString().trim() : ""; }
-        function formatDate(val) { return val ? String(val).replace(/[\/\-\s]/g, "") : ""; }
-        function quote(str) { str = String(str||""); return '"' + str.replace(/"/g, '""') + '"'; }
         function stringToUTF16LE(str) {
             const buffer = new ArrayBuffer(2 + str.length * 2);
             const view = new Uint8Array(buffer);
@@ -667,58 +720,89 @@
             if (!fileBranch || !fileMaster) { showModal('error', 'ファイル不足', '両方のファイルを選択してください。'); return; }
             if (_loadingLocked) return;
 
-            showLoading('データを結合中…', '現場マスターを解析しています');
+            showLoading('データを結合中…', '現場マスターを読み込んでいます');
             await new Promise(r => setTimeout(r, 30));
 
             try {
+                // ── Step1: 現場マスター読込 (5%) ──
+                updateLoading('現場マスターを読み込み中…', 3);
                 const masterData = await readExcelOrText(fileMaster);
-                let linesMaster = typeof masterData === 'object' && masterData.SheetNames ? XLSX.utils.sheet_to_csv(masterData.Sheets[masterData.SheetNames[0]], {FS:"\t"}).split("\n") : masterData.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+                updateLoading('現場マスターを解析中…', 5);
+                await new Promise(r => setTimeout(r, 0));
+
+                let linesMaster = typeof masterData === 'object' && masterData.SheetNames
+                    ? XLSX.utils.sheet_to_csv(masterData.Sheets[masterData.SheetNames[0]], {FS:"\t"}).split("\n")
+                    : masterData.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
                 let separator = linesMaster.length > 0 && !linesMaster[0].includes("\t") && linesMaster[0].includes(",") ? "," : "\t";
 
+                // ── Step2: ヘッダー行・ID行を解析 ──
                 let idRowIdx = -1;
                 const mapping = { code:-1, subCode:-1, genName:-1, customerCode:-1, customerName:-1, startDate:-1, deliveryDate:-1, endDate:-1, branchCode:-1, branchName:-1 };
-
                 for (let i = 0; i < Math.min(20, linesMaster.length); i++) {
                     const line = linesMaster[i];
                     if (line.includes("<00001>")) {
-                        idRowIdx = i; const cols = line.split(separator).map(c => c.trim().replace(/"/g,""));
+                        idRowIdx = i;
+                        const cols = line.split(separator).map(c => c.trim().replace(/"/g,""));
                         cols.forEach((val, idx) => {
-                            if (val === "<00001>") mapping.code = idx; if (val === "<00002>") mapping.subCode = idx; if (val === "<00003>") mapping.genName = idx;
+                            if (val === "<00001>") mapping.code = idx;
+                            if (val === "<00002>") mapping.subCode = idx;
+                            if (val === "<00003>") mapping.genName = idx;
                             if (val === "<00019>") { mapping.customerCode = idx; if(idx+1 < cols.length) mapping.customerName = idx+1; }
-                            if (val === "<00020>") mapping.startDate = idx; if (val === "<00021>") mapping.deliveryDate = idx; if (val === "<00022>") mapping.endDate = idx; if (val === "<00028>") mapping.branchCode = idx;
+                            if (val === "<00020>") mapping.startDate = idx;
+                            if (val === "<00021>") mapping.deliveryDate = idx;
+                            if (val === "<00022>") mapping.endDate = idx;
+                            if (val === "<00028>") mapping.branchCode = idx;
                         });
                     }
                     if (idRowIdx === -1 || i < idRowIdx) {
                         const cols = line.split(separator).map(c => c.trim().replace(/"/g,""));
-                        cols.forEach((val, idx) => { if (val === "拠点名" || val === "拠点") mapping.branchName = idx; if (val === "得意先名" || val === "得意先") mapping.customerName = idx; });
+                        cols.forEach((val, idx) => {
+                            if (val === "拠点名" || val === "拠点") mapping.branchName = idx;
+                            if (val === "得意先名" || val === "得意先") mapping.customerName = idx;
+                        });
                     }
                 }
-                
-                if(mapping.code === -1) throw new Error("現場マスターからコード列が見つかりません。");
+                if (mapping.code === -1) throw new Error("現場マスターからコード列が見つかりません。");
+
+                // ── Step3: 現場マスターをチャンク分割で辞書構築 (5%→40%) ──
                 const dictMaster = new Map();
-                for (let i = (idRowIdx !== -1) ? idRowIdx + 1 : 1; i < linesMaster.length; i++) {
-                    const line = linesMaster[i].trim(); if (!line) continue;
-                    const cols = line.split(separator).map(c => c.trim().replace(/"/g,""));
-                    if (cols.length < 2) continue;
-                    const mBranch = (mapping.branchName !== -1) ? cols[mapping.branchName] : (mapping.branchCode !== -1 ? cols[mapping.branchCode] : "");
+                const dataStartIdx = (idRowIdx !== -1) ? idRowIdx + 1 : 1;
+                await parseMasterChunked(linesMaster, dataStartIdx, (line) => {
+                    const trimmed = line.trim(); if (!trimmed) return;
+                    const cols = trimmed.split(separator).map(c => c.trim().replace(/"/g,""));
+                    if (cols.length < 2) return;
+                    const mBranch = (mapping.branchName !== -1) ? cols[mapping.branchName]
+                                  : (mapping.branchCode !== -1 ? cols[mapping.branchCode] : "");
                     if (branchFilter === "" || mBranch === branchFilter) {
                         const rawCode = cols[mapping.code] || "", rawSub = cols[mapping.subCode] || "";
                         if (rawCode && !dictMaster.has(`${rawCode}|${normalizeSubCode(rawSub)}`)) {
                             dictMaster.set(`${rawCode}|${normalizeSubCode(rawSub)}`, {
-                                branch: mBranch, genName: mapping.genName!==-1 ? cols[mapping.genName] : "", custCode: mapping.customerCode!==-1 ? cols[mapping.customerCode] : "",
-                                custName: mapping.customerName!==-1 ? cols[mapping.customerName] : "", start: mapping.startDate!==-1 ? cols[mapping.startDate] : "", deliv: mapping.deliveryDate!==-1 ? cols[mapping.deliveryDate] : "", end: mapping.endDate!==-1 ? cols[mapping.endDate] : ""
+                                branch: mBranch,
+                                genName:  mapping.genName      !== -1 ? cols[mapping.genName]      : "",
+                                custCode: mapping.customerCode !== -1 ? cols[mapping.customerCode] : "",
+                                custName: mapping.customerName !== -1 ? cols[mapping.customerName] : "",
+                                start:    mapping.startDate    !== -1 ? cols[mapping.startDate]    : "",
+                                deliv:    mapping.deliveryDate !== -1 ? cols[mapping.deliveryDate] : "",
+                                end:      mapping.endDate      !== -1 ? cols[mapping.endDate]      : ""
                             });
                         }
                     }
-                }
+                }, 5, 40);
 
+                // ── Step4: 枝別Excelを読込・結合 (40%→85%) ──
+                updateLoading('枝別Excelを読み込み中…', 42);
+                await new Promise(r => setTimeout(r, 0));
                 const branchWb = await readExcelOrText(fileBranch);
-                if(typeof branchWb !== 'object') throw new Error("枝別データはExcelでアップロードしてください。");
+                if (typeof branchWb !== 'object') throw new Error("枝別データはExcelでアップロードしてください。");
+                updateLoading('枝別データと現場マスターを結合中…', 50);
+                await new Promise(r => setTimeout(r, 0));
                 const srcRows = XLSX.utils.sheet_to_json(branchWb.Sheets[branchWb.SheetNames[0]], {header: "A", range: 6, raw: false, defval: ""});
 
                 globalResultList = [];
-                srcRows.forEach(row => {
-                    const rawA = (row["A"] || "").toString().trim(); if (!rawA) return;
+                const srcTotal = srcRows.length;
+                for (let i = 0; i < srcTotal; i++) {
+                    const row = srcRows[i];
+                    const rawA = (row["A"] || "").toString().trim(); if (!rawA) continue;
                     let leftPart = rawA, rightPart = "";
                     if (rawA.includes("-")) { const parts = rawA.split("-"); leftPart = parts[0].trim(); rightPart = parts[parts.length - 1].trim(); }
                     let amount = "";
@@ -729,15 +813,27 @@
                     const key = `${leftPart}|${normalizeSubCode(rightPart)}`;
                     if (dictMaster.has(key)) {
                         const mData = dictMaster.get(key);
-                        globalResultList.push({ code: leftPart, subCode: rightPart, genName: mData.genName, amount: amount, custCode: mData.custCode, custName: mData.custName, start: mData.start, deliv: mData.deliv, end: mData.end, branch: mData.branch });
+                        globalResultList.push({ code: leftPart, subCode: rightPart, genName: mData.genName, amount, custCode: mData.custCode, custName: mData.custName, start: mData.start, deliv: mData.deliv, end: mData.end, branch: mData.branch });
                     }
-                });
+                    // 1000件ごとにUI更新
+                    if (i % 1000 === 0) {
+                        const pct = 50 + Math.round((i / Math.max(srcTotal, 1)) * 35);
+                        updateLoading('枝別データを結合中…', pct, `${i.toLocaleString()} / ${srcTotal.toLocaleString()} 行`);
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
 
+                // ── Step5: テーブル描画 (85%→100%) ──
+                updateLoading('テーブルを描画中…', 88, `${globalResultList.length.toLocaleString()} 件`);
+                await new Promise(r => setTimeout(r, 0));
                 renderTable(globalResultList);
+                updateLoading('完了', 100);
+                await new Promise(r => setTimeout(r, 100));
                 document.getElementById("countDst").textContent = `${globalResultList.length}件`;
                 document.getElementById("resultArea").classList.remove("hidden");
+                hideLoading();
                 showModal('success', '結合完了', `${globalResultList.length}件抽出しました。`);
-            } catch(e) { showModal('error', 'エラー', e.message); }
+            } catch(e) { hideLoading(); showModal('error', 'エラー', e.message); }
         }
 
         function renderTable(data) {
@@ -844,17 +940,24 @@ let salesCheckResultList = [];
             if (!fileBranch || !fileMaster) { showModal('error', 'ファイル不足', '両方のファイルを選択してください。'); return; }
             if (_loadingLocked) return;  // 二重実行防止
 
-            showLoading('データを結合中…', '現場マスターを解析しています');
-            await new Promise(r => setTimeout(r, 30)); // UIが更新されるのを待つ
+            showLoading('データを結合中…', '現場マスターを読み込んでいます');
+            await new Promise(r => setTimeout(r, 30));
 
             try {
+                // ── Step1: 現場マスター読込 (3%) ──
+                updateLoading('現場マスターを読み込み中…', 3);
                 const masterData = await readExcelOrText(fileMaster);
-                const linesMaster = typeof masterData === 'object' ? XLSX.utils.sheet_to_csv(masterData.Sheets[masterData.SheetNames[0]], {FS:"\t"}).split("\n") : masterData.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+                updateLoading('現場マスターを解析中…', 5);
+                await new Promise(r => setTimeout(r, 0));
+
+                const linesMaster = typeof masterData === 'object'
+                    ? XLSX.utils.sheet_to_csv(masterData.Sheets[masterData.SheetNames[0]], {FS:"\t"}).split("\n")
+                    : masterData.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
                 let sep = linesMaster[0]?.includes(",") && !linesMaster[0]?.includes("\t") ? "," : "\t";
                 const dictMaster = new Map();
                 
+                // ── Step2: ID行解析 ──
                 let idRowIdx = linesMaster.findIndex(l => l.includes("<00001>"));
-                // IDベースで列インデックスを動的に解決
                 let codeIdx=-1, subIdx=-1;
                 let idx_name=-1, idx_subName=-1, idx_customer=-1, idx_customerName=-1,
                     idx_amount=-1, idx_start=-1, idx_delivery=-1, idx_end=-1,
@@ -866,86 +969,75 @@ let salesCheckResultList = [];
                     const idCols = linesMaster[idRowIdx].split(sep).map(c=>c.trim().replace(/"/g,""));
                     codeIdx  = idCols.indexOf("<00001>");
                     subIdx   = idCols.indexOf("<00002>");
-                    idx_name       = idCols.indexOf("<00003>");   // 現場名称
-                    idx_subName    = idCols.indexOf("<00006>");   // 現場サブ名称
-                    idx_amount     = idCols.indexOf("<00016>");   // 開始時売上済受注額
-                    idx_customer   = idCols.indexOf("<00019>");   // 得意先コード
-                    idx_start      = idCols.indexOf("<00020>");   // 着手日
-                    idx_delivery   = idCols.indexOf("<00021>");   // 納期
-                    idx_end        = idCols.indexOf("<00022>");   // 完了日
-                    idx_constructor= idCols.indexOf("<00023>");   // 施工主コード → 名は+1
-                    idx_manager    = idCols.indexOf("<00024>");   // 現場担当コード → 名は+1
-                    idx_designer   = idCols.indexOf("<00025>");   // 設計担当コード → 名は+1
-                    idx_estimator  = idCols.indexOf("<00026>");   // 積算担当コード → 名は+1
-                    idx_branch     = idCols.indexOf("<00027>");   // 拠点コード → 名は+1 か <00028>
-                    idx_salesClass1= idCols.indexOf("<00029>");   // 売上分類①コード
-                    idx_salesClass2= idCols.indexOf("<00030>");   // 売上分類②コード
-                    // 名称列は「コード列の次」を参照
-                    // ヘッダー行からも補完（拠点名・得意先名は名称列が別）
+                    idx_name       = idCols.indexOf("<00003>");
+                    idx_subName    = idCols.indexOf("<00006>");
+                    idx_amount     = idCols.indexOf("<00016>");
+                    idx_customer   = idCols.indexOf("<00019>");
+                    idx_start      = idCols.indexOf("<00020>");
+                    idx_delivery   = idCols.indexOf("<00021>");
+                    idx_end        = idCols.indexOf("<00022>");
+                    idx_constructor= idCols.indexOf("<00023>");
+                    idx_manager    = idCols.indexOf("<00024>");
+                    idx_designer   = idCols.indexOf("<00025>");
+                    idx_estimator  = idCols.indexOf("<00026>");
+                    idx_branch     = idCols.indexOf("<00027>");
+                    idx_salesClass1= idCols.indexOf("<00029>");
+                    idx_salesClass2= idCols.indexOf("<00030>");
                     if(idRowIdx > 0) {
                         const hCols = linesMaster[idRowIdx-1].split(sep).map(c=>c.trim().replace(/"/g,""));
-                        if(idx_branchName === -1) {
-                            const bi = hCols.findIndex(c => c === '拠点名' || c === '拠点');
-                            if(bi !== -1) idx_branchName = bi;
-                        }
-                        if(idx_customerName === -1) {
-                            const ci = hCols.findIndex(c => c === '得意先名' || c === '得意先');
-                            if(ci !== -1) idx_customerName = ci;
-                        }
+                        if(idx_branchName === -1) { const bi = hCols.findIndex(c => c === '拠点名' || c === '拠点'); if(bi !== -1) idx_branchName = bi; }
+                        if(idx_customerName === -1) { const ci = hCols.findIndex(c => c === '得意先名' || c === '得意先'); if(ci !== -1) idx_customerName = ci; }
                     }
                 }
-                // フォールバック：IDが見つからない場合は従来の固定インデックスを使用
-                const ci  = (i, fb) => i !== -1 ? i : fb;
+                const ci = (i, fb) => i !== -1 ? i : fb;
 
-                // 現場マスターを解析してディクショナリ構築
-                for (let i = Math.max(0, idRowIdx+1); i < linesMaster.length; i++) {
-                    const cols = linesMaster[i].split(sep).map(c => c.trim().replace(/"/g,""));
-                    if(cols.length > codeIdx && cols[codeIdx]) {
-                        const code = cols[codeIdx], subCode = normalizeSubCode(cols[subIdx]);
-const mData = {
-    m_c:  cols[ci(idx_name,       2)] ||"",   // 現場名称
-    m_f:  cols[ci(idx_subName,    5)] ||"",   // 現場サブ名称
-    m_w:  cols[ci(idx_customerName !== -1 ? idx_customerName : (idx_customer !== -1 ? idx_customer+1 : 22), 22)]||"", // 得意先名
-    m_q:  cols[ci(idx_amount,    16)] ||"",   // 開始時売上済受注額
-    m_ar: cols[ci(idx_start,     43)] ||"",   // 着手日
-    m_as: cols[ci(idx_delivery,  44)] ||"",   // 納期
-    m_at: cols[ci(idx_end,       45)] ||"",   // 完了日
-    m_av: cols[ci(idx_constructor !== -1 ? idx_constructor+1 : 47, 47)]||"", // 施工主名
-    m_ax: cols[ci(idx_manager    !== -1 ? idx_manager+1    : 49, 49)]||"",  // 現場担当名
-    m_az: cols[ci(idx_designer   !== -1 ? idx_designer+1   : 51, 51)]||"",  // 設計担当名
-    m_bb: cols[ci(idx_estimator  !== -1 ? idx_estimator+1  : 53, 53)]||"",  // 積算担当名
-    m_bd: cols[ci(idx_branchName !== -1 ? idx_branchName   : (idx_branch !== -1 ? idx_branch+1 : 55), 55)]||"", // 拠点名
-    m_be: cols[ci(idx_salesClass1 !== -1 ? idx_salesClass1 + 1 : 58, 58)]||"", // 売上分類①名
-    m_bf: cols[ci(idx_salesClass2 !== -1 ? idx_salesClass2 + 1 : 60, 60)]||"", // 売上分類②名
-};
-                        // ① 枝別データ用キー (現場コード|サブコード)
-                        dictMaster.set(`${code}|${subCode}`, mData);
-                        // ② 合算データ用キー (現場コードのみ。初回のみ登録し先頭行のデータを保持)
-                        if (!dictMaster.has(code)) dictMaster.set(code, mData);
-                    }
-                }
+                // ── Step3: 現場マスターをチャンク分割で辞書構築 (5%→40%) ──
+                const scDataStart = Math.max(0, idRowIdx + 1);
+                await parseMasterChunked(linesMaster, scDataStart, (line) => {
+                    const cols = line.split(sep).map(c => c.trim().replace(/"/g,""));
+                    if (!(cols.length > codeIdx && cols[codeIdx])) return;
+                    const code = cols[codeIdx], subCode = normalizeSubCode(cols[subIdx]);
+                    const mData = {
+                        m_c:  cols[ci(idx_name,       2)] ||"",
+                        m_f:  cols[ci(idx_subName,    5)] ||"",
+                        m_w:  cols[ci(idx_customerName !== -1 ? idx_customerName : (idx_customer !== -1 ? idx_customer+1 : 22), 22)]||"",
+                        m_q:  cols[ci(idx_amount,    16)] ||"",
+                        m_ar: cols[ci(idx_start,     43)] ||"",
+                        m_as: cols[ci(idx_delivery,  44)] ||"",
+                        m_at: cols[ci(idx_end,       45)] ||"",
+                        m_av: cols[ci(idx_constructor !== -1 ? idx_constructor+1 : 47, 47)]||"",
+                        m_ax: cols[ci(idx_manager    !== -1 ? idx_manager+1    : 49, 49)]||"",
+                        m_az: cols[ci(idx_designer   !== -1 ? idx_designer+1   : 51, 51)]||"",
+                        m_bb: cols[ci(idx_estimator  !== -1 ? idx_estimator+1  : 53, 53)]||"",
+                        m_bd: cols[ci(idx_branchName !== -1 ? idx_branchName   : (idx_branch !== -1 ? idx_branch+1 : 55), 55)]||"",
+                        m_be: cols[ci(idx_salesClass1 !== -1 ? idx_salesClass1 + 1 : 58, 58)]||"",
+                        m_bf: cols[ci(idx_salesClass2 !== -1 ? idx_salesClass2 + 1 : 60, 60)]||"",
+                    };
+                    dictMaster.set(`${code}|${subCode}`, mData);
+                    if (!dictMaster.has(code)) dictMaster.set(code, mData);
+                }, 5, 40);
 
-                updateLoading('Excelデータを解析しています', 40);
-                await new Promise(r => setTimeout(r, 10));
+                // ── Step4: 枝別Excelを読込・結合 (40%→70%) ──
+                updateLoading('枝別Excelを読み込み中…', 42);
+                await new Promise(r => setTimeout(r, 0));
                 const branchWb = await readExcelOrText(fileBranch);
+                updateLoading('枝別データと現場マスターを結合中…', 50);
+                await new Promise(r => setTimeout(r, 0));
                 const srcRows = XLSX.utils.sheet_to_json(branchWb.Sheets[branchWb.SheetNames[0]], {header: "A", range: 6, raw: false, defval: ""});
                 salesCheckResultList = [];
                 masterBaseList = [];
 
-                srcRows.forEach(row => {
-                    const rawA = (row["A"] || "").toString().trim(); if (!rawA) return;
+                const srcTotal2 = srcRows.length;
+                for (let si = 0; si < srcTotal2; si++) {
+                    const row = srcRows[si];
+                    const rawA = (row["A"] || "").toString().trim(); if (!rawA) continue;
                     let leftPart = rawA, rightPart = "", key = "";
-
                     if (rawA.includes("-")) {
-                        // 枝別データの場合
                         const parts = rawA.split("-"); leftPart = parts[0].trim(); rightPart = parts[parts.length - 1].trim();
                         key = `${leftPart}|${normalizeSubCode(rightPart)}`;
                     } else {
-                        // 合算データの場合
                         leftPart = rawA.trim(); key = leftPart;
                     }
-
-                    // 原価集計を主軸とした LEFT JOIN：マスター未一致でも必ず出力
                     const mData = dictMaster.get(key) || dictMaster.get(leftPart) || {
                         m_c:"", m_w:"", m_f:"", m_q:"",
                         m_ar:"", m_as:"", m_at:"", m_av:"",
@@ -955,14 +1047,19 @@ const mData = {
                     const masterMatched = dictMaster.has(key) || dictMaster.has(leftPart);
                     salesCheckResultList.push({
                         code: leftPart, subCode: rightPart,
-                        masterMatched,   // マスター一致フラグ（空欄チェックで使用）
+                        masterMatched,
                         c_col: row["C"]||"", e_col: row["E"]||"", f_col: row["F"]||"", g_col: row["G"]||"",
                         m_c: mData.m_c, m_w: mData.m_w, m_f: mData.m_f, m_q: mData.m_q,
                         m_ar: mData.m_ar, m_as: mData.m_as, m_at: mData.m_at, m_av: mData.m_av,
                         m_ax: mData.m_ax, m_az: mData.m_az, m_bb: mData.m_bb, m_bd: mData.m_bd,
                         m_be: mData.m_be||'', m_bf: mData.m_bf||''
                     });
-                });
+                    if (si % 1000 === 0) {
+                        const pct = 50 + Math.round((si / Math.max(srcTotal2, 1)) * 18);
+                        updateLoading('枝別データを結合中…', pct, `${si.toLocaleString()} / ${srcTotal2.toLocaleString()} 行`);
+                        await new Promise(r => setTimeout(r, 0));
+                    }
+                }
 
                 updateLoading('データを結合しています', 70);
                 await new Promise(r => setTimeout(r, 10));
