@@ -784,9 +784,109 @@
                         <button onclick="window.applyDateFilter()" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold px-4 py-1.5 rounded-lg transition-colors">適用</button>
                     </div>
                     <div id="rank-date-status" class="text-xs text-red-500 font-bold"></div>
+                    <button onclick="document.getElementById('ranking-help-panel').classList.toggle('hidden')"
+                        class="ml-auto flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-600 transition-colors whitespace-nowrap">
+                        <i class="fa-solid fa-circle-question"></i> 集計方法について
+                    </button>
                 </div>
 
-                <!-- ── タブナビ ── -->
+                <!-- ── 集計方法ヘルプ アコーディオン ── -->
+                <div id="ranking-help-panel" class="hidden glass-panel rounded-xl px-6 py-5 text-sm text-slate-700 border-l-4 border-blue-400 leading-relaxed">
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="font-bold text-slate-800 text-base"><i class="fa-solid fa-circle-info text-blue-500 mr-2"></i>各タブの集計方法</span>
+                        <button onclick="document.getElementById('ranking-help-panel').classList.add('hidden')" class="text-slate-300 hover:text-slate-500 text-lg leading-none">✕</button>
+                    </div>
+
+                    <!-- 共通前提 -->
+                    <div class="mb-5 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <p class="font-bold text-slate-600 mb-2"><i class="fa-solid fa-database text-slate-400 mr-1.5"></i>共通前提</p>
+                        <ul class="space-y-1 text-slate-600">
+                            <li><span class="font-bold text-slate-700">売上・原価・粗利</span>　→　原価集計表CSVの <code class="bg-slate-100 px-1 rounded text-xs">salesTotal / costTotal / profitTotal</code>（工番単位の累計値）</li>
+                            <li><span class="font-bold text-slate-700">現場属性（担当・拠点など）</span>　→　現場マスターCSVと工番で突合</li>
+                            <li><span class="font-bold text-slate-700">集計期間フィルター（適用ボタン）</span>　→　マスターの<span class="text-blue-600 font-bold">完了日</span>が期間内の工番のみ対象</li>
+                            <li><span class="text-red-500 font-bold">完了日なし工番は除外</span>（月次推移のみ取引計上日基準のため除外対象外）</li>
+                        </ul>
+                    </div>
+
+                    <!-- タブ別 -->
+                    <div class="grid grid-cols-1 gap-3">
+
+                        <!-- 施工主・得意先・拠点 -->
+                        <div class="p-3 rounded-lg border border-blue-100 bg-blue-50/40">
+                            <p class="font-bold text-blue-700 mb-1.5"><i class="fa-solid fa-building-user mr-1.5"></i>施工主別　<i class="fa-solid fa-handshake mr-1.5 ml-2"></i>得意先別　<i class="fa-solid fa-map-location-dot mr-1.5 ml-2"></i>拠点別</p>
+                            <ul class="space-y-0.5 text-slate-600 text-xs">
+                                <li>・ 工番の <code class="bg-white px-1 rounded">owner / customer / branch</code> をキーに、salesTotal・costTotal・profitTotal を合算</li>
+                                <li>・ <span class="text-green-700 font-bold">集計期間（適用ボタン）✅ 反映</span>　完了日が期間外の工番は除外</li>
+                                <li>・ 粗利益額 or 粗利率でソート切替可</li>
+                            </ul>
+                        </div>
+
+                        <!-- 担当者別 -->
+                        <div class="p-3 rounded-lg border border-blue-100 bg-blue-50/40">
+                            <p class="font-bold text-blue-700 mb-1.5"><i class="fa-solid fa-user-tie mr-1.5"></i>担当者別</p>
+                            <ul class="space-y-0.5 text-slate-600 text-xs">
+                                <li>・ 工番の <code class="bg-white px-1 rounded">manager</code> をキーに集計</li>
+                                <li>・ タブ内の<span class="font-bold">「完工月」「拠点」ドロップダウン</span>でさらに絞込可</li>
+                                <li>・ <span class="text-amber-600 font-bold">集計期間（適用ボタン）❌ 非反映</span>　タブ内完工月ドロップダウンが独立して動作</li>
+                            </ul>
+                        </div>
+
+                        <!-- 利益率ワースト -->
+                        <div class="p-3 rounded-lg border border-red-100 bg-red-50/40">
+                            <p class="font-bold text-red-700 mb-1.5"><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>利益率ワースト</p>
+                            <div class="space-y-2 text-xs">
+                                <div>
+                                    <p class="font-bold text-slate-700">ランキングモード</p>
+                                    <ul class="space-y-0.5 text-slate-600 mt-0.5">
+                                        <li>・ 完了日が集計期間内 ＋ salesTotal &gt; 0 の工番が対象</li>
+                                        <li>・ 粗利率 or 粗利額の低い順に上位30件を抽出</li>
+                                        <li>・ <span class="text-green-700 font-bold">集計期間（適用ボタン）✅ 反映</span></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-700">アラートモード</p>
+                                    <ul class="space-y-0.5 text-slate-600 mt-0.5">
+                                        <li>・ タブ内の完工月・拠点ドロップダウン ＋ 閾値（%）以下の粗利率を全件表示</li>
+                                        <li>・ <span class="text-amber-600 font-bold">集計期間（適用ボタン）❌ 非反映</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 月別・拠点内 -->
+                        <div class="p-3 rounded-lg border border-emerald-100 bg-emerald-50/40">
+                            <p class="font-bold text-emerald-700 mb-1.5"><i class="fa-solid fa-users-viewfinder mr-1.5"></i>月別・拠点内</p>
+                            <ul class="space-y-0.5 text-slate-600 text-xs">
+                                <li>・ 売上明細（<code class="bg-white px-1 rounded">sales</code>）の <code class="bg-white px-1 rounded">amountExc</code>（税抜売上）を計上月×担当者or施工主×拠点で集計</li>
+                                <li>・ タブ内の年月・拠点ドロップダウンで絞込可、担当者 / 施工主 の切替可</li>
+                                <li>・ <span class="text-amber-600 font-bold">原価・粗利は集計なし（売上のみ）</span></li>
+                                <li>・ <span class="text-amber-600 font-bold">集計期間（適用ボタン）❌ 非反映</span></li>
+                            </ul>
+                        </div>
+
+                        <!-- 月次推移 -->
+                        <div class="p-3 rounded-lg border border-emerald-100 bg-emerald-50/40">
+                            <p class="font-bold text-emerald-700 mb-1.5"><i class="fa-solid fa-chart-line mr-1.5"></i>月次推移</p>
+                            <ul class="space-y-0.5 text-slate-600 text-xs">
+                                <li>・ 売上明細の <code class="bg-white px-1 rounded">amountExc</code> ＋ 仕入明細の <code class="bg-white px-1 rounded">amount</code> を<span class="font-bold">取引計上月</span>で集計（完了日基準ではない）</li>
+                                <li>・ <span class="text-green-700 font-bold">集計期間（適用ボタン）✅ 反映</span>　計上年月が期間外のデータは除外</li>
+                                <li>・ タブ内の拠点・年月ドロップダウンでさらに絞込可</li>
+                            </ul>
+                            <div class="mt-2 pt-2 border-t border-emerald-200">
+                                <p class="font-bold text-slate-700 mb-1">Excel出力 6シート構成</p>
+                                <div class="grid grid-cols-2 gap-x-4 gap-y-0.5 text-slate-600">
+                                    <span>Sheet1　月次サマリー</span><span class="text-slate-400">年月×売上・原価・粗利・粗利率</span>
+                                    <span>Sheet2　売上内訳</span><span class="text-slate-400">明細レベルの売上一覧</span>
+                                    <span>Sheet3　原価内訳</span><span class="text-slate-400">明細レベルの仕入一覧</span>
+                                    <span>Sheet4　クロス集計</span><span class="text-slate-400">得意先×監督（売上）／業者×監督（原価）　完了日フィルター適用</span>
+                                    <span>Sheet5　売上推移</span><span class="text-slate-400">年月×拠点別 売上</span>
+                                    <span>Sheet6　粗利率推移</span><span class="text-slate-400">年月×拠点別 粗利率</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /grid -->
+                </div><!-- /ranking-help-panel -->
                 <div class="glass-panel rounded-xl overflow-hidden">
                     <div class="flex overflow-x-auto border-b border-slate-200 bg-white">
                         <!-- 集計タブ群 -->
@@ -1065,7 +1165,7 @@
                                     <option value="ALL">全期間</option>
                                 </select>
                                 <button onclick="window.exportMonthlyExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow transition-colors">
-                                    <i class="fa-solid fa-file-excel"></i> Excel出力（4シート）
+                                    <i class="fa-solid fa-file-excel"></i> Excel出力（6シート）
                                 </button>
                             </div>
                         </div>
@@ -1264,7 +1364,29 @@
             </div>
 
             <div id="page-import" class="page-content hidden max-w-4xl mx-auto space-y-6">
-                <div id="drop-zone" class="glass-panel p-10 rounded-xl border-2 border-dashed border-blue-300 text-center cursor-pointer hover:bg-blue-50 transition-colors relative"><input type="file" id="file-input-multi" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileSelect(this.files)"><div class="pointer-events-none"><i class="fa-solid fa-cloud-arrow-up text-6xl text-blue-400 mb-4"></i><h3 class="text-xl font-bold text-slate-700 mb-2">ファイルをここにドラッグ＆ドロップ</h3><p class="text-slate-500 mb-4">またはクリックしてファイルを選択</p></div></div><div class="glass-panel p-6 rounded-xl border border-red-100"><div class="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r"><div class="flex items-center gap-2 text-red-700 font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i><span>ご注意：データは上書きされます</span></div><p class="text-sm text-red-600">ファイルを取り込むと、以前のデータは全て<strong>削除・上書き</strong>されます。</p></div><h4 class="font-bold text-slate-600 mb-3">取り込みステータス</h4><div id="import-log" class="bg-slate-800 text-green-400 font-mono text-xs p-4 rounded h-40 overflow-y-auto mb-4">待機中...</div><div class="flex justify-end gap-3"><button id="btn-process-files" onclick="window.processDroppedFiles()" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center gap-2"><span id="import-spinner" class="loader hidden"></span><span>データベース更新を実行</span></button></div></div>
+                <div id="drop-zone" class="glass-panel p-10 rounded-xl border-2 border-dashed border-blue-300 text-center cursor-pointer hover:bg-blue-50 transition-colors relative"><input type="file" id="file-input-multi" multiple class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onchange="handleFileSelect(this.files)"><div class="pointer-events-none"><i class="fa-solid fa-cloud-arrow-up text-6xl text-blue-400 mb-4"></i><h3 class="text-xl font-bold text-slate-700 mb-2">ファイルをここにドラッグ＆ドロップ</h3><p class="text-slate-500 mb-4">またはクリックしてファイルを選択</p></div></div><div class="glass-panel p-6 rounded-xl border border-red-100">
+  <div id="import-mode-warning" class="bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded-r">
+    <div class="flex items-center gap-2 text-red-700 font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i><span>ご注意：データは上書きされます</span></div>
+    <p class="text-sm text-red-600">ファイルを取り込むと、以前の仕入・売上明細は全て<strong>削除・上書き</strong>されます。</p>
+  </div>
+  <div class="flex items-center gap-3 mb-5 p-3 bg-slate-50 rounded-lg border border-slate-200">
+    <label class="relative inline-flex items-center cursor-pointer select-none">
+      <input type="checkbox" id="append-mode-toggle" class="sr-only peer" onchange="window.updateAppendModeUI()">
+      <div class="w-10 h-6 bg-slate-300 peer-checked:bg-emerald-500 rounded-full transition-colors after:content-[\'\'] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4"></div>
+    </label>
+    <div>
+      <div class="text-sm font-bold text-slate-700" id="append-mode-label">上書きモード（通常）</div>
+      <div class="text-xs text-slate-400" id="append-mode-desc">仕入・売上明細を新しいデータで置き換えます</div>
+    </div>
+  </div>
+  <h4 class="font-bold text-slate-600 mb-3">取り込みステータス</h4>
+  <div id="import-log" class="bg-slate-800 text-green-400 font-mono text-xs p-4 rounded h-40 overflow-y-auto mb-4">待機中...</div>
+  <div class="flex justify-end gap-3">
+    <button id="btn-process-files" onclick="window.processDroppedFiles()" disabled class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg shadow disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center gap-2">
+      <span id="import-spinner" class="loader hidden"></span><span>データベース更新を実行</span>
+    </button>
+  </div>
+</div>
                 <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4">現在のデータ登録状況</h4><div class="grid grid-cols-4 gap-4 text-center"><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">原価集計</div><div class="text-xl font-bold text-slate-800" id="db-count-cost">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">現場マスター</div><div class="text-xl font-bold text-slate-800" id="db-count-master">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">仕入明細</div><div class="text-xl font-bold text-slate-800" id="db-count-purchase">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">売上明細</div><div class="text-xl font-bold text-slate-800" id="db-count-sales">-</div></div></div><div class="mt-4 text-right"><button onclick="window.clearDatabase()" class="text-xs text-red-500 hover:text-red-700 underline">全データを削除する</button></div></div>
             </div>
         </div>
@@ -1277,11 +1399,12 @@
     db.version(2).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, subCode, date', meta: 'key' });
     
     // 2. Global Vars
-    let pendingFiles = { cost: null, master: null, purchase: null, sales: null };
+    let pendingFiles = { cost: null, master: null, purchase: [], sales: [] };
     let currentMonthlyMode = 'manager'; 
     let currentWorstType = 'ranking'; 
     let currentWorstSort = 'rate';    
     let rankingFilter = { start: null, end: null };
+    let currentRankingTab = 'owner';
     let currentCostDetails = [];
     let currentCostVendor = null;
     let costSortState = { key: 'date', order: 'desc' };
@@ -1359,9 +1482,8 @@
         const e = document.getElementById('rank-date-end').value;
         rankingFilter = { start: s, end: e }; 
         const statusEl = document.getElementById('rank-date-status');
-        if(statusEl) statusEl.textContent = "";
-        const activeTab = document.querySelector('.tab-btn.active');
-        if (activeTab) { const tabId = activeTab.id.replace('tab-', ''); window.switchRankingTab(tabId); }
+        if (statusEl) statusEl.textContent = (s || e) ? `適用中: ${s||'…'} 〜 ${e||'…'}` : '';
+        window.switchRankingTab(currentRankingTab);
     }
 
     window.updateDBStats = async function() {
@@ -1390,28 +1512,83 @@
     function handleFileSelect(files) { handleFiles(files); }
     function handleFiles(files) {
         if (!importLog) return;
-        let logMsg = "";
+        let logMsg = importLog.textContent.replace(/\n?---.*$/s, ''); // 既存ログ保持
+        let totalMB = 0;
         for (let file of files) {
             const name = file.name.toLowerCase();
-            if (name.includes('原価集計')) { pendingFiles.cost = file; logMsg += `✓ 原価集計表: ${file.name}\n`; }
-            else if (name.includes('現場マスター')) { pendingFiles.master = file; logMsg += `✓ 現場マスター: ${file.name}\n`; }
-            else if (name.includes('仕入明細')) { pendingFiles.purchase = file; logMsg += `✓ 仕入明細: ${file.name}\n`; }
-            else if (name.includes('売上明細')) { pendingFiles.sales = file; logMsg += `✓ 売上明細: ${file.name}\n`; }
-            else { logMsg += `? スキップ: ${file.name}\n`; }
+            const mb = (file.size / 1024 / 1024).toFixed(1);
+            totalMB += file.size / 1024 / 1024;
+            if (name.includes('原価集計')) {
+                pendingFiles.cost = file;
+                logMsg += `✓ 原価集計表: ${file.name} (${mb}MB)\n`;
+            } else if (name.includes('現場マスター')) {
+                pendingFiles.master = file;
+                logMsg += `✓ 現場マスター: ${file.name} (${mb}MB)\n`;
+            } else if (name.includes('仕入明細')) {
+                if (!pendingFiles.purchase.find(f => f.name === file.name)) {
+                    pendingFiles.purchase.push(file);
+                    logMsg += `✓ 仕入明細: ${file.name} (${mb}MB)\n`;
+                } else {
+                    logMsg += `  (重複スキップ): ${file.name}\n`;
+                }
+            } else if (name.includes('売上明細')) {
+                if (!pendingFiles.sales.find(f => f.name === file.name)) {
+                    pendingFiles.sales.push(file);
+                    logMsg += `✓ 売上明細: ${file.name} (${mb}MB)\n`;
+                } else {
+                    logMsg += `  (重複スキップ): ${file.name}\n`;
+                }
+            } else {
+                logMsg += `? スキップ: ${file.name}\n`;
+            }
+        }
+        if (pendingFiles.purchase.length > 1) logMsg += `  ※ 仕入明細 ${pendingFiles.purchase.length}ファイル → 結合して取込\n`;
+        if (pendingFiles.sales.length    > 1) logMsg += `  ※ 売上明細 ${pendingFiles.sales.length}ファイル → 結合して取込\n`;
+        // メモリ警告（処理時に約3〜4倍展開されるため）
+        const allFiles = [...(pendingFiles.purchase), ...(pendingFiles.sales)];
+        const totalFileMB = allFiles.reduce((s, f) => s + f.size/1024/1024, 0);
+        if (totalFileMB > 80) {
+            logMsg += `\n⚠️ 合計 ${totalFileMB.toFixed(0)}MB のCSVが対象です。\n`;
+            logMsg += `   処理中に最大 ${(totalFileMB * 4).toFixed(0)}MB 程度のメモリを使用します。\n`;
+            logMsg += `   RAM 8GB 以下の PC では Chrome よりも Edge の使用を推奨します。\n`;
         }
         importLog.textContent = logMsg || "認識できませんでした。";
-        if (processBtn) processBtn.disabled = !(pendingFiles.cost || pendingFiles.master || pendingFiles.purchase || pendingFiles.sales);
+        if (processBtn) processBtn.disabled = !(pendingFiles.cost || pendingFiles.master || pendingFiles.purchase.length || pendingFiles.sales.length);
     }
-    function excelColToIndex(col) { let n=0; for(let i=0;i<col.length;i++){n=n*26+(col.toUpperCase().charCodeAt(i)-64);} return n-1; }
+    // 追記モードUI切り替え
+    window.updateAppendModeUI = function() {
+        const isAppend = document.getElementById('append-mode-toggle')?.checked;
+        const label    = document.getElementById('append-mode-label');
+        const desc     = document.getElementById('append-mode-desc');
+        const warning  = document.getElementById('import-mode-warning');
+        if (isAppend) {
+            if (label)   label.textContent = '追記モード（年度別分割取込）';
+            if (desc)    desc.textContent  = '既存の仕入・売上明細を残したまま、新しいデータを追加します';
+            if (warning) warning.className = 'bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-4 rounded-r';
+            if (warning) warning.innerHTML = '<div class="flex items-center gap-2 text-emerald-700 font-bold mb-1"><i class="fa-solid fa-circle-plus"></i><span>追記モード：既存データを保持して追加します</span></div><p class="text-sm text-emerald-600">仕入・売上明細は削除されません。年度ごとにファイルを分けて順番に取り込む場合に使用してください。</p>';
+        } else {
+            if (label)   label.textContent = '上書きモード（通常）';
+            if (desc)    desc.textContent  = '仕入・売上明細を新しいデータで置き換えます';
+            if (warning) warning.className = 'bg-red-50 border-l-4 border-red-500 p-4 mb-4 rounded-r';
+            if (warning) warning.innerHTML = '<div class="flex items-center gap-2 text-red-700 font-bold mb-1"><i class="fa-solid fa-triangle-exclamation"></i><span>ご注意：データは上書きされます</span></div><p class="text-sm text-red-600">ファイルを取り込むと、以前の仕入・売上明細は全て<strong>削除・上書き</strong>されます。</p>';
+        }
+    };
     
+    function excelColToIndex(col) { let n=0; for(let i=0;i<col.length;i++){n=n*26+(col.toUpperCase().charCodeAt(i)-64);} return n-1; }
+
     async function parseTextUTF16LE_ByIndex(file) {
         return new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const decoder = new TextDecoder('utf-16le');
                 const text = decoder.decode(e.target.result);
-                const cleanText = text.replace(/"/g, ''); 
-                Papa.parse(cleanText, { header: false, skipEmptyLines: true, complete: (results) => resolve(results.data) });
+                // ArrayBufferを即時解放
+                e.target.result = null;
+                const cleanText = text.replace(/"/g, '');
+                Papa.parse(cleanText, { header: false, skipEmptyLines: true, complete: (results) => {
+                    resolve(results.data);
+                    results.data = null; // PapaParse内部キャッシュを解放
+                }});
             };
             reader.readAsArrayBuffer(file);
         });
@@ -1555,49 +1732,80 @@
                 masterData = Array.from(mastersMap.values());
             }
 
-            if (pendingFiles.purchase) {
-                const raw = await parseTextUTF16LE_ByIndex(pendingFiles.purchase);
+            if (pendingFiles.purchase.length > 0) {
                 const idxDate = excelColToIndex('A');
                 const idxVendor = excelColToIndex('I');
-                const idxItemM = excelColToIndex('M'); 
-                const idxItemN = excelColToIndex('N'); 
-                const idxItemO = excelColToIndex('O'); 
-                const idxItemQ = excelColToIndex('Q'); 
+                const idxItemM = excelColToIndex('M');
+                const idxItemO = excelColToIndex('O');
+                const idxItemQ = excelColToIndex('Q');
                 const idxAmount = excelColToIndex('DE');
                 const idxSite = excelColToIndex('EB');
-
-                purchaseData = raw.slice(1).map(r => {
-                    if (!r[idxSite]) return null;
-                    const txtM = (r[idxItemM] || '').trim(); const txtO = (r[idxItemO] || '').trim(); const txtQ = (r[idxItemQ] || '').trim();
-                    let itemName = (txtM || txtO || txtQ) ? [txtM, txtO, txtQ].filter(Boolean).join(' ') : '00000000';
-                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
-                    return { siteCode: String(r[idxSite]).trim(), date: d.trim(), vendor: r[idxVendor], item: itemName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) };
-                }).filter(r => r && r.siteCode);
+                for (const purchaseFile of pendingFiles.purchase) {
+                    if(importLog) importLog.textContent += `読込: 仕入明細 → ${purchaseFile.name}\n`;
+                    let raw = await parseTextUTF16LE_ByIndex(purchaseFile);
+                    for (let ri = 1; ri < raw.length; ri++) {
+                        const r = raw[ri];
+                        if (!r[idxSite]) continue;
+                        const txtM = (r[idxItemM] || '').trim(); const txtO = (r[idxItemO] || '').trim(); const txtQ = (r[idxItemQ] || '').trim();
+                        let itemName = (txtM || txtO || txtQ) ? [txtM, txtO, txtQ].filter(Boolean).join(' ') : '00000000';
+                        let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
+                        purchaseData.push({ siteCode: String(r[idxSite]).trim(), date: d.trim(), vendor: r[idxVendor], item: itemName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) });
+                    }
+                    raw = null; // 中間配列を即時解放
+                    await new Promise(r => setTimeout(r, 50)); // GCに処理の隙間を与える
+                    if(importLog) importLog.textContent += `  → ${purchaseData.length.toLocaleString()}件（累計）\n`;
+                }
             }
-            if (pendingFiles.sales) {
-                const raw = await parseTextUTF16LE_ByIndex(pendingFiles.sales);
+            if (pendingFiles.sales.length > 0) {
                 const idxDate = excelColToIndex('A');
                 const idxCustomer = excelColToIndex('I');
                 const idxAmountInc = excelColToIndex('DG');
                 const idxAmountExc = excelColToIndex('DJ');
-                const idxSite    = excelColToIndex('EI');  // 現場メインコード
-                const idxSubCode = excelColToIndex('EJ');  // 現場サブコード
-
-                salesData = raw.slice(1).map(r => {
-                    if (!r[idxSite]) return null;
-                    let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
-                    const sub = r[idxSubCode] ? String(r[idxSubCode]).trim() : '';
-                    return { siteCode: String(r[idxSite]).trim(), subCode: sub, date: d.trim(), customer: r[idxCustomer], amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) };
-                }).filter(r => r && r.siteCode);
+                const idxSite    = excelColToIndex('EI');
+                const idxSubCode = excelColToIndex('EJ');
+                for (const salesFile of pendingFiles.sales) {
+                    if(importLog) importLog.textContent += `読込: 売上明細 → ${salesFile.name}\n`;
+                    let raw = await parseTextUTF16LE_ByIndex(salesFile);
+                    for (let ri = 1; ri < raw.length; ri++) {
+                        const r = raw[ri];
+                        if (!r[idxSite]) continue;
+                        let d = r[idxDate] || ''; if (typeof d !== 'string') d = String(d);
+                        const sub = r[idxSubCode] ? String(r[idxSubCode]).trim() : '';
+                        salesData.push({ siteCode: String(r[idxSite]).trim(), subCode: sub, date: d.trim(), customer: r[idxCustomer], amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) });
+                    }
+                    raw = null; // 中間配列を即時解放
+                    await new Promise(r => setTimeout(r, 50)); // GCに処理の隙間を与える
+                    if(importLog) importLog.textContent += `  → ${salesData.length.toLocaleString()}件（累計）\n`;
+                }
             }
-            await db.transaction('rw', db.costs, db.masters, db.purchases, db.sales, db.meta, async () => {
-                if (pendingFiles.cost) { await db.costs.clear(); await db.costs.bulkPut(costData); await db.meta.put({ key: 'period', value: periodStr }); }
+            // チャンク分割書込ヘルパー（大量データでもブラウザが固まらないよう分割コミット）
+            const CHUNK = 5000;
+            const isAppendMode = document.getElementById('append-mode-toggle')?.checked ?? false;
+            const bulkAddChunked = async (table, data, label) => {
+                if (!isAppendMode) await table.clear(); // 上書きモードのみclear
+                const total = data.length;
+                for (let i = 0; i < total; i += CHUNK) {
+                    await table.bulkAdd(data.slice(i, i + CHUNK));
+                    const pct = Math.min(100, Math.round((i + CHUNK) / total * 100));
+                    if (importLog) importLog.textContent = importLog.textContent.replace(
+                        /\n?  → .+書込中.+$/m, ''
+                    ) + `\n  → ${label} 書込中… ${pct}% (${Math.min(i+CHUNK,total).toLocaleString()} / ${total.toLocaleString()}件)`;
+                    await new Promise(r => setTimeout(r, 0));
+                }
+                if (importLog) importLog.textContent += `\n  → ${label} 完了 (${total.toLocaleString()}件${isAppendMode ? ' 追記' : ''})\n`;
+            };
+
+            await db.transaction('rw', db.costs, db.masters, db.meta, async () => {
+                if (pendingFiles.cost)   { await db.costs.clear();   await db.costs.bulkPut(costData);     await db.meta.put({ key: 'period', value: periodStr }); }
                 if (pendingFiles.master) { await db.masters.clear(); await db.masters.bulkPut(masterData); }
-                if (pendingFiles.purchase) { await db.purchases.clear(); await db.purchases.bulkAdd(purchaseData); }
-                if (pendingFiles.sales) { await db.sales.clear(); await db.sales.bulkAdd(salesData); }
             });
+            if (pendingFiles.purchase.length) await bulkAddChunked(db.purchases, purchaseData, '仕入明細');
+            if (pendingFiles.sales.length)    await bulkAddChunked(db.sales,     salesData,    '売上明細');
             if(importLog) importLog.textContent += "完了！\n"; 
             await window.updateDBStats(); 
+            // 取込完了後にpendingFilesをリセット（前回ファイルの残留防止）
+            pendingFiles = { cost: null, master: null, purchase: [], sales: [] };
+            if (processBtn) processBtn.disabled = true;
             alert("完了しました。");
             window.showPage('dashboard');
         } catch (e) { 
@@ -3094,7 +3302,7 @@
 
     window.switchRankingTab = async function(tab) {
         try {
-            // コンテンツ切り替え
+            currentRankingTab = tab;
             document.querySelectorAll('.ranking-tab-content').forEach(el => el.classList.add('hidden'));
             const content = document.getElementById(`ranking-${tab}`);
             if (content) content.classList.remove('hidden');
@@ -3496,27 +3704,39 @@
             const filteredSales = [];
             const filteredPurchases = [];
 
+            // 集計期間フィルター（集計期間設定の start〜end を YYYYMM に変換して比較）
+            const rfYmStart = rankingFilter.start ? rankingFilter.start.replace(/-/g,'').substring(0,6) : null;
+            const rfYmEnd   = rankingFilter.end   ? rankingFilter.end.replace(/-/g,'').substring(0,6) : null;
+            const inYmRange = (ym) => {
+                if (!ym) return false;
+                if (rfYmStart && ym < rfYmStart) return false;
+                if (rfYmEnd   && ym > rfYmEnd)   return false;
+                return true;
+            };
+
             sales.forEach(s => {
                 const m = masterMap.get(s.siteCode) || {};
                 if (targetB !== 'ALL' && m.branch !== targetB) return;
-                const ym = s.date.substring(0,6); if(!ym) return;
+                const ym = (s.date||'').substring(0,6); if(!ym) return;
+                if (!inYmRange(ym)) return;
                 if (targetYm !== 'ALL' && ym !== targetYm) return;
                 if(!stats[ym]) stats[ym]={s:0, p:0};
                 stats[ym].s += s.amountExc;
-                filteredSales.push({ ...s, siteName: m.name||'', manager: m.manager||'', branch: m.branch||'' });
+                filteredSales.push({ ...s, siteName: m.name||'', manager: m.manager||'', branch: m.branch||'', customer: m.customer||'' });
             });
             purchases.forEach(p => {
                 const m = masterMap.get(p.siteCode) || {};
                 if (targetB !== 'ALL' && m.branch !== targetB) return;
-                const ym = p.date ? p.date.substring(0,6) : ''; if(!ym) return;
+                const ym = (p.date||'').substring(0,6); if(!ym) return;
+                if (!inYmRange(ym)) return;
                 if (targetYm !== 'ALL' && ym !== targetYm) return;
                 if(!stats[ym]) stats[ym]={s:0, p:0};
                 stats[ym].p += p.amount;
                 filteredPurchases.push({ ...p, siteName: m.name||'', manager: m.manager||'', branch: m.branch||'', owner: m.owner||'' });
             });
 
-            // キャッシュ保存
-            window._monthlyExportCache = { stats, filteredSales, filteredPurchases, targetB, targetYm };
+            // キャッシュ保存（Sheet4クロス集計で完了日フィルター適用するためmasterMapも保持）
+            window._monthlyExportCache = { stats, filteredSales, filteredPurchases, targetB, targetYm, masterMap, rankFilterSnap: { ...rankingFilter } };
 
             const labels = Object.keys(stats).sort();
             chartMonthly = window.destroyChart(chartMonthly);
@@ -3643,29 +3863,45 @@
             // ── Sheet4: クロス集計（横=監督名、縦=得意先[売上] / 業者名[原価]） ──
             const ws4 = wb.addWorksheet('クロス集計');
 
+            // 完了日フィルター（集計期間設定を尊重）
+            const rf = cache.rankFilterSnap || {};
+            const rfStart = rf.start ? new Date(rf.start).setHours(0,0,0,0) : 0;
+            const rfEnd   = rf.end   ? new Date(rf.end).setHours(23,59,59,999) : 9999999999999;
+            const mMap    = cache.masterMap || new Map();
+            const inEndDateRange = (siteCode) => {
+                const master = mMap.get(siteCode);
+                if (!master) return true; // マスターなければ除外しない
+                const ts = window.parseDateValue(master.endDate);
+                if (!ts) return (rfStart === 0 && rfEnd === 9999999999999); // 完了日なしは期間指定時は除外
+                return ts >= rfStart && ts <= rfEnd;
+            };
+            const crossSales     = filteredSales.filter(s => inEndDateRange(s.siteCode));
+            const crossPurchases = filteredPurchases.filter(p => inEndDateRange(p.siteCode));
+            const periodLabel = (rf.start || rf.end) ? `完了日:${rf.start||''}〜${rf.end||''}` : '';
+
             // 監督名リスト（売上・原価の両方から収集・ソート）
             const mgrSalesSet = new Set();
             const mgrCostSet  = new Set();
-            filteredSales.forEach(s     => mgrSalesSet.add(s.manager  || '未設定'));
-            filteredPurchases.forEach(p => mgrCostSet.add(p.manager   || '未設定'));
+            crossSales.forEach(s     => mgrSalesSet.add(s.manager  || '未設定'));
+            crossPurchases.forEach(p => mgrCostSet.add(p.manager   || '未設定'));
             const mgrSalesList = [...mgrSalesSet].sort((a,b) => a.localeCompare(b,'ja'));
             const mgrCostList  = [...mgrCostSet ].sort((a,b) => a.localeCompare(b,'ja'));
 
             // 得意先リスト（売上）
             const customerSet = new Set();
-            filteredSales.forEach(s => customerSet.add(s.customer || '未設定'));
+            crossSales.forEach(s => customerSet.add(s.customer || '未設定'));
             const customerList = [...customerSet].sort((a,b) => a.localeCompare(b,'ja'));
 
             // 業者リスト（原価）
             const vendorSet = new Set();
-            filteredPurchases.forEach(p => vendorSet.add(p.vendor || '未設定'));
+            crossPurchases.forEach(p => vendorSet.add(p.vendor || '未設定'));
             const vendorList = [...vendorSet].sort((a,b) => a.localeCompare(b,'ja'));
 
             // 集計マップ
             // salesCross[customer][manager] = 売上合計
             const salesCross = {};
             customerList.forEach(c => { salesCross[c] = {}; });
-            filteredSales.forEach(s => {
+            crossSales.forEach(s => {
                 const c = s.customer || '未設定';
                 const m = s.manager  || '未設定';
                 salesCross[c][m] = (salesCross[c][m] || 0) + s.amountExc;
@@ -3673,7 +3909,7 @@
             // costCross[vendor][manager] = 原価合計
             const costCross = {};
             vendorList.forEach(v => { costCross[v] = {}; });
-            filteredPurchases.forEach(p => {
+            crossPurchases.forEach(p => {
                 const v = p.vendor  || '未設定';
                 const m = p.manager || '未設定';
                 costCross[v][m] = (costCross[v][m] || 0) + p.amount;
@@ -3772,17 +4008,129 @@
             };
 
             // ① 売上クロス集計（得意先 × 監督）
+            const crossTitle1 = `■ 売上（税抜）クロス集計　${branchLabel}　${ymLabel}${periodLabel ? '　' + periodLabel : ''}`;
+            const crossTitle2 = `■ 原価クロス集計　${branchLabel}　${ymLabel}${periodLabel ? '　' + periodLabel : ''}`;
             const salesEndRow = writeCross(
                 1, salesCross, customerList, mgrSalesList,
-                `■ 売上（税抜）クロス集計　${branchLabel}　${ymLabel}`,
+                crossTitle1,
                 '得意先', salesHdrStyle, totRowStyleS, totColStyleS
             );
 
             // ② 原価クロス集計（業者名 × 監督）
             writeCross(
                 salesEndRow + 3, costCross, vendorList, mgrCostList,
-                `■ 原価クロス集計　${branchLabel}　${ymLabel}`,
+                crossTitle2,
                 '業者名', costHdrStyle, totRowStyleC, totColStyleC
+            );
+
+            // ── Sheet5: 月別×拠点別 売上  ／  Sheet6: 月別×拠点別 粗利率 ──
+            // 拠点・年月リスト収集
+            const branchSet5 = new Set();
+            const ymSet5     = new Set();
+            filteredSales.forEach(s     => { if(s.branch) branchSet5.add(s.branch); if(s.date) ymSet5.add(s.date.substring(0,6)); });
+            filteredPurchases.forEach(p => { if(p.branch) branchSet5.add(p.branch); if(p.date) ymSet5.add(p.date.substring(0,6)); });
+            const branches5 = [...branchSet5].sort((a,b) => a.localeCompare(b,'ja'));
+            const yms5      = [...ymSet5].sort();
+
+            // 集計 map5[ym][branch] = { s, p }
+            const map5 = {};
+            yms5.forEach(ym => { map5[ym] = {}; branches5.forEach(br => { map5[ym][br] = { s:0, p:0 }; }); });
+            filteredSales.forEach(s => {
+                const ym = (s.date||'').substring(0,6); if(!map5[ym]) return;
+                const br = s.branch||''; if(!br) return;
+                map5[ym][br].s += s.amountExc;
+            });
+            filteredPurchases.forEach(p => {
+                const ym = (p.date||'').substring(0,6); if(!map5[ym]) return;
+                const br = p.branch||''; if(!br) return;
+                map5[ym][br].p += p.amount;
+            });
+
+            const periodStr5  = periodLabel || `${rfYmStart||''}〜${rfYmEnd||''}`;
+            const hdrBlue     = { font:{bold:true,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}}, alignment:{horizontal:'center'} };
+            const titleStyle5 = { font:{bold:true,size:11,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}}, alignment:{horizontal:'left',vertical:'middle'} };
+            const ymStyle5    = { font:{}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFF8FAFC'}}, alignment:{horizontal:'center'} };
+            const totRowSt5   = { font:{bold:true}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}}, alignment:{horizontal:'right'} };
+            const totColSt5   = { font:{bold:true}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFEFF6FF'}}, alignment:{horizontal:'right'} };
+
+            // シート生成ヘルパー
+            const mkSimpleSheet = (sheetName, titleText, getValue, numFmt5, getColor) => {
+                const ws = wb.addWorksheet(sheetName);
+                const colCount = branches5.length + 2; // 年月 + 拠点... + 合計
+
+                // 列幅
+                ws.getColumn(1).width = 10;
+                branches5.forEach((_, i) => { ws.getColumn(i+2).width = 14; });
+                ws.getColumn(colCount).width = 14;
+
+                // タイトル
+                const tr = ws.getRow(1);
+                tr.getCell(1).value = titleText; tr.getCell(1).style = titleStyle5;
+                ws.mergeCells(1, 1, 1, colCount); tr.height = 22;
+
+                // ヘッダー
+                const hr = ws.getRow(2);
+                hr.getCell(1).value = '年月'; hr.getCell(1).style = hdrBlue;
+                branches5.forEach((br, i) => { hr.getCell(i+2).value = br; hr.getCell(i+2).style = hdrBlue; });
+                hr.getCell(colCount).value = '合計'; hr.getCell(colCount).style = hdrBlue;
+                hr.height = 18;
+
+                // データ行
+                const brTot = {}; branches5.forEach(br => { brTot[br] = {s:0,p:0}; });
+                let gtS=0, gtP=0;
+                yms5.forEach((ym, ri) => {
+                    const r = ws.getRow(3+ri);
+                    r.getCell(1).value = ym.slice(0,4)+'/'+ym.slice(4,6); r.getCell(1).style = ymStyle5;
+                    let rowS=0, rowP=0;
+                    branches5.forEach((br, i) => {
+                        const d = map5[ym][br]||{s:0,p:0};
+                        brTot[br].s+=d.s; brTot[br].p+=d.p; rowS+=d.s; rowP+=d.p;
+                        const v = getValue(d.s, d.p);
+                        const c = r.getCell(i+2);
+                        c.value = v ?? null; c.numFmt = numFmt5; c.alignment = {horizontal:'right'};
+                        if (getColor && v !== null) c.font = {color:{argb:getColor(v)}};
+                        if (v === null) c.font = {color:{argb:'FFCBD5E1'}};
+                    });
+                    gtS+=rowS; gtP+=rowP;
+                    const rowTotV = getValue(rowS, rowP);
+                    const tc = r.getCell(colCount);
+                    tc.value = rowTotV ?? null; tc.numFmt = numFmt5;
+                    tc.style = {...totColSt5, numFmt:numFmt5};
+                    if (getColor && rowTotV !== null) tc.font = {bold:true, color:{argb:getColor(rowTotV)}};
+                    r.height = 16;
+                });
+
+                // 合計行
+                const totr = ws.getRow(3+yms5.length);
+                totr.getCell(1).value = '合計'; totr.getCell(1).style = {...totRowSt5, alignment:{horizontal:'center'}};
+                branches5.forEach((br, i) => {
+                    const d = brTot[br];
+                    const v = getValue(d.s, d.p);
+                    const c = totr.getCell(i+2);
+                    c.value = v ?? null; c.style = {...totRowSt5, numFmt:numFmt5};
+                    if (getColor && v !== null) c.font = {bold:true, color:{argb:getColor(v)}};
+                });
+                const gv = getValue(gtS, gtP);
+                const gc = totr.getCell(colCount);
+                gc.value = gv ?? null;
+                gc.style = {font:{bold:true,color:{argb:'FF1E3A5F'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}}, alignment:{horizontal:'right'}, numFmt:numFmt5};
+                if (getColor && gv !== null) gc.font = {bold:true, color:{argb:getColor(gv)}};
+                totr.height = 18;
+            };
+
+            mkSimpleSheet(
+                '売上推移',
+                `■ 月別×拠点別 売上（税抜）　${periodStr5}`,
+                (s, p) => s || null,
+                '#,##0',
+                null
+            );
+            mkSimpleSheet(
+                '粗利率推移',
+                `■ 月別×拠点別 粗利率　${periodStr5}`,
+                (s, p) => s ? (s-p)/s*100 : null,
+                '0.0"%"',
+                v => v < 0 ? 'FFDC2626' : v < 20 ? 'FFEA580C' : 'FF374151'
             );
 
             wb.xlsx.writeBuffer().then(buffer => {
@@ -4052,8 +4400,68 @@
 
     // --- DOMContentLoaded EVENT LISTENERS ---
     window.addEventListener('DOMContentLoaded', () => {
-        // DropZone
-        dropZone = document.getElementById('drop-zone');
+
+        // ── IndexedDB 動作確認（Edge + file:// でブロックされる問題への対処） ──
+        const showIDBError = (reason) => {
+            document.body.innerHTML = `
+            <div style="min-height:100vh;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif;padding:24px">
+              <div style="max-width:560px;width:100%">
+                <div style="background:#fff;border-radius:16px;box-shadow:0 4px 32px rgba(0,0,0,0.10);overflow:hidden">
+                  <div style="background:#dc2626;padding:24px 28px;color:#fff">
+                    <div style="font-size:22px;font-weight:800;margin-bottom:4px">⚠️ データベースを開けません</div>
+                    <div style="font-size:13px;opacity:0.85">${reason}</div>
+                  </div>
+                  <div style="padding:28px">
+                    <p style="font-size:14px;color:#374151;margin:0 0 20px;line-height:1.7">
+                      このアプリはブラウザ内のデータベース（IndexedDB）を使用していますが、<br>
+                      <strong>Edge で HTML ファイルを直接ダブルクリックで開いた場合</strong>、<br>
+                      セキュリティポリシーにより IndexedDB がブロックされます。
+                    </p>
+
+                    <div style="background:#fef9ec;border:1px solid #f59e0b;border-radius:10px;padding:16px 18px;margin-bottom:20px">
+                      <div style="font-weight:700;color:#92400e;margin-bottom:10px;font-size:13px">✅ 対処法（どれか1つ）</div>
+                      <ol style="margin:0;padding-left:20px;color:#78350f;font-size:13px;line-height:2">
+                        <li><strong>Chrome</strong> でこの HTML ファイルを開く（最も簡単）</li>
+                        <li>Edge の場合：<strong>社内サーバー・SharePoint・OneDrive</strong> にファイルを置き、URLで開く</li>
+                        <li>Edge の場合：アドレスバーに <code style="background:#fff;padding:1px 5px;border-radius:4px;font-size:12px">edge://flags/#allow-insecure-localhost</code> と入力し「Enabled」にする（IT部門に確認）</li>
+                      </ol>
+                    </div>
+
+                    <div style="background:#f1f5f9;border-radius:8px;padding:12px 16px;font-size:12px;color:#64748b">
+                      <strong>技術的な原因：</strong>
+                      Edge はローカルファイル（file://）から開いた HTML に対して IndexedDB へのアクセスを制限します。
+                      Chrome は同じ条件でも動作します。
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+        };
+
+        try {
+            if (typeof indexedDB === 'undefined' || indexedDB === null) {
+                showIDBError('indexedDB が利用できません');
+                return;
+            }
+            // 実際に open を試みて権限エラーを検出
+            const testReq = indexedDB.open('__idb_test__', 1);
+            testReq.onerror = (e) => {
+                showIDBError(`IndexedDB エラー: ${e.target.error?.message || 'アクセス拒否'}`);
+            };
+            testReq.onsuccess = (e) => {
+                e.target.result.close();
+                indexedDB.deleteDatabase('__idb_test__');
+                // 正常 → 通常の初期化を続行
+                initApp();
+            };
+            testReq.onblocked = () => {
+                showIDBError('IndexedDB がブロックされています');
+            };
+        } catch(e) {
+            showIDBError(e.message);
+        }
+
+        function initApp() {
         importLog = document.getElementById('import-log');
         processBtn = document.getElementById('btn-process-files');
         
@@ -4179,6 +4587,7 @@
         // Initial Load
         window.updateDBStats();
         window.showPage('dashboard');
+        } // end initApp()
     });
 
 // ============================================================
