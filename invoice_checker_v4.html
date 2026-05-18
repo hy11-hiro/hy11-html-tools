@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>職人請求書チェック v4</title>
+<title>職人請求書チェック v5</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
@@ -12,20 +12,20 @@
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;overflow:hidden;}
+html,body{height:100%;}
 body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font-size:15px;}
 ::-webkit-scrollbar{width:7px;height:7px;}
 ::-webkit-scrollbar-track{background:#f0f2f5;}
 ::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:4px;}
 #wrap{display:flex;height:100vh;}
 #sb{width:215px;flex-shrink:0;background:#0f172a;display:flex;flex-direction:column;overflow-y:auto;box-shadow:2px 0 8px rgba(0,0,0,.2);}
-#body{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+#body{flex:1;display:flex;flex-direction:column;}
 #bar{height:54px;background:linear-gradient(135deg,#1e3a5f,#1e40af);display:flex;align-items:center;padding:0 22px;gap:12px;flex-shrink:0;box-shadow:0 2px 8px rgba(30,64,175,.3);}
 #cnt{flex:1;overflow-y:auto;padding:18px 22px;}
 .sbl{padding:18px 16px 12px;border-bottom:1px solid #1e293b;}
 .sbl h1{color:#fff;font-weight:900;font-size:17px;line-height:1.3;}
 .sbl p{color:#475569;font-size:11px;margin-top:2px;}
-.sbg{padding:14px 16px 5px;font-size:10px;font-weight:700;color:#475569;letter-spacing:.12em;text-transform:uppercase;}
+.sbg{padding:14px 16px 5px;font-size:10px;font-weight:700;color:#475569;letter-spacing:.12em;}
 .sbn{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;font-size:14px;font-weight:500;color:#94a3b8;border-left:4px solid transparent;transition:all .18s;}
 .sbn:hover{background:#1e293b;color:#e2e8f0;}
 .sbn.on{background:#172554;color:#fff;border-left-color:#3b82f6;font-weight:700;}
@@ -132,25 +132,39 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
 @container(max-width:780px){.detail-grid{grid-template-columns:1fr;}}
 /* container未対応ブラウザ用フォールバック（サイドバー215px込みで計算） */
 @media(max-width:1020px){.detail-grid{grid-template-columns:1fr;}}
-.sec-card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;}
+.sec-card{background:#fff;border:1px solid #e2e8f0;border-radius:8px;}
 .sec-card-hd{background:#dde6f0;font-size:12px;font-weight:700;color:#334155;padding:6px 10px;border-bottom:1px solid #e2e8f0;}
-.sec-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
-.sec-tbl th{background:#f8fafc;padding:4px 5px;text-align:left;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;white-space:nowrap;font-size:11px;overflow:hidden;}
-.sec-tbl td{padding:4px 5px;border-bottom:1px solid #f8fafc;vertical-align:middle;overflow:hidden;}
+.sec-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto;}
+.sec-tbl th{background:#f8fafc;padding:4px 5px;text-align:left;font-weight:700;color:#475569;border-bottom:1px solid #e2e8f0;white-space:nowrap;font-size:11px;}
+.sec-tbl td{padding:4px 5px;border-bottom:1px solid #f8fafc;vertical-align:middle;}
 .sec-tbl tbody tr:last-child td{border-bottom:none;}
 .sec-tbl tbody tr:hover td{background:#f8faff;}
 /* 造成列幅: name=auto, qty=60, unit=24, price=62, amt=70, act=38 */
 .s-col-name{width:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.s-col-qty{width:68px;min-width:68px;}
+.s-col-qty{width:90px;min-width:90px;padding-right:6px;}
 .s-col-unit{width:24px;text-align:center;font-size:11px;color:#64748b;}
 .s-col-price{width:60px;box-sizing:border-box;text-align:right;}
 .s-col-amt{width:70px;text-align:right;}
-.s-col-act{width:38px;text-align:center;white-space:nowrap;padding:0!important;}
+.s-col-act{width:56px;text-align:center;white-space:nowrap;padding:0!important;}
+.gx-rows-wrap{padding:4px 8px 6px;background:#fffbeb;border-top:1px dashed #fbbf24;}
+.gx-row{display:flex;align-items:center;gap:5px;padding:5px 4px;border-bottom:1px solid #fef3c7;flex-wrap:wrap;}
+.gx-row:last-child{border-bottom:none;}
+.gx-row label{flex-shrink:0;}
+.clr-btn{background:#fef3c7;border:1px solid #fbbf24;color:#92400e;border-radius:3px;padding:1px 4px;font-size:10px;font-weight:700;cursor:pointer;line-height:1.4;}
+.clr-btn:hover{background:#fde68a;}
 /* 外構列幅: name=auto, qty=60, unit=24, pa=60(✎), ap=60(適用), amt=68, act=34 ← B/C非表示 */
 .g-col-pa{width:60px;text-align:right;}
 .g-col-pb{display:none;}/* 外構でB/Cは通常非表示 */
 .g-col-pc{display:none;}
 .g-col-ap{width:60px;text-align:right;font-weight:900;}
+/* gx追加行はB/C列を表示 */
+.gx-tr .g-col-pb,.gx-tr .g-col-pc{display:table-cell;}
+.gx-tr .g-col-pa{width:56px;}
+.gx-tr .g-col-pb{width:50px;}
+.gx-tr .g-col-pc{width:50px;}
+.gx-tr .g-col-ap{width:56px;}
+.gx-tr input.fi-n{width:100%;box-sizing:border-box;font-size:11px;padding:2px 3px;}
+.gx-tr input.fi{width:100%;box-sizing:border-box;font-size:11px;padding:2px 4px;}
 /* sec-cardがある程度幅あるときだけB/Cを表示 */
 @container(min-width:520px){.g-col-pb{display:table-cell;width:46px;text-align:right;font-size:10px;}.g-col-pc{display:table-cell;width:46px;text-align:right;font-size:10px;}}
 @media(min-width:1400px){.g-col-pb{display:table-cell;width:46px;text-align:right;font-size:10px;}.g-col-pc{display:table-cell;width:46px;text-align:right;font-size:10px;}}
@@ -183,7 +197,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
 
 <!-- ═══ SIDEBAR ═══ -->
 <aside id="sb">
-  <div class="sbl"><h1>請求チェック</h1><p>Invoice Check v4</p></div>
+  <div class="sbl"><h1>請求チェック</h1><p>Invoice Check v5</p></div>
   <div class="sbg">チェック作業</div>
   <div class="sbn on" id="nav-check" onclick="goPg('check')"><i class="fa-solid fa-clipboard-check"></i>請求書チェック</div>
   <div class="sbn" id="nav-log" onclick="goPg('log')"><i class="fa-solid fa-history"></i>チェック履歴</div>
@@ -214,12 +228,13 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
   <div id="sp1" class="sp on">
     <div class="card">
       <div class="ch"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人を選択</div>
-      <div style="display:flex;gap:8px;margin-bottom:10px;">
-        <input class="fi" id="s1-q" placeholder="名前で絞り込み..." oninput="renderCGrid()" style="max-width:200px;">
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
+        <input class="fi" id="s1-q" placeholder="名前で絞り込み..." oninput="renderCGrid()" style="max-width:180px;">
         <select class="fi" id="s1-t" onchange="renderCGrid()" style="max-width:110px;">
           <option value="">全区分</option><option value="職人">職人（自社）</option><option value="社員">社員</option><option value="外注">外注</option><option value="サポート">サポート</option>
         </select>
       </div>
+      <div id="s1-branch-pills" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;"></div>
       <div id="cgrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:400px;overflow-y:auto;"></div>
       <div style="margin-top:12px;text-align:right;">
         <button class="btn blue" id="s1btn" onclick="goStep(2)" disabled>ヘッド入力へ <i class="fa-solid fa-arrow-right"></i></button>
@@ -274,25 +289,104 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
     </div>
   </div>
 
-  <!-- STEP 3: 内訳チェック -->
+  <!-- STEP 3: 内訳チェック / サポート出面入力 -->
   <div id="sp3" class="sp">
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
-        <div class="ch" style="margin-bottom:0;"><i class="fa-solid fa-table-list" style="color:#6366f1"></i>内訳チェック</div>
-        <select class="fi" id="d-site" onchange="loadDSite()" style="width:180px;display:inline-block;"></select>
-        <div style="display:flex;align-items:center;gap:4px;">
-          <span style="font-size:11px;font-weight:700;">ランク</span>
-          <select class="fi" id="d-rank" onchange="reRenderDetail()" style="width:55px;display:inline-block;">
-            <option>A</option><option>B</option><option>C</option>
-          </select>
+    <!-- ━━ サポートモード：出面入力 ━━ -->
+    <div id="sp3-sup" style="display:none;">
+      <!-- ダンプ代事前登録バー -->
+      <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 16px;margin-bottom:8px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <i class="fa-solid fa-truck" style="color:#ea580c;font-size:16px;"></i>
+        <span style="font-size:12px;font-weight:700;color:#9a3412;">ダンプ代（1日あたり）</span>
+        <input type="number" class="fi-n" id="sup-dump-fee" placeholder="0" min="0"
+          value="" oninput="sess.dumpFeePerDay=Number(this.value)||0;autoSaveSess();"
+          style="width:100px;font-size:14px;font-weight:700;">
+        <span style="font-size:11px;color:#64748b;">金額を登録してからダンプ使用日の🚛ボタンをクリック</span>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
+          <div style="font-size:12px;color:#475569;font-weight:700;">日給：<span id="sup-daily-rate-lbl" style="font-family:'Courier New',monospace;font-size:15px;color:#7c3aed;font-weight:900;">¥0</span></div>
         </div>
-        <div style="display:flex;gap:0;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;margin-left:auto;">
-          <button class="tbtn on" id="dtb-s" onclick="switchDTab('s')">造成</button>
-          <button class="tbtn" id="dtb-g" onclick="switchDTab('g')">外構</button>
-        </div>
-        <div style="font-size:11px;font-weight:700;">合計：<span id="d-grand" style="font-size:13px;font-weight:900;color:#1e40af;font-family:'Courier New',monospace;">¥0</span></div>
       </div>
 
+      <div class="card" style="padding:0;overflow:hidden;">
+        <!-- ヘッダーバー -->
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e2e8f0;background:#f8fafc;flex-wrap:wrap;">
+          <div class="ch" style="margin-bottom:0;font-size:14px;"><i class="fa-solid fa-calendar-days" style="color:#7c3aed"></i>出面入力</div>
+          <select class="fi" id="sup-year" style="width:90px;" onchange="renderDeduri()"></select>
+          <select class="fi" id="sup-month" style="width:70px;" onchange="renderDeduri()"></select>
+          <span style="font-size:11px;color:#64748b;">2現場＝各0.5人工　/　1現場＝1人工</span>
+          <button id="btn-skip-amt" onclick="toggleSkipAmt()"
+            style="font-size:12px;padding:5px 10px;border-radius:6px;border:2px solid #e2e8f0;background:#fff;cursor:pointer;font-weight:700;white-space:nowrap;"
+            title="ONにすると工番①→工番②→次の日へ（記載金額をスキップ）">
+            金額スキップ：<span id="skip-amt-lbl">OFF</span>
+          </button>
+          <button class="btn gray sm" onclick="manualSaveSess()" style="margin-left:auto;"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+        </div>
+
+        <!-- 固定31日テーブル -->
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;" id="deduri-tbl">
+            <thead>
+              <tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0;">
+                <th style="width:30px;padding:7px 6px;text-align:center;font-size:11px;color:#64748b;">日</th>
+                <th style="width:22px;padding:7px 4px;text-align:center;font-size:11px;color:#64748b;">曜</th>
+                <th style="width:58px;padding:7px 6px;text-align:center;font-size:11px;">工番①</th>
+                <th style="padding:7px 8px;font-size:11px;min-width:110px;">現場①・得意先</th>
+                <th style="width:58px;padding:7px 6px;text-align:center;font-size:11px;">工番②</th>
+                <th style="padding:7px 8px;font-size:11px;min-width:110px;">現場②・得意先</th>
+                <th style="width:42px;padding:7px 4px;text-align:center;font-size:11px;color:#7c3aed;">人工</th>
+                <th style="width:36px;padding:7px 4px;text-align:center;font-size:11px;color:#ea580c;">🚛</th>
+                <th style="width:96px;padding:7px 8px;text-align:right;font-size:11px;color:#1e40af;">記載金額</th>
+              </tr>
+            </thead>
+            <tbody id="deduri-body"></tbody>
+            <tfoot>
+              <tr style="background:#f8fafc;border-top:2px solid #e2e8f0;">
+                <td colspan="4" style="padding:8px 12px;font-weight:700;font-size:12px;text-align:right;color:#475569;">月計</td>
+                <td colspan="2"></td>
+                <td id="deduri-ninku-total" style="font-family:'Courier New',monospace;font-weight:900;color:#7c3aed;font-size:13px;text-align:center;padding:8px 4px;"></td>
+                <td id="deduri-dump-total" style="font-family:'Courier New',monospace;font-weight:700;color:#ea580c;font-size:12px;text-align:center;padding:8px 4px;"></td>
+                <td id="deduri-claimed-total" style="font-family:'Courier New',monospace;font-weight:700;color:#1e40af;font-size:12px;text-align:right;padding:8px 8px;"></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- 現場別人工サマリー（リアルタイム） -->
+      <div class="card">
+        <div class="ch" style="font-size:14px;margin-bottom:10px;"><i class="fa-solid fa-chart-bar" style="color:#7c3aed"></i>現場別 人工サマリー</div>
+        <div id="sup-site-summary"></div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+        <button class="btn gray" onclick="goStep(2)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
+        <button class="btn blue" onclick="goStep(4)">人工集計・突き合わせへ <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
+    </div>
+    <!-- ━━ 職人モード：内訳チェック（既存） ━━ -->
+    <div id="sp3-shok">
+    <!-- スティッキー合計バー -->
+    <div id="s3-sticky" style="position:sticky;top:0;z-index:100;background:#fff;border-bottom:2px solid #e2e8f0;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:8px;">
+      <select class="fi" id="d-site" onchange="loadDSite()" style="width:200px;display:inline-block;"></select>
+      <span id="d-site-idx" style="font-size:12px;color:#64748b;font-weight:700;background:#f1f5f9;padding:3px 8px;border-radius:4px;white-space:nowrap;"></span>
+      <div id="rank-wrap" style="display:none;align-items:center;gap:4px;">
+        <span style="font-size:11px;font-weight:700;">ランク</span>
+        <select class="fi" id="d-rank" onchange="reRenderDetail()" style="width:55px;display:inline-block;">
+          <option>A</option><option>B</option><option>C</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:0;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;">
+        <button class="tbtn on" id="dtb-s" onclick="switchDTab('s')">造成</button>
+        <button class="tbtn" id="dtb-g" onclick="switchDTab('g')">外構</button>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div id="sticky-s-wrap" style="font-size:11px;font-weight:700;color:#64748b;">小計：<span id="sub-s-sticky" style="font-family:'Courier New',monospace;font-size:14px;color:#1e40af;font-weight:900;">¥0</span></div>
+        <div id="sticky-g-wrap" style="display:none;font-size:11px;font-weight:700;color:#64748b;">小計：<span id="sub-g-sticky" style="font-family:'Courier New',monospace;font-size:14px;color:#059669;font-weight:900;">¥0</span></div>
+        <div style="font-size:12px;font-weight:700;border-left:1px solid #e2e8f0;padding-left:14px;">合計：<span id="d-grand" style="font-family:'Courier New',monospace;font-size:16px;font-weight:900;color:#1e40af;">¥0</span></div>
+        <button class="btn gray sm" onclick="manualSaveSess()"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding-top:0;border-top:none;">
       <div id="detail-wrap">
         <!-- 造成 -->
         <div id="dp-s" class="tpane on">
@@ -305,6 +399,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
             <button class="btn gray sm" onclick="addFreeRowS()"><i class="fa-solid fa-plus"></i> 行追加（造成）</button>
             <label class="btn gray sm" style="cursor:pointer;"><i class="fa-solid fa-file-excel"></i> Excelテンプレート取込<input type="file" accept=".xlsx,.xls" style="display:none;" onchange="importDetailTemplate(this,'s')"></label>
             <button class="btn gray sm" onclick="exportDetailTemplate('s')"><i class="fa-solid fa-download"></i> テンプレート出力</button>
+            <button class="btn red sm" onclick="clearQty('s')" title="造成の数量をすべて0にクリア"><i class="fa-solid fa-eraser"></i> 数量クリア</button>
+            <button class="btn gray sm" onclick="resetToDefault('s')" title="造成を初期状態に戻す（追加行・カスタム単価も削除）" style="border-color:#f59e0b;color:#92400e;"><i class="fa-solid fa-rotate-left"></i> 初期化</button>
           </div>
         </div>
         <!-- 外構 -->
@@ -318,19 +414,42 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
             <button class="btn gray sm" onclick="addFreeRowG()"><i class="fa-solid fa-plus"></i> 行追加（外構）</button>
             <label class="btn gray sm" style="cursor:pointer;"><i class="fa-solid fa-file-excel"></i> Excelテンプレート取込<input type="file" accept=".xlsx,.xls" style="display:none;" onchange="importDetailTemplate(this,'g')"></label>
             <button class="btn gray sm" onclick="exportDetailTemplate('g')"><i class="fa-solid fa-download"></i> テンプレート出力</button>
+            <button class="btn red sm" onclick="clearQty('g')" title="外構の数量をすべて0にクリア"><i class="fa-solid fa-eraser"></i> 数量クリア</button>
+            <button class="btn gray sm" onclick="resetToDefault('g')" title="外構を初期状態に戻す（追加行・カスタム単価も削除）" style="border-color:#f59e0b;color:#92400e;"><i class="fa-solid fa-rotate-left"></i> 初期化</button>
           </div>
         </div>
       </div>
 
-      <div style="margin-top:10px;text-align:right;display:flex;justify-content:flex-end;gap:8px;">
-        <button class="btn gray" onclick="goStep(2)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
-        <button class="btn blue" onclick="goStep(4)">実績図突合へ <i class="fa-solid fa-arrow-right"></i></button>
+      <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn gray" onclick="goStep(2)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
+          <button class="btn gray sm" onclick="prevSite3()" id="btn-prev-site"><i class="fa-solid fa-chevron-left"></i> 前の工番</button>
+          <button class="btn gray sm" onclick="nextSite3()" id="btn-next-site">次の工番 <i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn blue" onclick="goToS4FromS3()">実績図突合へ <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
       </div>
     </div>
+    </div><!-- end sp3-shok -->
   </div>
 
   <!-- STEP 4: 実績図突合 -->
   <div id="sp4" class="sp">
+    <!-- サポートモード：人工集計・金額突き合わせ -->
+    <div id="sp4-sup" style="display:none;">
+      <div class="card">
+        <div class="ch"><i class="fa-solid fa-person-digging" style="color:#7c3aed"></i>人工集計・金額突き合わせ</div>
+        <div id="sup-ninku-summary"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn gray" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> 出面入力に戻る</button>
+          <button class="btn gray sm" onclick="manualSaveSess()"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+          <button class="btn blue" onclick="goStep(5)">金額確認へ <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+      </div>
+    </div>
+    <!-- 職人モード：実績図突合（既存） -->
+    <div id="sp4-shok">
     <div class="card">
       <div class="ch" style="flex-wrap:wrap;gap:8px;">
         <i class="fa-solid fa-pen-ruler" style="color:#7c3aed"></i>実績図 数量突合
@@ -340,8 +459,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
         <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap;">
           <button class="btn gray sm" onclick="addJRow()"><i class="fa-solid fa-plus"></i> 品目追加</button>
           <button class="btn blue sm" onclick="runMatch()"><i class="fa-solid fa-scale-balanced"></i> 突合実行</button>
-          <button class="btn gray sm" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
-          <button class="btn blue" onclick="goStep(5)">金額確認へ <i class="fa-solid fa-arrow-right"></i></button>
+          <button class="btn gray sm" onclick="manualSaveSess()"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+          <button class="btn gray sm" onclick="goBackS3FromS4()"><i class="fa-solid fa-arrow-left"></i> 内訳チェックに戻る</button>
+          <button class="btn blue" id="btn-s4-next" onclick="goNextSiteDetail()"><i class="fa-solid fa-arrow-right"></i> <span id="s4-next-label">次の工番へ</span></button>
+          <button class="btn gray sm" onclick="goStep(5)" title="全工番をスキップして金額確認へ"><i class="fa-solid fa-forward-fast"></i> 金額確認へ</button>
         </div>
       </div>
       <!-- 突合結果をヘッダー下に常時表示 -->
@@ -358,7 +479,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
             <tr>
               <th style="text-align:left;width:70px;">区分</th>
               <th style="text-align:left;min-width:180px;">品目</th>
-              <th style="width:80px;text-align:right;">内訳数量</th>
+              <th style="width:90px;text-align:right;">内訳数量</th>
               <th style="color:#7c3aed;">実績入力（Enterで追加・最大20）</th>
               <th style="width:90px;text-align:right;color:#1e40af;">実績合計</th>
               <th style="width:70px;text-align:right;">差異</th>
@@ -378,10 +499,12 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
       <div id="j-result" style="margin-top:10px;"></div>
 
       <div style="margin-top:10px;text-align:right;display:flex;gap:8px;justify-content:flex-end;">
-        <button class="btn gray" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> 戻る</button>
-        <button class="btn blue" onclick="goStep(5)">金額確認へ <i class="fa-solid fa-arrow-right"></i></button>
+        <button class="btn gray" onclick="goBackS3FromS4()"><i class="fa-solid fa-arrow-left"></i> 内訳チェックに戻る</button>
+        <button class="btn gray sm" onclick="manualSaveSess()"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+        <button class="btn blue" onclick="goNextSiteDetail()"><i class="fa-solid fa-arrow-right"></i> <span>次の工番 / 金額確認へ</span></button>
       </div>
     </div>
+    </div><!-- end sp4-shok -->
   </div>
 
   <!-- STEP 5: 金額確認 -->
@@ -524,9 +647,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
       </button>
       <span id="cm-count" style="font-size:12px;color:#94a3b8;"></span>
     </div>
+    <div id="cm-branch-pills" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;padding:0 4px;"></div>
     <div style="overflow-x:auto;overflow-y:auto;flex:1;min-height:0;">
       <table class="tb">
-        <thead><tr><th>在籍</th><th>職人名</th><th>屋号</th><th>区分</th><th>拠点</th><th>インボイス番号</th><th>状態</th><th>労災</th><th>健保</th><th>駐車</th><th>道具</th><th>電話</th><th>車両</th><th>リース管理番号</th><th>ナンバー</th><th>他控除</th><th>更新日</th><th>期限</th><th></th></tr></thead>
+        <thead><tr><th>在籍</th><th>職人名・区分</th><th>インボイス</th><th>月額控除</th><th>期限・アラート</th><th>更新日</th><th></th></tr></thead>
         <tbody id="cm-tb"></tbody>
       </table>
     </div>
@@ -591,7 +715,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
     </div>
 
     <!-- フィルター -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+    <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;align-items:center;">
       <input class="fi" id="v-search" placeholder="職人名・管理番号で検索..." style="max-width:220px;" oninput="renderVehicles()">
       <select class="fi" id="v-status" onchange="renderVehicles()" style="max-width:130px;">
         <option value="">全ステータス</option>
@@ -602,6 +726,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
         <option value="">全リース業者</option>
       </select>
     </div>
+    <div id="v-branch-pills" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;"></div>
 
     <div style="overflow-x:auto;overflow-y:visible;flex:1;min-height:0;">
       <table class="tb" id="vehicle-table">
@@ -802,6 +927,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
       <div class="fg"><label class="fl">リース元管理番号</label><input class="fi" id="cm-vno" placeholder="例：Z12345（リース会社の番号）"></div>
     <div class="fg"><label class="fl">ナンバープレート</label><input class="fi" id="cm-plate" placeholder="例：品川300あ1234"></div>
       <div class="fg"><label class="fl">その他控除</label><input class="fi" type="number" id="cm-other" placeholder="0" min="0"></div>
+      <div class="fg" id="cm-daily-rate-wrap" style="border-top:1px solid #e2e8f0;margin-top:4px;padding-top:10px;">
+        <label class="fl" style="color:#7c3aed;"><i class="fa-solid fa-calendar-day" style="margin-right:4px;"></i>日給額（サポート用）</label>
+        <input class="fi" type="number" id="cm-daily-rate" placeholder="0" min="0">
+        <div style="font-size:11px;color:#94a3b8;margin-top:3px;">区分が「サポート」の場合に使用します。1日あたりの日当金額を入力してください。</div>
+      </div>
     </div>
     <div class="fg"><label class="fl">メモ</label><textarea class="fi" id="cm-memo" rows="2"></textarea></div>
   </div>
@@ -1017,6 +1147,36 @@ let ranks = lsLoad(LS.RANKS);
 let logs = lsLoad(LS.LOGS);
 
 // ══════════════════════════════════════
+// AUTO-SAVE (session)
+// ══════════════════════════════════════
+const SESS_KEY='hy3_sess_v5';
+function autoSaveSess(){
+  try{
+    localStorage.setItem(SESS_KEY, JSON.stringify(sess));
+    const now=new Date();
+    const lbl=document.getElementById('save-lbl');
+    if(lbl) lbl.textContent=`自動保存 ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  }catch(e){}
+}
+function manualSaveSess(){
+  autoSaveSess();
+  const lbl=document.getElementById('save-lbl');
+  if(lbl){ lbl.textContent='💾 保存しました'; setTimeout(()=>{ const now=new Date(); lbl.textContent=`自動保存 ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`; },1500); }
+}
+function tryRestoreSess(){
+  try{
+    const saved=localStorage.getItem(SESS_KEY);
+    if(!saved) return false;
+    const parsed=JSON.parse(saved);
+    if(!parsed||!parsed.cid) return false;
+    const cm=craftsmen.find(x=>x.id===parsed.cid);
+    if(!cm) return false;
+    sess=parsed;
+    return true;
+  }catch(e){ return false; }
+}
+
+// ══════════════════════════════════════
 // PAGE NAV
 // ══════════════════════════════════════
 const PT = {check:'請求書チェック',log:'チェック履歴',cm:'職人マスター',site:'現場マスター',rank:'ランク管理',vehicle:'車両管理',import:'データ一括取込'};
@@ -1026,28 +1186,38 @@ function goPg(id){
   document.getElementById('pg-'+id).classList.add('on');
   document.getElementById('nav-'+id).classList.add('on');
   document.getElementById('bar-title').textContent = PT[id]||id;
-  if(id==='cm') renderCMT();
+  if(id==='cm'){ renderCMT(); renderBranchPills('cm-branch-pills','cm',renderCMT); }
   if(id==='log') renderLogs();
   if(id==='rank'){ populateOwnerList(); renderRankT(); }
-  if(id==='vehicle'){ renderVehicles(); }
+  if(id==='vehicle'){ renderVehicles(); renderBranchPills('v-branch-pills','v',renderVehicles); }
   if(id==='import'){ /* no init needed */ }
-  if(id==='check') renderCGrid();
+  if(id==='check'){ renderCGrid(); renderBranchPills('s1-branch-pills','s1',renderCGrid); }
 }
 
 // ══════════════════════════════════════
 // WORKFLOW
 // ══════════════════════════════════════
 let wfStep=1, wfDone=new Set();
-const WF_LABELS=['職人選択','ヘッド入力','内訳チェック','実績図突合','金額確認'];
+const WF_LABELS_SHOK=['職人選択','ヘッド入力','内訳チェック','実績図突合','金額確認'];
+const WF_LABELS_SUP =['担当選択','ヘッド入力','出面入力','人工集計','金額確認'];
+const WF_LABELS=WF_LABELS_SHOK; // alias, updated dynamically
+
+function isSupport(){
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  return c&&(c.category||c.type||'')===('サポート');
+}
+
+function wfLabels(){ return isSupport()?WF_LABELS_SUP:WF_LABELS_SHOK; }
 
 function renderWfBar(){
   const bar=document.getElementById('wfbar');
+  const labels=wfLabels();
   let h='';
   for(let i=1;i<=5;i++){
     const done=wfDone.has(i), cur=i===wfStep;
     h+=`<div style="display:flex;align-items:center;gap:4px;cursor:pointer;" onclick="goStep(${i})">
       <div class="wfc ${done?'done':cur?'cur':''}">${done?'<i class="fa-solid fa-check" style="font-size:9px;"></i>':i}</div>
-      <div class="wfl ${done?'done':cur?'cur':''}">${WF_LABELS[i-1]}</div>
+      <div class="wfl ${done?'done':cur?'cur':''}">${labels[i-1]}</div>
     </div>`;
     if(i<5) h+=`<div class="wfline ${wfDone.has(i)?'done':''}"></div>`;
   }
@@ -1056,21 +1226,52 @@ function renderWfBar(){
 }
 
 function goStep(n){
-  if(n===2&&!sess.cid){alert('職人を選択してください');return;}
-  if(n===3&&!sess.cid){alert('職人を選択してください');return;}
+  if(n===2&&!sess.cid){alert('担当者を選択してください');return;}
+  if(n===3&&!sess.cid){alert('担当者を選択してください');return;}
   wfStep=n;
   renderWfBar();
   document.querySelectorAll('.sp').forEach(s=>s.classList.remove('on'));
   document.getElementById('sp'+n).classList.add('on');
   if(n===2) initS2();
-  if(n===3) initS3();
-  if(n===4) initS4();
-  if(n===5){ initDRows(); recalc(); }
+  if(n===3){ if(isSupport()) initS3Sup(); else initS3(); }
+  if(n===4){ if(isSupport()) initS4Sup(); else initS4(); }
+  if(n===5){ if(isSupport()) recalcSup(); else { initDRows(); recalc(); } }
+}
+// 金額確認から特定工番の内訳へ戻る
+function goStep3Site(code){
+  sess.dSite=code;
+  goStep(3);
+  // loadDSiteは initS3 内で呼ばれる; selectの値も合わせる
+  setTimeout(()=>{
+    const sel=document.getElementById('d-site');
+    if(sel) sel.value=code;
+    loadDSite();
+  },50);
+}
+// step4から次の工番の内訳チェックへ
+function goNextSiteDetail(){
+  const codes=sess.headRows.filter(r=>r.code).map(r=>r.code);
+  const cur=document.getElementById('j-site')?.value||sess.dSite;
+  const idx=codes.indexOf(cur);
+  if(idx<codes.length-1){
+    const nextCode=codes[idx+1];
+    sess.dSite=nextCode;
+    goStep(3);
+    setTimeout(()=>{
+      const sel=document.getElementById('d-site');
+      if(sel) sel.value=nextCode;
+      loadDSite();
+    },50);
+  } else {
+    goStep(5);
+  }
 }
 
 function resetSess(){
   sess={ cid:null, headRows:[{code:'',name:'',owner:'',manager:'',amount:''}],
-    dSite:null, dData:{}, jData:{}, dRows:[], aRows:[] };
+    dSite:null, dData:{}, jData:{}, dRows:[], aRows:[],
+    deduri:[], deduriYear:null, deduriMonth:null };
+  try{ localStorage.removeItem(SESS_KEY); }catch(e){}
   wfStep=1; wfDone.clear(); renderWfBar();
   document.querySelectorAll('.sp').forEach(s=>s.classList.remove('on'));
   document.getElementById('sp1').classList.add('on');
@@ -1093,22 +1294,29 @@ function renderCGrid(){
   const q=(document.getElementById('s1-q')?.value||'').toLowerCase();
   const t=document.getElementById('s1-t')?.value||'';
   const g=document.getElementById('cgrid'); if(!g) return;
-  const list=craftsmen.filter(c=>!c.retired&&(!q||c.name.toLowerCase().includes(q))&&(!t||(c.category||'職人')===t));
+  const list=applyBranchFilter(craftsmen.filter(c=>!c.retired&&(!q||c.name.toLowerCase().includes(q))&&(!t||(c.category||'職人')===t)),'s1');
   if(!list.length){
     g.innerHTML=`<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:30px;">
       ${craftsmen.length===0?`<button class="btn gray" onclick="goPg('cm')">職人マスターを登録する</button>`:'条件に一致する職人がいません'}</div>`;
     return;
   }
-  g.innerHTML=list.map(c=>`
-    <div class="cg-card ${sess.cid===c.id?'sel':''}" onclick="selC('${c.id}')">
-      <div style="font-weight:700;font-size:15px;color:#1e293b;">${c.name}</div>
-      <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
-        <span class="bk gray-bk">${c.type||'常用'}</span>
-        ${c.invoice&&/^T\d{13}$/.test(c.invoice)?`<span class="bk blue-bk" title="${c.invoice}">インボイス</span>`:'<span class="bk warn">未対応</span>'}
-      </div>
-      <div style="font-size:12px;color:#64748b;margin-top:4px;">${c.branch||''}</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:2px;">${deductSummary(c)}</div>
-    </div>`).join('');
+  // 拠点ごとにグループ化
+  const branches=[...new Set(list.map(c=>c.branch||'その他'))].sort();
+  let html='';
+  branches.forEach(br=>{
+    const group=list.filter(c=>(c.branch||'その他')===br);
+    html+=`<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:#7c3aed;background:#f5f3ff;padding:5px 12px;border-radius:5px;margin-top:8px;border-left:3px solid #7c3aed;">${br} <span style="font-weight:400;color:#94a3b8;margin-left:4px;">${group.length}名</span></div>`;
+    html+=group.map(c=>`
+      <div class="cg-card ${sess.cid===c.id?'sel':''}" onclick="selC('${c.id}')">
+        <div style="font-weight:700;font-size:15px;color:#1e293b;">${c.name}</div>
+        <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
+          <span class="bk gray-bk">${c.category||c.type||'職人'}</span>
+          ${c.invoice&&/^T\d{13}$/.test(c.invoice)?`<span class="bk blue-bk" title="${c.invoice}">インボイス</span>`:'<span class="bk warn">未対応</span>'}
+        </div>
+        <div style="font-size:12px;color:#94a3b8;margin-top:4px;">${deductSummary(c)}</div>
+      </div>`).join('');
+  });
+  g.innerHTML=html;
 }
 function deductSummary(c){
   const x=[];
@@ -1168,15 +1376,16 @@ async function lookupSite(i){
     sess.headRows[i].name=site.name||'';
     sess.headRows[i].owner=site.owner||'';
     sess.headRows[i].manager=site.manager||'';
-    // Apply rank from rank master or site default
+    // ランクマスタで元請け照合（DBのsite.rankは使わない）
     const rk=ranks.find(r=>site.owner&&site.owner.includes(r.owner));
-    sess.headRows[i]._rank=rk?rk.rank:(site.rank||'B');
+    sess.headRows[i]._rank=rk?rk.rank:'A';
   } else {
-    sess.headRows[i].name=''; sess.headRows[i].owner=''; sess.headRows[i].manager=''; sess.headRows[i]._rank='B';
+    sess.headRows[i].name=''; sess.headRows[i].owner=''; sess.headRows[i].manager=''; sess.headRows[i]._rank='A';
   }
   setVal('hr-n-'+i, sess.headRows[i].name);
   setVal('hr-o-'+i, sess.headRows[i].owner);
   setVal('hr-m-'+i, sess.headRows[i].manager);
+  autoSaveSess();
 }
 // ヘッド入力のキーボードナビゲーション
 // col: 0=工番, 4=金額（編集可能な2列のみ）
@@ -1281,18 +1490,22 @@ const SOZEI_DEF=[
     {n:"コア抜き RC上",u:"箇所",p:2000},
     {n:"水抜き穴加工",u:"箇所",p:500}
   ]},
-  {sec:"ブロック積ベース・アンカー・縁石",items:[
+  {sec:"ブロック積ベース・アンカー",items:[
     {n:"ブロック積ベース 50〜100mm",u:"m",p:560},
     {n:"ブロック積ベース t100mm未満",u:"m",p:830},
     {n:"ブロック積ベース t100mm以上",u:"m",p:1030},
     {n:"ホールインアンカー",u:"本",p:100},
-    {n:"ケミカルアンカー",u:"本",p:150},
-    {n:"縁石 100×100×600",u:"本",p:280},
-    {n:"縁石 120以上×120以上×600",u:"本",p:370},
+    {n:"ケミカルアンカー",u:"本",p:150}
+  ]},
+  {sec:"階段・土間",items:[
     {n:"階段・土間 荒打 小（〜0.5㎡）",u:"箇所",p:750},
     {n:"階段・土間 荒打 大（〜3㎡）",u:"箇所",p:1670},
     {n:"階段・土間 仕上 小（〜0.5㎡）",u:"箇所",p:1670},
-    {n:"階段・土間 仕上 大（〜3㎡）",u:"箇所",p:2600},
+    {n:"階段・土間 仕上 大（〜3㎡）",u:"箇所",p:2600}
+  ]},
+  {sec:"縁石・ボーダーベース",items:[
+    {n:"縁石 100×100×600",u:"本",p:280},
+    {n:"縁石 120以上×120以上×600",u:"本",p:370},
     {n:"ボーダーベース 〜W200",u:"m",p:470},
     {n:"ボーダーベース 〜W300",u:"m",p:750},
     {n:"ボーダーベース 〜W400",u:"m",p:930}
@@ -1323,6 +1536,7 @@ const SOZEI_DEF=[
   ]}
 ];
 const GAIKO_DEF=[
+  // ── PDF左列 ──
   {sec:"ブロック・型枠化粧ブロック",items:[
     {n:"重量ブロック C種 t100",u:"本",a:210,b:220,c:230},
     {n:"重量ブロック C種 t120",u:"本",a:230,b:240,c:250},
@@ -1346,6 +1560,21 @@ const GAIKO_DEF=[
     {n:"コア抜き RC上",u:"箇所",a:2200,b:2300,c:2400},
     {n:"水抜き穴加工",u:"箇所",a:550,b:580,c:600}
   ]},
+  {sec:"ブロック積ベース",items:[
+    {n:"ブロック積ベース 50〜100mm",u:"m",a:620,b:640,c:680},
+    {n:"ブロック積ベース t100mm未満",u:"m",a:910,b:960,c:1000},
+    {n:"ブロック積ベース t100mm以上",u:"m",a:1130,b:1190,c:1240}
+  ]},
+  {sec:"アンカー",items:[
+    {n:"ホールインアンカー",u:"本",a:110,b:120,c:130},
+    {n:"ケミカルアンカー",u:"本",a:160,b:170,c:190}
+  ]},
+  {sec:"階段・土間",items:[
+    {n:"階段・土間 荒打 小（〜0.5㎡）",u:"箇所",a:830,b:870,c:900},
+    {n:"階段・土間 荒打 大（〜3㎡）",u:"箇所",a:1840,b:1930,c:2010},
+    {n:"階段・土間 仕上 小（〜0.5㎡）",u:"箇所",a:1840,b:1930,c:2010},
+    {n:"階段・土間 仕上 大（〜3㎡）",u:"箇所",a:2860,b:2990,c:3120}
+  ]},
   {sec:"笠木",items:[
     {n:"笠木 W120",u:"枚",a:220,b:240,c:260},
     {n:"笠木 W150",u:"枚",a:240,b:260,c:280},
@@ -1361,12 +1590,7 @@ const GAIKO_DEF=[
     {n:"レンガ ショコラ",u:"本",a:160,b:170,c:190},
     {n:"レンガ ショコラ キャップ",u:"本",a:160,b:170,c:190}
   ]},
-  {sec:"ブロック積ベース・アンカー",items:[
-    {n:"ブロック積ベース 50〜100mm",u:"m",a:620,b:640,c:680},
-    {n:"ブロック積ベース t100mm未満",u:"m",a:910,b:960,c:1000},
-    {n:"ブロック積ベース t100mm以上",u:"m",a:1130,b:1190,c:1240},
-    {n:"ホールインアンカー",u:"本",a:110,b:120,c:130},
-    {n:"ケミカルアンカー",u:"本",a:160,b:170,c:190},
+  {sec:"ボーダーベース",items:[
     {n:"ボーダーベース 〜W200",u:"m",a:520,b:540,c:570},
     {n:"ボーダーベース 〜W300",u:"m",a:830,b:860,c:910},
     {n:"ボーダーベース 〜W400",u:"m",a:1020,b:1070,c:1120}
@@ -1388,6 +1612,7 @@ const GAIKO_DEF=[
     {n:"アルミフェンス H1200以上 切詰加工",u:"箇所",a:4100,b:4290,c:4680},
     {n:"アルミフェンス 多段柱 H1400以上",u:"本",a:1610,b:1680,c:1840}
   ]},
+  // ── PDF右列 ──
   {sec:"土間下地",items:[
     {n:"土間下地 転圧",u:"㎡",a:60,b:70,c:80},
     {n:"土間下地 砕石敷き",u:"㎡",a:150,b:160,c:170},
@@ -1461,23 +1686,109 @@ function buildSRows(){ return SOZEI_DEF.flatMap(s=>s.items.map(it=>({n:it.n,u:it
 function buildGRows(){ return GAIKO_DEF.flatMap(s=>s.items.map(it=>({n:it.n,u:it.u,a:it.a||0,b:it.b||0,c:it.c||0,qty:0,memo:'',free:false}))); }
 
 function initS3(){
+  // サポート/職人パネル切替
+  const supPanel=document.getElementById('sp3-sup');
+  const shokPanel=document.getElementById('sp3-shok');
+  if(supPanel) supPanel.style.display='none';
+  if(shokPanel) shokPanel.style.display='';
   const sel=document.getElementById('d-site');
   const rows=sess.headRows.filter(r=>r.code);
   sel.innerHTML=rows.length?rows.map(r=>`<option value="${r.code}">${r.code}　${r.name}</option>`).join(''):'<option value="">（現場なし）</option>';
   if(!sess.dSite&&rows.length) sess.dSite=rows[0].code;
   if(sess.dSite) sel.value=sess.dSite;
+  updateSiteNavBtns();
   loadDSite();
+}
+function updateSiteNavBtns(){
+  const codes=sess.headRows.filter(r=>r.code).map(r=>r.code);
+  const cur=document.getElementById('d-site')?.value||sess.dSite;
+  const idx=codes.indexOf(cur);
+  const idxEl=document.getElementById('d-site-idx');
+  if(idxEl&&codes.length) idxEl.textContent=`${idx+1} / ${codes.length} 工番`;
+  const prevBtn=document.getElementById('btn-prev-site');
+  const nextBtn=document.getElementById('btn-next-site');
+  if(prevBtn) prevBtn.disabled=idx<=0;
+  if(nextBtn) nextBtn.disabled=idx>=codes.length-1;
+  // step4 次ボタン更新
+  const s4next=document.getElementById('s4-next-label');
+  if(s4next){
+    if(idx<codes.length-1) s4next.textContent='次の工番 内訳チェックへ';
+    else s4next.textContent='金額確認へ';
+  }
+}
+function prevSite3(){
+  const codes=sess.headRows.filter(r=>r.code).map(r=>r.code);
+  const cur=document.getElementById('d-site')?.value||sess.dSite;
+  const idx=codes.indexOf(cur);
+  if(idx>0){
+    const sel=document.getElementById('d-site');
+    if(sel) sel.value=codes[idx-1];
+    loadDSite();
+    updateSiteNavBtns();
+  }
+}
+function nextSite3(){
+  const codes=sess.headRows.filter(r=>r.code).map(r=>r.code);
+  const cur=document.getElementById('d-site')?.value||sess.dSite;
+  const idx=codes.indexOf(cur);
+  if(idx<codes.length-1){
+    const sel=document.getElementById('d-site');
+    if(sel) sel.value=codes[idx+1];
+    loadDSite();
+    updateSiteNavBtns();
+  }
+}
+function goToS4FromS3(){
+  // step4に移動し、現在の工番をデフォルト選択
+  const cur=document.getElementById('d-site')?.value||sess.dSite;
+  goStep(4);
+  setTimeout(()=>{
+    const sel=document.getElementById('j-site');
+    if(sel&&cur){ sel.value=cur; loadJSite(); }
+    updateSiteNavBtns();
+  },50);
+}
+function goBackS3FromS4(){
+  // step4から step3へ戻る（同一工番）
+  const cur=document.getElementById('j-site')?.value||sess.dSite;
+  sess.dSite=cur;
+  goStep(3);
+  setTimeout(()=>{
+    const sel=document.getElementById('d-site');
+    if(sel&&cur){ sel.value=cur; loadDSite(); }
+    updateSiteNavBtns();
+  },50);
 }
 function loadDSite(){
   const code=document.getElementById('d-site').value; if(!code) return;
   sess.dSite=code;
+  // 毎回ランクマスタを再参照（ドロップダウン切替・2巡目でも正しく反映）
   const hr=sess.headRows.find(r=>r.code===code);
-  if(hr?._rank) document.getElementById('d-rank').value=hr._rank;
+  const ownerStr=hr?.owner||'';
+  const rk=ownerStr?ranks.find(r=>ownerStr.includes(r.owner)):null;
+  const appliedRank=rk?rk.rank:'A';
+  // headRowsにも反映（キャッシュ更新）
+  if(hr) hr._rank=appliedRank;
+  document.getElementById('d-rank').value=appliedRank;
   if(!sess.dData[code]) sess.dData[code]={s:buildSRows(),g:buildGRows()};
   reRenderDetail();
 }
 function switchDTab(t){
   ['s','g'].forEach(x=>{ document.getElementById('dp-'+x).classList.toggle('on',x===t); document.getElementById('dtb-'+x).classList.toggle('on',x===t); });
+  const rw=document.getElementById('rank-wrap');
+  if(rw) rw.style.display=t==='g'?'flex':'none';
+  // スティッキーバー：アクティブタブの小計のみ表示
+  const sw=document.getElementById('sticky-s-wrap');
+  const gw=document.getElementById('sticky-g-wrap');
+  if(sw) sw.style.display=t==='s'?'':'none';
+  if(gw) gw.style.display=t==='g'?'':'none';
+  // 外構に切り替えたとき、工番のランクを適用（未設定はA）
+  if(t==='g'){
+    const code=document.getElementById('d-site')?.value;
+    const hr=code?sess.headRows.find(r=>r.code===code):null;
+    const rk=document.getElementById('d-rank');
+    if(rk && !rk.dataset.userSet) rk.value=hr?._rank||'A';
+  }
 }
 function reRenderDetail(){
   const code=document.getElementById('d-site')?.value; if(!code) return;
@@ -1485,14 +1796,61 @@ function reRenderDetail(){
 }
 
 // ── SOZEI table (2列グリッド) ──
+function ensureSx(code){
+  if(!sess.dData[code]) return;
+  if(!sess.dData[code].sx) sess.dData[code].sx=SOZEI_DEF.map(()=>[]);
+  while(sess.dData[code].sx.length<SOZEI_DEF.length) sess.dData[code].sx.push([]);
+}
+
+function insertSRowX(code,si){
+  ensureSx(code);
+  sess.dData[code].sx[si].push({n:'',u:'',p:0,qty:0,memo:''});
+  renderSTbl(code); updateGrand(code); autoSaveSess();
+  setTimeout(()=>{
+    const cards=document.querySelectorAll('#tb-s .sec-card');
+    if(cards[si]){
+      const inp=Array.from(cards[si].querySelectorAll('tbody tr:last-child input.fi'))[0];
+      if(inp){inp.scrollIntoView({behavior:'smooth',block:'nearest'});inp.focus();}
+    }
+  },60);
+}
+
+function delSRowX(code,si,xi){
+  ensureSx(code);
+  sess.dData[code].sx[si].splice(xi,1);
+  renderSTbl(code); updateGrand(code); autoSaveSess();
+}
+
+function clearSRowX(code,si,xi){
+  ensureSx(code);
+  const r=sess.dData[code].sx[si][xi]; if(!r) return;
+  r.qty=0; renderSTbl(code); updateSub(code); autoSaveSess();
+}
+
+function setSQtyX(code,type,si,xi,val){
+  ensureSx(code);
+  const r=sess.dData[code].sx[si][xi]; if(!r) return;
+  r.qty=Number(val)||0;
+  updateSub(code); updateGrand(code); autoSaveSess();
+}
+
+function openPriceSX(code,si,xi,name){
+  const r=sess.dData[code]?.sx?.[si]?.[xi]; if(!r) return;
+  const v=prompt(`単価を入力：${name}`, r.p||0);
+  if(v===null) return;
+  r.p=Number(v)||0;
+  renderSTbl(code); updateGrand(code); autoSaveSess();
+}
+
 function renderSTbl(code){
   const rows=sess.dData[code]?.s||[];
+  ensureSx(code);
+  const sx=sess.dData[code].sx;
   const wrap=document.getElementById('tb-s'); if(!wrap) return;
   const allItems=SOZEI_DEF.flatMap(s=>s.items);
   let idx=0;
-  // セクションカードHTML
   let cards='';
-  SOZEI_DEF.forEach(sec=>{
+  SOZEI_DEF.forEach((sec,si)=>{
     let rowsHtml='';
     sec.items.forEach(()=>{
       const r=rows[idx]||{qty:0,memo:''};
@@ -1507,16 +1865,39 @@ function renderSTbl(code){
         <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditS('${code}',${idx},this)">${name}</span></td>
         <td class="s-col-qty"><input type="number" class="fi-n s-qty-inp" value="${qty||''}" min="0" placeholder="0"
           data-code="${code}" data-idx="${idx}"
-          onchange="setSQty('${code}',${idx},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
+          onchange="setSQty('${code}',${idx},this.value)" onkeydown="numKD(event,this)" style="width:80px;box-sizing:border-box;"></td>
         <td class="s-col-unit">${unit}</td>
         <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${idx},'${sn}')">¥${price.toLocaleString()}</span></td>
         <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
         <td class="s-col-act">
-          <button class="ins-btn" onclick="insertSRow('${code}',${idx})" title="下に行挿入">＋</button>
-          <button class="del-btn" onclick="delSRow('${code}',${idx})">×</button>
+          <button class="ins-btn" onclick="insertSRowX('${code}',${si})" title="このセクションに行追加">＋</button>
+          <button class="clr-btn" onclick="clearRowQtyS('${code}',${idx})" title="この行の数量をクリア">0</button>
         </td>
       </tr>`;
       idx++;
+    });
+    // セクション別追加行 (sx[si])
+    let sxHtml='';
+    (sx[si]||[]).forEach((r,xi)=>{
+      const amt=(Number(r.qty)||0)*(r.p||0);
+      sxHtml+=`<tr style="background:#f0fdf4;">
+        <td class="s-col-name"><input class="fi" value="${r.n||''}" placeholder="項目名"
+          oninput="sess.dData['${code}'].sx[${si}][${xi}].n=this.value;autoSaveSess();"
+          style="width:100%;box-sizing:border-box;font-size:12px;"></td>
+        <td class="s-col-qty"><input type="number" class="fi-n s-qty-inp" value="${r.qty||''}" min="0" placeholder="0"
+          data-code="${code}" data-idx="sx:${si}:${xi}"
+          onchange="setSQtyX('${code}','sx',${si},${xi},this.value)" onkeydown="numKD(event,this)"
+          style="width:80px;box-sizing:border-box;"></td>
+        <td class="s-col-unit"><input class="fi" value="${r.u||''}" placeholder="単位"
+          oninput="sess.dData['${code}'].sx[${si}][${xi}].u=this.value;autoSaveSess();"
+          style="width:28px;font-size:11px;text-align:center;"></td>
+        <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceSX('${code}',${si},${xi},'${(r.n||'').replace(/'/g,"\\'")}')">¥${(r.p||0).toLocaleString()}</span></td>
+        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+        <td class="s-col-act">
+          <button class="clr-btn" onclick="clearSRowX('${code}',${si},${xi})" title="数量クリア">0</button>
+          <button class="del-btn" onclick="delSRowX('${code}',${si},${xi})">×</button>
+        </td>
+      </tr>`;
     });
     cards+=`<div class="sec-card">
       <div class="sec-card-hd">${sec.sec}</div>
@@ -1529,37 +1910,10 @@ function renderSTbl(code){
           <th class="s-col-amt">金額</th>
           <th class="s-col-act"></th>
         </tr></thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody>${rowsHtml}${sxHtml}</tbody>
       </table>
     </div>`;
   });
-  // フリー行（追加行）
-  const freeRows=rows.slice(idx).filter(r=>r.free);
-  if(freeRows.length){
-    let fHtml='';
-    for(let i=idx;i<rows.length;i++){
-      const r=rows[i]; if(!r.free) continue;
-      const amt=(Number(r.qty)||0)*(r.p||0);
-      fHtml+=`<tr>
-        <td class="s-col-name"><input class="fi" value="${r.n||''}" oninput="sess.dData['${code}'].s[${i}].n=this.value" style="font-size:12px;"></td>
-        <td class="s-col-qty"><input type="number" class="fi-n s-qty-inp" value="${r.qty||''}" min="0" placeholder="0"
-          data-code="${code}" data-idx="${i}"
-          onchange="setSQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
-        <td class="s-col-unit"><input class="fi" value="${r.u||''}" oninput="sess.dData['${code}'].s[${i}].u=this.value" style="width:28px;font-size:11px;"></td>
-        <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${i},'${(r.n||'').replace(/'/g,"\'")}')">¥${(r.p||0).toLocaleString()}</span></td>
-        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
-        <td class="s-col-memo"><input class="fi" value="${r.memo||''}" placeholder="備考" oninput="sess.dData['${code}'].s[${i}].memo=this.value" style="font-size:11px;"></td>
-        <td class="s-col-act"><button class="del-btn" onclick="delSRow('${code}',${i})">×</button></td>
-      </tr>`;
-    }
-    cards+=`<div class="sec-card" style="grid-column:1/-1;">
-      <div class="sec-card-hd">追加行（手入力）</div>
-      <table class="sec-tbl"><thead><tr>
-        <th class="s-col-name">項目名</th><th class="s-col-qty">数量</th><th class="s-col-unit">単位</th>
-        <th class="s-col-price">単価✎</th><th class="s-col-amt">金額</th><th class="s-col-memo">備考</th><th class="s-col-act"></th>
-      </tr></thead><tbody>${fHtml}</tbody></table>
-    </div>`;
-  }
   wrap.innerHTML=cards;
   updateSub(code);
 }
@@ -1591,54 +1945,155 @@ function setSQty(code,i,v){
     const amtCell=inp.closest('tr')?.querySelector('.s-col-amt');
     if(amtCell) amtCell.textContent=amt>0?'¥'+amt.toLocaleString():'';
   }
-  updateSub(code); updateGrand(code);
+  updateSub(code); updateGrand(code); autoSaveSess();
 }
 function updateSub(code){
-  const rows=sess.dData[code]?.s||[];
-  const t=rows.reduce((s,r)=>s+(Number(r.qty)||0)*(r.p||0),0);
+  const d=sess.dData[code]; if(!d){ setTxt('sub-s','¥0'); return 0; }
+  let t=d.s.reduce((s,r)=>s+(Number(r.qty)||0)*(r.p||0),0);
+  (d.sx||[]).forEach(sec=>sec.forEach(r=>{ t+=(Number(r.qty)||0)*(r.p||0); }));
   setTxt('sub-s','¥'+t.toLocaleString()); return t;
 }
-function addFreeRowS(){ const c=document.getElementById('d-site')?.value; if(!c) return; if(!sess.dData[c]) return; sess.dData[c].s.push({n:'',u:'',p:0,qty:0,memo:'',free:true}); renderSTbl(c); }
-function rmFreeS(code,i){ sess.dData[code].s.splice(i,1); renderSTbl(code); updateGrand(code); }
+function addFreeRowS(){
+  const c=document.getElementById('d-site')?.value; if(!c) return;
+  if(!sess.dData[c]) return;
+  sess.dData[c].s.push({n:'',u:'',p:0,qty:0,memo:'',free:true});
+  renderSTbl(c);
+  // 追加したフリー行の最初の入力にフォーカス（スクロールは最小限）
+  setTimeout(()=>{
+    const freeInputs=document.querySelectorAll('#dp-s .sec-card:last-child input');
+    const first=freeInputs[0];
+    if(first){ first.scrollIntoView({behavior:'smooth',block:'nearest'}); first.focus(); }
+  },50);
+}
+function addFreeRowG(){
+  const c=document.getElementById('d-site')?.value; if(!c) return;
+  ensureGx(c);
+  const lastSi=GAIKO_DEF.length-1;
+  sess.dData[c].gx[lastSi].push({n:'',u:'',a:0,b:0,c:0,qty:0,memo:'',free:true});
+  renderGTbl(c); updateGrand(c); autoSaveSess();
+  setTimeout(()=>{
+    const cards=document.querySelectorAll('#tb-g .sec-card');
+    const lastCard=cards[lastSi];
+    if(lastCard){
+      const inp=Array.from(lastCard.querySelectorAll('tbody tr:last-child input.fi'))[0];
+      if(inp){ inp.scrollIntoView({behavior:'smooth',block:'center'}); inp.focus(); }
+    }
+  },60);
+}
 
-// ── GAIKO table (2列グリッド) ──
+// ── GAIKO table ──
+// dData[code].g  = default rows only (length == GAIKO_DEF total items, never spliced)
+// dData[code].gx = per-section extra rows  gx[secIdx] = []
+function ensureGx(code){
+  const d=sess.dData[code]; if(!d) return;
+  if(!d.gx) d.gx=GAIKO_DEF.map(()=>[]);
+  while(d.gx.length<GAIKO_DEF.length) d.gx.push([]);
+  // migrate old spliced free rows out of g
+  const defCount=GAIKO_DEF.reduce((s,sec)=>s+sec.items.length,0);
+  if(d.g.length>defCount){
+    const extras=d.g.splice(defCount);
+    extras.filter(r=>r.free).forEach(r=>d.gx[d.gx.length-1].push(r));
+  }
+}
+function gxRow(code,si,xi){ return sess.dData[code]?.gx?.[si]?.[xi]; }
+function resolveGRow(code,key){
+  const d=sess.dData[code]; if(!d) return null;
+  const p=String(key).split(':');
+  if(p[0]==='d') return d.g[Number(p[1])];
+  if(p[0]==='x') return d.gx?.[Number(p[1])]?.[Number(p[2])];
+  if(/^\d+$/.test(String(key))) return d.g[Number(key)];
+  return null;
+}
+
 function renderGTbl(code){
-  const rows=sess.dData[code]?.g||[];
+  ensureGx(code);
+  const d=sess.dData[code]; if(!d) return;
+  const rows=d.g;
   const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
   const wrap=document.getElementById('tb-g'); if(!wrap) return;
   const allItems=GAIKO_DEF.flatMap(s=>s.items);
   const rankCls=rank==='a'?'ra':rank==='b'?'rb':'rc';
-  let idx=0;
+  let defIdx=0;
   let cards='';
-  GAIKO_DEF.forEach(sec=>{
+  GAIKO_DEF.forEach((sec,si)=>{
     let rowsHtml='';
+    // デフォルト行
     sec.items.forEach(()=>{
-      const r=rows[idx]||{qty:0,memo:''};
-      const defItem=allItems[idx];
+      const r=rows[defIdx]||{qty:0,memo:''};
+      const defItem=allItems[defIdx];
       const name=r.n||defItem.n;
       const unit=r.u||defItem.u;
       const pa=r.a||0, pb=r.b||0, pc=r.c||0;
       const ap=rank==='a'?pa:rank==='b'?pb:pc;
       const qty=Number(r.qty)||0;
       const amt=qty*ap;
-      const sn=name.replace(/'/g,"\'");
+      const sn=name.replace(/'/g,"\\'");
+      const key=`d:${defIdx}`;
       rowsHtml+=`<tr>
-        <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditG('${code}',${idx},this)">${name}</span></td>
+        <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditG('${code}',${defIdx},this)">${name}</span></td>
         <td class="s-col-qty"><input type="number" class="fi-n g-qty-inp" value="${qty||''}" min="0" placeholder="0"
-          data-code="${code}" data-idx="${idx}"
-          onchange="setGQty('${code}',${idx},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
+          data-code="${code}" data-key="${key}"
+          onchange="setGQtyK('${code}','${key}',this.value)" onkeydown="numKD(event,this)" style="width:80px;box-sizing:border-box;"></td>
         <td class="s-col-unit">${unit}</td>
-        <td class="g-col-pa"><span class="editable" style="font-family:'Courier New',monospace;font-size:11px;color:#64748b;" ondblclick="openPriceG('${code}',${idx},'${sn}')">¥${pa.toLocaleString()}</span></td>
+        <td class="g-col-pa"><span class="editable" style="font-family:'Courier New',monospace;font-size:11px;color:#64748b;" ondblclick="openPriceG('${code}',${defIdx},'${sn}')">¥${pa.toLocaleString()}</span></td>
         <td class="g-col-pb" style="font-size:11px;color:#94a3b8;font-family:'Courier New',monospace;">¥${pb.toLocaleString()}</td>
         <td class="g-col-pc" style="font-size:11px;color:#94a3b8;font-family:'Courier New',monospace;">¥${pc.toLocaleString()}</td>
         <td class="g-col-ap"><span class="${rankCls}" style="font-family:'Courier New',monospace;font-size:12px;">¥${ap.toLocaleString()}</span></td>
         <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
         <td class="s-col-act">
-          <button class="ins-btn" onclick="insertGRow('${code}',${idx})" title="下に行挿入">＋</button>
-          <button class="del-btn" onclick="delGRow('${code}',${idx})">×</button>
+          <button class="ins-btn" onclick="insertGRow('${code}',${si})" title="この行の下にカスタム行追加">＋</button>
+          <button class="clr-btn" onclick="clearRowQtyGK('${code}','${key}')" title="数量クリア">0</button>
         </td>
       </tr>`;
-      idx++;
+      defIdx++;
+    });
+    // このセクションの追加行 (gx[si]) — セクションテーブル下に表示
+    let gxHtml='';
+    (d.gx[si]||[]).forEach((r,xi)=>{
+      const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||0);
+      const amt=roundJ((Number(r.qty)||0)*ap);
+      const xkey=`x:${si}:${xi}`;
+      gxHtml+=`<tr class="gx-tr" data-code="${code}" data-si="${si}" data-xi="${xi}" style="background:#fffbeb;">
+        <td>
+          <input class="fi gx-name" value="${r.n||''}" placeholder="項目名"
+            oninput="gxRow('${code}',${si},${xi}).n=this.value;autoSaveSess();"
+            style="width:100%;box-sizing:border-box;font-size:12px;">
+        </td>
+        <td class="s-col-qty">
+          <input type="number" class="fi-n g-qty-inp" value="${r.qty||''}" placeholder="0" min="0"
+            data-code="${code}" data-key="${xkey}"
+            oninput="gxLiveCalc('${code}',${si},${xi},this)"
+            onkeydown="gxKD(event,this,'${code}',${si},${xi})"
+            style="width:100%;box-sizing:border-box;">
+        </td>
+        <td class="s-col-unit">
+          <input class="fi gx-unit" value="${r.u||''}" placeholder="単位"
+            oninput="gxRow('${code}',${si},${xi}).u=this.value;autoSaveSess();"
+            style="width:100%;box-sizing:border-box;text-align:center;font-size:12px;">
+        </td>
+        <td class="g-col-pa">
+          <input type="number" class="fi-n" value="${r.a||''}" placeholder="A単価" min="0"
+            oninput="gxRow('${code}',${si},${xi}).a=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
+            onkeydown="gxKD(event,this,'${code}',${si},${xi})"
+            style="width:100%;box-sizing:border-box;font-size:12px;">
+        </td>
+        <td class="g-col-pb">
+          <input type="number" class="fi-n" value="${r.b||''}" placeholder="B" min="0"
+            oninput="gxRow('${code}',${si},${xi}).b=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
+            style="width:100%;box-sizing:border-box;font-size:11px;color:#64748b;">
+        </td>
+        <td class="g-col-pc">
+          <input type="number" class="fi-n" value="${r.c||''}" placeholder="C" min="0"
+            oninput="gxRow('${code}',${si},${xi}).c=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
+            style="width:100%;box-sizing:border-box;font-size:11px;color:#64748b;">
+        </td>
+        <td class="g-col-ap gx-ap ${rankCls}" style="font-family:'Courier New',monospace;font-size:12px;white-space:nowrap;">¥${ap.toLocaleString()}</td>
+        <td class="s-col-amt gx-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+        <td class="s-col-act">
+          <button class="clr-btn" onclick="clearRowQtyGK('${code}','${xkey}')" title="数量クリア">0</button>
+          <button class="del-btn" onclick="delGRowX('${code}',${si},${xi})">×</button>
+        </td>
+      </tr>`;
     });
     cards+=`<div class="sec-card">
       <div class="sec-card-hd">${sec.sec}</div>
@@ -1647,116 +2102,179 @@ function renderGTbl(code){
           <th class="s-col-name">項目</th>
           <th class="s-col-qty">数量</th>
           <th class="s-col-unit">単位</th>
-          <th class="g-col-pa">A単価✎</th>
+          <th class="g-col-pa">単価✎ A</th>
           <th class="g-col-pb">B</th>
           <th class="g-col-pc">C</th>
           <th class="g-col-ap">適用</th>
           <th class="s-col-amt">金額</th>
           <th class="s-col-act"></th>
         </tr></thead>
-        <tbody>${rowsHtml}</tbody>
+        <tbody>${rowsHtml}${gxHtml}</tbody>
       </table>
     </div>`;
   });
-  // フリー行
-  const freeStart=idx;
-  for(let i=freeStart;i<rows.length;i++){
-    const r=rows[i]; if(!r.free) continue;
-    const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||r.p||0);
-    const amt=(Number(r.qty)||0)*ap;
-    // included in a single free card - build separately below
-  }
-  const freeItems=rows.slice(idx).filter(r=>r.free);
-  if(freeItems.length){
-    let fHtml='';
-    for(let i=idx;i<rows.length;i++){
-      const r=rows[i]; if(!r.free) continue;
-      const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||r.p||0);
-      const amt=(Number(r.qty)||0)*ap;
-      fHtml+=`<tr>
-        <td><input class="fi" value="${r.n||''}" oninput="sess.dData['${code}'].g[${i}].n=this.value" style="font-size:12px;"></td>
-        <td><input type="number" class="fi-n g-qty-inp" value="${r.qty||''}" min="0" placeholder="0"
-          data-code="${code}" data-idx="${i}"
-          onchange="setGQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:60px;box-sizing:border-box;"></td>
-        <td style="font-size:11px;"><input class="fi" value="${r.u||''}" oninput="sess.dData['${code}'].g[${i}].u=this.value" style="width:28px;font-size:11px;"></td>
-        <td><input type="number" class="fi-n" value="${r.a||''}" placeholder="A" oninput="sess.dData['${code}'].g[${i}].a=Number(this.value)" style="width:54px;font-size:11px;"></td>
-        <td><input type="number" class="fi-n" value="${r.b||''}" placeholder="B" oninput="sess.dData['${code}'].g[${i}].b=Number(this.value)" style="width:50px;font-size:11px;"></td>
-        <td><input type="number" class="fi-n" value="${r.c||''}" placeholder="C" oninput="sess.dData['${code}'].g[${i}].c=Number(this.value)" style="width:50px;font-size:11px;"></td>
-        <td><span class="${rankCls}" style="font-family:'Courier New',monospace;font-size:12px;">¥${ap.toLocaleString()}</span></td>
-        <td style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
-        <td><input class="fi" value="${r.memo||''}" placeholder="備考" oninput="sess.dData['${code}'].g[${i}].memo=this.value" style="font-size:11px;"></td>
-        <td><button class="del-btn" onclick="delGRow('${code}',${i})">×</button></td>
-      </tr>`;
-    }
-    cards+=`<div class="sec-card" style="grid-column:1/-1;">
-      <div class="sec-card-hd">追加行（手入力）</div>
-      <table class="sec-tbl"><thead><tr>
-        <th>項目名</th><th>数量</th><th>単位</th><th>A単価</th><th>B</th><th>C</th><th>適用</th><th>金額</th><th>備考</th><th></th>
-      </tr></thead><tbody>${fHtml}</tbody></table>
-    </div>`;
-  }
   wrap.innerHTML=cards;
   updateGSub(code);
 }
-function gRow(code,i,name,unit,pa,pb,pc,ap,qty,amt,memo,isFree,rank){
-  const rankCls=rank==='a'?'ra':rank==='b'?'rb':'rc';
-  const sn=name.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/`/g,'\\`');
-  return `<tr>
-    <td class="col-name">${isFree
-      ?`<input class="fi" value="${name}" oninput="sess.dData['${code}'].g[${i}].n=this.value" style="font-size:13px;">`
-      :`<span class="editable" style="padding-left:8px;font-size:13px;display:inline-block;min-width:60px;" ondblclick="nameEditG('${code}',${i},this)">${name}</span>`}</td>
-    <td class="col-qty"><input type="number" class="fi-n g-qty-inp" value="${qty||''}" min="0" placeholder="0"
-      data-code="${code}" data-idx="${i}"
-      onchange="setGQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:70px;"></td>
-    <td class="col-unit" style="text-align:center;font-size:13px;color:#475569;">${isFree?`<input class="fi" value="${unit||''}" oninput="sess.dData['${code}'].g[${i}].u=this.value" style="font-size:12px;width:40px;">`:unit}</td>
-    <td class="col-pa" style="text-align:right;"><span class="editable" style="font-size:12px;font-family:'Courier New',monospace;color:#64748b;" ondblclick="openPriceG('${code}',${i},'${sn}')" title="ダブルクリックで単価変更">¥${(pa||0).toLocaleString()}</span></td>
-    <td class="col-pb" style="text-align:right;font-size:12px;color:#94a3b8;font-family:'Courier New',monospace;">¥${(pb||0).toLocaleString()}</td>
-    <td class="col-pc" style="text-align:right;font-size:12px;color:#94a3b8;font-family:'Courier New',monospace;">¥${(pc||0).toLocaleString()}</td>
-    <td class="col-ap" style="text-align:right;"><span class="${rankCls}" style="font-family:'Courier New',monospace;font-size:13px;">¥${(ap||0).toLocaleString()}</span></td>
-    <td class="col-amt" style="text-align:right;font-family:'Courier New',monospace;font-weight:700;font-size:13px;">${amt>0?'¥'+amt.toLocaleString():''}</td>
-    <td class="col-memo"><input class="fi" value="${memo||''}" placeholder="備考" oninput="sess.dData['${code}'].g[${i}].memo=this.value" style="font-size:12px;"></td>
-    <td class="col-ins"><button class="ins-btn" onclick="insertGRow('${code}',${i})" title="この下に行を挿入">＋</button></td>
-    <td class="col-del"><button class="del-btn" onclick="delGRow('${code}',${i})" title="行を削除">×</button></td>
-  </tr>`;
-}
-function setGQty(code,i,v){
-  if(!sess.dData[code]) return;
-  const r=sess.dData[code].g[i];
+function setGQtyK(code,key,v){
+  const r=resolveGRow(code,key); if(!r) return;
   r.qty=Number(v)||0;
   const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
-  const ap=rank==='a'?r.a:rank==='b'?r.b:(r.c||r.p||0);
+  const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||r.p||0);
   const amt=r.qty*(ap||0);
-  // DOM: 対象行の col-amt を直接更新
-  const inp=document.querySelector(`#dp-g .g-qty-inp[data-code="${code}"][data-idx="${i}"]`);
+  const inp=document.querySelector(`#dp-g .g-qty-inp[data-code="${code}"][data-key="${key}"]`);
   if(inp){
     const amtCell=inp.closest('tr')?.querySelector('.s-col-amt');
     if(amtCell) amtCell.textContent=amt>0?'¥'+amt.toLocaleString():'';
   }
-  updateGSub(code); updateGrand(code);
+  updateGSub(code); updateGrand(code); autoSaveSess();
+}
+function setGQty(code,i,v){ setGQtyK(code,`d:${i}`,v); }
+
+// gxフリー行のリアルタイム計算・DOM更新
+function gxLiveCalc(code,si,xi,qtyInp){
+  const r=sess.dData[code]?.gx?.[si]?.[xi]; if(!r) return;
+  if(qtyInp) r.qty=Number(qtyInp.value)||0;
+  const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
+  const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||0);
+  const amt=roundJ((Number(r.qty)||0)*ap);
+  // DOM更新 — table行を検索
+  const tr=document.querySelector(`.gx-tr[data-code="${code}"][data-si="${si}"][data-xi="${xi}"]`);
+  if(tr){
+    const apCell=tr.querySelector('.gx-ap');
+    const amtCell=tr.querySelector('.gx-amt');
+    if(apCell) apCell.textContent='¥'+ap.toLocaleString();
+    if(amtCell){ amtCell.textContent=amt>0?'¥'+amt.toLocaleString():''; amtCell.style.color=amt>0?'#1e40af':''; }
+  }
+  updateGSub(code); updateGrand(code); autoSaveSess();
+}
+
+// gxフリー行のキーハンドラ（Enter→次フィールドへ、↑↓で行移動）
+function gxKD(e,inp,code,si,xi){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    const tr=inp.closest('tr');
+    if(tr){
+      const inputs=Array.from(tr.querySelectorAll('input'));
+      const idx=inputs.indexOf(inp);
+      if(idx<inputs.length-1){ inputs[idx+1].focus(); inputs[idx+1].select?.(); }
+      else {
+        // 次のgxトへ
+        const allTrs=Array.from(document.querySelectorAll('.gx-tr'));
+        const ci=allTrs.indexOf(tr);
+        if(ci<allTrs.length-1){ const next=allTrs[ci+1].querySelector('input'); if(next){ next.focus(); next.select?.(); } }
+      }
+    }
+    return;
+  }
+  if(e.key==='Escape'){ inp.value=''; inp.dispatchEvent(new Event('input')); inp.blur(); }
 }
 function updateGSub(code){
-  const rows=sess.dData[code]?.g||[];
+  ensureGx(code);
+  const d=sess.dData[code]; if(!d){ setTxt('sub-g','¥0'); return 0; }
   const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
-  const t=rows.reduce((s,r)=>s+(Number(r.qty)||0)*(rank==='a'?r.a:rank==='b'?r.b:r.c||r.p||0),0);
+  let t=0;
+  d.g.forEach(r=>{ t+=(Number(r.qty)||0)*(rank==='a'?r.a:rank==='b'?r.b:r.c||r.p||0); });
+  (d.gx||[]).forEach(sec=>sec.forEach(r=>{
+    const ap=rank==='a'?(r.a||0):rank==='b'?(r.b||0):(r.c||0);
+    t+=roundJ((Number(r.qty)||0)*ap);
+  }));
   setTxt('sub-g','¥'+t.toLocaleString()); return t;
 }
-function addFreeRowG(){ const c=document.getElementById('d-site')?.value; if(!c) return; sess.dData[c].g.push({n:'',u:'',a:0,b:0,c:0,qty:0,memo:'',free:true}); renderGTbl(c); }
-function rmFreeG(code,i){ sess.dData[code].g.splice(i,1); renderGTbl(code); updateGrand(code); }
+function insertGRow(code,si){
+  ensureGx(code);
+  sess.dData[code].gx[si].push({n:'',u:'',a:0,b:0,c:0,qty:0,memo:'',free:true});
+  renderGTbl(code); updateGrand(code); autoSaveSess();
+  setTimeout(()=>{
+    const cards=document.querySelectorAll('#tb-g .sec-card');
+    if(cards[si]){
+      const inp=Array.from(cards[si].querySelectorAll('tbody tr:last-child input.fi'))[0];
+      if(inp){ inp.scrollIntoView({behavior:'smooth',block:'center'}); inp.focus(); }
+    }
+  },60);
+}
+function delGRowX(code,si,xi){
+  ensureGx(code);
+  sess.dData[code].gx[si].splice(xi,1);
+  renderGTbl(code); updateGrand(code); autoSaveSess();
+}
+function delGRow(code,i){ /* デフォルト行は削除不可 — 数量クリアのみ */
+  const r=sess.dData[code]?.g?.[Number(i)]; if(!r) return;
+  r.qty=0; renderGTbl(code); updateGrand(code); autoSaveSess();
+}
+function rmFreeG(code,key){
+  const p=String(key).split(':');
+  if(p[0]==='x') delGRowX(code,Number(p[1]),Number(p[2]));
+}
+function clearQty(type){
+  const code=document.getElementById('d-site')?.value; if(!code) return;
+  if(!confirm(`この工番の${type==='s'?'造成':'外構'}の数量をすべてクリアしますか？`)) return;
+  if(type==='g'){
+    ensureGx(code);
+    (sess.dData[code]?.g||[]).forEach(r=>r.qty=0);
+    (sess.dData[code]?.gx||[]).flat().forEach(r=>r.qty=0);
+    renderGTbl(code);
+  } else {
+    (sess.dData[code]?.s||[]).forEach(r=>r.qty=0);
+    renderSTbl(code);
+  }
+  updateGrand(code); autoSaveSess();
+}
+function clearRowQtyS(code,i){
+  if(!sess.dData[code]) return;
+  sess.dData[code].s[i].qty=0;
+  const inp=document.querySelector(`#dp-s .s-qty-inp[data-code="${code}"][data-idx="${i}"]`);
+  if(inp){ inp.value=''; const amtCell=inp.closest('tr')?.querySelector('.s-col-amt'); if(amtCell) amtCell.textContent=''; }
+  updateSub(code); updateGrand(code); autoSaveSess();
+}
+function clearRowQtyGK(code,key){
+  const r=resolveGRow(code,key); if(!r) return;
+  r.qty=0;
+  const inp=document.querySelector(`#dp-g .g-qty-inp[data-code="${code}"][data-key="${key}"]`);
+  if(inp){ inp.value=''; const amtCell=inp.closest('tr')?.querySelector('.s-col-amt'); if(amtCell) amtCell.textContent=''; }
+  updateGSub(code); updateGrand(code); autoSaveSess();
+}
+function clearRowQtyG(code,i){ clearRowQtyGK(code,`d:${i}`); }
+
 
 function updateGrand(code){
   const s=updateSub(code), g=updateGSub(code);
-  setTxt('d-grand','¥'+(s+g).toLocaleString());
+  const total=s+g;
+  setTxt('d-grand','¥'+total.toLocaleString());
+  setTxt('sub-s-sticky','¥'+s.toLocaleString());
+  setTxt('sub-g-sticky','¥'+g.toLocaleString());
 }
 
 // numpad
 function numKD(e,inp){
-  if(e.key==='Enter'){
+  if(e.key==='Enter'||e.key==='ArrowDown'){
     e.preventDefault();
     // 現在の値でchangeイベントを確実に発火させてから次へ
     inp.dispatchEvent(new Event('change'));
-    const all=Array.from(document.querySelectorAll('.fi-n'));
+    const all=Array.from(document.querySelectorAll('#dp-s .fi-n, #dp-g .fi-n, #tb-j .fi-n'));
     const i=all.indexOf(inp);
-    if(i<all.length-1) all[i+1].focus();
+    if(i<all.length-1) { all[i+1].focus(); all[i+1].select?.(); }
+  }
+  if(e.key==='ArrowUp'){
+    e.preventDefault();
+    inp.dispatchEvent(new Event('change'));
+    const all=Array.from(document.querySelectorAll('#dp-s .fi-n, #dp-g .fi-n, #tb-j .fi-n'));
+    const i=all.indexOf(inp);
+    if(i>0) { all[i-1].focus(); all[i-1].select?.(); }
+  }
+  if(e.key==='ArrowRight'){
+    e.preventDefault();
+    inp.dispatchEvent(new Event('change'));
+    const all=Array.from(document.querySelectorAll('#dp-s .fi-n, #dp-g .fi-n, #tb-j .fi-n'));
+    const i=all.indexOf(inp);
+    if(i<all.length-1) { all[i+1].focus(); all[i+1].select?.(); }
+  }
+  if(e.key==='ArrowLeft'){
+    e.preventDefault();
+    inp.dispatchEvent(new Event('change'));
+    const all=Array.from(document.querySelectorAll('#dp-s .fi-n, #dp-g .fi-n, #tb-j .fi-n'));
+    const i=all.indexOf(inp);
+    if(i>0) { all[i-1].focus(); all[i-1].select?.(); }
   }
   if(e.key==='Escape'){inp.value='';inp.dispatchEvent(new Event('change'));inp.blur();}
 }
@@ -1795,22 +2313,33 @@ function applyPriceEdit(){
 // Build rows from detail data (items with qty>0), + free add
 // ══════════════════════════════════════
 function initS4(){
+  document.getElementById('sp4-sup').style.display='none';
+  document.getElementById('sp4-shok').style.display='';
   const sel=document.getElementById('j-site');
   const rows=sess.headRows.filter(r=>r.code);
   sel.innerHTML='<option value="">現場を選択...</option>'+rows.map(r=>`<option value="${r.code}">${r.code}　${r.name}</option>`).join('');
-  document.getElementById('tb-j').innerHTML='<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:16px;">現場を選択すると内訳の品目が自動表示されます</td></tr>';
+  // 現在の工番を自動選択
+  if(sess.dSite){
+    sel.value=sess.dSite;
+    loadJSite();
+  } else {
+    document.getElementById('tb-j').innerHTML='<tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:16px;">現場を選択すると内訳の品目が自動表示されます</td></tr>';
+  }
   document.getElementById('j-result').innerHTML='';
+  updateSiteNavBtns();
 }
 function loadJSite(){
   const code=document.getElementById('j-site').value; if(!code) return;
+  sess.dSite=code;
   // Always rebuild from detail data to pick up latest quantities
   buildJRows(code);
   renderJTbl(code);
+  updateSiteNavBtns();
 }
 function buildJRows(code){
   const d=sess.dData[code];
   if(!d){ sess.jData[code]=[{name:'',unit:'',detailQty:0,label:'追加',entries:[''],isFree:true}]; return; }
-  const rank=(document.getElementById('d-rank')?.value||'B');
+  const rank=(document.getElementById('d-rank')?.value||'A');
   const rows=[];
   // 造成：数量が入力されているものだけ
   d.s.forEach(r=>{
@@ -1841,15 +2370,15 @@ function renderJTbl(code){
   let lastType='';
   const rowsHtml=rows.map((r,i)=>{
     const entries=r.entries&&r.entries.length?r.entries:[''];
-    const tot=entries.reduce((s,v)=>s+(Number(v)||0),0);
-    const diff=tot-(Number(r.detailQty)||0);
-    const hasDiff=tot>0&&diff!==0;
+    const tot=roundJ(entries.reduce((s,v)=>s+(Number(v)||0),0));
+    const diff=roundJ(tot-(Number(r.detailQty)||0));
+    const hasDiff=tot>0&&Math.abs(diff)>1e-9;
     const entryHtml='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'+
-      entries.map((v,ei)=>`<input type="number" class="fi-n ji-inp" value="${v||''}" min="0" placeholder="0"
+      entries.map((v,ei)=>`<input type="text" inputmode="decimal" class="fi-n ji-inp" value="${v||''}" placeholder="0"
         data-code="${code}" data-row="${i}" data-ei="${ei}"
-        onchange="setJEntry('${code}',${i},${ei},this.value)"
         onkeydown="jissekiKD(event,this,'${code}',${i},${ei})"
-        style="width:68px;">`).join('')+'</div>';
+        onfocus="this.select()"
+        style="width:82px;">`).join('')+'</div>';
     // Label badge
     const lbl=r.label||'';
     const lclr=r.type==='sozei'?'#78716c':(lbl.includes('A')?'#92400e':lbl.includes('B')?'#1e40af':'#374151');
@@ -1863,50 +2392,125 @@ function renderJTbl(code){
       <td style="text-align:right;font-weight:700;font-family:'Courier New',monospace;font-size:14px;vertical-align:middle;">${r.detailQty>0?r.detailQty:'—'}</td>
       <td style="vertical-align:middle;">${entryHtml}</td>
       <td style="text-align:right;font-weight:900;font-family:'Courier New',monospace;font-size:15px;vertical-align:middle;color:${hasDiff?'#dc2626':tot>0?'#059669':'#94a3b8'};">${tot||''}</td>
-      <td style="text-align:right;font-weight:700;font-family:'Courier New',monospace;font-size:14px;vertical-align:middle;color:${diff!==0&&tot>0?'#dc2626':'#059669'};">${tot>0?(diff>0?'+':'')+diff:''}</td>
+      <td style="text-align:right;font-weight:700;font-family:'Courier New',monospace;font-size:14px;vertical-align:middle;color:${hasDiff&&tot>0?'#dc2626':'#059669'};">${tot>0?(diff>0?'+':'')+diff:''}</td>
       <td style="vertical-align:middle;"><button onclick="rmJRow('${code}',${i})" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;">×</button></td>
     </tr>`;
   });
   tbody.innerHTML=rowsHtml.join('');
 }
+// ── 式評価（2*10, 10/2, 6*0.5/3 など） ──
+function evalExpr(s){
+  s = String(s).trim().replace(/\s+/g,'');
+  if(!s) return '';
+  // 数字・小数点・*・/ だけ許可
+  if(!/^[\d.*/]+$/.test(s)) return '';
+  try{
+    const tokens=s.match(/[\d.]+|[*/]/g);
+    if(!tokens||tokens.length===0) return '';
+    let result=parseFloat(tokens[0]);
+    if(isNaN(result)) return '';
+    for(let i=1;i<tokens.length;i+=2){
+      const op=tokens[i], num=parseFloat(tokens[i+1]);
+      if(isNaN(num)||!op) return '';
+      if(op==='*') result*=num;
+      else if(op==='/') { if(num===0) return ''; result/=num; }
+    }
+    if(!isFinite(result)||isNaN(result)) return '';
+    return roundJ(result);
+  }catch(e){ return ''; }
+}
+
+// ji-inp を document順で全取得
+function allJiInps(){ return Array.from(document.querySelectorAll('.ji-inp')); }
+
+function focusJiInp(inp){ if(inp){ inp.focus(); inp.select(); } }
+
 function jissekiKD(e,inp,code,rowI,ei){
-  if(e.key==='Enter'){
+  const key=e.key;
+
+  // Enter → 評価→保存→次スロットへ（なければ追加、行末なら次行の先頭へ）
+  if(key==='Enter'){
     e.preventDefault();
-    // まず現在の値を確実に保存
-    const curVal=inp.value;
-    setJEntry(code,rowI,ei,curVal);
-    const row=sess.jData[code][rowI];
-    if(!row) return;
+    const evaluated=evalExpr(inp.value);
+    const stored=evaluated===''?'':(evaluated||'');
+    inp.value=stored; // 評価結果を表示
+    setJEntry(code,rowI,ei,String(stored));
+
+    const row=sess.jData[code]?.[rowI]; if(!row) return;
     if(!row.entries) row.entries=[''];
-    const maxEntries=20;
     const nextEi=ei+1;
     if(nextEi<row.entries.length){
-      // 次のスロットへ移動
-      setTimeout(()=>{
-        const target=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${nextEi}"]`);
-        if(target){ target.focus(); target.select(); }
-      },10);
-    } else if(row.entries.length<maxEntries){
-      // 新しいスロットを追加してentryセルだけ再描画（td[3]）
+      // 既存の次スロットへ
+      setTimeout(()=>focusJiInp(document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${nextEi}"]`)),10);
+    } else if(row.entries.length<20){
+      // 新スロット追加して移動
       row.entries.push('');
-      rebuildEntryCell(code, rowI);
-      setTimeout(()=>{
-        const newInp=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${nextEi}"]`);
-        if(newInp){ newInp.focus(); newInp.select(); }
-      },20);
+      rebuildEntryCell(code,rowI);
+      setTimeout(()=>focusJiInp(document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${nextEi}"]`)),20);
+    } else {
+      // 20スロット上限 → 次行へ
+      jissekiNavRow(code,rowI,1);
     }
     return;
   }
-  if(e.key==='Tab'){
+
+  // Tab → 次行先頭へ
+  if(key==='Tab'){
     e.preventDefault();
-    // 現在の値を保存してから次行へ
-    setJEntry(code,rowI,ei,inp.value);
+    const evaluated=evalExpr(inp.value);
+    inp.value=evaluated===''?'':evaluated;
+    setJEntry(code,rowI,ei,String(inp.value));
     tabToNextJRow(code,rowI);
+    return;
   }
-  if(e.key==='Escape'){
-    inp.value='';
-    setJEntry(code,rowI,ei,'');
-    inp.blur();
+
+  // Escape → クリア
+  if(key==='Escape'){
+    inp.value=''; setJEntry(code,rowI,ei,''); inp.blur();
+    return;
+  }
+
+  // ←→ : 同一行内の前/次スロットへ（テキスト選択中でなければ）
+  if(key==='ArrowLeft'||key==='ArrowRight'){
+    const start=inp.selectionStart, end=inp.selectionEnd, len=inp.value.length;
+    // カーソルが端にある場合のみセル移動
+    const atLeft=start===0&&end===0;
+    const atRight=start===len&&end===len;
+    if(!(key==='ArrowLeft'?atLeft:atRight)) return; // 通常のテキスト移動を優先
+    e.preventDefault();
+    const evaluated=evalExpr(inp.value);
+    inp.value=evaluated===''?'':evaluated;
+    setJEntry(code,rowI,ei,String(inp.value));
+    const row=sess.jData[code]?.[rowI];
+    const maxEi=(row?.entries?.length||1)-1;
+    if(key==='ArrowRight'){
+      if(ei<maxEi) setTimeout(()=>focusJiInp(document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${ei+1}"]`)),10);
+      else jissekiNavRow(code,rowI,1);
+    } else {
+      if(ei>0) setTimeout(()=>focusJiInp(document.querySelector(`.ji-inp[data-code="${code}"][data-row="${rowI}"][data-ei="${ei-1}"]`)),10);
+      else jissekiNavRow(code,rowI,-1);
+    }
+    return;
+  }
+
+  // ↑↓ : 前/次行の同じ ei=0 へ
+  if(key==='ArrowUp'||key==='ArrowDown'){
+    e.preventDefault();
+    const evaluated=evalExpr(inp.value);
+    inp.value=evaluated===''?'':evaluated;
+    setJEntry(code,rowI,ei,String(inp.value));
+    jissekiNavRow(code,rowI,key==='ArrowDown'?1:-1);
+    return;
+  }
+}
+
+function jissekiNavRow(code,rowI,dir){
+  const rows=sess.jData[code]||[];
+  const nextRow=rowI+dir;
+  if(nextRow>=0&&nextRow<rows.length){
+    setTimeout(()=>focusJiInp(document.querySelector(`.ji-inp[data-code="${code}"][data-row="${nextRow}"][data-ei="0"]`)),15);
+  } else if(dir>0){
+    addJRow();
   }
 }
 // entry セル（td[3]）だけ再描画する
@@ -1917,11 +2521,11 @@ function rebuildEntryCell(code, rowI){
   const entryTd=tr.querySelectorAll('td')[3]; // 0=label 1=name 2=detailQty 3=entries
   if(!entryTd) return;
   entryTd.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">'+
-    row.entries.map((v,idx)=>`<input type="number" class="fi-n ji-inp" value="${v||''}" min="0" placeholder="0"
+    row.entries.map((v,idx)=>`<input type="text" inputmode="decimal" class="fi-n ji-inp" value="${v||''}" placeholder="0"
       data-code="${code}" data-row="${rowI}" data-ei="${idx}"
-      onchange="setJEntry('${code}',${rowI},${idx},this.value)"
       onkeydown="jissekiKD(event,this,'${code}',${rowI},${idx})"
-      style="width:68px;">`).join('')+'</div>';
+      onfocus="this.select()"
+      style="width:82px;">`).join('')+'</div>';
 }
 function tabToNextJRow(code,rowI){
   const rows=sess.jData[code]||[];
@@ -1936,23 +2540,29 @@ function tabToNextJRow(code,rowI){
     addJRow();
   }
 }
+// 浮動小数点誤差を避けるため小数第4位で丸める
+const roundJ = v => Math.round(Number(v) * 10000) / 10000;
+
 function setJEntry(code,i,ei,v){
   const row=sess.jData[code]?.[i];
   if(!row) return;
   if(!row.entries) row.entries=[];
   while(row.entries.length<=ei) row.entries.push('');
-  row.entries[ei]=v;
+  // 式評価してから格納
+  const evaluated=evalExpr(v);
+  const stored=evaluated===''?'':String(evaluated);
+  row.entries[ei]=stored;
   // update total & diff cells in-place (new layout: td[0]=name, td[1]=detailQty, td[2]=entries, td[3]=total, td[4]=diff)
   const entries=row.entries;
-  const tot=entries.reduce((s,x)=>s+(Number(x)||0),0);
-  const diff=tot-(Number(row.detailQty)||0);
-  const hasDiff=tot>0&&diff!==0;
+  const tot=roundJ(entries.reduce((s,x)=>s+(Number(x)||0),0));
+  const diff=roundJ(tot-(Number(row.detailQty)||0));
+  const hasDiff=tot>0&&Math.abs(diff)>1e-9;
   const tr=document.querySelector(`.ji-inp[data-code="${code}"][data-row="${i}"]`)?.closest('tr');
   if(tr){
     tr.className=hasDiff?'diff-bg':'';
     const tds=tr.querySelectorAll('td');
     if(tds[4]){ tds[4].textContent=tot||''; tds[4].style.color=hasDiff?'#dc2626':tot>0?'#059669':'#94a3b8'; }
-    if(tds[5]){ tds[5].textContent=tot>0?(diff>0?'+':'')+diff:''; tds[5].style.color=diff!==0&&tot>0?'#dc2626':'#059669'; }
+    if(tds[5]){ tds[5].textContent=tot>0?(diff>0?'+':'')+diff:''; tds[5].style.color=hasDiff&&tot>0?'#dc2626':'#059669'; }
   }
 }
 function addJRow(){
@@ -1976,7 +2586,7 @@ function runMatch(){
     document.getElementById('j-result').innerHTML='<div style="background:#fef3c7;border-radius:6px;padding:10px 14px;font-size:13px;font-weight:700;color:#92400e;"><i class="fa-solid fa-triangle-exclamation"></i> 実績数量がまだ入力されていません</div>';
     return;
   }
-  const diffs=entered.filter(r=>{ const tot=(r.entries||[]).reduce((s,v)=>s+(Number(v)||0),0); return tot!==(Number(r.detailQty)||0); });
+  const diffs=entered.filter(r=>{ const tot=roundJ((r.entries||[]).reduce((s,v)=>s+(Number(v)||0),0)); return Math.abs(tot-(Number(r.detailQty)||0))>1e-9; });
   const okHtml='<div style="background:#d1fae5;border-radius:7px;padding:8px 14px;font-size:14px;font-weight:700;color:#065f46;"><i class="fa-solid fa-check-circle"></i> 全品目 差異なし</div>';
   const ngHtml=`<div style="background:#fef3c7;border-radius:7px;padding:8px 14px;font-size:13px;font-weight:700;color:#92400e;"><i class="fa-solid fa-triangle-exclamation"></i> 差異 ${diffs.length}件：${diffs.map(r=>r.name).join('、')}</div>`;
   const html=diffs.length?ngHtml:okHtml;
@@ -2023,18 +2633,73 @@ function recalc(){
   const rank=(document.getElementById('d-rank')?.value||'A').toLowerCase();
   let work=0;
   let bk='';
+  let allOk=true;
   sess.headRows.filter(r=>r.code).forEach(row=>{
     let st=0;
     const d=sess.dData[row.code];
     if(d){
       const s=d.s.reduce((acc,r)=>acc+(Number(r.qty)||0)*(r.p||0),0);
+      const sxTotal=(d.sx||[]).flat().reduce((acc,r)=>acc+(Number(r.qty)||0)*(r.p||0),0);
       const g=d.g.reduce((acc,r)=>acc+(Number(r.qty)||0)*(rank==='a'?r.a:rank==='b'?r.b:r.c||r.p||0),0);
-      st=s+g;
+      const hr=sess.headRows.find(h=>h.code===row.code);
+      const siteOwner=hr?.owner||'';
+      const rkObj=siteOwner?ranks.find(r=>siteOwner.includes(r.owner)):null;
+      const siteRank=(rkObj?rkObj.rank:'A').toLowerCase();
+      const gx=(d.gx||[]).flat().reduce((acc,r)=>{
+        const ap=siteRank==='a'?(r.a||0):siteRank==='b'?(r.b||0):(r.c||0);
+        return acc+roundJ((Number(r.qty)||0)*ap);
+      },0);
+      st=s+sxTotal+g+gx;
     } else if(row.amount) st=Number(row.amount)||0;
     work+=st;
-    if(st>0) bk+=`<div class="ar"><span style="font-size:11px;">${row.code} ${row.name}</span><span class="av" style="font-size:12px;">¥${st.toLocaleString()}</span></div>`;
+
+    // ヘッド入力の請求金額との比較
+    const claimed=Number(row.amount)||0;
+    const diff=roundJ(claimed-st);
+    const hasClaimed=claimed>0;
+    const hasCalc=st>0;
+    const isMatch=hasClaimed&&hasCalc&&Math.abs(diff)<1;
+    const isMismatch=hasClaimed&&hasCalc&&Math.abs(diff)>=1;
+    if(isMismatch) allOk=false;
+
+    let matchBadge='';
+    if(isMatch)
+      matchBadge=`<span style="background:#dcfce7;color:#15803d;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:700;margin-left:6px;">✓ 一致</span>`;
+    else if(isMismatch)
+      matchBadge=`<span style="background:#fee2e2;color:#dc2626;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:700;margin-left:6px;">差異 ${diff>0?'+':''}¥${diff.toLocaleString()}</span>`;
+    else if(hasClaimed&&!hasCalc)
+      matchBadge=`<span style="background:#fef3c7;color:#92400e;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:700;margin-left:6px;">⚠ 内訳未入力</span>`;
+    else if(!hasClaimed&&hasCalc)
+      matchBadge=`<span style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:2px 6px;font-size:11px;font-weight:700;margin-left:6px;">請求金額未入力</span>`;
+
+    bk+=`<div class="ar" style="flex-direction:column;align-items:stretch;padding:10px 12px;gap:6px;${isMismatch?'background:#fff5f5;border-left:3px solid #dc2626;':isMatch?'background:#f0fdf4;border-left:3px solid #22c55e;':''}">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+        <span style="font-size:12px;font-weight:700;">${row.code} ${row.name}</span>
+        <button class="btn gray xs" onclick="goStep3Site('${row.code}')" style="padding:2px 8px;font-size:11px;"><i class="fa-solid fa-pen-to-square"></i> 修正</button>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+        <div style="font-size:11px;color:#64748b;">
+          内訳計算：<span style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:#1e40af;">${hasCalc?'¥'+st.toLocaleString():'<span style="color:#94a3b8;">未計算</span>'}</span>
+        </div>
+        <div style="font-size:11px;color:#64748b;">
+          請求金額：<span style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;color:#374151;">${hasClaimed?'¥'+claimed.toLocaleString():'<span style="color:#94a3b8;">未入力</span>'}</span>
+        </div>
+        ${matchBadge}
+      </div>
+    </div>`;
   });
-  setTxt('site-bk',bk||'<div style="font-size:11px;color:#94a3b8;">（内訳データなし）</div>',true);
+
+  // 全体サマリーバナー
+  const allHaveCalc=sess.headRows.filter(r=>r.code).every(row=>sess.dData[row.code]);
+  const banner=allOk&&allHaveCalc
+    ?`<div style="background:#dcfce7;border:1px solid #bbf7d0;border-radius:8px;padding:8px 14px;margin-bottom:8px;font-size:12px;font-weight:700;color:#15803d;"><i class="fa-solid fa-circle-check"></i> すべての工番が一致しています</div>`
+    :!allHaveCalc&&sess.headRows.filter(r=>r.code).length>0
+    ?`<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:8px 14px;margin-bottom:8px;font-size:12px;font-weight:700;color:#92400e;"><i class="fa-solid fa-triangle-exclamation"></i> 内訳が未入力の工番があります</div>`
+    :!allOk
+    ?`<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:8px;padding:8px 14px;margin-bottom:8px;font-size:12px;font-weight:700;color:#dc2626;"><i class="fa-solid fa-circle-xmark"></i> 差異がある工番があります</div>`
+    :'';
+
+  setTxt('site-bk',(banner||'')+bk||'<div style="font-size:11px;color:#94a3b8;">（内訳データなし）</div>',true);
   const tax=Math.floor(work*.1), total=work+tax;
   setTxt('c-koujikei','¥'+work.toLocaleString());
   setTxt('c-tax','¥'+tax.toLocaleString());
@@ -2123,7 +2788,7 @@ function renderCMT(){
   const q=(document.getElementById('cm-search')?.value||'').toLowerCase();
   const tb=document.getElementById('cm-tb'); if(!tb) return;
   const all=craftsmen.filter(c=>c.name.toLowerCase().includes(q));
-  const list=cmShowRetired?all:all.filter(c=>!c.retired);
+  const list=applyBranchFilter(cmShowRetired?all:all.filter(c=>!c.retired),'cm');
   const retiredCount=all.filter(c=>c.retired).length;
   const cntEl=document.getElementById('cm-count');
   if(cntEl) cntEl.textContent=`${list.length}名表示${retiredCount>0?` / 退職者${retiredCount}名`:''}`;
@@ -2137,40 +2802,85 @@ function renderCMT(){
     {k:'vehicle',label:'車両',fromVehicle:true},
     {k:'otherDeduct',label:'他控除'}
   ];
-  tb.innerHTML=list.map(c=>{
+  // 拠点ごとにグループ化して描画
+  const branches=[...new Set(list.map(c=>c.branch||'その他'))].sort();
+  let rows='';
+  branches.forEach(br=>{
+    const group=list.filter(c=>(c.branch||'その他')===br);
+    rows+=`<tr><td colspan="7" style="background:#f5f3ff;color:#7c3aed;font-weight:700;font-size:12px;padding:6px 14px;border-left:3px solid #7c3aed;">${br} <span style="font-weight:400;color:#94a3b8;margin-left:4px;">${group.length}名</span></td></tr>`;
+    rows+=group.map(c=>{
     const expB=piExpBadge(c);
-    const rowBg=expB&&expB.includes('期限切れ')?'background:#fff5f5;':
-                expB&&expB.includes('30日以内')?'background:#fffbeb;':'';
+    const isExpired=expB&&expB.includes('期限切れ');
+    const isNear30=expB&&expB.includes('30日以内');
+    const isNear90=expB&&expB.includes('90日以内');
+    const isHealth=expB&&expB.includes('健診');
+    const alertColor=isExpired?'#dc2626':isNear30?'#ea580c':isNear90?'#d97706':isHealth?'#2563eb':'';
+    const alertBg=isExpired?'#fff5f5':isNear30?'#fff7ed':isNear90?'#fffbeb':isHealth?'#eff6ff':'';
+    const rowBg=isExpired?'background:#fff5f5;':isNear30?'background:#fff7ed;':isNear90?'background:#fffbeb;':'';
+    const hasInvoice=c.invoice&&/^T\d{13}$/.test(c.invoice);
+    const vTotal=vehicles.filter(v=>v.craftsmanName===c.name&&v.status==='active').reduce((s,v)=>s+(Number(v.monthly)||0)+(Number(v.fixed)||0),0);
+    const deductions=[
+      c.rosai&&{label:'労災',val:c.rosai},
+      c.kenko&&{label:'健保',val:c.kenko},
+      c.parking&&{label:'駐車',val:c.parking},
+      c.tools&&{label:'道具',val:c.tools},
+      c.phone&&{label:'電話',val:c.phone},
+      (vTotal||c.vehicle)&&{label:'車両',val:vTotal||c.vehicle},
+      c.otherDeduct&&{label:'他',val:c.otherDeduct},
+    ].filter(Boolean);
+    const expDetails=buildExpDetails(c,c.pi||{});
+
     return `<tr id="cmrow-${c.id}" style="${rowBg}">
-    <td style="text-align:center;">
-      ${c.retired
-        ?`<span class="bk" style="background:#fef3c7;color:#92400e;cursor:pointer;" title="クリックで復帰" onclick="toggleCMRetired('${c.id}')">退職</span>`
-        :`<span class="bk ok" style="cursor:pointer;" title="クリックで退職処理" onclick="toggleCMRetired('${c.id}')">在籍</span>`}
-    </td>
-    <td>
-      <div style="font-weight:700;font-size:14px;${c.retired?'color:#94a3b8;text-decoration:line-through;':''}">
-        ${c.name}
-        ${piMode?`<button class="btn gray xs" style="margin-left:6px;" onclick="openPIView('${c.id}')"><i class="fa-solid fa-shield-halved" style="color:#7c3aed;"></i></button>`:''}
-      </div>
-    </td>
-    <td style="font-size:13px;color:#475569;">${c.company||'—'}</td>
-    <td>${(()=>{const cat=c.category||'職人';const catClr={'職人':'gray-bk','社員':'blue-bk','外注':'warn','サポート':'ok','その他':'gray-bk'};return `<span class="bk ${catClr[cat]||'gray-bk'}">${cat}</span>`;})()}</td>
-    <td style="font-size:13px;">${c.branch||c.type||'—'}</td>
-    <td style="font-size:12px;font-family:'Courier New',monospace;color:#334155;">${c.invoice||'—'}</td>
-    <td>${c.invoice&&/^T\d{13}$/.test(c.invoice)?'<span class="bk ok">対応</span>':'<span class="bk warn">未対応</span>'}</td>
-    ${AMT_FIELDS.map(f=>{
-      const vTotal=f.fromVehicle?vehicles.filter(v=>v.craftsmanName===c.name&&v.status==='active').reduce((s,v)=>s+(Number(v.monthly)||0)+(Number(v.fixed)||0),0):null;
-      const vCount=f.fromVehicle?vehicles.filter(v=>v.craftsmanName===c.name&&v.status==='active').length:0;
-      const dispVal=f.fromVehicle?(vTotal||c[f.k]||0):(c[f.k]||0);
-      const fromVM=f.fromVehicle&&vCount>0;
-      return `<td style="text-align:right;cursor:pointer;" title="${fromVM?`車両管理より自動集計（${vCount}台）。ダブルクリックで手動上書き`:'ダブルクリックで編集'}" ondblclick="inlineEditAmt('${c.id}','${f.k}',this)">${dispVal>0?`<span class="editable" style="font-family:monospace;${fromVM?'color:#0891b2;':''}">${fromVM?'<i class=\"fa-solid fa-car\" style=\"font-size:9px;margin-right:2px;\"></i>':''}¥${Number(dispVal).toLocaleString()}</span>`:'<span style="color:#cbd5e1;">—</span>'}</td>`;
-    }).join('')}
-    <td style="font-size:10px;color:#94a3b8;">${c.updatedAt||'—'}</td>
-    <td>
-      <button class="btn gray xs" onclick="openCMM('${c.id}')"><i class="fa-solid fa-edit"></i></button>
-      <button class="btn red xs" onclick="delCM('${c.id}')"><i class="fa-solid fa-trash"></i></button>
-    </td>
-  </tr>`}).join('');
+      <!-- 在籍 -->
+      <td style="text-align:center;vertical-align:middle;padding:8px 6px;">
+        ${c.retired
+          ?`<span class="bk" style="background:#fef3c7;color:#92400e;cursor:pointer;font-size:11px;" title="クリックで復帰" onclick="toggleCMRetired('${c.id}')">退職</span>`
+          :`<span class="bk ok" style="cursor:pointer;font-size:11px;" title="クリックで退職処理" onclick="toggleCMRetired('${c.id}')">在籍</span>`}
+      </td>
+      <!-- 名前・区分・バッジ -->
+      <td style="padding:8px 10px;min-width:160px;vertical-align:middle;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <span style="font-weight:800;font-size:14px;${c.retired?'color:#94a3b8;text-decoration:line-through;':''}">${c.name}</span>
+          ${(()=>{const cat=c.category||'職人';const catClr={'職人':'gray-bk','社員':'blue-bk','外注':'warn','サポート':'ok','その他':'gray-bk'};return `<span class="bk ${catClr[cat]||'gray-bk'}" style="font-size:11px;">${cat}</span>`;})()}
+          ${c.branch?`<span style="font-size:11px;color:#64748b;">${c.branch}</span>`:''}
+          ${piMode?`<button class="btn gray xs" style="margin-left:2px;" onclick="openPIView('${c.id}')"><i class="fa-solid fa-shield-halved" style="color:#7c3aed;"></i></button>`:''}
+        </div>
+        ${c.company?`<div style="font-size:11px;color:#94a3b8;margin-top:2px;">${c.company}</div>`:''}
+      </td>
+      <!-- インボイス -->
+      <td style="padding:8px 6px;vertical-align:middle;text-align:center;">
+        ${hasInvoice
+          ?`<span class="bk ok" style="font-size:11px;">✓ 対応</span><div style="font-size:9px;color:#94a3b8;margin-top:2px;font-family:monospace;">${c.invoice}</div>`
+          :`<span class="bk warn" style="font-size:11px;">未対応</span>`}
+      </td>
+      <!-- 月額控除 -->
+      <td style="padding:8px 6px;vertical-align:middle;">
+        ${deductions.length
+          ?`<div style="display:flex;flex-wrap:wrap;gap:3px;">${deductions.map(d=>`<span style="font-size:10px;background:#f1f5f9;border-radius:4px;padding:2px 5px;color:#475569;white-space:nowrap;">${d.label}:¥${Number(d.val).toLocaleString()}</span>`).join('')}</div>`
+          :`<span style="color:#cbd5e1;font-size:12px;">なし</span>`}
+      </td>
+      <!-- 期限・アラート -->
+      <td style="padding:8px 6px;vertical-align:middle;min-width:180px;">
+        ${expDetails.length
+          ?`<div style="background:${alertBg};border:1px solid ${alertColor}30;border-radius:6px;padding:5px 8px;">
+              ${expDetails.map(d=>`<div style="display:flex;align-items:center;gap:5px;margin-bottom:${expDetails.indexOf(d)<expDetails.length-1?'4px':'0'};">
+                <span style="font-size:11px;font-weight:700;color:${d.color};white-space:nowrap;">${d.icon} ${d.label}</span>
+                <span style="font-size:11px;color:#374151;flex:1;">${d.detail}</span>
+              </div>`).join('')}
+            </div>`
+          :`<span style="font-size:12px;color:#059669;font-weight:600;">✓ 問題なし</span>`}
+      </td>
+      <!-- 更新日 -->
+      <td style="font-size:10px;color:#94a3b8;padding:8px 4px;vertical-align:middle;white-space:nowrap;">${c.updatedAt||'—'}</td>
+      <!-- 操作 -->
+      <td style="padding:8px 6px;vertical-align:middle;white-space:nowrap;">
+        <button class="btn gray xs" onclick="openCMM('${c.id}')"><i class="fa-solid fa-edit"></i></button>
+        <button class="btn red xs" onclick="delCM('${c.id}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>`;
+    }).join('');
+  });
+  tb.innerHTML=rows;
 }
 function openCMM(id){
   const mo=document.getElementById('mo-cm'); mo.classList.add('open');
@@ -2182,6 +2892,7 @@ function openCMM(id){
   setVal('cm-inv',c?.invoice||''); setVal('cm-rosai',c?.rosai||''); setVal('cm-kenko',c?.kenko||'');
   setVal('cm-parking',c?.parking||''); setVal('cm-tools',c?.tools||''); setVal('cm-phone',c?.phone||'');
   setVal('cm-vehicle',c?.vehicle||''); setVal('cm-vno',c?.vehicleNo||''); setVal('cm-plate',c?.plate||''); setVal('cm-other',c?.otherDeduct||'');
+  setVal('cm-daily-rate',c?.dailyRate||'');
   setVal('cm-memo',c?.memo||''); document.getElementById('cm-inv-hint').textContent='';
   // タブをbasicに戻す
   switchCMTab('basic');
@@ -2241,6 +2952,7 @@ function saveCM(){
     parking:+g('cm-parking').value||0,tools:+g('cm-tools').value||0,
     phone:+g('cm-phone').value||0,vehicle:+g('cm-vehicle').value||0,
     vehicleNo:g('cm-vno').value,plate:g('cm-plate')?.value||'',otherDeduct:+g('cm-other').value||0,
+    dailyRate:+g('cm-daily-rate')?.value||0,
     memo:g('cm-memo').value,pi,updatedAt:new Date().toLocaleDateString('ja-JP')};
   const ex=craftsmen.find(x=>x.id===id);
   if(ex) Object.assign(ex,obj); else craftsmen.push(obj);
@@ -2569,13 +3281,592 @@ function parseAmt(s){ return Number((s||'').replace(/[¥,]/g,''))||0; }
 function dlCSV(content,filename){ const b=new Blob(['\uFEFF'+content],{type:'text/csv;charset=utf-8;'}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=filename; a.click(); }
 
 // ══════════════════════════════════════
-// INIT
+// サポートモード：出面入力・人工計算
 // ══════════════════════════════════════
+const DAY_NAMES=['日','月','火','水','木','金','土'];
+
+function initS3Sup(){
+  document.getElementById('sp3-sup').style.display='';
+  document.getElementById('sp3-shok').style.display='none';
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  const dr=c?.dailyRate||0;
+  setTxt('sup-daily-rate-lbl','¥'+dr.toLocaleString());
+  const dumpInp=document.getElementById('sup-dump-fee');
+  if(dumpInp) dumpInp.value=sess.dumpFeePerDay||'';
+  const now=new Date();
+  const yearSel=document.getElementById('sup-year');
+  const monSel=document.getElementById('sup-month');
+  if(!yearSel.options.length){
+    for(let y=now.getFullYear()-1;y<=now.getFullYear()+1;y++)
+      yearSel.add(new Option(y+'年',y));
+    for(let m=1;m<=12;m++)
+      monSel.add(new Option(m+'月',m));
+  }
+  if(!sess.deduriYear) sess.deduriYear=now.getFullYear();
+  if(!sess.deduriMonth) sess.deduriMonth=now.getMonth()+1;
+  yearSel.value=sess.deduriYear;
+  monSel.value=sess.deduriMonth;
+  if(!sess.deduri) sess.deduri=[];
+  if(!sess.dumpFeePerDay) sess.dumpFeePerDay=0;
+  renderDeduri();
+}
+
+function renderDeduri(){
+  const y=parseInt(document.getElementById('sup-year')?.value)||new Date().getFullYear();
+  const m=parseInt(document.getElementById('sup-month')?.value)||new Date().getMonth()+1;
+  sess.deduriYear=y; sess.deduriMonth=m;
+  if(!sess.deduri) sess.deduri=[];
+  const dumpFeePerDay=sess.dumpFeePerDay||0;
+  const daysInMonth=new Date(y,m,0).getDate();
+  const tbody=document.getElementById('deduri-body');
+  if(!tbody) return;
+
+  // 全日のデータを確保（なければ空レコード作成）
+  for(let day=1;day<=daysInMonth;day++){
+    if(!sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day))
+      sess.deduri.push({year:y,month:m,day,site1:'',site2:'',dump:false,claimedAmount:0});
+  }
+
+  let html='';
+  for(let day=1;day<=daysInMonth;day++){
+    const r=sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day);
+    if(!r) continue;
+    const date=new Date(y,m-1,day);
+    const dow=date.getDay();
+    const dn=DAY_NAMES[dow];
+    const isSun=dow===0, isSat=dow===6, isHol=isSun||isSat;
+    const s1=sess.headRows.find(h=>h.code&&r.site1&&h.code===r.site1);
+    const s2=sess.headRows.find(h=>h.code&&r.site2&&h.code===r.site2);
+    const c=craftsmen.find(x=>x.id===sess.cid);
+    const dr=c?.dailyRate||0;
+    const hasData=r.site1||r.site2||r.claimedAmount;
+
+    // 人工：記載金額がある場合は記載金額÷日給、なければ現場数で判定
+    let ninkuVal=0, ninkuLabel='—';
+    if(r.claimedAmount&&dr>0){
+      ninkuVal=roundJ(Number(r.claimedAmount)/dr);
+      ninkuLabel=ninkuVal%1===0?String(ninkuVal):ninkuVal.toFixed(2).replace(/\.?0+$/,'');
+    } else if(r.site1||r.site2){
+      ninkuVal=1;
+      ninkuLabel='1';
+    }
+    const dumpActive=r.dump&&dumpFeePerDay>0;
+    const rowBg=isSun?'#fff1f2':isSat?'#eff6ff':hasData?'#f0fdf4':'';
+    const dowColor=isSun?'#dc2626':isSat?'#2563eb':'#64748b';
+    const inp1Border=r.site1&&!s1?'border-color:#fca5a5;':'';
+    const inp2Border=r.site2&&!s2?'border-color:#fca5a5;':'';
+
+    html+=`<tr data-day="${day}" style="border-bottom:1px solid #f1f5f9;${rowBg?'background:'+rowBg+';':''}">
+      <td style="text-align:center;font-size:12px;font-weight:700;color:${isHol?dowColor:'#374151'};padding:4px 4px;white-space:nowrap;">${day}</td>
+      <td style="text-align:center;font-size:11px;font-weight:700;color:${dowColor};padding:4px 2px;">${dn}</td>
+      <td style="padding:3px 4px;">
+        <input class="fi ded-inp" value="${r.site1||''}" placeholder="—"
+          data-day="${day}" data-field="site1"
+          onkeydown="deduriKD(event,this,${day},'site1')"
+          onblur="lookupDeduriSite(this,${day},'site1')"
+          style="width:52px;padding:4px 5px;font-size:12px;font-family:'Courier New',monospace;${inp1Border}">
+      </td>
+      <td style="padding:3px 8px;">
+        <div style="font-size:11px;font-weight:600;color:#1e293b;line-height:1.3;">${s1?s1.name:r.site1?'<span style="color:#dc2626;font-size:10px;">未登録</span>':''}</div>
+        <div style="font-size:10px;color:#94a3b8;">${s1?s1.owner||'':''}</div>
+      </td>
+      <td style="padding:3px 4px;">
+        <input class="fi ded-inp" value="${r.site2||''}" placeholder="—"
+          data-day="${day}" data-field="site2"
+          onkeydown="deduriKD(event,this,${day},'site2')"
+          onblur="lookupDeduriSite(this,${day},'site2')"
+          style="width:52px;padding:4px 5px;font-size:12px;font-family:'Courier New',monospace;${inp2Border}">
+      </td>
+      <td style="padding:3px 8px;">
+        <div style="font-size:11px;font-weight:600;color:#1e293b;line-height:1.3;">${s2?s2.name:r.site2?'<span style="color:#dc2626;font-size:10px;">未登録</span>':''}</div>
+        <div style="font-size:10px;color:#94a3b8;">${s2?s2.owner||'':''}</div>
+      </td>
+      <td style="text-align:center;font-size:13px;font-weight:900;font-family:'Courier New',monospace;color:${ninkuLabel?'#7c3aed':'#d1d5db'};padding:4px 3px;">${ninkuLabel||'—'}</td>
+      <td style="text-align:center;padding:3px;">
+        <button onclick="toggleDump(${day})"
+          title="${dumpFeePerDay>0?'ダンプ ¥'+dumpFeePerDay.toLocaleString():'先にダンプ代を登録'}"
+          style="font-size:15px;line-height:1;padding:2px 5px;border:${dumpActive?'2px solid #ea580c':'1px solid #e2e8f0'};background:${dumpActive?'#fff7ed':'#fff'};border-radius:5px;cursor:pointer;opacity:${dumpFeePerDay>0?1:0.4};">🚛</button>
+        ${dumpActive?`<div style="font-size:9px;color:#ea580c;font-weight:700;">¥${dumpFeePerDay.toLocaleString()}</div>`:''}
+      </td>
+      <td style="padding:3px 6px;">
+        <input type="number" class="fi-n ded-inp" value="${r.claimedAmount||''}" placeholder="—" min="0"
+          data-day="${day}" data-field="claimedAmount"
+          onchange="setDeduriNum(${day},'claimedAmount',this.value)"
+          onkeydown="deduriKD(event,this,${day},'claimedAmount')"
+          style="width:90px;padding:4px 6px;font-size:12px;text-align:right;">
+      </td>
+    </tr>`;
+  }
+  tbody.innerHTML=html;
+  renderDeduriTotals();
+  renderSupSiteSummary();
+}
+
+// ダンプON/OFFトグル
+function toggleDump(day){
+  const y=sess.deduriYear, m=sess.deduriMonth;
+  if(!(sess.dumpFeePerDay>0)){alert('先にダンプ代（1日あたり）を入力してください');return;}
+  const r=sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day);
+  if(!r) return;
+  r.dump=!r.dump;
+  autoSaveSess();
+  // その行だけ再描画
+  const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
+  if(tr){
+    const btn=tr.cells[7]?.querySelector('button');
+    const dumpFeePerDay=sess.dumpFeePerDay||0;
+    if(btn){
+      btn.style.border=r.dump?'2px solid #ea580c':'1px solid #e2e8f0';
+      btn.style.background=r.dump?'#fff7ed':'#fff';
+      const sub=tr.cells[7]?.querySelector('div');
+      if(r.dump){
+        if(!sub){const d=document.createElement('div');d.style.cssText='font-size:9px;color:#ea580c;font-weight:700;';d.textContent='¥'+dumpFeePerDay.toLocaleString();tr.cells[7].appendChild(d);}
+      } else {
+        if(sub) sub.remove();
+      }
+    }
+  }
+  renderDeduriTotals();
+  renderSupSiteSummary();
+}
+
+// 工番コードblur→名称ルックアップ（DOM直接更新）
+function lookupDeduriSite(inp, day, field){
+  const val=toHalfWidth((inp.value||'').trim());
+  inp.value=val;
+  const y=sess.deduriYear, m=sess.deduriMonth;
+  const r=sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day);
+  if(!r) return;
+  r[field]=val;
+  autoSaveSess();
+  const tr=inp.closest('tr');
+  if(!tr) return;
+  const site=val?sess.headRows.find(h=>h.code===val):null;
+  const nameCellIdx=field==='site1'?3:5;
+  const nc=tr.cells[nameCellIdx];
+  if(nc){
+    if(val&&site)
+      nc.innerHTML=`<div style="font-size:11px;font-weight:600;color:#1e293b;">${site.name}</div><div style="font-size:10px;color:#94a3b8;">${site.owner||''}</div>`;
+    else if(val)
+      nc.innerHTML=`<div style="font-size:10px;color:#dc2626;font-weight:700;">未登録</div>`;
+    else nc.innerHTML='';
+  }
+  // 入力欄のボーダー
+  inp.style.borderColor=val&&!site?'#fca5a5':'';
+  // 人工セル更新（記載金額があれば計算値、なければ現場数）
+  const ninkuCell=tr.cells[6];
+  if(ninkuCell){
+    const c2=craftsmen.find(x=>x.id===sess.cid);
+    const dr2=c2?.dailyRate||0;
+    const claimed=Number(r.claimedAmount)||0;
+    let lbl='—', col='#d1d5db';
+    if(claimed&&dr2>0){
+      const nv=roundJ(claimed/dr2);
+      lbl=nv%1===0?String(nv):nv.toFixed(2).replace(/\.?0+$/,'');
+      col='#7c3aed';
+    } else if(r.site1||r.site2){
+      lbl='1'; col='#7c3aed';
+    }
+    ninkuCell.textContent=lbl;
+    ninkuCell.style.color=col;
+  }
+  renderDeduriTotals();
+  renderSupSiteSummary();
+}
+
+function setDeduriNum(day, field, val){
+  const y=sess.deduriYear, m=sess.deduriMonth;
+  const r=sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day);
+  if(!r) return;
+  r[field]=Number(val)||0;
+  autoSaveSess();
+  // 記載金額が変わったら人工セルも更新
+  if(field==='claimedAmount'){
+    const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
+    const ninkuCell=tr?.cells[6];
+    if(ninkuCell){
+      const c2=craftsmen.find(x=>x.id===sess.cid);
+      const dr2=c2?.dailyRate||0;
+      const claimed=r.claimedAmount;
+      let lbl='—', col='#d1d5db';
+      if(claimed&&dr2>0){
+        const nv=roundJ(claimed/dr2);
+        lbl=nv%1===0?String(nv):nv.toFixed(2).replace(/\.?0+$/,'');
+        col='#7c3aed';
+      } else if(r.site1||r.site2){
+        lbl='1'; col='#7c3aed';
+      }
+      ninkuCell.textContent=lbl;
+      ninkuCell.style.color=col;
+    }
+  }
+  renderDeduriTotals();
+  renderSupSiteSummary();
+}
+
+function renderDeduriTotals(){
+  const y=sess.deduriYear||new Date().getFullYear();
+  const m=sess.deduriMonth||new Date().getMonth()+1;
+  const rows=sess.deduri.filter(r=>r.year===y&&r.month===m);
+  const dumpFee=sess.dumpFeePerDay||0;
+  const totalNinku=rows.reduce((s,r)=>s+(r.site1||r.site2?1:0),0);
+  const totalDump=rows.reduce((s,r)=>s+(r.dump&&dumpFee>0?dumpFee:0),0);
+  const totalClaimed=rows.reduce((s,r)=>s+(Number(r.claimedAmount)||0),0);
+  setTxt('deduri-ninku-total',totalNinku?totalNinku+'人工':'');
+  setTxt('deduri-dump-total',totalDump>0?'¥'+totalDump.toLocaleString():'');
+  setTxt('deduri-claimed-total',totalClaimed>0?'¥'+totalClaimed.toLocaleString():'');
+}
+
+// ━━ キーボードナビゲーション ━━
+let skipAmtMode=false;
+function toggleSkipAmt(){
+  skipAmtMode=!skipAmtMode;
+  const lbl=document.getElementById('skip-amt-lbl');
+  const btn=document.getElementById('btn-skip-amt');
+  if(lbl) lbl.textContent=skipAmtMode?'ON':'OFF';
+  if(btn){
+    btn.style.borderColor=skipAmtMode?'#7c3aed':'#e2e8f0';
+    btn.style.background=skipAmtMode?'#f5f3ff':'#fff';
+    btn.style.color=skipAmtMode?'#7c3aed':'inherit';
+  }
+}
+
+// 全角英数字→半角変換（小文字のまま）
+function toHalfWidth(s){
+  return (s||'').replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+}
+
+// Enter順: 工番①→工番②→記載金額→次行工番①→...
+const DEDURI_FIELDS=['site1','site2','claimedAmount'];
+
+function deduriKD(e,inp,day,field){
+  const key=e.key;
+
+  if(key==='Enter'){
+    e.preventDefault();
+    if(field==='site1'||field==='site2'){
+      inp.value=toHalfWidth(inp.value);
+      lookupDeduriSite(inp,day,field);
+    } else {
+      setDeduriNum(day,field,inp.value);
+    }
+
+    setTimeout(()=>{
+      if(skipAmtMode){
+        if(field==='claimedAmount'){
+          // 金額スキップON中の記載金額欄：次行の記載金額へ
+          const amtCol=Array.from(document.querySelectorAll('#deduri-body .ded-inp[data-field="claimedAmount"]'));
+          const ci=amtCol.findIndex(i=>parseInt(i.dataset.day)===day);
+          if(ci<amtCol.length-1){amtCol[ci+1].focus();amtCol[ci+1].select?.();}
+        } else {
+          // 工番①②はスキップモードでも同行内を進む（site1→site2→次行site1）
+          const fi=['site1','site2'].indexOf(field);
+          if(fi===0){
+            const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
+            const next=tr?.querySelector('.ded-inp[data-field="site2"]');
+            if(next){next.focus();next.select?.();}
+          } else {
+            // site2→次行site1
+            const siteCol=Array.from(document.querySelectorAll('#deduri-body .ded-inp[data-field="site1"]'));
+            const ci=siteCol.findIndex(i=>parseInt(i.dataset.day)===day);
+            if(ci<siteCol.length-1){siteCol[ci+1].focus();siteCol[ci+1].select?.();}
+          }
+        }
+      } else {
+        // 通常モード：site1→site2→claimedAmount→次行site1
+        const fi=DEDURI_FIELDS.indexOf(field);
+        if(fi>=0 && fi<DEDURI_FIELDS.length-1){
+          const nextField=DEDURI_FIELDS[fi+1];
+          const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
+          const nextInp=tr?.querySelector(`.ded-inp[data-field="${nextField}"]`);
+          if(nextInp){nextInp.focus();nextInp.select?.();}
+        } else {
+          const siteCol=Array.from(document.querySelectorAll('#deduri-body .ded-inp[data-field="site1"]'));
+          const ci=siteCol.findIndex(i=>parseInt(i.dataset.day)===day);
+          if(ci<siteCol.length-1){siteCol[ci+1].focus();siteCol[ci+1].select?.();}
+        }
+      }
+    },30);
+    return;
+  }
+
+  if(key==='Tab'){
+    e.preventDefault();
+    if(field==='site1'||field==='site2'){inp.value=toHalfWidth(inp.value);lookupDeduriSite(inp,day,field);}
+    else setDeduriNum(day,field,inp.value);
+    const all=Array.from(document.querySelectorAll('#deduri-body .ded-inp'));
+    const i=all.indexOf(inp);
+    setTimeout(()=>{if(i<all.length-1){all[i+1].focus();all[i+1].select?.();}},30);
+    return;
+  }
+
+  if(key==='ArrowDown'){e.preventDefault();moveDeduriCell(inp,1);return;}
+  if(key==='ArrowUp'){e.preventDefault();moveDeduriCell(inp,-1);return;}
+  if(key==='ArrowRight'&&inp.selectionStart===inp.value.length){
+    e.preventDefault();
+    const all=Array.from(document.querySelectorAll('#deduri-body .ded-inp'));
+    const i=all.indexOf(inp);
+    if(i<all.length-1){all[i+1].focus();all[i+1].select?.();}
+    return;
+  }
+  if(key==='ArrowLeft'&&inp.selectionStart===0){
+    e.preventDefault();
+    const all=Array.from(document.querySelectorAll('#deduri-body .ded-inp'));
+    const i=all.indexOf(inp);
+    if(i>0){all[i-1].focus();all[i-1].select?.();}
+    return;
+  }
+  if(key==='Escape'){inp.value='';inp.blur();}
+}
+
+function moveDeduriCell(inp,dir){
+  const field=inp.dataset.field;
+  const all=Array.from(document.querySelectorAll('#deduri-body .ded-inp'));
+  const sameCol=all.filter(i=>i.dataset.field===field);
+  const ci=sameCol.indexOf(inp);
+  const next=sameCol[ci+dir];
+  if(next){next.focus();next.select?.();}
+}
+
+function addDeduriRow(){
+  const y=parseInt(document.getElementById('sup-year')?.value)||new Date().getFullYear();
+  const m=parseInt(document.getElementById('sup-month')?.value)||new Date().getMonth()+1;
+  // 未使用の日を探す
+  const daysInMonth=new Date(y,m,0).getDate();
+  const used=new Set(sess.deduri.filter(r=>r.year===y&&r.month===m).map(r=>r.day));
+  let day=null;
+  for(let d=1;d<=daysInMonth;d++){
+    if(!used.has(d)){day=d;break;}
+  }
+  if(day===null){alert('この月は全日入力済みです');return;}
+  if(!sess.deduri) sess.deduri=[];
+  sess.deduri.push({year:y,month:m,day,site1:'',site2:''});
+  autoSaveSess(); renderDeduri();
+  // 追加行へスクロール
+  setTimeout(()=>{
+    const rows=document.querySelectorAll('#deduri-body tr');
+    rows[rows.length-1]?.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },50);
+}
+
+function removeDeduriRow(y,m,day){
+  sess.deduri=sess.deduri.filter(r=>!(r.year===y&&r.month===m&&r.day===day));
+  autoSaveSess(); renderDeduri();
+}
+
+function renderSupSiteSummary(){
+  const wrap=document.getElementById('sup-site-summary'); if(!wrap) return;
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  const dr=c?.dailyRate||0;
+  const sites=sess.headRows.filter(r=>r.code);
+  if(!sites.length){wrap.innerHTML='<div style="color:#94a3b8;font-size:13px;">ヘッド入力で現場を登録してください</div>';return;}
+  if(!sess.deduri||!sess.deduri.length){wrap.innerHTML='<div style="color:#94a3b8;font-size:13px;">出面を入力してください</div>';return;}
+
+  // 現場ごとに人工・ダンプ代・記載金額を集計
+  const ninkuMap={}, dumpMap={}, claimedMap={};
+  const dumpFeePerDay=sess.dumpFeePerDay||0;
+  sess.deduri.forEach(r=>{
+    const s2=[r.site1,r.site2].filter(Boolean);
+    const np=s2.length>=2?0.5:s2.length===1?1:0;
+    s2.forEach(code=>{
+      ninkuMap[code]=(ninkuMap[code]||0)+np;
+    });
+    // ダンプ代はdump=trueの日に dumpFeePerDay を加算（工番①に紐づけ）
+    if(r.dump&&dumpFeePerDay>0&&r.site1){
+      dumpMap[r.site1]=(dumpMap[r.site1]||0)+dumpFeePerDay;
+    }
+    // 記載金額は工番①に紐づけ
+    if(r.claimedAmount&&r.site1){
+      claimedMap[r.site1]=(claimedMap[r.site1]||0)+(Number(r.claimedAmount)||0);
+    }
+  });
+
+  let html='<table class="tb" style="font-size:12px;"><thead><tr>';
+  html+='<th>工番・現場名</th>';
+  html+='<th style="text-align:right;width:55px;">人工</th>';
+  html+='<th style="text-align:right;width:80px;">計算金額<br><span style="font-size:9px;font-weight:400;">人工×日給</span></th>';
+  html+='<th style="text-align:right;width:70px;">ダンプ代</th>';
+  html+='<th style="text-align:right;width:85px;background:#f0f9ff;">合計計算</th>';
+  html+='<th style="text-align:right;width:85px;">請求金額</th>';
+  html+='<th style="text-align:right;width:65px;">差異</th>';
+  html+='<th style="width:36px;text-align:center;">✓</th>';
+  html+='</tr></thead><tbody>';
+
+  let totalCalc=0,totalClaim=0,totalDump=0,totalClaimed=0;
+  sites.forEach(row=>{
+    const ninku=ninkuMap[row.code]||0;
+    const calcBase=roundJ(ninku*dr);
+    const dump=dumpMap[row.code]||0;
+    const calcTotal=roundJ(calcBase+dump);
+    const claim=Number(row.amount)||0;
+    const claimed=claimedMap[row.code]||0;
+    const diff=roundJ(claim-calcTotal);
+    const ok=Math.abs(diff)<1;
+    totalCalc+=calcTotal; totalClaim+=claim; totalDump+=dump; totalClaimed+=claimed;
+    html+=`<tr>
+      <td><b>${row.code}</b> ${row.name}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;">${ninku}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;">¥${calcBase.toLocaleString()}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;color:${dump>0?'#ea580c':'#94a3b8'};">${dump>0?'¥'+dump.toLocaleString():'—'}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;background:#f0f9ff;">¥${calcTotal.toLocaleString()}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;">¥${claim.toLocaleString()}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${ok?'#059669':diff>0?'#1e40af':'#dc2626'};">
+        ${ok?'±0':(diff>0?'+':'')+diff.toLocaleString()}
+      </td>
+      <td style="text-align:center;font-size:16px;">${ok?'✅':'⚠️'}</td>
+    </tr>`;
+  });
+  const tdiff=roundJ(totalClaim-totalCalc);
+  const tok=Math.abs(tdiff)<1;
+  html+=`</tbody><tfoot><tr style="font-weight:900;background:#f8fafc;">
+    <td>合計</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;">${Object.values(ninkuMap).reduce((s,v)=>s+v,0)}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;">¥${roundJ(totalCalc-totalDump).toLocaleString()}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;color:#ea580c;">¥${totalDump.toLocaleString()}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;background:#f0f9ff;">¥${totalCalc.toLocaleString()}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;">¥${totalClaim.toLocaleString()}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;color:${tok?'#059669':tdiff>0?'#1e40af':'#dc2626'};">
+      ${tok?'±0':(tdiff>0?'+':'')+tdiff.toLocaleString()}
+    </td>
+    <td style="text-align:center;font-size:18px;">${tok?'✅':'⚠️'}</td>
+  </tr></tfoot></table>`;
+  wrap.innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border-radius:6px;border-left:3px solid #7c3aed;">
+    <span style="font-size:12px;font-weight:700;color:#5b21b6;">日給</span>
+    <span style="font-family:'Courier New',monospace;font-size:16px;font-weight:900;color:#7c3aed;">¥${dr.toLocaleString()}</span>
+    <span style="font-size:11px;color:#64748b;">合計計算 ＝ 人工 × 日給 ＋ ダンプ代</span>
+  </div>`+html;
+}
+
+function initS4Sup(){
+  document.getElementById('sp4-sup').style.display='';
+  document.getElementById('sp4-shok').style.display='none';
+  // サマリーをsp4にも表示
+  const wrap=document.getElementById('sup-ninku-summary'); if(!wrap) return;
+  renderSupSiteSummary();
+  // クローン
+  const src=document.getElementById('sup-site-summary');
+  if(src) wrap.innerHTML=src.innerHTML;
+}
+
+function recalcSup(){
+  // Step5 金額確認：サポートの場合は計算金額と請求金額を表示
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  const dr=c?.dailyRate||0;
+  const ninkuMap={};
+  const dumpFeePerDay=sess.dumpFeePerDay||0;
+  (sess.deduri||[]).forEach(r=>{
+    const sites2=[r.site1,r.site2].filter(Boolean);
+    const np=sites2.length>=2?0.5:1;
+    sites2.forEach(code=>{ ninkuMap[code]=(ninkuMap[code]||0)+np; });
+  });
+  const wrap=document.getElementById('site-bk'); if(!wrap) return;
+  let work=0,bk='';
+  sess.headRows.filter(r=>r.code).forEach(row=>{
+    const ninku=ninkuMap[row.code]||0;
+    const calc=roundJ(ninku*dr);
+    const claim=Number(row.amount)||0;
+    work+=claim;
+    const diff=roundJ(claim-calc);
+    const ok=Math.abs(diff)<1;
+    bk+=`<div class="ar"><span style="font-size:11px;">
+      ${row.code} ${row.name}
+      <span style="font-size:10px;color:#7c3aed;margin-left:6px;">${ninku}人工 計算:¥${calc.toLocaleString()}</span>
+      <button class="btn gray xs" onclick="goStep(3)" style="margin-left:6px;padding:2px 7px;font-size:11px;"><i class="fa-solid fa-pen-to-square"></i> 修正</button>
+    </span>
+    <span class="av" style="font-size:12px;color:${ok?'#059669':'#dc2626'};">
+      ¥${claim.toLocaleString()} ${ok?'✅':'⚠️'}
+    </span></div>`;
+  });
+  wrap.innerHTML=bk||'<div style="color:#94a3b8;font-size:13px;">工番が登録されていません</div>';
+  setTxt('site-total','¥'+work.toLocaleString());
+  wfDone.add(5); renderWfBar();
+}
+// ══════════════════════════════════════
+// 拠点フィルター（共通）
+// ══════════════════════════════════════
+const selectedBranches={cm:new Set(), s1:new Set(), v:new Set()};
+
+function allBranches(){
+  return [...new Set(craftsmen.map(c=>c.branch||'その他'))].sort();
+}
+
+function renderBranchPills(containerId, scope, fn){
+  const wrap=document.getElementById(containerId); if(!wrap) return;
+  const branches=allBranches();
+  if(branches.length<=1){ wrap.innerHTML=''; return; }
+  const sel=selectedBranches[scope];
+  let html=`<span style="font-size:11px;color:#64748b;font-weight:700;align-self:center;white-space:nowrap;">拠点：</span>`;
+  html+=`<button onclick="toggleBranchAll('${scope}','${containerId}',${fn.name})"
+    style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid ${sel.size===0?'#7c3aed':'#e2e8f0'};background:${sel.size===0?'#7c3aed':'#fff'};color:${sel.size===0?'#fff':'#475569'};cursor:pointer;font-weight:600;">すべて</button>`;
+  branches.forEach(br=>{
+    const active=sel.has(br);
+    html+=`<button onclick="toggleBranch('${scope}','${br}','${containerId}',${fn.name})"
+      style="font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid ${active?'#7c3aed':'#e2e8f0'};background:${active?'#7c3aed':'#fff'};color:${active?'#fff':'#475569'};cursor:pointer;font-weight:600;">${br}</button>`;
+  });
+  wrap.innerHTML=html;
+}
+
+function toggleBranch(scope, br, containerId, fn){
+  const sel=selectedBranches[scope];
+  if(sel.has(br)) sel.delete(br); else sel.add(br);
+  renderBranchPills(containerId, scope, fn);
+  fn();
+}
+
+function toggleBranchAll(scope, containerId, fn){
+  selectedBranches[scope].clear();
+  renderBranchPills(containerId, scope, fn);
+  fn();
+}
+
+function applyBranchFilter(list, scope){
+  const sel=selectedBranches[scope];
+  if(sel.size===0) return list;
+  return list.filter(c=>(sel.has(c.branch||'その他')));
+}
+
+function initBranchPills(){
+  renderBranchPills('s1-branch-pills','s1',renderCGrid);
+  renderBranchPills('cm-branch-pills','cm',renderCMT);
+  renderBranchPills('v-branch-pills','v',renderVehicles);
+}
+
 document.addEventListener('DOMContentLoaded',()=>{
+  // セッション復元チェック
+  const restored=tryRestoreSess();
   renderWfBar();
   renderCGrid();
   initSiteCount();
+  initBranchPills();
+  // 前回の作業が残っている場合は復元バナーを表示
+  if(restored){
+    const banner=document.createElement('div');
+    banner.id='restore-banner';
+    banner.style.cssText='background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;';
+    banner.innerHTML=`<i class="fa-solid fa-clock-rotate-left" style="color:#1e40af;"></i>
+      <span>前回の作業データを復元しました（<b>${craftsmen.find(x=>x.id===sess.cid)?.name||''}</b>）</span>
+      <button class="btn blue sm" onclick="continueRestored()"><i class="fa-solid fa-play"></i> 作業を続ける</button>
+      <button class="btn gray sm" onclick="clearRestored()">破棄して新規</button>`;
+    const grid=document.getElementById('cgrid');
+    if(grid&&grid.parentNode) grid.parentNode.insertBefore(banner,grid);
+  }
 });
+function continueRestored(){
+  const banner=document.getElementById('restore-banner');
+  if(banner) banner.remove();
+  // 最後にいたステップへ（dSiteがあれば内訳チェックへ）
+  if(sess.dSite && sess.headRows.filter(r=>r.code).length){
+    goStep(3);
+  } else if(sess.headRows.filter(r=>r.code).length){
+    goStep(2);
+  }
+}
+function clearRestored(){
+  localStorage.removeItem(SESS_KEY);
+  const banner=document.getElementById('restore-banner');
+  if(banner) banner.remove();
+  resetSess();
+}
 
 // ── Name inline edit (called by sRow/gRow dblclick) ──
 function nameEditS(code,idx,span){
@@ -2607,11 +3898,6 @@ function insertSRow(code,idx){
     if(newInp) newInp.focus();
   },50);
 }
-function insertGRow(code,idx){
-  if(!sess.dData[code]) return;
-  sess.dData[code].g.splice(idx+1,0,{n:'',u:'',a:0,b:0,c:0,qty:0,memo:'',free:true});
-  renderGTbl(code);
-}
 // ── Delete row ──
 function delSRow(code,i){ if(!sess.dData[code]) return; sess.dData[code].s.splice(i,1); renderSTbl(code); updateGrand(code); }
 function delGRow(code,i){ if(!sess.dData[code]) return; sess.dData[code].g.splice(i,1); renderGTbl(code); updateGrand(code); }
@@ -2624,13 +3910,49 @@ function rmRowG(c,i){ delGRow(c,i); }
 function exportDetailTemplate(type){
   const code=document.getElementById('d-site')?.value;
   if(!code){ alert('現場を選択してください'); return; }
-  const rows=sess.dData[code]?.[type]||[];
-  const header=type==='s'?['項目名','単位','単価','数量','備考']:['項目名','単位','A単価','B単価','C単価','数量','備考'];
-  const data=[header,...rows.map(r=>type==='s'?[r.n,r.u,r.p,r.qty,r.memo]:[r.n,r.u,r.a,r.b,r.c,r.qty,r.memo])];
-  const ws=XLSX.utils.aoa_to_sheet(data);
-  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,type==='s'?'造成':'外構');
-  XLSX.writeFile(wb,(type==='s'?'造成':'外構')+'内訳テンプレート.xlsx');
+  const d=sess.dData[code];
+  if(!d){ alert('データがありません'); return; }
+
+  if(type==='s'){
+    // 造成：セクション名付きで全項目出力
+    ensureSx(code);
+    const header=['セクション','項目名','単位','単価','数量','備考'];
+    const rows=[header];
+    SOZEI_DEF.forEach((sec,si)=>{
+      sec.items.forEach((item,ii)=>{
+        const r=d.s[SOZEI_DEF.slice(0,si).reduce((s,x)=>s+x.items.length,0)+ii]||{};
+        rows.push([sec.sec, r.n||item.n, r.u||item.u, r.p||item.p||0, r.qty||0, r.memo||'']);
+      });
+      (d.sx[si]||[]).forEach(r=>{
+        rows.push([sec.sec+'（追加）', r.n||'', r.u||'', r.p||0, r.qty||0, r.memo||'']);
+      });
+    });
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:22},{wch:30},{wch:6},{wch:8},{wch:7},{wch:16}];
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'造成');
+    XLSX.writeFile(wb,'造成内訳テンプレート.xlsx');
+  } else {
+    // 外構：セクション名付きで全項目出力
+    ensureGx(code);
+    const header=['セクション','項目名','単位','A単価','B単価','C単価','数量','備考'];
+    const rows=[header];
+    GAIKO_DEF.forEach((sec,si)=>{
+      sec.items.forEach((item,ii)=>{
+        const idx=GAIKO_DEF.slice(0,si).reduce((s,x)=>s+x.items.length,0)+ii;
+        const r=d.g[idx]||{};
+        rows.push([sec.sec, r.n||item.n, r.u||item.u, r.a||item.a||0, r.b||item.b||0, r.c||item.c||0, r.qty||0, r.memo||'']);
+      });
+      (d.gx[si]||[]).forEach(r=>{
+        rows.push([sec.sec+'（追加）', r.n||'', r.u||'', r.a||0, r.b||0, r.c||0, r.qty||0, r.memo||'']);
+      });
+    });
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:22},{wch:30},{wch:6},{wch:8},{wch:8},{wch:8},{wch:7},{wch:16}];
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'外構');
+    XLSX.writeFile(wb,'外構内訳テンプレート.xlsx');
+  }
 }
+
 function importDetailTemplate(inp,type){
   const f=inp.files[0]; if(!f) return;
   const code=document.getElementById('d-site')?.value;
@@ -2641,18 +3963,49 @@ function importDetailTemplate(inp,type){
     const ws=wb.Sheets[wb.SheetNames[0]];
     const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
     if(data.length<2){ alert('データなし'); return; }
-    const rows=data.slice(1).map(row=>type==='s'
-      ?{n:String(row[0]||''),u:String(row[1]||''),p:Number(row[2])||0,qty:Number(row[3])||0,memo:String(row[4]||''),free:true}
-      :{n:String(row[0]||''),u:String(row[1]||''),a:Number(row[2])||0,b:Number(row[3])||0,c:Number(row[4])||0,qty:Number(row[5])||0,memo:String(row[6]||''),free:true}
-    );
     if(!sess.dData[code]) sess.dData[code]={s:buildSRows(),g:buildGRows()};
-    // append to existing
-    rows.forEach(row=>sess.dData[code][type].push(row));
+    ensureSx(code); ensureGx(code);
+    const existing=sess.dData[code][type];
+    let updated=0, added=0;
+    data.slice(1).forEach(row=>{
+      // セクション列がある場合(列数6以上)は列1が項目名
+      const hasSection=row.length>=(type==='s'?6:8);
+      const nameCol=hasSection?1:0;
+      const name=String(row[nameCol]||'').trim(); if(!name) return;
+      if(type==='s'){
+        const qty=Number(row[hasSection?4:3])||0;
+        const match=existing.find(r=>r.n===name);
+        if(match){ match.qty=qty; match.memo=String(row[hasSection?5:4]||''); updated++; }
+        else { const alr=existing.find(r=>r.free&&r.n===name); if(!alr){ existing.push({n:name,u:String(row[hasSection?2:1]||''),p:Number(row[hasSection?3:2])||0,qty,memo:String(row[hasSection?5:4]||''),free:true}); added++; } }
+      } else {
+        const qty=Number(row[hasSection?6:5])||0;
+        const match=existing.find(r=>r.n===name);
+        if(match){ match.qty=qty; match.a=Number(row[hasSection?3:2])||match.a; match.b=Number(row[hasSection?4:3])||match.b; match.c=Number(row[hasSection?5:4])||match.c; match.memo=String(row[hasSection?7:6]||''); updated++; }
+        else { const alr=existing.find(r=>r.free&&r.n===name); if(!alr){ existing.push({n:name,u:String(row[hasSection?2:1]||''),a:Number(row[hasSection?3:2])||0,b:Number(row[hasSection?4:3])||0,c:Number(row[hasSection?5:4])||0,qty,memo:String(row[hasSection?7:6]||''),free:true}); added++; } }
+      }
+    });
     if(type==='s') renderSTbl(code); else renderGTbl(code);
-    updateGrand(code);
-    alert(rows.length+'行取込みました');
+    updateGrand(code); autoSaveSess();
+    alert(`取込完了：既存行更新 ${updated}件、新規追加 ${added}件`);
   };
   r.readAsArrayBuffer(f); inp.value='';
+}
+
+// 数量のみ初期化（デフォルト定義はそのまま、数量だけ0に戻す）
+function resetToDefault(type){
+  const code=document.getElementById('d-site')?.value; if(!code) return;
+  if(!confirm(`この工番の${type==='s'?'造成':'外構'}の数量・追加行をすべてリセットします。\n（単価のカスタマイズも含め初期状態に戻ります）`)) return;
+  if(type==='s'){
+    sess.dData[code].s=buildSRows();
+    sess.dData[code].sx=SOZEI_DEF.map(()=>[]);
+    renderSTbl(code);
+  } else {
+    sess.dData[code].g=buildGRows();
+    sess.dData[code].gx=GAIKO_DEF.map(()=>[]);
+    renderGTbl(code);
+  }
+  updateGrand(code); autoSaveSess();
+  alert('初期状態に戻しました');
 }
 
 // ══════════════════════════════════════
@@ -2680,6 +4033,13 @@ function renderVehicles(){
     if(q&&!(v.craftsmanName||'').toLowerCase().includes(q)&&!(v.mgmtNo||'').toLowerCase().includes(q)&&!(v.carName||'').toLowerCase().includes(q)&&!(v.companyName||'').toLowerCase().includes(q)) return false;
     if(statusF&&v.status!==statusF) return false;
     if(lessorF&&v.lessor!==lessorF) return false;
+    // 拠点フィルター：職人マスターの拠点で絞り込む
+    const sel=selectedBranches['v'];
+    if(sel.size>0){
+      const cm=craftsmen.find(c=>c.name===v.craftsmanName);
+      const br=cm?(cm.branch||'その他'):'その他';
+      if(!sel.has(br)) return false;
+    }
     return true;
   });
 
@@ -3136,9 +4496,46 @@ function closeExportCM(){ document.getElementById('mo-export-cm').classList.remo
 function parseExpDate(v){
   if(!v) return null;
   if(v instanceof Date) return v;
-  const s=String(v).trim().replace(/\//g,'-'); // スラッシュをハイフンに統一
-  const d=new Date(s+'T00:00:00'); // ローカル時間のゼロ時
+  const s=String(v).trim().replace(/\//g,'-');
+  const d=new Date(s+'T00:00:00');
   return isNaN(d.getTime())?null:d;
+}
+
+// 残日数フォーマット
+function fmtRemaining(d,today){
+  const diff=Math.round((d-today)/(1000*60*60*24));
+  if(diff<0) return `${Math.abs(diff)}日超過`;
+  if(diff===0) return '本日期限';
+  return `残${diff}日`;
+}
+
+// 期限詳細リストを返す（テーブル表示用）
+function buildExpDetails(c,pi){
+  if(!pi&&!c.pi) return [];
+  const p=pi||c.pi||{};
+  const today=new Date(); today.setHours(0,0,0,0);
+  const soon30=new Date(today); soon30.setDate(soon30.getDate()+30);
+  const soon90=new Date(today); soon90.setDate(soon90.getDate()+90);
+  const expFields=[
+    {key:'rousaiExp', label:'労災保険'},
+    {key:'hokenExp',  label:'健康保険'},
+    {key:'nenkinExp', label:'年金'},
+    {key:'licenseExp',label:'運転免許'},
+  ];
+  const details=[];
+  expFields.forEach(f=>{
+    const d=parseExpDate(p[f.key]); if(!d) return;
+    const rem=fmtRemaining(d,today);
+    if(d<today)       details.push({label:f.label, detail:rem, color:'#dc2626', icon:'⚠'});
+    else if(d<=soon30) details.push({label:f.label, detail:rem, color:'#ea580c', icon:'⏰'});
+    else if(d<=soon90) details.push({label:f.label, detail:rem, color:'#d97706', icon:'📅'});
+  });
+  const hd=parseExpDate(p.healthDate);
+  if(hd){
+    const oneYearAgo=new Date(today); oneYearAgo.setFullYear(oneYearAgo.getFullYear()-1);
+    if(hd<oneYearAgo) details.push({label:'健康診断', detail:'1年以上経過', color:'#2563eb', icon:'🏥'});
+  }
+  return details;
 }
 function piExpBadge(c){
   if(!c.pi) return '';
