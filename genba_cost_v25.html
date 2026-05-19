@@ -1387,7 +1387,34 @@
     </button>
   </div>
 </div>
-                <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4">現在のデータ登録状況</h4><div class="grid grid-cols-4 gap-4 text-center"><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">原価集計</div><div class="text-xl font-bold text-slate-800" id="db-count-cost">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">現場マスター</div><div class="text-xl font-bold text-slate-800" id="db-count-master">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">仕入明細</div><div class="text-xl font-bold text-slate-800" id="db-count-purchase">-</div></div><div class="p-3 bg-white rounded border border-slate-200"><div class="text-xs text-slate-500">売上明細</div><div class="text-xl font-bold text-slate-800" id="db-count-sales">-</div></div></div><div class="mt-4 text-right"><button onclick="window.clearDatabase()" class="text-xs text-red-500 hover:text-red-700 underline">全データを削除する</button></div></div>
+                <div class="glass-panel p-6 rounded-xl">
+  <h4 class="font-bold text-slate-600 mb-4">現在のデータ登録状況</h4>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+    <div class="p-3 bg-white rounded-lg border border-slate-200">
+      <div class="text-xs text-slate-500 mb-1">原価集計</div>
+      <div class="text-xl font-bold text-slate-800" id="db-count-cost">-</div>
+      <div class="text-[10px] text-slate-400 mt-1" id="db-date-cost">-</div>
+    </div>
+    <div class="p-3 bg-white rounded-lg border border-slate-200">
+      <div class="text-xs text-slate-500 mb-1">現場マスター</div>
+      <div class="text-xl font-bold text-slate-800" id="db-count-master">-</div>
+      <div class="text-[10px] text-slate-400 mt-1" id="db-date-master">-</div>
+    </div>
+    <div class="p-3 bg-white rounded-lg border border-slate-200">
+      <div class="text-xs text-slate-500 mb-1">仕入明細</div>
+      <div class="text-xl font-bold text-slate-800" id="db-count-purchase">-</div>
+      <div class="text-[10px] text-slate-400 mt-1" id="db-date-purchase">-</div>
+    </div>
+    <div class="p-3 bg-white rounded-lg border border-slate-200">
+      <div class="text-xs text-slate-500 mb-1">売上明細</div>
+      <div class="text-xl font-bold text-slate-800" id="db-count-sales">-</div>
+      <div class="text-[10px] text-slate-400 mt-1" id="db-date-sales">-</div>
+    </div>
+  </div>
+  <div class="mt-4 text-right">
+    <button onclick="window.clearDatabase()" class="text-xs text-red-500 hover:text-red-700 underline">全データを削除する</button>
+  </div>
+</div>
             </div>
         </div>
     </main>
@@ -1491,6 +1518,18 @@
         const elMaster = document.getElementById('db-count-master'); if (elMaster) elMaster.textContent = (await db.masters.count()) + "件";
         const elPurchase = document.getElementById('db-count-purchase'); if (elPurchase) elPurchase.textContent = (await db.purchases.count()) + "件";
         const elSales = document.getElementById('db-count-sales'); if (elSales) elSales.textContent = (await db.sales.count()) + "件";
+
+        // 取込日時の表示
+        const fmtDate = (meta) => meta?.value ? `取込: ${meta.value}` : '未取込';
+        const [mCost, mMaster, mPurchase, mSales] = await Promise.all([
+            db.meta.get('importedAt_cost'), db.meta.get('importedAt_master'),
+            db.meta.get('importedAt_purchase'), db.meta.get('importedAt_sales')
+        ]);
+        const elDCost     = document.getElementById('db-date-cost');     if (elDCost)     elDCost.textContent     = fmtDate(mCost);
+        const elDMaster   = document.getElementById('db-date-master');   if (elDMaster)   elDMaster.textContent   = fmtDate(mMaster);
+        const elDPurchase = document.getElementById('db-date-purchase'); if (elDPurchase) elDPurchase.textContent = fmtDate(mPurchase);
+        const elDSales    = document.getElementById('db-date-sales');    if (elDSales)    elDSales.textContent    = fmtDate(mSales);
+
         const meta = await db.meta.get('period');
         if(meta && meta.value) { 
             const headerP = document.getElementById('header-period');
@@ -1795,12 +1834,13 @@
                 if (importLog) importLog.textContent += `\n  → ${label} 完了 (${total.toLocaleString()}件${isAppendMode ? ' 追記' : ''})\n`;
             };
 
+            const nowStr = new Date().toLocaleString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
             await db.transaction('rw', db.costs, db.masters, db.meta, async () => {
-                if (pendingFiles.cost)   { await db.costs.clear();   await db.costs.bulkPut(costData);     await db.meta.put({ key: 'period', value: periodStr }); }
-                if (pendingFiles.master) { await db.masters.clear(); await db.masters.bulkPut(masterData); }
+                if (pendingFiles.cost)   { await db.costs.clear();   await db.costs.bulkPut(costData);     await db.meta.put({ key: 'period', value: periodStr }); await db.meta.put({ key: 'importedAt_cost', value: nowStr }); }
+                if (pendingFiles.master) { await db.masters.clear(); await db.masters.bulkPut(masterData); await db.meta.put({ key: 'importedAt_master', value: nowStr }); }
             });
-            if (pendingFiles.purchase.length) await bulkAddChunked(db.purchases, purchaseData, '仕入明細');
-            if (pendingFiles.sales.length)    await bulkAddChunked(db.sales,     salesData,    '売上明細');
+            if (pendingFiles.purchase.length) { await bulkAddChunked(db.purchases, purchaseData, '仕入明細'); await db.meta.put({ key: 'importedAt_purchase', value: nowStr }); }
+            if (pendingFiles.sales.length)    { await bulkAddChunked(db.sales,     salesData,    '売上明細'); await db.meta.put({ key: 'importedAt_sales',    value: nowStr }); }
             if(importLog) importLog.textContent += "完了！\n"; 
             await window.updateDBStats(); 
             // 取込完了後にpendingFilesをリセット（前回ファイルの残留防止）
