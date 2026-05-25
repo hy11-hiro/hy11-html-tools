@@ -74,7 +74,89 @@
         };
 
         const GRID_MODES = { ORTHO: 'ORTHO', ISO: 'ISO', PERSP_1: 'PERSP_1', PERSP_2: 'PERSP_2' };
-        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text' };
+        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text', POLYGON: 'polygon', BLOCK_WALL: 'block_wall', SYMBOL: 'symbol', REG_POLY: 'reg_poly' };
+
+        // 外構シンボル定義
+        const GAIKO_SYMBOLS = {
+            // 構造物
+            monchuu:    { label: '門柱',           category: '構造物', w: 400,  h: 400  },
+            monchuu_L:  { label: '門柱（大）',     category: '構造物', w: 600,  h: 600  },
+            mon_sliding:{ label: '引き戸門扉',     category: '構造物', w: 3000, h: 200  },
+            mon_swing:  { label: '開き戸門扉',     category: '構造物', w: 1500, h: 200  },
+            door_single:{ label: '片開き扉',       category: '構造物', w: 900,  h: 100  },
+            door_double:{ label: '両開き扉',       category: '構造物', w: 1800, h: 100  },
+            carport_1:  { label: 'カーポート1台',  category: '構造物', w: 2750, h: 5000 },
+            carport_2:  { label: 'カーポート2台',  category: '構造物', w: 5500, h: 5000 },
+            garage:     { label: 'ガレージ',       category: '構造物', w: 3000, h: 5500 },
+            // 乗り物
+            car:        { label: '普通車',          category: '乗り物', w: 1800, h: 4500 },
+            kei:        { label: '軽自動車',        category: '乗り物', w: 1480, h: 3400 },
+            bicycle:    { label: '自転車',          category: '乗り物', w: 600,  h: 1800 },
+            // 植栽
+            tree_S:     { label: '低木（小）',      category: '植栽', r: 400  },
+            tree_M:     { label: '中木（中）',      category: '植栽', r: 750  },
+            tree_L:     { label: '高木（大）',      category: '植栽', r: 1500 },
+            hedge:      { label: '生垣',            category: '植栽', w: 500,  h: 2000 },
+            // 設備
+            post:       { label: '郵便ポスト',      category: '設備', w: 300,  h: 400  },
+            ac:         { label: 'エアコン室外機',  category: '設備', w: 900,  h: 300  },
+            tap:        { label: '立水栓',          category: '設備', w: 200,  h: 200  },
+            light_post: { label: 'ポールライト',    category: '設備', r: 200  , isLight: true },
+            light_wall: { label: '壁付ライト',      category: '設備', w: 200,  h: 150  , isLight: true },
+        };
+
+        // 外構材料パターン定義
+        const MATERIALS = {
+            // 基本
+            none:          { label: 'なし',               color: null,      pattern: null,        category: '基本' },
+            concrete:      { label: 'コンクリート',       color: '#e8e8e8', pattern: 'concrete',  category: '基本' },
+            concrete_wash: { label: '洗い出し',           color: '#ddd8c8', pattern: 'wash',      category: '基本' },
+            asphalt:       { label: 'アスファルト',       color: '#888888', pattern: 'asphalt',   category: '基本' },
+            // 石・タイル系
+            tile:          { label: 'タイル（300角）',    color: '#f0f0f0', pattern: 'tile',      category: '石・タイル' },
+            tile_600:      { label: 'タイル（600角）',    color: '#eeeeee', pattern: 'tile600',   category: '石・タイル' },
+            brick:         { label: 'レンガ',             color: '#c0694a', pattern: 'brick',     category: '石・タイル' },
+            interlock:     { label: 'インターロッキング', color: '#d0c8b8', pattern: 'interlock', category: '石・タイル' },
+            hirakita:      { label: '平板（300×600）',   color: '#d8d8d0', pattern: 'hirakita',  category: '石・タイル' },
+            stepping:      { label: '飛び石',             color: '#c8c0b0', pattern: 'stepping',  category: '石・タイル' },
+            natural_stone: { label: '乱形石',             color: '#c8c0a8', pattern: 'nstone',    category: '石・タイル' },
+            // 自然
+            gravel:        { label: '砂利',               color: '#d4c9a0', pattern: 'gravel',    category: '自然' },
+            sand:          { label: '砂',                 color: '#f0e6c0', pattern: 'sand',      category: '自然' },
+            soil:          { label: '土',                 color: '#c4a882', pattern: 'soil',      category: '自然' },
+            grass:         { label: '芝（洋芝）',         color: '#72b050', pattern: 'grass',     category: '自然' },
+            grass_j:       { label: '芝（高麗芝）',       color: '#5a9038', pattern: 'grass_j',   category: '自然' },
+            // 木材
+            wood:          { label: 'ウッドデッキ',       color: '#c89060', pattern: 'wood',      category: '木材' },
+            wood_chip:     { label: 'ウッドチップ',       color: '#b87840', pattern: 'woodchip',  category: '木材' },
+        };
+
+        // ブロック積み設定
+        // 法線ベクトルは描画方向の左側を正とする
+        // 内積み: 境界線の内側（敷地側）にブロックが入る → 正方向(+1)
+        // 外積み: 境界線の外側（道路側）にブロックが入る → 負方向(-1)
+        const BLOCK_POSITIONS = {
+            inner:  { label: '内積み', offset:  1 },
+            center: { label: '芯積み', offset:  0 },
+            outer:  { label: '外積み', offset: -1 },
+        };
+        const BLOCK_THICKNESSES = [
+            { val: 100, label: '100mm (10cm)' },
+            { val: 120, label: '120mm (12cm)' },
+            { val: 150, label: '150mm (15cm)' },
+            { val: 190, label: '190mm (19cm)' },
+        ];
+
+        // フェンス種別
+        const FENCE_TYPES = {
+            none:       { label: 'なし' },
+            mesh:       { label: 'メッシュフェンス',   drawFn: 'mesh'   },
+            horizontal: { label: 'アルミ横格子',        drawFn: 'horiz'  },
+            vertical:   { label: 'アルミ縦格子',        drawFn: 'vert'   },
+            wood:       { label: 'ウッドフェンス',      drawFn: 'wood'   },
+            louver:     { label: 'ルーバーフェンス',    drawFn: 'louver' },
+        };
+        const FENCE_HEIGHTS = [600, 800, 1000, 1200, 1500, 1800, 2000];
 
         const SCALES = [ { val: 1, label: '1:1' }, { val: 10, label: '1:10' }, { val: 20, label: '1:20' }, { val: 30, label: '1:30' }, { val: 50, label: '1:50' }, { val: 100, label: '1:100' }, { val: 200, label: '1:200' }, { val: 250, label: '1:250' }, { val: 300, label: '1:300' }, { val: 500, label: '1:500' }, { val: 1000, label: '1:1000' } ];
         const LINE_WIDTHS = [ { val: 0.1, label: '0.1mm' }, { val: 0.2, label: '0.2mm' }, { val: 0.3, label: '0.3mm' }, { val: 0.5, label: '0.5mm' }, { val: 0.7, label: '0.7mm' }, { val: 1.0, label: '1.0mm' }, { val: 2.0, label: '2.0mm' } ];
@@ -98,40 +180,93 @@
         // --- Survey Modal Component ---
         const SurveyTableModal = ({ isOpen, onClose, onImport }) => {
             const [groups, setGroups] = useState([
-                { 
-                    id: 1, 
-                    name: 'サンプルA', 
-                    points: [
-                        {name:'K1', x:100.000, y:100.000}, 
-                        {name:'K2', x:100.000, y:125.450}, 
-                        {name:'K3', x:122.300, y:128.900}, 
-                        {name:'K4', x:135.500, y:110.200},
-                        {name:'K5', x:120.000, y:95.500}
-                    ] 
-                },
-                { 
-                    id: 2, 
-                    name: 'サンプルB', 
-                    points: [
-                        {name:'M1', x:140.000, y:100.000}, 
-                        {name:'M2', x:140.000, y:115.000}, 
-                        {name:'M3', x:155.000, y:115.000}, 
-                        {name:'M4', x:155.000, y:100.000}
-                    ] 
-                }
+                { id: 1, name: '測量エリア1', points: [] }
             ]);
             const [activeGroupId, setActiveGroupId] = useState(1);
             const [isSurveyCoords, setIsSurveyCoords] = useState(true); 
             const [closeLoop, setCloseLoop] = useState(true);
             const [drawPoints, setDrawPoints] = useState(true);
-            const [autoScale, setAutoScale] = useState(true);
+            const [autoScale, setAutoScale] = useState(false);
+            const [manualScale, setManualScale] = useState(100);  // 指定縮尺（分母）
+            const [tab, setTab] = useState('table');
+            const [pasteText, setPasteText] = useState('');
+            const [parsePreview, setParsePreview] = useState([]);
+            const [parseError, setParseError] = useState('');
 
             // Icon refresh effect
             useEffect(() => {
                 if (isOpen && window.lucide) {
                     setTimeout(() => window.lucide.createIcons(), 50);
                 }
-            }, [isOpen, groups, activeGroupId]);
+            }, [isOpen, groups, activeGroupId, tab]);
+
+            // テキスト貼り付けパーサー（堅牢版）
+            const parsePasteText = (text) => {
+                const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+                const pts = [];
+
+                for (const line of lines) {
+                    // Step1: 特殊文字の正規化
+                    const norm = line
+                        .replace(/[−–—－]/g, '-')          // 各種マイナス記号 → ハイフン
+                        .replace(/[\u00a0\u3000\ufeff]/g, ' '); // 特殊スペース → 半角スペース
+
+                    // Step2: タブ・スペースで分割
+                    const rawCols = norm.split(/\t|\s+/).map(c => c.trim()).filter(c => c.length > 0);
+
+                    // Step3: 「523.」+「891」→「523.891」に結合（小数点後スペース由来）
+                    const cols = [];
+                    for (let i = 0; i < rawCols.length; i++) {
+                        if (/\d\.$/.test(rawCols[i]) && i + 1 < rawCols.length && /^\d+$/.test(rawCols[i + 1])) {
+                            cols.push(rawCols[i] + rawCols[i + 1]);
+                            i++; // 次のトークンをスキップ
+                        } else {
+                            cols.push(rawCols[i]);
+                        }
+                    }
+
+                    if (cols.length < 2) continue;
+
+                    // Step4: 各トークンを点名／数値に分類
+                    let name = '';
+                    const nums = [];
+                    for (const col of cols) {
+                        if (/^-?\d+(\.\d+)?$/.test(col)) {
+                            nums.push(parseFloat(col));
+                        } else if (/[A-Za-z\u3040-\u9fff\u4e00-\u9fff]/.test(col) && name === '' && nums.length === 0) {
+                            // 最初の文字含みトークン（数値抽出前）= 点名
+                            name = col;
+                        }
+                    }
+
+                    if (nums.length < 2) continue;
+
+                    // Step5: ヘッダー・フッター行をスキップ
+                    if (/^(Xn|Yn|NO|測点|点名|合計|倍面積|面積|地積)$/i.test(name)) continue;
+
+                    const ptName = name || ('P' + (pts.length + 1));
+                    pts.push({ name: ptName, x: nums[0], y: nums[1] });
+                }
+                return pts;
+            };
+
+            const handlePasteChange = (text) => {
+                setPasteText(text);
+                const pts = parsePasteText(text);
+                setParsePreview(pts);
+                if (pts.length === 0 && text.trim().length > 0) {
+                    setParseError('座標を認識できませんでした。点名・X座標・Y座標の順に並んでいるか確認してください。');
+                } else {
+                    setParseError('');
+                }
+            };
+
+            const applyPaste = () => {
+                if (parsePreview.length < 2) { setParseError('2点以上の座標が必要です。'); return; }
+                setGroups(groups.map(g => g.id === activeGroupId ? { ...g, points: parsePreview } : g));
+                setTab('table');
+                setPasteText(''); setParsePreview([]); setParseError('');
+            };
 
             const activeGroup = groups.find(g => g.id === activeGroupId) || { id: -1, name: '', points: [] };
             
@@ -183,7 +318,7 @@
             };
 
             const handleImport = () => {
-                onImport(groups, { isSurveyCoords, closeLoop, drawPoints, autoScale });
+                onImport(groups, { isSurveyCoords, closeLoop, drawPoints, autoScale, manualScale });
                 onClose();
             };
 
@@ -191,12 +326,14 @@
 
             return (
                 <div className="modal-overlay">
-                    <div className="bg-[#1a1a1a] rounded-lg border border-gray-600 shadow-2xl w-full max-w-5xl h-[80vh] flex flex-col overflow-hidden">
+                    <div className="bg-[#1a1a1a] rounded-lg border border-gray-600 shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden">
                         
                         {/* Header */}
                         <div className="p-4 bg-gray-900 border-b border-gray-700 flex justify-between items-center shrink-0">
-                            <h3 className="text-xl font-bold text-white flex items-center">
-                                <i data-lucide="table" className="mr-3 text-blue-400"></i> 測量座標入力
+                            <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                                <i data-lucide="table" className="text-blue-400 w-6 h-6"></i>
+                                測量座標入力
+                                <span className="text-sm font-normal text-gray-400">— 座標求積表から直接貼り付け可能</span>
                             </h3>
                             <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-800"><i data-lucide="x" className="w-6 h-6"></i></button>
                         </div>
@@ -225,113 +362,183 @@
                                 </button>
                             </div>
 
-                            {/* Right: Points Table */}
-                            <div className="flex-1 flex flex-col bg-[#222]">
-                                <div className="p-4 border-b border-gray-700 flex gap-4 items-center bg-gray-800 shrink-0">
-                                    <div className="flex-1">
-                                        <label className="block text-xs text-gray-400 mb-1">エリア名</label>
-                                        <input 
-                                            type="text" 
-                                            value={activeGroup.name} 
-                                            onChange={e => {
-                                                const newGroups = groups.map(g => g.id === activeGroupId ? { ...g, name: e.target.value } : g);
-                                                setGroups(newGroups);
-                                            }} 
-                                            style={{backgroundColor: 'white', color: 'black'}}
-                                            className="font-bold border border-gray-600 focus:border-blue-500 rounded px-2 py-1 w-64 text-base focus:outline-none"
-                                            placeholder="エリア名"
-                                        />
-                                    </div>
-                                    <div className="text-right flex items-center gap-4">
-                                        <div className="bg-gray-900 px-4 py-2 rounded border border-gray-600 flex items-baseline gap-2">
-                                            <span className="text-gray-400 text-xs">地積:</span> 
-                                            <span className="font-mono text-green-400 text-lg font-bold">{activeAreaInfo.m2}</span>
-                                            <span className="text-green-600 text-xs">㎡</span>
-                                            <span className="text-gray-500 text-xs ml-2">({activeAreaInfo.tsubo}坪)</span>
-                                        </div>
+                            {/* Right: Editor */}
+                            <div className="flex-1 flex flex-col overflow-hidden">
+                                {/* Area name + area display */}
+                                <div className="px-4 py-3 border-b border-gray-700 bg-gray-800 flex items-center justify-between shrink-0">
+                                    <input
+                                        type="text" value={activeGroup.name}
+                                        onChange={e => setGroups(groups.map(g => g.id === activeGroupId ? { ...g, name: e.target.value } : g))}
+                                        style={{backgroundColor: 'white', color: 'black'}}
+                                        className="font-bold border border-gray-600 rounded px-2 py-1 w-64 text-base focus:outline-none focus:border-blue-500"
+                                        placeholder="エリア名"
+                                    />
+                                    <div className="bg-gray-900 px-4 py-2 rounded border border-gray-600 flex items-baseline gap-2">
+                                        <span className="text-gray-400 text-xs">地積:</span>
+                                        <span className="font-mono text-green-400 text-lg font-bold">{activeAreaInfo.m2}</span>
+                                        <span className="text-green-600 text-xs">㎡</span>
+                                        <span className="text-gray-500 text-xs ml-2">({activeAreaInfo.tsubo}坪)</span>
                                     </div>
                                 </div>
 
-                                <div className="flex-1 overflow-y-auto p-0 bg-[#2d2d2d]">
-                                    <table className="w-full survey-table">
-                                        <thead className="sticky top-0 z-10 shadow-md">
-                                            <tr>
-                                                <th className="w-16">No.</th>
-                                                <th className="w-40">点名</th>
-                                                <th>X座標 (北)</th>
-                                                <th>Y座標 (東)</th>
-                                                <th className="w-16">削除</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {activeGroup.points.map((p, i) => (
-                                                <tr key={i}>
-                                                    <td className="text-center text-gray-500 text-sm font-mono bg-gray-800/30">{i + 1}</td>
-                                                    <td>
-                                                        <input 
-                                                            type="text" 
-                                                            value={p.name} 
-                                                            onChange={(e)=>updatePoint(i,'name',e.target.value)} 
-                                                            style={{backgroundColor: 'white', color: 'black'}}
-                                                            className="w-full text-left border border-gray-400 p-1 font-bold focus:ring-1 focus:ring-blue-500 rounded" 
-                                                            placeholder={`P${i+1}`} 
-                                                        />
-                                                    </td>
-                                                    <td>
-                                                        <input 
-                                                            type="number" step="0.001" 
-                                                            value={p.x} 
-                                                            onChange={(e)=>updatePoint(i,'x',parseFloat(e.target.value))} 
-                                                            style={{backgroundColor: 'white', color: 'black'}}
-                                                            className="w-full text-right border border-gray-400 p-1 font-mono font-bold focus:ring-1 focus:ring-blue-500 rounded" 
-                                                        />
-                                                    </td>
-                                                    <td>
-                                                        <input 
-                                                            type="number" step="0.001" 
-                                                            value={p.y} 
-                                                            onChange={(e)=>updatePoint(i,'y',parseFloat(e.target.value))} 
-                                                            style={{backgroundColor: 'white', color: 'black'}}
-                                                            className="w-full text-right border border-gray-400 p-1 font-mono font-bold focus:ring-1 focus:ring-blue-500 rounded" 
-                                                        />
-                                                    </td>
-                                                    <td className="text-center">
-                                                        <button onClick={()=>removePoint(i)} className="text-gray-400 hover:text-red-400 p-2 rounded hover:bg-gray-700 transition-colors" tabIndex="-1">
-                                                            <i data-lucide="x" className="w-4 h-4"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    <div className="p-4 bg-[#2d2d2d]">
-                                        <button onClick={addPoint} className="w-full py-3 border-2 border-dashed border-gray-600 text-gray-400 text-sm rounded-lg hover:text-white hover:border-gray-500 hover:bg-gray-800 transition-colors font-bold flex items-center justify-center gap-2">
-                                            <i data-lucide="plus-circle" className="w-4 h-4"></i> 測点を追加
-                                        </button>
-                                    </div>
+                                {/* Tab switcher */}
+                                <div className="flex border-b border-gray-700 bg-gray-900 shrink-0">
+                                    <button onClick={() => setTab('table')} className={`px-5 py-2.5 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${tab === 'table' ? 'border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}>
+                                        <i data-lucide="table-2" className="w-4 h-4"></i> 手動入力
+                                    </button>
+                                    <button onClick={() => setTab('paste')} className={`px-5 py-2.5 text-sm font-bold border-b-2 transition-colors flex items-center gap-2 ${tab === 'paste' ? 'border-orange-500 text-orange-400' : 'border-transparent text-gray-400 hover:text-white'}`}>
+                                        <i data-lucide="clipboard-paste" className="w-4 h-4"></i> 座標求積表から貼り付け
+                                        {parsePreview.length > 0 && <span className="bg-orange-600 text-white text-xs rounded-full px-1.5 py-0.5">{parsePreview.length}</span>}
+                                    </button>
                                 </div>
+
+                                {tab === 'table' && (
+                                    <div className="flex-1 flex flex-col overflow-hidden">
+                                        <div className="flex-1 overflow-y-auto p-0 bg-[#2d2d2d]">
+                                            <table className="w-full survey-table">
+                                                <thead className="sticky top-0 z-10 shadow-md">
+                                                    <tr>
+                                                        <th className="w-16">No.</th>
+                                                        <th className="w-40">点名</th>
+                                                        <th>X座標 (北)</th>
+                                                        <th>Y座標 (東)</th>
+                                                        <th className="w-16">削除</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {activeGroup.points.map((p, i) => (
+                                                        <tr key={i}>
+                                                            <td className="text-center text-gray-500 text-sm font-mono bg-gray-800/30">{i + 1}</td>
+                                                            <td>
+                                                                <input type="text" value={p.name} onChange={(e)=>updatePoint(i,'name',e.target.value)}
+                                                                    style={{backgroundColor: 'white', color: 'black'}}
+                                                                    className="w-full text-left border border-gray-400 p-1 font-bold focus:ring-1 focus:ring-blue-500 rounded"
+                                                                    placeholder={`P${i+1}`} />
+                                                            </td>
+                                                            <td>
+                                                                <input type="number" step="0.001" value={p.x} onChange={(e)=>updatePoint(i,'x',parseFloat(e.target.value))}
+                                                                    style={{backgroundColor: 'white', color: 'black'}}
+                                                                    className="w-full text-right border border-gray-400 p-1 font-mono font-bold focus:ring-1 focus:ring-blue-500 rounded" />
+                                                            </td>
+                                                            <td>
+                                                                <input type="number" step="0.001" value={p.y} onChange={(e)=>updatePoint(i,'y',parseFloat(e.target.value))}
+                                                                    style={{backgroundColor: 'white', color: 'black'}}
+                                                                    className="w-full text-right border border-gray-400 p-1 font-mono font-bold focus:ring-1 focus:ring-blue-500 rounded" />
+                                                            </td>
+                                                            <td className="text-center">
+                                                                <button onClick={()=>removePoint(i)} className="text-gray-400 hover:text-red-400 p-2 rounded hover:bg-gray-700 transition-colors" tabIndex="-1">
+                                                                    <i data-lucide="x" className="w-4 h-4"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                            <div className="p-4 bg-[#2d2d2d]">
+                                                <button onClick={addPoint} className="w-full py-3 border-2 border-dashed border-gray-600 text-gray-400 text-sm rounded-lg hover:text-white hover:border-gray-500 hover:bg-gray-800 transition-colors font-bold flex items-center justify-center gap-2">
+                                                    <i data-lucide="plus-circle" className="w-4 h-4"></i> 測点を追加
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {tab === 'paste' && (
+                                    <div className="flex-1 flex flex-col overflow-hidden bg-[#1a1a1a] p-4 gap-3">
+                                        <div className="bg-blue-950 border border-blue-700 rounded p-3 text-xs text-blue-200 shrink-0">
+                                            <div className="font-bold text-blue-300 mb-1">📋 貼り付け方法</div>
+                                            <div>ExcelやWordの座標求積表から測点・X座標・Y座標の列をコピーして貼り付けてください。</div>
+                                            <div className="mt-1 font-mono text-blue-300">書式例：　B21-008　　-17527.197　　-12530.199</div>
+                                            <div className="text-gray-400 mt-1">ヘッダー行・倍面積行・合計行は自動スキップします。タブ区切り・スペース区切り両対応。</div>
+                                        </div>
+                                        <textarea
+                                            value={pasteText}
+                                            onChange={e => handlePasteChange(e.target.value)}
+                                            placeholder="ここに座標求積表をペースト&#10;&#10;例:&#10;B21-008    -17527.197    -12530.199&#10;B21-020    -17526.864    -12523.017&#10;B21-021    -17533.402    -12522.903"
+                                            className="flex-1 font-mono text-sm bg-gray-900 text-green-300 border border-gray-600 rounded p-3 resize-none focus:outline-none focus:border-blue-500"
+                                            spellCheck="false"
+                                        />
+                                        {parseError && (
+                                            <div className="text-red-400 text-xs bg-red-950 border border-red-700 rounded p-2 shrink-0">{parseError}</div>
+                                        )}
+                                        {parsePreview.length > 0 && (
+                                            <div className="shrink-0 bg-gray-900 border border-green-700 rounded overflow-hidden">
+                                                <div className="px-3 py-2 bg-green-950 text-green-300 text-xs font-bold flex justify-between items-center">
+                                                    <span>✓ {parsePreview.length}点を認識</span>
+                                                    <span>地積: {calculateArea(parsePreview).m2} ㎡ ({calculateArea(parsePreview).tsubo}坪)</span>
+                                                </div>
+                                                <div className="max-h-36 overflow-y-auto">
+                                                    <table className="w-full text-xs font-mono">
+                                                        <thead><tr className="bg-gray-800 text-gray-400">
+                                                            <th className="px-3 py-1 text-left">点名</th>
+                                                            <th className="px-3 py-1 text-right">X座標</th>
+                                                            <th className="px-3 py-1 text-right">Y座標</th>
+                                                        </tr></thead>
+                                                        <tbody>
+                                                            {parsePreview.map((p, i) => (
+                                                                <tr key={i} className={i % 2 === 0 ? 'bg-gray-900' : 'bg-gray-800/50'}>
+                                                                    <td className="px-3 py-0.5 text-yellow-300">{p.name}</td>
+                                                                    <td className="px-3 py-0.5 text-right text-gray-300">{p.x.toFixed(3)}</td>
+                                                                    <td className="px-3 py-0.5 text-right text-gray-300">{p.y.toFixed(3)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <div className="p-2 bg-gray-900">
+                                                    <button onClick={applyPaste} className="w-full py-2 bg-green-700 hover:bg-green-600 text-white font-bold text-sm rounded flex items-center justify-center gap-2">
+                                                        <i data-lucide="check" className="w-4 h-4"></i> この座標を「{activeGroup.name}」に適用する
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         {/* Footer */}
-                        <div className="p-4 bg-gray-900 border-t border-gray-700 flex justify-between items-center shrink-0">
-                            <div className="flex items-center gap-6 text-sm">
+                        <div className="p-4 bg-gray-900 border-t border-gray-700 flex justify-between items-center shrink-0 flex-wrap gap-3">
+                            <div className="flex items-center gap-5 text-sm flex-wrap">
                                 <label className="flex items-center gap-2 cursor-pointer select-none text-gray-300 hover:text-white group">
                                     <input type="checkbox" checked={isSurveyCoords} onChange={(e) => setIsSurveyCoords(e.target.checked)} className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500" />
-                                    <span className="group-hover:text-blue-300 transition-colors">測量座標系 (X=縦)</span>
+                                    <span className="group-hover:text-blue-300 transition-colors">測量座標系 (X=北)</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer select-none text-gray-300 hover:text-white group">
                                     <input type="checkbox" checked={closeLoop} onChange={(e) => setCloseLoop(e.target.checked)} className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500" />
-                                    <span className="group-hover:text-blue-300 transition-colors">閉合 (ループ)</span>
+                                    <span className="group-hover:text-blue-300 transition-colors">閉合ループ</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer select-none text-gray-300 hover:text-white group">
                                     <input type="checkbox" checked={drawPoints} onChange={(e) => setDrawPoints(e.target.checked)} className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500" />
                                     <span className="group-hover:text-blue-300 transition-colors">点名表示</span>
                                 </label>
-                                <label className="flex items-center gap-2 cursor-pointer select-none text-gray-300 hover:text-white group">
-                                    <input type="checkbox" checked={autoScale} onChange={(e) => setAutoScale(e.target.checked)} className="w-5 h-5 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500" />
-                                    <span className="group-hover:text-blue-300 transition-colors">自動縮尺</span>
-                                </label>
+
+                                {/* 縮尺指定 */}
+                                <div className="flex items-center gap-2 bg-gray-800 border border-gray-600 rounded px-3 py-1.5">
+                                    <span className="text-gray-400 text-xs font-bold whitespace-nowrap">縮　尺</span>
+                                    <span className="text-gray-500 text-sm">1 :</span>
+                                    <select
+                                        value={autoScale ? 'auto' : String(manualScale)}
+                                        onChange={e => {
+                                            if (e.target.value === 'auto') { setAutoScale(true); }
+                                            else { setAutoScale(false); setManualScale(parseInt(e.target.value)); }
+                                        }}
+                                        style={{backgroundColor: 'white', color: 'black'}}
+                                        className="border border-gray-400 rounded px-2 py-0.5 text-sm font-mono font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                    >
+                                        <option value="auto">自動</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="200">200</option>
+                                        <option value="250">250</option>
+                                        <option value="300">300</option>
+                                        <option value="500">500</option>
+                                        <option value="1000">1000</option>
+                                    </select>
+                                    {!autoScale && (
+                                        <span className="text-gray-400 text-xs">({manualScale}分の1)</span>
+                                    )}
+                                </div>
                             </div>
                             <div className="flex gap-3">
                                 <button onClick={onClose} className="px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded font-medium transition-colors">キャンセル</button>
@@ -361,9 +568,26 @@
             const [strokeWidth, setStrokeWidth] = useState(0.3);
             const [strokeColor, setStrokeColor] = useState('#000000');
 
-            const [gridConfig, setGridConfig] = useState({ color: '#333333', opacity: 0.5, isoAngle: 30, spacing: 10, showSubGrid: false, subDivisions: 5, visible: true });
+            const [gridConfig, setGridConfig] = useState({ color: '#333333', opacity: 0.5, isoAngle: 30, spacing: 10, showSubGrid: false, subDivisions: 5, visible: true, showFrontGrid: true });
             const [showGridPanel, setShowGridPanel] = useState(false);
+            const [showGaikoPanel, setShowGaikoPanel] = useState(false);
+            const [selectedMaterial, setSelectedMaterial] = useState('none');
+            const [blockThickness, setBlockThickness] = useState(150);
+            const [blockPosition, setBlockPosition] = useState('center');
+            const [fenceType, setFenceType] = useState('none');
+            const [fenceHeight, setFenceHeight] = useState(1200);
+            const [selectedSymbol, setSelectedSymbol] = useState('tree_M');
+            const [regPolySides, setRegPolySides] = useState(6);  // 正多角形の辺数
+            const [layerVisibility, setLayerVisibility] = useState({
+                drawing: true,
+                annotation: true,
+                dim: true,
+                symbol: true,
+                area: true,       // 面積表示
+            });
             const [showSurveyModal, setShowSurveyModal] = useState(false);
+            const [snapEnabled, setSnapEnabled] = useState(true);
+            const [cubeSize, setCubeSize] = useState(5);
 
             const viewRef = useRef({ scale: 1.0, offsetX: 0, offsetY: 0 }); 
             const isPanning = useRef(false);
@@ -382,13 +606,583 @@
 
             const formatDim = useCallback((valMM) => {
                 if (unit === 'm') {
-                    const mVal = valMM / 1000;
-                    return parseFloat(mVal.toFixed(3)) + 'm';
+                    // 測量慣行：mm単位で切り捨てて3桁表示
+                    const floored = Math.floor(valMM);
+                    return (floored / 1000).toFixed(3) + 'm';
                 }
-                return valMM.toFixed(0) + 'mm';
+                return Math.floor(valMM) + 'mm';
             }, [unit]);
 
+
+            // ── 材料ハッチングパターン描画 ──
+            const drawMaterialPattern = (ctx, pts, material, scale) => {
+                const mat = MATERIALS[material];
+                if (!mat || !mat.pattern) return;
+                if (pts.length < 3) return;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                ctx.closePath();
+                ctx.clip();
+
+                const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+                const minX = Math.min(...xs), maxX = Math.max(...xs);
+                const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+                // パターン間隔（mm）: 縮尺に応じて調整
+                const sp = Math.max(1.5, 4 / (scale || 1) * 50);
+
+                ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+                ctx.lineWidth = 0.15;
+                ctx.setLineDash([]);
+
+                if (mat.pattern === 'concrete') {
+                    // コンクリート: 斜め線 45°
+                    for (let d = minX + minY - (maxX - minX + maxY - minY); d < maxX + maxY; d += sp) {
+                        ctx.beginPath();
+                        ctx.moveTo(d - minY, minY); ctx.lineTo(d - maxY, maxY);
+                        ctx.stroke();
+                    }
+                } else if (mat.pattern === 'gravel') {
+                    // 砂利: ランダムっぽい楕円
+                    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+                    const seed = 42;
+                    let rx = minX, ry = minY, si = seed;
+                    const rnd = () => { si = (si * 1103515245 + 12345) & 0x7fffffff; return si / 0x7fffffff; };
+                    for (let gx = minX; gx < maxX; gx += sp * 1.2) {
+                        for (let gy = minY; gy < maxY; gy += sp * 0.9) {
+                            const ox = (rnd() - 0.5) * sp * 0.6;
+                            const oy = (rnd() - 0.5) * sp * 0.5;
+                            const ew = sp * 0.35 * (0.5 + rnd() * 0.5);
+                            const eh = sp * 0.2 * (0.5 + rnd() * 0.5);
+                            const angle = rnd() * Math.PI;
+                            ctx.beginPath();
+                            ctx.ellipse(gx + ox, gy + oy, ew, eh, angle, 0, Math.PI * 2);
+                            ctx.stroke();
+                        }
+                    }
+                } else if (mat.pattern === 'sand') {
+                    // 砂: 細かいドット
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    let si2 = 7;
+                    const rnd2 = () => { si2 = (si2 * 1103515245 + 12345) & 0x7fffffff; return si2 / 0x7fffffff; };
+                    for (let gx = minX; gx < maxX; gx += sp * 0.6) {
+                        for (let gy = minY; gy < maxY; gy += sp * 0.6) {
+                            if (rnd2() > 0.4) continue;
+                            const ox = (rnd2() - 0.5) * sp * 0.5;
+                            const oy = (rnd2() - 0.5) * sp * 0.5;
+                            ctx.beginPath();
+                            ctx.arc(gx + ox, gy + oy, 0.15, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                } else if (mat.pattern === 'soil') {
+                    // 土: 斜線 + 点
+                    for (let d = minX + minY - (maxX - minX + maxY - minY); d < maxX + maxY; d += sp * 1.5) {
+                        ctx.beginPath();
+                        ctx.moveTo(d - minY, minY); ctx.lineTo(d - maxY, maxY);
+                        ctx.stroke();
+                    }
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    let si3 = 13;
+                    const rnd3 = () => { si3 = (si3 * 1103515245 + 12345) & 0x7fffffff; return si3 / 0x7fffffff; };
+                    for (let gx = minX + sp; gx < maxX; gx += sp * 1.5) {
+                        for (let gy = minY + sp; gy < maxY; gy += sp * 1.5) {
+                            ctx.beginPath(); ctx.arc(gx, gy, 0.3, 0, Math.PI * 2); ctx.fill();
+                        }
+                    }
+                } else if (mat.pattern === 'grass') {
+                    // 芝: 短い V字
+                    ctx.strokeStyle = 'rgba(0,100,0,0.5)';
+                    ctx.lineWidth = 0.2;
+                    for (let gx = minX + sp/2; gx < maxX; gx += sp) {
+                        for (let gy = minY + sp/2; gy < maxY; gy += sp * 0.8) {
+                            const h = sp * 0.45;
+                            ctx.beginPath();
+                            ctx.moveTo(gx - sp*0.25, gy + h*0.5);
+                            ctx.lineTo(gx, gy);
+                            ctx.lineTo(gx + sp*0.25, gy + h*0.5);
+                            ctx.stroke();
+                        }
+                    }
+                } else if (mat.pattern === 'asphalt') {
+                    // アスファルト: 細かい斜線2方向
+                    for (let d = minX + minY - (maxX - minX + maxY - minY); d < maxX + maxY; d += sp * 0.7) {
+                        ctx.beginPath();
+                        ctx.moveTo(d - minY, minY); ctx.lineTo(d - maxY, maxY);
+                        ctx.stroke();
+                    }
+                    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+                    for (let d = -(maxX + maxY); d < maxX + maxY; d += sp * 0.7) {
+                        ctx.beginPath();
+                        ctx.moveTo(-d + minY, minY); ctx.lineTo(-d + maxY, maxY);
+                        ctx.stroke();
+                    }
+                } else if (mat.pattern === 'tile') {
+                    // タイル: グリッド
+                    const ts = sp * 1.2;
+                    for (let gx = Math.floor(minX/ts)*ts; gx <= maxX; gx += ts) {
+                        ctx.beginPath(); ctx.moveTo(gx, minY); ctx.lineTo(gx, maxY); ctx.stroke();
+                    }
+                    for (let gy = Math.floor(minY/ts)*ts; gy <= maxY; gy += ts) {
+                        ctx.beginPath(); ctx.moveTo(minX, gy); ctx.lineTo(maxX, gy); ctx.stroke();
+                    }
+                } else if (mat.pattern === 'wood') {
+                    // ウッドデッキ: 横木目線（幅広板）
+                    const boardW = sp * 1.5;
+                    for (let gy = minY; gy < maxY; gy += boardW) {
+                        ctx.beginPath(); ctx.moveTo(minX, gy); ctx.lineTo(maxX, gy); ctx.stroke();
+                        // 板内の木目
+                        ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 0.08;
+                        ctx.beginPath(); ctx.moveTo(minX, gy + boardW*0.4); ctx.lineTo(maxX, gy + boardW*0.4); ctx.stroke();
+                        ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 0.15;
+                    }
+
+                } else if (mat.pattern === 'wash') {
+                    // 洗い出しコンクリート: 斜線45° + ランダム小石
+                    for (let d = minX + minY - (maxX - minX + maxY - minY); d < maxX + maxY; d += sp * 1.2) {
+                        ctx.beginPath(); ctx.moveTo(d - minY, minY); ctx.lineTo(d - maxY, maxY); ctx.stroke();
+                    }
+                    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                    let rws = 31;
+                    const rwn = () => { rws = (rws * 1103515245 + 12345) & 0x7fffffff; return rws / 0x7fffffff; };
+                    for (let gx = minX; gx < maxX; gx += sp * 0.5) {
+                        for (let gy = minY; gy < maxY; gy += sp * 0.5) {
+                            if (rwn() > 0.35) continue;
+                            const ox = (rwn()-0.5)*sp*0.4, oy = (rwn()-0.5)*sp*0.4;
+                            const r3 = 0.15 + rwn()*0.2;
+                            ctx.beginPath(); ctx.arc(gx+ox, gy+oy, r3, 0, Math.PI*2); ctx.fill();
+                        }
+                    }
+
+                } else if (mat.pattern === 'tile600') {
+                    // タイル600角: 大判グリッド
+                    const ts6 = sp * 2.5;
+                    for (let gx = Math.floor(minX/ts6)*ts6; gx <= maxX; gx += ts6) {
+                        ctx.beginPath(); ctx.moveTo(gx, minY); ctx.lineTo(gx, maxY); ctx.stroke();
+                    }
+                    for (let gy = Math.floor(minY/ts6)*ts6; gy <= maxY; gy += ts6) {
+                        ctx.beginPath(); ctx.moveTo(minX, gy); ctx.lineTo(maxX, gy); ctx.stroke();
+                    }
+
+                } else if (mat.pattern === 'brick') {
+                    // レンガ: 横2: 縦1 比率、千鳥配置
+                    const bw = sp * 2.0, bh = sp * 0.9;
+                    for (let gy = minY; gy < maxY; gy += bh) {
+                        const row = Math.round((gy - minY) / bh);
+                        const offset = (row % 2) * bw * 0.5;
+                        for (let gx = minX - bw + offset; gx < maxX; gx += bw) {
+                            ctx.strokeRect(gx, gy, bw - 0.3, bh - 0.3);
+                        }
+                    }
+
+                } else if (mat.pattern === 'interlock') {
+                    // インターロッキング: 煉瓦状の小ブロック（ランニングボンド）
+                    const ilw = sp * 1.2, ilh = sp * 0.6;
+                    for (let gy = minY; gy < maxY; gy += ilh) {
+                        const row = Math.round((gy - minY) / ilh);
+                        const offset = (row % 2) * ilw * 0.5;
+                        for (let gx = minX - ilw + offset; gx < maxX; gx += ilw) {
+                            ctx.fillStyle = row % 3 === 0 ? 'rgba(180,160,130,0.3)'
+                                          : row % 3 === 1 ? 'rgba(160,150,120,0.3)'
+                                          : 'rgba(170,155,125,0.3)';
+                            ctx.fillRect(gx+0.1, gy+0.1, ilw-0.2, ilh-0.2);
+                            ctx.strokeRect(gx, gy, ilw, ilh);
+                        }
+                    }
+
+                } else if (mat.pattern === 'hirakita') {
+                    // 平板300×600: 長手方向を交互
+                    const pw = sp * 2.0, ph = sp * 1.0;
+                    for (let gy = minY; gy < maxY; gy += ph * 2) {
+                        for (let gx = minX; gx < maxX; gx += pw) { ctx.strokeRect(gx, gy, pw, ph); }
+                        for (let gx = minX + pw*0.5; gx < maxX; gx += pw) { ctx.strokeRect(gx, gy+ph, pw, ph); }
+                    }
+
+                } else if (mat.pattern === 'stepping') {
+                    // 飛び石: ランダム配置の楕円
+                    let rss = 17;
+                    const rsn = () => { rss = (rss * 1103515245 + 12345) & 0x7fffffff; return rss / 0x7fffffff; };
+                    for (let gx = minX + sp*0.8; gx < maxX - sp*0.5; gx += sp * 2.2) {
+                        for (let gy = minY + sp*0.8; gy < maxY - sp*0.5; gy += sp * 2.5) {
+                            const ox = (rsn()-0.5)*sp*0.5, oy = (rsn()-0.5)*sp*0.5;
+                            const rw = sp*(0.5+rsn()*0.3), rh = sp*(0.4+rsn()*0.25);
+                            const ang = rsn()*Math.PI;
+                            ctx.fillStyle = 'rgba(180,170,150,0.4)';
+                            ctx.beginPath(); ctx.ellipse(gx+ox, gy+oy, rw, rh, ang, 0, Math.PI*2);
+                            ctx.fill(); ctx.stroke();
+                        }
+                    }
+
+                } else if (mat.pattern === 'nstone') {
+                    // 乱形石: ランダムな多角形パッチワーク
+                    let rns = 23;
+                    const rnn = () => { rns = (rns * 1103515245 + 12345) & 0x7fffffff; return rns / 0x7fffffff; };
+                    const stoneSize = sp * 1.5;
+                    for (let gx = minX; gx < maxX; gx += stoneSize) {
+                        for (let gy = minY; gy < maxY; gy += stoneSize) {
+                            const sides = 5 + Math.floor(rnn() * 3);
+                            ctx.beginPath();
+                            for (let i = 0; i < sides; i++) {
+                                const a = (i / sides) * Math.PI * 2 + rnn()*0.4;
+                                const r4 = stoneSize * (0.3 + rnn() * 0.25);
+                                const px = gx + stoneSize*0.5 + Math.cos(a)*r4;
+                                const py = gy + stoneSize*0.5 + Math.sin(a)*r4;
+                                i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+                            }
+                            ctx.closePath();
+                            ctx.fillStyle = 'rgba(180,170,145,0.2)'; ctx.fill(); ctx.stroke();
+                        }
+                    }
+
+                } else if (mat.pattern === 'grass_j') {
+                    // 高麗芝: 短い斜め線（密な横縞）
+                    for (let gy = minY; gy < maxY; gy += sp * 0.5) {
+                        for (let gx = minX; gx < maxX; gx += sp * 0.6) {
+                            ctx.strokeStyle = 'rgba(60,140,40,0.5)';
+                            const jitter = (Math.sin(gx * 7.3 + gy * 3.1) * 0.5) * sp * 0.15;
+                            ctx.beginPath(); ctx.moveTo(gx + jitter, gy);
+                            ctx.lineTo(gx + sp*0.12 + jitter, gy - sp*0.3); ctx.stroke();
+                        }
+                    }
+                    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+
+                } else if (mat.pattern === 'woodchip') {
+                    // ウッドチップ: 短い線を乱雑に
+                    let rwc = 41;
+                    const rwcn = () => { rwc = (rwc * 1103515245 + 12345) & 0x7fffffff; return rwc / 0x7fffffff; };
+                    ctx.lineWidth = 0.2;
+                    for (let gx = minX; gx < maxX; gx += sp * 0.5) {
+                        for (let gy = minY; gy < maxY; gy += sp * 0.5) {
+                            if (rwcn() > 0.5) continue;
+                            const ox = (rwcn()-0.5)*sp*0.45, oy = (rwcn()-0.5)*sp*0.45;
+                            const ang = rwcn() * Math.PI;
+                            const cl = sp * (0.15 + rwcn()*0.2);
+                            ctx.strokeStyle = `rgba(${100+Math.floor(rwcn()*60)},${60+Math.floor(rwcn()*40)},20,0.6)`;
+                            ctx.beginPath();
+                            ctx.moveTo(gx+ox-Math.cos(ang)*cl, gy+oy-Math.sin(ang)*cl);
+                            ctx.lineTo(gx+ox+Math.cos(ang)*cl, gy+oy+Math.sin(ang)*cl);
+                            ctx.stroke();
+                        }
+                    }
+                    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+                }
+
+                ctx.restore();
+            };
+
+            // ブロック壁のオフセットを「中心方向」基準で計算するヘルパー
+            // nx,ny: 進行方向の左法線  position: 'inner'|'center'|'outer'
+            // innerDir: 1=法線正方向が内側, -1=法線負方向が内側
+            const blockOffsets = (nx, ny, thickPaper, position, p1, p2) => {
+                // 線分の中点から用紙中心への方向を「内」とする
+                const pp = PAPERS[paper];
+                const cx = pp.width / 2, cy = pp.height / 2;
+                const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+                // 中心方向ドット積：正なら法線正方向が内側
+                const toCenterX = cx - mx, toCenterY = cy - my;
+                const dot = nx * toCenterX + ny * toCenterY;
+                // innerSign: 法線のどちら向きが「内」か
+                const innerSign = dot >= 0 ? 1 : -1;
+
+                // inner: 内側へ全厚, outer: 外側へ全厚, center: 中央
+                const factor = position === 'inner' ? innerSign
+                             : position === 'outer' ? -innerSign
+                             : 0;
+                const halfT = thickPaper / 2;
+                const offA = factor === 0 ? -halfT : (factor > 0 ? 0       : -thickPaper);
+                const offB = factor === 0 ?  halfT : (factor > 0 ? thickPaper : 0);
+                return { offA, offB };
+            };
+
+            // ── ブロック壁エンティティ生成 ──
+            const createBlockWallEntities = useCallback((p1, p2, thickness_mm, position, color, lineWidth, fenceType, fenceHeight_mm) => {
+                const dx = p2.x - p1.x, dy = p2.y - p1.y;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                if (len < 0.1) return [];
+                const nx = -dy / len, ny = dx / len;
+                const thickPaper = thickness_mm / drawingScale;
+                const { offA, offB } = blockOffsets(nx, ny, thickPaper, position, p1, p2);
+
+                const ents = [];
+                const addLine = (a, b, extra = {}) => ents.push({
+                    id: Date.now() + Math.random() * 9999,
+                    type: TOOLS.LINE, p1: {...a}, p2: {...b},
+                    color, lineWidth, layer: 'drawing', ...extra
+                });
+
+                // ブロック2本線
+                const lineA_p1 = { x: p1.x + nx*offA, y: p1.y + ny*offA };
+                const lineA_p2 = { x: p2.x + nx*offA, y: p2.y + ny*offA };
+                const lineB_p1 = { x: p1.x + nx*offB, y: p1.y + ny*offB };
+                const lineB_p2 = { x: p2.x + nx*offB, y: p2.y + ny*offB };
+
+                addLine(lineA_p1, lineA_p2);
+                addLine(lineB_p1, lineB_p2);
+                // 端部閉鎖線
+                addLine(lineA_p1, lineB_p1);
+                addLine(lineA_p2, lineB_p2);
+
+                // ブロック目地（400mm毎 = 1ブロック単位）
+                const BLOCK_UNIT = 400 / drawingScale;
+                const numJoints = Math.floor(len / BLOCK_UNIT) - 1;
+                for (let i = 1; i <= numJoints; i++) {
+                    const t = (i * BLOCK_UNIT) / len;
+                    const mx2 = p1.x + t * dx, my2 = p1.y + t * dy;
+                    addLine({ x: mx2 + nx*offA, y: my2 + ny*offA }, { x: mx2 + nx*offB, y: my2 + ny*offB });
+                }
+
+                // ── 引き出し線（JIS Z 8312 準拠）──
+                // 構造: 矢印(壁面) → 斜め線 → 折れ点 → 水平参照線 → テキスト(参照線上)
+                const pp2 = PAPERS[paper];
+                const midX2 = (p1.x + p2.x) / 2, midY2 = (p1.y + p2.y) / 2;
+                const wallDirX = dx / len, wallDirY = dy / len;
+
+                // 外側判定（用紙中心から遠い方向）
+                const toCx = pp2.width/2 - midX2, toCy = pp2.height/2 - midY2;
+                const leaderSign = (nx*toCx + ny*toCy) >= 0 ? -1 : 1;
+
+                // 矢印先端：ブロック外縁の中央
+                const outerOff = leaderSign > 0 ? offB : offA;
+                const arrowX = midX2 + nx * outerOff;
+                const arrowY = midY2 + ny * outerOff;
+
+                // 折れ点：矢印から「常に上方向 + 用紙内向き水平成分」で15mm
+                // Y軸は下向きなので -Y = 上
+                const upY = -1;  // 常に上方向
+                // 水平成分：参照線を伸ばす方向（右or左）で決める
+                // 用紙右半分にいる → 左向き、左半分 → 右向き
+                const refDir = (arrowX > pp2.width / 2) ? -1 : 1;
+                // 折れ点を矢印から斜め上方向へ
+                const kDX = refDir * 0.707;
+                const kDY = -0.707;   // 常に上
+                const kneeX = arrowX + kDX * 15;
+                const kneeY = arrowY + kDY * 15;
+
+                // 水平参照線（折れ点から水平に22mm）
+                const refLen = 22;
+                const refEndX = kneeX + refDir * refLen;
+                const refEndY = kneeY;   // 水平なのでYは同じ
+
+                // ラベル
+                let labelText = `CB${thickness_mm}`;
+                if (fenceType && fenceType !== 'none' && fenceHeight_mm > 0) {
+                    labelText += `+${FENCE_TYPES[fenceType]?.label || 'F'} H=${fenceHeight_mm}`;
+                }
+                const labelColor = '#222244';
+                const thinLW = Math.max(0.1, lineWidth * 0.5);
+
+                // ① 矢印（30°開き、先端から折れ点方向）
+                const arrSize = 1.8;
+                const arrAngle = Math.PI / 6;
+                const pX2 = -kDY, pY2 = kDX;   // 斜め線の法線
+                const spread = arrSize * Math.tan(arrAngle);
+                const arrBX = arrowX + kDX * arrSize, arrBY = arrowY + kDY * arrSize;
+                addLine({ x: arrowX, y: arrowY },
+                        { x: arrBX + pX2*spread, y: arrBY + pY2*spread },
+                        { color: labelColor, lineWidth: thinLW, isDim: true });
+                addLine({ x: arrowX, y: arrowY },
+                        { x: arrBX - pX2*spread, y: arrBY - pY2*spread },
+                        { color: labelColor, lineWidth: thinLW, isDim: true });
+
+                // ② 斜め引き出し線（矢印 → 折れ点）
+                addLine({ x: arrowX, y: arrowY }, { x: kneeX, y: kneeY },
+                        { color: labelColor, lineWidth: thinLW, isDim: true });
+
+                // ③ 水平参照線（折れ点 → 参照線端）
+                addLine({ x: kneeX, y: kneeY }, { x: refEndX, y: refEndY },
+                        { color: labelColor, lineWidth: thinLW, isDim: true });
+
+                // ④ テキスト（参照線の真上 1.8mm・中央揃え）
+                ents.push({
+                    id: Date.now() + Math.random() * 9999,
+                    type: 'text_label',
+                    p1: { x: (kneeX + refEndX) / 2, y: kneeY - 1.8 },
+                    text: labelText,
+                    color: labelColor, layer: 'annotation', isDim: true,
+                    fontSize: 2.5, align: 'center'
+                });
+
+                // ── フェンス描画 ──
+                if (fenceType && fenceType !== 'none' && fenceHeight_mm > 0) {
+                    ents.push({
+                        id: Date.now() + Math.random() * 9999,
+                        type: 'fence_fill',
+                        pts: [lineA_p1, lineA_p2, lineB_p2, lineB_p1],
+                        fenceType, fenceHeight: fenceHeight_mm,
+                        color: strokeColor, lineWidth, layer: 'drawing'
+                    });
+                }
+                return ents;
+            }, [drawingScale, paper]);
+
+            // ── シンボル描画ヘルパー（図面風）──
+            const drawGaikoSymbol = (ctx, ent, scale) => {
+                const { symbolType, p1, rotation = 0 } = ent;
+                const sym = GAIKO_SYMBOLS[symbolType];
+                if (!sym) return;
+                const s = scale;
+                ctx.save();
+                ctx.translate(p1.x, p1.y);
+                ctx.rotate(rotation);
+                const lw = ent.lineWidth || 0.25;
+
+                if (sym.r) {
+                    // 植栽・ライト（円形）
+                    const r = sym.r / s;
+                    if (sym.isLight) {
+                        ctx.strokeStyle = '#cc8800'; ctx.lineWidth = lw * 1.2;
+                        ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+                        ctx.beginPath(); ctx.arc(0,0,r*0.4,0,Math.PI*2); ctx.stroke();
+                        ctx.lineWidth = lw * 0.6;
+                        for (let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.5,Math.sin(a)*r*0.5);ctx.lineTo(Math.cos(a)*r*0.9,Math.sin(a)*r*0.9);ctx.stroke();}
+                    } else {
+                        ctx.strokeStyle='#006600'; ctx.fillStyle='rgba(0,120,0,0.12)'; ctx.lineWidth=lw;
+                        ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+                        ctx.strokeStyle='#004400'; ctx.lineWidth=lw*0.7;
+                        for(let i=0;i<8;i++){const a=(i/8)*Math.PI*2;const cx3=Math.cos(a)*r*0.62,cy3=Math.sin(a)*r*0.62;ctx.beginPath();ctx.arc(cx3,cy3,r*0.35,0,Math.PI*2);ctx.stroke();}
+                        ctx.fillStyle='#5a3a1a';ctx.beginPath();ctx.arc(0,0,r*0.1,0,Math.PI*2);ctx.fill();
+                    }
+                    ctx.rotate(-rotation);
+                    ctx.fillStyle=sym.isLight?'#cc8800':'#006600'; ctx.font=`${1.8}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='top';
+                    ctx.fillText(sym.label,0,r+0.8);
+                    ctx.restore(); return;
+                }
+
+                const w=sym.w/s, h=sym.h/s, hw=w/2, hh=h/2;
+                ctx.lineWidth=lw;
+
+                if (symbolType==='monchuu'||symbolType==='monchuu_L') {
+                    ctx.fillStyle='rgba(80,80,80,0.7)'; ctx.strokeStyle='#222'; ctx.lineWidth=lw*1.5;
+                    ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
+
+                } else if (symbolType==='mon_sliding') {
+                    ctx.strokeStyle='#333'; ctx.strokeRect(-hw,-hh,w,h);
+                    const aw=hw*0.75; ctx.lineWidth=lw*0.8;
+                    ctx.beginPath(); ctx.moveTo(-hw+2/s,0); ctx.lineTo(-hw+aw,0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-hw+aw-2/s,-1.5/s); ctx.lineTo(-hw+aw,0); ctx.lineTo(-hw+aw-2/s,1.5/s); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(hw-2/s,0); ctx.lineTo(hw-aw,0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(hw-aw+2/s,-1.5/s); ctx.lineTo(hw-aw,0); ctx.lineTo(hw-aw+2/s,1.5/s); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0,-hh); ctx.lineTo(0,hh); ctx.stroke();
+
+                } else if (symbolType==='mon_swing') {
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw*1.2;
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh); ctx.lineTo(hw,-hh); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh); ctx.lineTo(-hw,hh); ctx.stroke();
+                    ctx.lineWidth=lw*0.6; ctx.setLineDash([1/s,1/s]);
+                    ctx.beginPath(); ctx.arc(-hw,-hh,w,0,Math.PI/2); ctx.stroke();
+                    ctx.setLineDash([]); ctx.lineWidth=lw*1.2;
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh); ctx.lineTo(-hw,-hh+w); ctx.stroke();
+
+                } else if (symbolType==='door_single') {
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw*1.2;
+                    ctx.beginPath(); ctx.moveTo(-hw,0); ctx.lineTo(hw,0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(hw,0); ctx.lineTo(hw,w); ctx.stroke();
+                    ctx.lineWidth=lw*0.5; ctx.setLineDash([1/s,1/s]);
+                    ctx.beginPath(); ctx.arc(hw,0,w,Math.PI/2,Math.PI); ctx.stroke();
+                    ctx.setLineDash([]);
+
+                } else if (symbolType==='door_double') {
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw*1.2;
+                    ctx.beginPath(); ctx.moveTo(-hw,0); ctx.lineTo(hw,0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-hw,0); ctx.lineTo(-hw,hw); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(hw,0); ctx.lineTo(hw,hw); ctx.stroke();
+                    ctx.lineWidth=lw*0.5; ctx.setLineDash([1/s,1/s]);
+                    ctx.beginPath(); ctx.arc(-hw,0,hw,-Math.PI/2,0); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(hw,0,hw,-Math.PI/2,-Math.PI,true); ctx.stroke();
+                    ctx.setLineDash([]);
+
+                } else if (symbolType.startsWith('carport')) {
+                    // カーポート：外形（破線）+ 柱のみ、斜線なし
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw*0.7;
+                    ctx.setLineDash([2/s,1/s]);
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.setLineDash([]);
+                    const colS=Math.min(150/s,hw*0.12);
+                    ctx.fillStyle='#444'; ctx.lineWidth=lw*0.5;
+                    [[-hw,-hh],[hw-colS,-hh],[-hw,hh-colS],[hw-colS,hh-colS]].forEach(([cx2,cy2])=>{ctx.fillRect(cx2,cy2,colS,colS);ctx.strokeRect(cx2,cy2,colS,colS);});
+                    if (symbolType==='carport_2') {
+                        ctx.fillRect(-colS/2,-hh,colS,colS); ctx.fillRect(-colS/2,hh-colS,colS,colS);
+                    }
+
+                } else if (symbolType==='garage') {
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw;
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.fillStyle='rgba(180,180,180,0.1)'; ctx.fillRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*2.5; ctx.strokeStyle='#555';
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh); ctx.lineTo(hw,-hh); ctx.stroke();
+                    ctx.lineWidth=lw*0.5; ctx.strokeStyle='#888';
+                    for(let i=1;i<=4;i++){const yy=-hh+h*0.25*i*0.5;ctx.beginPath();ctx.moveTo(-hw,yy);ctx.lineTo(hw,yy);ctx.stroke();}
+
+                } else if (symbolType==='car'||symbolType==='kei') {
+                    const cr2=Math.min(200/s,hw*0.2);
+                    ctx.beginPath(); ctx.roundRect(-hw,-hh,w,h,cr2);
+                    ctx.fillStyle='rgba(220,230,250,0.25)'; ctx.fill();
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw; ctx.stroke();
+                    ctx.lineWidth=lw*1.8; ctx.strokeStyle='#555';
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh+h*0.08); ctx.lineTo(hw,-hh+h*0.08); ctx.stroke();
+                    const wr2=200/s,wxOff=hw-wr2*0.6,wyOff=hh-wr2*1.2;
+                    ctx.lineWidth=lw*1.5; ctx.strokeStyle='#222';
+                    [[-wxOff,-wyOff],[wxOff,-wyOff],[-wxOff,wyOff],[wxOff,wyOff]].forEach(([cx2,cy2])=>{ctx.beginPath();ctx.arc(cx2,cy2,wr2,0,Math.PI*2);ctx.stroke();});
+
+                } else if (symbolType==='bicycle') {
+                    const wr3=hh*0.35; ctx.strokeStyle='#333'; ctx.lineWidth=lw;
+                    ctx.beginPath(); ctx.arc(0,-hh+wr3,wr3,0,Math.PI*2); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0,hh-wr3,wr3,0,Math.PI*2); ctx.stroke();
+                    ctx.lineWidth=lw*1.2;
+                    ctx.beginPath(); ctx.moveTo(-hw*0.6,-hh+wr3); ctx.lineTo(hw*0.6,-hh+wr3); ctx.stroke();
+                    ctx.lineWidth=lw;
+                    ctx.beginPath(); ctx.moveTo(0,-hh+wr3*2); ctx.lineTo(0,hh-wr3*2); ctx.moveTo(-hw*0.3,0); ctx.lineTo(hw*0.3,0); ctx.stroke();
+                    ctx.lineWidth=lw*1.5;
+                    ctx.beginPath(); ctx.moveTo(-hw*0.4,0); ctx.lineTo(hw*0.4,0); ctx.stroke();
+
+                } else if (symbolType==='hedge') {
+                    ctx.fillStyle='rgba(0,120,0,0.1)'; ctx.fillRect(-hw,-hh,w,h);
+                    ctx.strokeStyle='#006600'; ctx.lineWidth=lw;
+                    const bumpN=Math.max(4,Math.round(h/(150/s)));
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh);
+                    for(let i=0;i<=bumpN;i++){const t=i/bumpN,yy=-hh+t*h;ctx.lineTo(-hw-(i%2===0?60/s:0),yy);}
+                    ctx.lineTo(-hw,hh);ctx.lineTo(hw,hh);
+                    for(let i=bumpN;i>=0;i--){const t=i/bumpN,yy=-hh+t*h;ctx.lineTo(hw+(i%2===0?60/s:0),yy);}
+                    ctx.closePath(); ctx.stroke();
+
+                } else if (symbolType==='post') {
+                    ctx.strokeStyle='#aa2200'; ctx.lineWidth=lw;
+                    ctx.fillStyle='rgba(200,50,50,0.2)'; ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.fillStyle='#aa2200'; ctx.font=`bold ${h*0.55}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('〒',0,0);
+
+                } else if (symbolType==='ac') {
+                    ctx.strokeStyle='#555'; ctx.lineWidth=lw;
+                    ctx.fillStyle='rgba(180,180,180,0.2)'; ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
+                    const fr=Math.min(hh*0.7,hw*0.5);
+                    ctx.beginPath(); ctx.arc(-hw+hw*0.5,0,fr,0,Math.PI*2); ctx.stroke();
+                    ctx.fillStyle='#888'; ctx.fillRect(hw*0.4,-hh*0.7,hw*0.5,hh*1.4);
+
+                } else if (symbolType==='tap') {
+                    ctx.strokeStyle='#0066aa'; ctx.lineWidth=lw*1.2;
+                    ctx.beginPath(); ctx.arc(0,0,hw,0,Math.PI*2);
+                    ctx.fillStyle='rgba(0,100,200,0.15)'; ctx.fill(); ctx.stroke();
+                    ctx.lineWidth=lw*0.8;
+                    ctx.beginPath(); ctx.moveTo(0,-hh); ctx.lineTo(0,hh); ctx.moveTo(-hw,0); ctx.lineTo(hw,0); ctx.stroke();
+
+                } else if (symbolType==='light_wall') {
+                    ctx.strokeStyle='#cc8800'; ctx.lineWidth=lw;
+                    ctx.fillStyle='rgba(255,200,0,0.2)'; ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.5; ctx.strokeStyle='rgba(255,180,0,0.6)';
+                    for(let i=-2;i<=2;i++){const a=i*Math.PI/8;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.sin(a)*h*1.5,-Math.cos(a)*h*1.5);ctx.stroke();}
+                } else {
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw; ctx.strokeRect(-hw,-hh,w,h);
+                }
+
+                ctx.rotate(-rotation);
+                ctx.fillStyle='#222'; ctx.font=`${1.8}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='top';
+                ctx.fillText(sym.label,0,hh+1);
+                ctx.restore();
+            };
             const fitViewToScreen = useCallback(() => {
+
                 const p = PAPERS[paper];
                 if (!p) return;
                 const w = size.width;
@@ -413,7 +1207,13 @@
                     }
                 });
                 if (containerRef.current) ro.observe(containerRef.current);
-                return () => ro.disconnect();
+                const handleKey = (e) => {
+                    const tag = e.target.tagName;
+                    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+                    if (e.key === 's' || e.key === 'S') setSnapEnabled(prev => !prev);
+                };
+                window.addEventListener('keydown', handleKey);
+                return () => { ro.disconnect(); window.removeEventListener('keydown', handleKey); };
             }, []);
 
             useEffect(() => {
@@ -472,17 +1272,18 @@
                 const centerX = minX + rawWidth / 2;
                 const centerY = minY + rawHeight / 2;
 
-                let scaleToUse = drawingScale;
+                let scaleToUse = options.autoScale ? drawingScale : (options.manualScale || drawingScale);
                 const p = PAPERS[paper];
                 const contentW = p.width - 40; 
                 const contentH = p.height - 40;
 
-                let unitMult = 1;
-                if (maxX < 10000 && minX > -10000 && rawWidth < 5000) {
-                     unitMult = 1000; 
-                }
+                // 単位変換係数
+                // 測量座標系（平面直角座標）はメートル単位 → mm に変換するため ×1000
+                // 非測量座標（CAD等の相対座標）はmm単位とみなす
+                const unitMult = options.isSurveyCoords ? 1000 : 1;
 
                 if (options.autoScale) {
+                    // rawWidth/Height はメートル → mm換算して縮尺を決定
                     const w_mm = rawWidth * unitMult;
                     const h_mm = rawHeight * unitMult;
                     const sX = w_mm / contentW;
@@ -499,6 +1300,10 @@
                         }
                     }
                     if (!found) scaleToUse = Math.ceil(idealS / 10) * 10;
+                    setDrawingScale(scaleToUse);
+                } else {
+                    // 指定縮尺を使用
+                    scaleToUse = options.manualScale || drawingScale;
                     setDrawingScale(scaleToUse);
                 }
 
@@ -525,21 +1330,6 @@
                             canvasY = paperCY - (relY / scaleToUse);
                         }
                         return { x: canvasX, y: canvasY, name: pt.name, rawX: px, rawY: py };
-                    });
-
-                    // Add center label for group
-                    let avgX = 0, avgY = 0;
-                    mappedPoints.forEach(p => { avgX += p.x; avgY += p.y; });
-                    avgX /= mappedPoints.length;
-                    avgY /= mappedPoints.length;
-                    
-                    newEntities.push({
-                        id: Date.now() + gIdx * 10000,
-                        type: 'text_label',
-                        p1: { x: avgX, y: avgY },
-                        text: group.name,
-                        color: '#000000', // Black
-                        layer: 'annotation'
                     });
 
                     // Create lines
@@ -611,57 +1401,53 @@
                 }
             };
 
-            // EXPORT PDF FUNCTION defined within scope
-            const exportPDF = () => {
+            // EXPORT PDF FUNCTION - canvas全体をキャプチャしてPDF化
+            const exportPDF = useCallback(() => {
                 const p = PAPERS[paper];
-                const doc = new jsPDF({
-                    orientation: p.width > p.height ? 'l' : 'p',
-                    unit: 'mm',
-                    format: [p.width, p.height]
-                });
-                doc.setFillColor(255, 255, 255);
-                doc.rect(0, 0, p.width, p.height, 'F');
-                entities.forEach(ent => {
-                    const lw = ent.layer === 'dim' ? 0.2 : (ent.lineWidth || 0.3);
-                    const color = ent.color || (ent.layer === 'dim' ? '#00aaff' : '#000000');
-                    const rgb = (() => {
-                        const r = parseInt(color.slice(1, 3), 16);
-                        const g = parseInt(color.slice(3, 5), 16);
-                        const b = parseInt(color.slice(5, 7), 16);
-                        return [r, g, b];
-                    })();
-                    doc.setDrawColor(...rgb);
-                    doc.setTextColor(...rgb);
-                    doc.setLineWidth(lw);
-                    if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) doc.line(ent.p1.x, ent.p1.y, ent.p2.x, ent.p2.y);
-                    else if (ent.type === TOOLS.RECT) doc.rect(ent.p1.x, ent.p1.y, ent.w, ent.h);
-                    else if (ent.type === TOOLS.CIRCLE) doc.circle(ent.c.x, ent.c.y, ent.r);
-                    else if (ent.type === 'text_label') {
-                        doc.setFontSize(6);
-                        // Center align text for group names, left align for point names
-                        if(ent.color === '#ffff00') { 
-                             doc.setTextColor(150, 150, 0); 
-                             doc.setFontSize(8);
-                             doc.text(ent.text, ent.p1.x, ent.p1.y, { align: 'center' });
-                        } else {
-                             // Force black for text labels
-                             doc.setTextColor(0, 0, 0);
-                             doc.text(ent.text, ent.p1.x + 1, ent.p1.y - 1);
-                             doc.line(ent.p1.x - 0.5, ent.p1.y, ent.p1.x + 0.5, ent.p1.y);
-                             doc.line(ent.p1.x, ent.p1.y - 0.5, ent.p1.x, ent.p1.y + 0.5);
-                        }
-                    }
+                const canvas = canvasRef.current;
+                if (!canvas) return;
 
-                    if (ent.type === TOOLS.DIM) {
-                        doc.setFontSize(8); 
-                        const dist = Geo.dist(ent.p1, ent.p2) * drawingScale;
-                        const dimText = formatDim(dist);
-                        const mid = Geo.mid(ent.p1, ent.p2);
-                        doc.text(dimText, mid.x, mid.y, { align: 'center', baseline: 'bottom' });
-                    }
+                // 現在の view を一時的に用紙全体表示に合わせて再描画
+                const v = viewRef.current;
+                const savedView = { ...v };
+
+                // 用紙がキャンバス全体に収まるスケールを計算
+                const MM_TO_PX2 = 3.7795275591;
+                const scaleX = canvas.width  / (p.width  * MM_TO_PX2);
+                const scaleY = canvas.height / (p.height * MM_TO_PX2);
+                const fitScale = Math.min(scaleX, scaleY) * 0.98;
+                viewRef.current = {
+                    scale: fitScale,
+                    offsetX: (canvas.width  - p.width  * MM_TO_PX2 * fitScale) / 2,
+                    offsetY: (canvas.height - p.height * MM_TO_PX2 * fitScale) / 2,
+                };
+
+                // 再描画をトリガー（forceUpdate）
+                setForceUpdate(n => n + 1);
+
+                // 次フレームでキャプチャ
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        try {
+                            const imgData = canvas.toDataURL('image/png', 1.0);
+                            const doc = new jsPDF({
+                                orientation: p.width > p.height ? 'l' : 'p',
+                                unit: 'mm',
+                                format: [p.width, p.height]
+                            });
+                            doc.addImage(imgData, 'PNG', 0, 0, p.width, p.height);
+                            doc.save('drawing.pdf');
+                        } catch(e) {
+                            console.error('PDF export error:', e);
+                            alert('PDF出力に失敗しました: ' + e.message);
+                        } finally {
+                            // 元のビューに戻す
+                            viewRef.current = savedView;
+                            setForceUpdate(n => n + 1);
+                        }
+                    });
                 });
-                doc.save("drawing.pdf");
-            };
+            }, [paper, entities, drawingScale]);
 
             // Draw Grid Function
             const drawGrid = (ctx, view, paperW, paperH) => {
@@ -780,13 +1566,187 @@
                 drawGrid(ctx, v, p.width, p.height);
 
                 entities.forEach(ent => {
+                    try {
+                    // ── レイヤー表示フィルター ──
+                    const entLayer = ent.layer || 'drawing';
+                    const layerKey = ent.isDim ? 'annotation'
+                                   : entLayer === 'annotation' ? 'annotation'
+                                   : entLayer === 'dim' ? 'dim'
+                                   : ent.type === 'symbol' ? 'symbol'
+                                   : 'drawing';
+                    if (!layerVisibility[layerKey]) return;
+
                     ctx.beginPath();
                     const color = ent.color || (ent.layer === 'dim' ? '#00aaff' : '#000000');
                     ctx.strokeStyle = color;
-                    ctx.lineWidth = ent.layer === 'dim' ? 0.2 : (ent.lineWidth || 0.3); 
+                    ctx.lineWidth = ent.layer === 'dim' ? 0.2 : (ent.lineWidth || 0.3);
+                    if (ent.type === 'symbol') {
+                        drawGaikoSymbol(ctx, ent, drawingScale);
+                        return;
+                    }
                     if (ent.type === TOOLS.LINE) { ctx.moveTo(ent.p1.x, ent.p1.y); ctx.lineTo(ent.p2.x, ent.p2.y); ctx.stroke(); }
                     else if (ent.type === TOOLS.RECT) { ctx.rect(ent.p1.x, ent.p1.y, ent.w, ent.h); ctx.stroke(); }
                     else if (ent.type === TOOLS.CIRCLE) { ctx.arc(ent.c.x, ent.c.y, ent.r, 0, Math.PI * 2); ctx.stroke(); }
+                    else if (ent.type === TOOLS.POLYGON) {
+                        if (!ent.pts || ent.pts.length < 2) return;
+                        // 塗り
+                        const mat = MATERIALS[ent.material || 'none'];
+                        if (mat && mat.color) {
+                            ctx.beginPath();
+                            ctx.moveTo(ent.pts[0].x, ent.pts[0].y);
+                            for (let i = 1; i < ent.pts.length; i++) ctx.lineTo(ent.pts[i].x, ent.pts[i].y);
+                            ctx.closePath();
+                            ctx.fillStyle = mat.color + 'aa';
+                            ctx.fill();
+                        }
+                        // ハッチング
+                        if (ent.material && ent.material !== 'none') {
+                            drawMaterialPattern(ctx, ent.pts, ent.material, drawingScale);
+                        }
+                        // 輪郭線
+                        ctx.beginPath();
+                        ctx.moveTo(ent.pts[0].x, ent.pts[0].y);
+                        for (let i = 1; i < ent.pts.length; i++) ctx.lineTo(ent.pts[i].x, ent.pts[i].y);
+                        ctx.closePath();
+                        ctx.stroke();
+                        // 頂点マーカー
+                        ent.pts.forEach(pt => {
+                            ctx.beginPath(); ctx.arc(pt.x, pt.y, 0.5, 0, Math.PI*2);
+                            ctx.fillStyle = color; ctx.fill();
+                        });
+                        // ── 面積ラベル（layerVisibility.area が true の場合）──
+                        if (layerVisibility.area && ent.pts.length >= 3) {
+                            // ガウス公式で面積計算（紙面mm² → 実寸m²）
+                            let areaSum = 0;
+                            let cx4 = 0, cy4 = 0;
+                            for (let i = 0; i < ent.pts.length; i++) {
+                                const j = (i + 1) % ent.pts.length;
+                                areaSum += ent.pts[i].x * ent.pts[j].y - ent.pts[j].x * ent.pts[i].y;
+                                cx4 += ent.pts[i].x; cy4 += ent.pts[i].y;
+                            }
+                            const areaPaper = Math.abs(areaSum / 2);  // 紙面mm²
+                            const areaReal  = areaPaper * (drawingScale * drawingScale) / 1e6;  // 実寸m²
+                            cx4 /= ent.pts.length; cy4 /= ent.pts.length;
+                            const mat2 = MATERIALS[ent.material || 'none'];
+                            const areaFontSize = Math.max(2, Math.min(5, Math.sqrt(areaPaper) * 0.15));
+                            ctx.save();
+                            // 背景白抜き
+                            ctx.font = `bold ${areaFontSize}px sans-serif`;
+                            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                            const areaText = `${areaReal.toFixed(2)} ㎡`;
+                            const tw = ctx.measureText(areaText).width;
+                            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                            ctx.fillRect(cx4 - tw/2 - 0.5, cy4 - areaFontSize/2 - 0.3, tw + 1, areaFontSize + 0.6);
+                            ctx.fillStyle = mat2?.color ? '#003366' : '#333333';
+                            ctx.fillText(areaText, cx4, cy4);
+                            ctx.restore();
+                        }
+                    }
+                    else if (ent.type === 'fence_fill') {
+                        if (!ent.pts || ent.pts.length < 4) return;
+                        const [p0, p1f, p2f, p3] = ent.pts;
+                        const fenceStyles = {
+                            mesh:       { bg: '#c8dff0', stripe: '#5599cc', lw: 0.3, label: 'メッシュ' },
+                            horizontal: { bg: '#e0e8f0', stripe: '#7799bb', lw: 0.4, label: '横格子' },
+                            vertical:   { bg: '#dde8f5', stripe: '#6688bb', lw: 0.4, label: '縦格子' },
+                            wood:       { bg: '#d4b896', stripe: '#8b5a2b', lw: 0.5, label: 'ウッド' },
+                            louver:     { bg: '#e8e4d0', stripe: '#888866', lw: 0.4, label: 'ルーバー' },
+                        };
+                        const fs2 = fenceStyles[ent.fenceType] || fenceStyles.mesh;
+
+                        // ① 帯全体を背景色で塗りつぶし（ブロック線を隠す）
+                        ctx.beginPath();
+                        ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1f.x, p1f.y);
+                        ctx.lineTo(p2f.x, p2f.y); ctx.lineTo(p3.x, p3.y);
+                        ctx.closePath();
+                        ctx.fillStyle = fs2.bg;
+                        ctx.fill();
+
+                        // ② パターン（クリップせず帯内に手動で収める）
+                        const adx = p1f.x - p0.x, ady = p1f.y - p0.y;
+                        const alen = Math.sqrt(adx*adx + ady*ady);
+                        const wdx = p3.x - p0.x, wdy = p3.y - p0.y;
+                        const wlen = Math.sqrt(wdx*wdx + wdy*wdy);
+                        ctx.strokeStyle = fs2.stripe;
+
+                        if (ent.fenceType === 'mesh') {
+                            const pitch = Math.max(0.5, 100 / drawingScale);
+                            ctx.lineWidth = fs2.lw;
+                            const sA = Math.ceil(alen / pitch);
+                            for (let i = 0; i <= sA; i++) {
+                                const t = i / Math.max(sA, 1);
+                                ctx.beginPath();
+                                ctx.moveTo(p0.x + adx*t, p0.y + ady*t);
+                                ctx.lineTo(p3.x + adx*t, p3.y + ady*t);
+                                ctx.stroke();
+                            }
+                            const sW = Math.ceil(wlen / pitch);
+                            for (let i = 0; i <= sW; i++) {
+                                const t = i / Math.max(sW, 1);
+                                ctx.beginPath();
+                                ctx.moveTo(p0.x + wdx*t, p0.y + wdy*t);
+                                ctx.lineTo(p1f.x + wdx*t, p1f.y + wdy*t);
+                                ctx.stroke();
+                            }
+                        } else if (ent.fenceType === 'vertical') {
+                            const pitch = Math.max(0.5, 75 / drawingScale);
+                            ctx.lineWidth = fs2.lw * 1.5;
+                            const sA = Math.ceil(alen / pitch);
+                            for (let i = 0; i <= sA; i++) {
+                                const t = i / Math.max(sA, 1);
+                                ctx.beginPath();
+                                ctx.moveTo(p0.x + adx*t, p0.y + ady*t);
+                                ctx.lineTo(p3.x + adx*t, p3.y + ady*t);
+                                ctx.stroke();
+                            }
+                        } else if (ent.fenceType === 'horizontal' || ent.fenceType === 'louver') {
+                            const pitch = Math.max(0.5, (ent.fenceType === 'louver' ? 80 : 100) / drawingScale);
+                            ctx.lineWidth = ent.fenceType === 'louver' ? fs2.lw * 2 : fs2.lw * 1.5;
+                            const sW = Math.ceil(wlen / pitch);
+                            for (let i = 0; i <= sW; i++) {
+                                const t = i / Math.max(sW, 1);
+                                ctx.beginPath();
+                                ctx.moveTo(p0.x + wdx*t, p0.y + wdy*t);
+                                ctx.lineTo(p1f.x + wdx*t, p1f.y + wdy*t);
+                                ctx.stroke();
+                            }
+                        } else if (ent.fenceType === 'wood') {
+                            const pitch = Math.max(0.5, 120 / drawingScale);
+                            ctx.lineWidth = fs2.lw * 3;
+                            const sW = Math.ceil(wlen / pitch);
+                            for (let i = 1; i < sW; i++) {
+                                const t = i / Math.max(sW, 1);
+                                ctx.beginPath();
+                                ctx.moveTo(p0.x + wdx*t, p0.y + wdy*t);
+                                ctx.lineTo(p1f.x + wdx*t, p1f.y + wdy*t);
+                                ctx.stroke();
+                            }
+                        }
+
+                        // ③ 外枠線
+                        ctx.beginPath();
+                        ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1f.x, p1f.y);
+                        ctx.lineTo(p2f.x, p2f.y); ctx.lineTo(p3.x, p3.y);
+                        ctx.closePath();
+                        ctx.strokeStyle = fs2.stripe;
+                        ctx.lineWidth = lineWidth * 1.5;
+                        ctx.stroke();
+
+                        // ④ ラベル
+                        if (alen > 5) {
+                            const cx2 = (p0.x + p1f.x + p2f.x + p3.x) / 4;
+                            const cy2 = (p0.y + p1f.y + p2f.y + p3.y) / 4;
+                            const fontSize = Math.max(1.5, Math.min(wlen * 0.4, 3));
+                            const ang2 = Math.atan2(ady, adx);
+                            ctx.save();
+                            ctx.translate(cx2, cy2); ctx.rotate(ang2);
+                            ctx.font = `bold ${fontSize}px sans-serif`;
+                            ctx.fillStyle = fs2.stripe;
+                            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                            ctx.fillText(`${fs2.label} H=${ent.fenceHeight}`, 0, 0);
+                            ctx.restore();
+                        }
+                    }
                     else if (ent.type === TOOLS.DIM) {
                         ctx.moveTo(ent.p1.x, ent.p1.y); ctx.lineTo(ent.p2.x, ent.p2.y);
                         const ang = Math.atan2(ent.p2.y - ent.p1.y, ent.p2.x - ent.p1.x);
@@ -796,31 +1756,27 @@
                         ctx.stroke();
                     }
                     else if (ent.type === 'text_label') {
-                        // Special styling for Group Names (Yellow) vs Point Names (Magenta)
                         const isGroupName = ent.color === '#ffff00';
-                        
-                        if (!isGroupName) {
-                            // Draw Point Marker
+                        const isDimLabel  = ent.isDim === true;
+
+                        if (!isGroupName && !isDimLabel) {
+                            // 測点マーカー
                             ctx.lineWidth = 0.5 / viewRef.current.scale;
                             ctx.beginPath();
                             ctx.moveTo(ent.p1.x - 1, ent.p1.y); ctx.lineTo(ent.p1.x + 1, ent.p1.y);
                             ctx.moveTo(ent.p1.x, ent.p1.y - 1); ctx.lineTo(ent.p1.x, ent.p1.y + 1);
                             ctx.stroke();
                         }
-                        
-                        // Draw Text
-                        ctx.fillStyle = ent.color || '#ff00ff'; 
-                        if (isGroupName) {
-                            ctx.font = `bold 4px sans-serif`; 
-                            ctx.textAlign = 'center'; 
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(ent.text, ent.p1.x, ent.p1.y);
-                        } else {
-                            ctx.font = `2px sans-serif`; 
-                            ctx.textAlign = 'left'; 
-                            ctx.textBaseline = 'bottom';
-                            ctx.fillText(ent.text, ent.p1.x + 1.5, ent.p1.y - 1);
-                        }
+
+                        const fontSize = ent.fontSize || (isGroupName ? 4 : 2);
+                        const align    = ent.align || (isGroupName ? 'center' : 'left');
+                        ctx.fillStyle = ent.color || '#ff00ff';
+                        ctx.font = `${isDimLabel ? 'bold ' : ''}${fontSize}px sans-serif`;
+                        ctx.textAlign = align;
+                        ctx.textBaseline = isDimLabel ? 'middle' : (isGroupName ? 'middle' : 'bottom');
+                        const tx = align === 'left' ? ent.p1.x + 1.5 : ent.p1.x;
+                        const ty = isDimLabel ? ent.p1.y : (isGroupName ? ent.p1.y : ent.p1.y - 1);
+                        ctx.fillText(ent.text, tx, ty);
                     }
                     
                     if (ent.type === TOOLS.DIM) {
@@ -832,6 +1788,7 @@
                         ctx.rotate( (ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang );
                         ctx.fillText(dimText, 0, -0.5); ctx.restore();
                     }
+                    } catch(e) { console.warn('entity render error', ent.type, e); }
                 });
 
                 if (tempPoints.length > 0) {
@@ -856,8 +1813,70 @@
                         ctx.arc(start.x, start.y, r, 0, Math.PI * 2); ctx.moveTo(start.x, start.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
                         const txtR = formatDim(r*drawingScale);
                         ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; const mid = Geo.mid(start, curr); ctx.fillText(`R${txtR}`, mid.x, mid.y); ctx.restore();
+                    } else if (tool === TOOLS.BLOCK_WALL) {
+                        // ブロック壁プレビュー
+                        const thickPaper = blockThickness / drawingScale;
+                        const dx = curr.x - start.x, dy = curr.y - start.y;
+                        const len = Math.sqrt(dx*dx+dy*dy);
+                        if (len > 0.1) {
+                            const nx = -dy/len, ny = dx/len;
+                            const { offA, offB } = blockOffsets(nx, ny, thickPaper, blockPosition, start, curr);
+                            ctx.moveTo(start.x+nx*offA, start.y+ny*offA); ctx.lineTo(curr.x+nx*offA, curr.y+ny*offA);
+                            ctx.moveTo(start.x+nx*offB, start.y+ny*offB); ctx.lineTo(curr.x+nx*offB, curr.y+ny*offB);
+                            ctx.stroke();
+                        }
                     }
                     ctx.setLineDash([]);
+                }
+
+                // ── 正多角形プレビュー ──
+                if (tool === TOOLS.REG_POLY && tempPoints.length === 1) {
+                    const curr3 = snapPos.current || currentMousePos.current;
+                    if (curr3) {
+                        const center3 = tempPoints[0];
+                        const r3 = Geo.dist(center3, curr3);
+                        const startAngle3 = Math.atan2(curr3.y - center3.y, curr3.x - center3.x);
+                        ctx.save();
+                        ctx.strokeStyle = strokeColor; ctx.lineWidth = strokeWidth;
+                        ctx.setLineDash([2, 2]);
+                        ctx.beginPath();
+                        for (let i = 0; i < regPolySides; i++) {
+                            const a = startAngle3 + (i / regPolySides) * Math.PI * 2;
+                            const px3 = center3.x + Math.cos(a) * r3;
+                            const py3 = center3.y + Math.sin(a) * r3;
+                            i === 0 ? ctx.moveTo(px3, py3) : ctx.lineTo(px3, py3);
+                        }
+                        ctx.closePath(); ctx.stroke();
+                        // 中心点
+                        ctx.fillStyle = strokeColor;
+                        ctx.beginPath(); ctx.arc(center3.x, center3.y, 1/v.scale, 0, Math.PI*2); ctx.fill();
+                        // 半径線
+                        ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 0.3/v.scale;
+                        ctx.beginPath(); ctx.moveTo(center3.x, center3.y); ctx.lineTo(curr3.x, curr3.y); ctx.stroke();
+                        ctx.setLineDash([]); ctx.restore();
+                    }
+                }
+                if (tool === TOOLS.POLYGON && tempPoints.length > 0) {
+                    const curr2 = snapPos.current || currentMousePos.current;
+                    ctx.save();
+                    ctx.strokeStyle = strokeColor; ctx.lineWidth = strokeWidth;
+                    ctx.setLineDash([2, 2]);
+                    ctx.beginPath();
+                    ctx.moveTo(tempPoints[0].x, tempPoints[0].y);
+                    for (let i = 1; i < tempPoints.length; i++) ctx.lineTo(tempPoints[i].x, tempPoints[i].y);
+                    if (curr2) ctx.lineTo(curr2.x, curr2.y);
+                    ctx.stroke();
+                    // 始点ハイライト（クローズ可能距離）
+                    if (curr2 && tempPoints.length >= 3 && Geo.dist(curr2, tempPoints[0]) < 3/v.scale) {
+                        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 1/v.scale;
+                        ctx.beginPath(); ctx.arc(tempPoints[0].x, tempPoints[0].y, 2/v.scale, 0, Math.PI*2); ctx.stroke();
+                    }
+                    // 頂点ドット
+                    tempPoints.forEach((pt, i) => {
+                        ctx.fillStyle = i === 0 ? '#ff4444' : strokeColor;
+                        ctx.beginPath(); ctx.arc(pt.x, pt.y, 1/v.scale, 0, Math.PI*2); ctx.fill();
+                    });
+                    ctx.setLineDash([]); ctx.restore();
                 }
 
                 if (tool === TOOLS.ERASER) {
@@ -882,11 +1901,22 @@
                     if (snapPos.current && tool !== TOOLS.ERASER) {
                         const sp = snapPos.current;
                         const s = { x: sp.x * v.scale * MM_TO_PX + v.offsetX, y: sp.y * v.scale * MM_TO_PX + v.offsetY };
-                        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 2;
-                        ctx.beginPath(); ctx.rect(s.x - 4, s.y - 4, 8, 8); ctx.stroke();
+                        ctx.lineWidth = 2;
+                        if (snapEnabled) {
+                            // スナップON: 緑の四角
+                            ctx.strokeStyle = '#00ff00';
+                            ctx.beginPath(); ctx.rect(s.x - 4, s.y - 4, 8, 8); ctx.stroke();
+                        } else {
+                            // フリーモード: オレンジの十字（端点スナップ時のみ表示）
+                            ctx.strokeStyle = '#ff8800';
+                            ctx.beginPath();
+                            ctx.moveTo(s.x - 6, s.y); ctx.lineTo(s.x + 6, s.y);
+                            ctx.moveTo(s.x, s.y - 6); ctx.lineTo(s.x, s.y + 6);
+                            ctx.stroke();
+                        }
                     }
                 }
-            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor]);
+            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility]);
 
             useEffect(() => {
                 let id;
@@ -907,11 +1937,11 @@
 
             const calculateSnap = (rawPos, shiftKey) => {
                 let bestSnap = null;
-                
-                if (!gridConfig.visible) {
-                } else {
+
+                // ── グリッドスナップ（snapEnabled=true かつグリッド表示中のみ）──
+                if (snapEnabled && gridConfig.visible) {
                     let minDist = 10 / viewRef.current.scale;
-                    const majorStep = gridConfig.spacing || 10; 
+                    const majorStep = gridConfig.spacing || 10;
                     const step = gridConfig.showSubGrid ? (majorStep / Math.max(2, gridConfig.subDivisions || 5)) : majorStep;
 
                     if (gridMode === GRID_MODES.ORTHO) {
@@ -921,86 +1951,55 @@
                     } else if (gridMode === GRID_MODES.ISO) {
                         const angle = (gridConfig.isoAngle * Math.PI) / 180;
                         const tanAngle = Math.tan(angle);
-                        const ku_raw = rawPos.y - tanAngle * rawPos.x;
-                        const kv_raw = rawPos.y + tanAngle * rawPos.x;
-                        
-                        const ku = Math.round(ku_raw / step) * step;
-                        const kv = Math.round(kv_raw / step) * step;
-                        
+                        const ku = Math.round((rawPos.y - tanAngle * rawPos.x) / step) * step;
+                        const kv = Math.round((rawPos.y + tanAngle * rawPos.x) / step) * step;
                         const snapX = (kv - ku) / (2 * tanAngle);
                         const snapY = (ku + kv) / 2;
-                        
-                        if (Geo.dist(rawPos, {x: snapX, y: snapY}) < minDist) {
-                            bestSnap = { x: snapX, y: snapY };
-                        }
-                    } else if (gridMode.includes('PERSP')) {
-                        if (gridMode === GRID_MODES.PERSP_1) {
-                            const p = PAPERS[paper];
-                            const paperH = p.height; 
-                            const horizon = vp1.y;
-                            const minDist = 10 / viewRef.current.scale;
-                            
-                            let bestY = -1;
-                            if (rawPos.y > horizon) { // Floor snap
-                                const maxH = paperH - horizon;
-                                const n_float = Math.log((rawPos.y - horizon)/maxH) / Math.log(0.85);
-                                const n = Math.round(n_float);
-                                const y_snap = horizon + maxH * Math.pow(0.85, n);
-                                if (Math.abs(rawPos.y - y_snap) < minDist) bestY = y_snap;
-                            } else { // Ceiling snap
-                                const maxH = horizon; 
-                                const dist_y = horizon - rawPos.y;
-                                if (dist_y > 0) {
-                                    const n_float = Math.log(dist_y / maxH) / Math.log(0.85);
-                                    const n = Math.round(n_float);
-                                    const y_snap = horizon - maxH * Math.pow(0.85, n);
-                                    if (Math.abs(rawPos.y - y_snap) < minDist) bestY = y_snap;
-                                }
-                            }
-                            
-                            if (rawPos.y !== vp1.y) {
-                                const ratio = (paperH - vp1.y) / (rawPos.y - vp1.y);
-                                const x_proj = vp1.x + (rawPos.x - vp1.x) * ratio;
-                                const x_bottom_snap = Math.round(x_proj / step) * step;
-                                
-                                if (bestY !== -1) {
-                                    const t = (bestY - vp1.y) / (paperH - vp1.y);
-                                    const m = (paperH - vp1.y) / (x_bottom_snap - vp1.x);
-                                    const snapX = (bestY - vp1.y)/m + vp1.x;
-                                    
-                                    if (Geo.dist(rawPos, {x: snapX, y: bestY}) < minDist) {
-                                        bestSnap = { x: snapX, y: bestY };
-                                    }
-                                }
-                            }
+                        if (Geo.dist(rawPos, {x: snapX, y: snapY}) < minDist) bestSnap = { x: snapX, y: snapY };
+                    } else if (gridMode === GRID_MODES.PERSP_1) {
+                        const refY = PAPERS[paper].height;
+                        const denomRef = refY - vp1.y;
+                        const denomCur = rawPos.y - vp1.y;
+                        if (Math.abs(denomCur) > 0.5 && Math.abs(denomRef) > 0.5) {
+                            const xRef = vp1.x + (rawPos.x - vp1.x) * (denomRef / denomCur);
+                            const xRefSnap = Math.round(xRef / step) * step;
+                            const gy = Math.round(rawPos.y / step) * step;
+                            const tSnap = (gy - vp1.y) / denomRef;
+                            const snapXconv = vp1.x + (xRefSnap - vp1.x) * tSnap;
+                            const c1 = { x: snapXconv, y: gy };
+                            const c2 = { x: Math.round(rawPos.x / step) * step, y: gy };
+                            const d1 = Geo.dist(rawPos, c1), d2 = Geo.dist(rawPos, c2);
+                            const best = d1 < d2 ? c1 : c2;
+                            if (Math.min(d1, d2) < minDist) bestSnap = best;
+                        } else {
+                            const gx = Math.round(rawPos.x / step) * step;
+                            const gy = Math.round(rawPos.y / step) * step;
+                            if (Geo.dist(rawPos, {x: gx, y: gy}) < minDist) bestSnap = {x: gx, y: gy};
                         }
                     }
                 }
 
-                let minDistEnt = 10 / viewRef.current.scale;
+                // ── エンドポイント/中点スナップ（snapEnabled に関わらず常時有効）──
+                let minDistEnt = 8 / viewRef.current.scale;
                 entities.forEach(ent => {
                     const checkPts = [];
                     if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) checkPts.push(ent.p1, ent.p2, Geo.mid(ent.p1, ent.p2));
                     else if (ent.type === TOOLS.RECT) checkPts.push(ent.p1, {x:ent.p1.x+ent.w, y:ent.p1.y}, {x:ent.p1.x, y:ent.p1.y+ent.h}, {x:ent.p1.x+ent.w, y:ent.p1.y+ent.h});
                     else if (ent.type === 'text_label') checkPts.push(ent.p1);
-                    checkPts.forEach(pt => { 
+                    checkPts.forEach(pt => {
                         const d = Geo.dist(rawPos, pt);
-                        if (d < minDistEnt) {
-                            bestSnap = pt;
-                            minDistEnt = d;
-                        }
+                        if (d < minDistEnt) { bestSnap = pt; minDistEnt = d; }
                     });
                 });
 
+                // ── Shift: 15°角度拘束 ──
                 if (shiftKey && tempPoints.length > 0) {
                     const start = tempPoints[0];
                     let curr = bestSnap || rawPos;
-                    const dx = curr.x - start.x; const dy = curr.y - start.y;
+                    const dx = curr.x - start.x, dy = curr.y - start.y;
                     const dist = Math.sqrt(dx*dx + dy*dy);
-                    let angle = Math.atan2(dy, dx);
-                    angle = Math.round(angle / (Math.PI/12)) * (Math.PI/12); 
-                    curr = { x: start.x + Math.cos(angle) * dist, y: start.y + Math.sin(angle) * dist };
-                    bestSnap = curr;
+                    const angle = Math.round(Math.atan2(dy, dx) / (Math.PI/12)) * (Math.PI/12);
+                    bestSnap = { x: start.x + Math.cos(angle) * dist, y: start.y + Math.sin(angle) * dist };
                 }
                 return bestSnap;
             };
@@ -1017,9 +2016,98 @@
                         if (gridMode === GRID_MODES.PERSP_2 && Geo.dist(wPos, vp2) < vpDist) { isDraggingVP.current = 'vp2'; return; }
                     }
                     const pt = snapPos.current || wPos;
-                    if (tool === TOOLS.SELECT) { } 
+
+                    // ── 正多角形ツール ──
+                    if (tool === TOOLS.REG_POLY) {
+                        if (tempPoints.length === 0) {
+                            setTempPoints([pt]);
+                        } else {
+                            const center = tempPoints[0];
+                            const r = Geo.dist(center, pt);
+                            if (r < 0.1) { setTempPoints([]); return; }
+                            const startAngle = Math.atan2(pt.y - center.y, pt.x - center.x);
+                            const pts2 = [];
+                            for (let i = 0; i < regPolySides; i++) {
+                                const a = startAngle + (i / regPolySides) * Math.PI * 2;
+                                pts2.push({ x: center.x + Math.cos(a) * r, y: center.y + Math.sin(a) * r });
+                            }
+                            const newEnt = {
+                                id: Date.now() + Math.random() * 999,
+                                type: TOOLS.POLYGON,
+                                pts: pts2,
+                                material: selectedMaterial,
+                                color: strokeColor, lineWidth: strokeWidth, layer: 'drawing'
+                            };
+                            const next = [...entities, newEnt];
+                            setEntities(next); pushHistory(next);
+                            setTempPoints([]);
+                        }
+                        return;
+                    }
+
+                    // ── シンボル配置ツール ──
+                    if (tool === TOOLS.SYMBOL) {
+                        const sym = GAIKO_SYMBOLS[selectedSymbol];
+                        if (!sym) return;
+                        const newEnt = {
+                            id: Date.now() + Math.random() * 999,
+                            type: 'symbol',
+                            symbolType: selectedSymbol,
+                            p1: { x: pt.x, y: pt.y },
+                            rotation: 0,
+                            color: sym.r ? '#006600' : '#333333',
+                            lineWidth: strokeWidth,
+                            layer: 'symbol'
+                        };
+                        const next = [...entities, newEnt];
+                        setEntities(next); pushHistory(next);
+                        return;
+                    }
+
+                    // ── 多角形ツール: クリックで頂点追加、ダブルクリックで確定 ──
+                    if (tool === TOOLS.POLYGON) {
+                        if (e.detail === 2 && tempPoints.length >= 3) {
+                            // ダブルクリック → 確定
+                            const pts = tempPoints.slice(0, -1); // 最後の重複点を除く
+                            const newEnt = {
+                                id: Date.now() + Math.random() * 999,
+                                type: TOOLS.POLYGON,
+                                pts,
+                                material: selectedMaterial,
+                                color: strokeColor,
+                                lineWidth: strokeWidth,
+                                layer: 'drawing'
+                            };
+                            const next = [...entities, newEnt];
+                            setEntities(next); pushHistory(next);
+                            setTempPoints([]);
+                        } else if (e.detail === 1) {
+                            // シングルクリック → 頂点追加
+                            // 最初の頂点に近ければ閉じる
+                            if (tempPoints.length >= 3 && Geo.dist(pt, tempPoints[0]) < 3 / viewRef.current.scale) {
+                                const pts = [...tempPoints];
+                                const newEnt = {
+                                    id: Date.now() + Math.random() * 999,
+                                    type: TOOLS.POLYGON,
+                                    pts,
+                                    material: selectedMaterial,
+                                    color: strokeColor,
+                                    lineWidth: strokeWidth,
+                                    layer: 'drawing'
+                                };
+                                const next = [...entities, newEnt];
+                                setEntities(next); pushHistory(next);
+                                setTempPoints([]);
+                            } else {
+                                setTempPoints(prev => [...prev, pt]);
+                            }
+                        }
+                        return;
+                    }
+
+                    if (tool === TOOLS.SELECT) { }
                     else {
-                        if (tempPoints.length === 0) { setTempPoints([pt]); } 
+                        if (tempPoints.length === 0) { setTempPoints([pt]); }
                         else {
                             const start = tempPoints[0];
                             let newEnt = null;
@@ -1027,6 +2115,12 @@
                             else if (tool === TOOLS.RECT) newEnt = { type: TOOLS.RECT, p1: start, w: pt.x - start.x, h: pt.y - start.y };
                             else if (tool === TOOLS.CIRCLE) newEnt = { type: TOOLS.CIRCLE, c: start, r: Geo.dist(start, pt) };
                             else if (tool === TOOLS.DIM) newEnt = { type: TOOLS.DIM, p1: start, p2: pt };
+                            else if (tool === TOOLS.BLOCK_WALL) {
+                                const walls = createBlockWallEntities(start, pt, blockThickness, blockPosition, strokeColor, strokeWidth, fenceType, fenceHeight);
+                                const next = [...entities, ...walls];
+                                setEntities(next); pushHistory(next);
+                                setTempPoints([pt]); return;
+                            }
                             if (newEnt) addEntity(newEnt);
                         }
                     }
@@ -1109,6 +2203,21 @@
                         </button>
 
                         <button onClick={fitViewToScreen} className="bg-gray-800 border border-gray-600 p-1 rounded hover:bg-gray-700 ml-2"><i data-lucide="home" className="w-5 h-5 text-gray-300"></i></button>
+
+                        {/* スナップ ON/OFF トグル */}
+                        <button
+                            onClick={() => setSnapEnabled(prev => !prev)}
+                            title={snapEnabled ? 'スナップON（クリックでフリーモードへ） [S]' : 'フリーモード（クリックでスナップONへ） [S]'}
+                            className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded border text-xs font-bold transition-all ${
+                                snapEnabled
+                                    ? 'bg-blue-700 border-blue-500 text-white'
+                                    : 'bg-gray-900 border-orange-500 text-orange-400'
+                            }`}
+                        >
+                            <i data-lucide={snapEnabled ? 'magnet' : 'pencil-line'} className="w-4 h-4"></i>
+                            <span>{snapEnabled ? 'スナップ' : 'フリー'}</span>
+                            <span className="opacity-40 text-xs">[S]</span>
+                        </button>
                         <div className="flex-1"></div>
                         <button onClick={undo} className="tool-btn text-white"><i data-lucide="undo-2"></i></button>
                         <button onClick={() => setEntities([])} className="tool-btn text-red-400"><i data-lucide="trash-2"></i></button>
@@ -1125,16 +2234,181 @@
                                     <i data-lucide={t.i}></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">{t.l}</span>
                                 </button>
                             ))}
+                            {/* 外構ツール区切り */}
+                            <div className="w-8 border-t border-gray-600 my-1"></div>
+                            {[
+                                {id:TOOLS.POLYGON,    i:'pentagon',        l:'多角形（塗り）クリックで頂点追加'},
+                                {id:TOOLS.REG_POLY,   i:'hexagon',         l:'正多角形（辺数指定）'},
+                                {id:TOOLS.BLOCK_WALL, i:'layout-template', l:'ブロック壁'},
+                                {id:TOOLS.SYMBOL,     i:'trees',           l:'外構シンボル'},
+                            ].map(t => (
+                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} className={`tool-btn group w-10 h-10 ${tool === t.id ? 'bg-green-700 text-white' : 'text-green-400'}`}>
+                                    <i data-lucide={t.i}></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">{t.l}</span>
+                                </button>
+                            ))}
+                            <button onClick={() => setShowGaikoPanel(p => !p)} className={`tool-btn group w-10 h-10 ${showGaikoPanel ? 'bg-green-800 text-white' : 'text-green-400'}`} title="外構設定">
+                                <i data-lucide="settings-2"></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">外構設定</span>
+                            </button>
+                            {/* 正多角形: 辺数選択 */}
+                            {tool === TOOLS.REG_POLY && (
+                                <div className="w-10 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-green-300">{regPolySides}角</span>
+                                    <input type="range" min="3" max="12" value={regPolySides}
+                                        onChange={e => setRegPolySides(parseInt(e.target.value))}
+                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                    <span className="text-xs text-gray-500">辺</span>
+                                </div>
+                            )}
+
+                            {/* レイヤー表示トグル */}
+                            <div className="w-8 border-t border-gray-600 my-1"></div>
+                            {[
+                                { key: 'drawing',    icon: 'layers',    label: '線/ブロック' },
+                                { key: 'annotation', icon: 'type',      label: '注記/引出' },
+                                { key: 'dim',        icon: 'ruler',     label: '寸法線' },
+                                { key: 'symbol',     icon: 'trees',     label: 'シンボル' },
+                                { key: 'area',       icon: 'square-function', label: '面積(㎡)' },
+                            ].map(lv => (
+                                <button key={lv.key}
+                                    onClick={() => setLayerVisibility(prev => ({...prev, [lv.key]: !prev[lv.key]}))}
+                                    title={`${lv.label} ${layerVisibility[lv.key] ? 'ON（クリックで非表示）' : 'OFF（クリックで表示）'}`}
+                                    className={`tool-btn group w-10 h-10 relative ${layerVisibility[lv.key] ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    <i data-lucide={lv.icon}></i>
+                                    {!layerVisibility[lv.key] && (
+                                        <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+                                    )}
+                                    <span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
+                                        {lv.label}: {layerVisibility[lv.key] ? '表示' : '非表示'}
+                                    </span>
+                                </button>
+                            ))}
                         </div>
                         <div ref={containerRef} className="flex-1 relative overflow-hidden bg-[#2d2d2d] flex justify-center items-center">
                             <canvas ref={canvasRef} width={size.width} height={size.height} style={{ width: '100%', height: '100%' }}
                                 onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onWheel={handleWheel} onContextMenu={(e) => e.preventDefault()}
                                 className="block absolute top-0 left-0" />
+
+                            {/* ── 外構設定パネル ── */}
+                            {showGaikoPanel && (
+                                <div className="absolute top-4 right-4 panel w-72 z-40 text-sm select-none flex flex-col" style={{maxHeight: 'calc(100vh - 80px)'}}>
+                                    {/* ヘッダー（固定）*/}
+                                    <div className="flex justify-between items-center mb-2 shrink-0">
+                                        <span className="font-bold text-green-400 flex items-center gap-2"><i data-lucide="tree-pine" className="w-4 h-4"></i>外構ツール設定</span>
+                                        <button onClick={() => setShowGaikoPanel(false)} className="text-gray-400 hover:text-white"><i data-lucide="x" className="w-4 h-4"></i></button>
+                                    </div>
+
+                                    {/* スクロール領域 */}
+                                    <div className="overflow-y-auto flex-1 pr-1" style={{scrollbarWidth: 'thin', scrollbarColor: '#4b5563 #1f2937'}}>
+
+                                    {/* シンボルライブラリ */}
+                                    <div className="mb-4">
+                                        <div className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-wider border-b border-gray-700 pb-1">外構シンボル（クリックで選択→キャンバスに配置）</div>
+                                        {['構造物','乗り物','植栽','設備'].map(cat => (
+                                            <div key={cat} className="mb-2">
+                                                <div className="text-xs text-gray-500 mb-1">{cat}</div>
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {Object.entries(GAIKO_SYMBOLS).filter(([,s]) => s.category === cat).map(([key, sym]) => (
+                                                        <button key={key}
+                                                            onClick={() => { setSelectedSymbol(key); setTool(TOOLS.SYMBOL); setTempPoints([]); }}
+                                                            className={`px-2 py-1 rounded text-xs border transition-all text-left ${selectedSymbol === key && tool === TOOLS.SYMBOL ? 'border-green-400 bg-green-900 text-green-200' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                            {sym.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* 多角形の塗り材料 */}
+                                    <div className="mb-4">
+                                        <div className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-wider border-b border-gray-700 pb-1">多角形 — 面材料</div>
+                                        {['基本','石・タイル','自然','木材'].map(cat => (
+                                            <div key={cat} className="mb-2">
+                                                <div className="text-xs text-gray-500 mb-1">{cat}</div>
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {Object.entries(MATERIALS).filter(([,m]) => m.category === cat || (!m.category && cat === '基本')).map(([key, mat]) => (
+                                                        <button key={key} onClick={() => setSelectedMaterial(key)}
+                                                            className={`px-2 py-1.5 rounded text-xs font-bold border transition-all flex items-center gap-1.5 ${selectedMaterial === key ? 'border-green-500 bg-green-900 text-green-300' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                            {mat.color && <span className="w-3 h-3 rounded-sm border border-gray-500 flex-shrink-0" style={{background: mat.color}}></span>}
+                                                            {mat.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                        <div className="text-xs text-gray-500 mt-1">ダブルクリックまたは始点クリックで確定</div>
+                                    </div>
+
+                                    {/* ブロック壁設定 */}
+                                    <div>
+                                        <div className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-wider border-b border-gray-700 pb-1">ブロック壁設定</div>
+                                        <div className="mb-2">
+                                            <div className="text-xs text-gray-400 mb-1">厚さ</div>
+                                            <div className="grid grid-cols-2 gap-1">
+                                                {BLOCK_THICKNESSES.map(t => (
+                                                    <button key={t.val} onClick={() => setBlockThickness(t.val)}
+                                                        className={`px-2 py-1 rounded text-xs font-mono border transition-all ${blockThickness === t.val ? 'border-blue-500 bg-blue-900 text-blue-300' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                        {t.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-gray-400 mb-1">積み位置</div>
+                                            <div className="grid grid-cols-3 gap-1">
+                                                {Object.entries(BLOCK_POSITIONS).map(([key, pos]) => (
+                                                    <button key={key} onClick={() => setBlockPosition(key)}
+                                                        className={`px-2 py-1 rounded text-xs font-bold border transition-all ${blockPosition === key ? 'border-orange-500 bg-orange-900 text-orange-300' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                        {pos.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* フェンス設定 */}
+                                        <div className="mt-3 border-t border-gray-700 pt-3">
+                                            <div className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-wider">フェンス（ブロック天端）</div>
+                                            <div className="mb-2">
+                                                <div className="text-xs text-gray-400 mb-1">種別</div>
+                                                <div className="grid grid-cols-2 gap-1">
+                                                    {Object.entries(FENCE_TYPES).map(([key, ft]) => (
+                                                        <button key={key} onClick={() => setFenceType(key)}
+                                                            className={`px-2 py-1 rounded text-xs font-bold border transition-all ${fenceType === key ? 'border-blue-400 bg-blue-900 text-blue-200' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                            {ft.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {fenceType !== 'none' && (
+                                                <div>
+                                                    <div className="text-xs text-gray-400 mb-1">高さ</div>
+                                                    <div className="grid grid-cols-4 gap-1">
+                                                        {FENCE_HEIGHTS.map(h => (
+                                                            <button key={h} onClick={() => setFenceHeight(h)}
+                                                                className={`px-1 py-1 rounded text-xs font-mono border transition-all ${fenceHeight === h ? 'border-blue-400 bg-blue-900 text-blue-200' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                                {h >= 1000 ? (h/1000).toFixed(1)+'m' : h+'mm'}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="text-xs text-blue-400 mt-1 bg-blue-950 rounded p-1">
+                                                        ブロック天端にフェンスを自動配置
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-xs text-gray-500 mt-2">クリック→クリックで連続描画、右クリックで終了</div>
+                                    </div>
+                                    </div>{/* /スクロール領域 */}
+                                </div>
+                            )}
+
                              <div className="absolute bottom-4 left-4 bg-black/60 text-white p-3 rounded text-xs pointer-events-none backdrop-blur-sm z-50">
                                 <p className="font-bold mb-1">操作</p>
                                 <ul className="space-y-1 text-gray-300">
                                     <li>🖱 左: 描画 / 確定</li><li>🖱 中: パン</li><li>🖱 右: 中断</li><li>🖱 ホイール: ズーム</li>
                                     <li>⇧ Shift: 角度拘束</li><li>Alt+ドラッグ: VP移動</li>
+                                    {tool === TOOLS.POLYGON && <li className="text-green-400">多角形: ダブルクリックで確定</li>}
+                                    {tool === TOOLS.BLOCK_WALL && <li className="text-blue-400">ブロック: クリックで連続描画</li>}
                                 </ul>
                             </div>
                         </div>
