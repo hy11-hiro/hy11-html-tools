@@ -3401,9 +3401,10 @@
     }
 
     window.initOwnerRanking = async function() {
-        const masters = await db.masters.toArray(); const branches = new Set(masters.map(m => m.branch).filter(b => b));
-        const select = document.getElementById('rank-owner-branch'); 
-        if (select && select.options.length <= 1) Array.from(branches).sort().forEach(b => select.add(new Option(b, b)));
+        const masters = await db.masters.toArray();
+        const branches = new Set(masters.map(m => m.branch).filter(b => b));
+        const select = document.getElementById('rank-owner-branch');
+        if (select) { select.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => select.add(new Option(b, b))); }
         window.renderOwnerRanking();
     }
     window.renderOwnerRanking = async function() {
@@ -3430,7 +3431,7 @@
         const masters = await db.masters.toArray();
         const branches = new Set(masters.map(m => m.branch).filter(b => b));
         const select = document.getElementById('rank-customer-branch');
-        if (select && select.options.length <= 1) Array.from(branches).sort().forEach(b => select.add(new Option(b, b)));
+        if (select) { select.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => select.add(new Option(b, b))); }
         window.renderCustomerRanking();
     }
     window.renderCustomerRanking = async function() {
@@ -4494,27 +4495,30 @@
     }
     window.exportWorstExcel = function() {
         if(!currentWorstList || currentWorstList.length === 0) { alert("出力するデータがありません"); return; }
+        const periodStr = (rankingFilter.start || rankingFilter.end)
+            ? `${rankingFilter.start || ''}〜${rankingFilter.end || ''}`
+            : '全期間';
         const fmtEnd = (endStr) => {
             const ts = window.parseDateValue(endStr);
             if (!ts) return '完工日なし';
             const d = new Date(ts);
             return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
         };
-        const exportData = currentWorstList.map((r, i) => ({
-            "順位": i+1, "工番": r.code, "現場名": r.name,
-            "担当者": r.manager, "積算": r.estimator,
-            "施工主": r.owner, "得意先": r.customer,
-            "拠点": r.branch,
-            "完工日": fmtEnd(r.endStr),
-            "粗利率": r.margin.toFixed(2) + "%",
-            "粗利益(税抜)": r.profit,
-            "原価": r.cost,
-            "売上(税抜)": r.sales
-        }));
+        const exportData = [
+            { "順位": "集計期間（完了日）", "工番": periodStr, "現場名": "", "担当者": "", "積算": "", "施工主": "", "得意先": "", "拠点": "", "完工日": "", "粗利率": "", "粗利益(税抜)": "", "原価": "", "売上(税抜)": "" },
+            ...currentWorstList.map((r, i) => ({
+                "順位": i+1, "工番": r.code, "現場名": r.name,
+                "担当者": r.manager, "積算": r.estimator,
+                "施工主": r.owner, "得意先": r.customer,
+                "拠点": r.branch, "完工日": fmtEnd(r.endStr),
+                "粗利率": r.margin.toFixed(2) + "%",
+                "粗利益(税抜)": r.profit, "原価": r.cost, "売上(税抜)": r.sales
+            }))
+        ];
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "ワースト分析");
-        XLSX.writeFile(wb, `利益率ワースト分析_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `利益率ワースト分析_${periodStr.replace(/〜/g,'-')}_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
     window.sortAndRender = function(data, tbodyId, sortSelectId, groupLabel) { 
         const sel = document.getElementById(sortSelectId);
