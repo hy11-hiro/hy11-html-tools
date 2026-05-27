@@ -1115,6 +1115,7 @@
                                 <i class="fa-solid fa-users-viewfinder text-emerald-600"></i>
                                 <span class="font-bold text-slate-700">月別・拠点内ランキング</span>
                                 <span class="text-xs text-slate-400">明細データ / 発生日基準 / 税抜</span>
+                                <span class="text-xs text-emerald-600 font-mono" id="mm-date-range"></span>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
                                 <div class="flex rounded-lg border border-slate-200 overflow-hidden bg-white text-sm font-bold">
@@ -1127,6 +1128,9 @@
                                 <select id="mm-filter-branch" onchange="window.renderMonthlyManagerRanking()" class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none">
                                     <option value="ALL">全拠点</option>
                                 </select>
+                                <button onclick="window.exportMonthlyManagerExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow transition-colors">
+                                    <i class="fa-solid fa-file-excel"></i> Excel出力
+                                </button>
                             </div>
                         </div>
                         <div class="overflow-x-auto">
@@ -1137,8 +1141,7 @@
                                         <th class="px-4 py-3" id="mm-header-name">担当者名</th>
                                         <th class="px-4 py-3 whitespace-nowrap">拠点</th>
                                         <th class="px-4 py-3 text-right whitespace-nowrap">売上（税抜）</th>
-                                        <th class="px-4 py-3 text-right text-slate-300">-</th>
-                                        <th class="px-4 py-3 text-right text-slate-300">-</th>
+                                        <th class="px-4 py-3 text-right whitespace-nowrap">原価</th>
                                     </tr>
                                 </thead>
                                 <tbody id="ranking-body-monthly-manager" class="bg-white divide-y divide-slate-100"></tbody>
@@ -1154,6 +1157,7 @@
                                 <i class="fa-solid fa-chart-line text-emerald-600"></i>
                                 <span class="font-bold text-slate-700">月次 売上・原価推移</span>
                                 <span class="text-xs text-slate-400">明細データ / 発生日基準 / 税抜</span>
+                                <span class="text-xs text-emerald-600 font-mono" id="month-date-range"></span>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
                                 <label class="text-xs text-slate-500 font-bold">拠点:</label>
@@ -1821,14 +1825,25 @@
             const CHUNK = 5000;
             const isAppendMode = document.getElementById('append-mode-toggle')?.checked ?? false;
             const bulkAddChunked = async (table, data, label) => {
-                if (!isAppendMode) await table.clear(); // 上書きモードのみclear
-                const total = data.length;
+                let insertData = data;
+                if (isAppendMode) {
+                    // 追記モード：既存データとの重複を除外（siteCode+date+amount の複合キーで判定）
+                    if(importLog) importLog.textContent += `  → ${label} 重複チェック中...\n`;
+                    const existing = await table.toArray();
+                    const existKeys = new Set(existing.map(r => `${r.siteCode}|${r.date}|${r.amount ?? r.amountExc}`));
+                    insertData = data.filter(r => !existKeys.has(`${r.siteCode}|${r.date}|${r.amount ?? r.amountExc}`));
+                    const skipped = data.length - insertData.length;
+                    if(importLog) importLog.textContent += `  → 重複 ${skipped.toLocaleString()}件 除外、${insertData.length.toLocaleString()}件 追加\n`;
+                    if (insertData.length === 0) { if(importLog) importLog.textContent += `  → ${label} 追加データなし（全件重複）\n`; return; }
+                } else {
+                    await table.clear();
+                }
+                const total = insertData.length;
                 for (let i = 0; i < total; i += CHUNK) {
-                    await table.bulkAdd(data.slice(i, i + CHUNK));
+                    await table.bulkAdd(insertData.slice(i, i + CHUNK));
                     const pct = Math.min(100, Math.round((i + CHUNK) / total * 100));
-                    if (importLog) importLog.textContent = importLog.textContent.replace(
-                        /\n?  → .+書込中.+$/m, ''
-                    ) + `\n  → ${label} 書込中… ${pct}% (${Math.min(i+CHUNK,total).toLocaleString()} / ${total.toLocaleString()}件)`;
+                    if (importLog) importLog.textContent = importLog.textContent.replace(/\n?  → .+書込中.+$/m, '')
+                        + `\n  → ${label} 書込中… ${pct}% (${Math.min(i+CHUNK,total).toLocaleString()} / ${total.toLocaleString()}件)`;
                     await new Promise(r => setTimeout(r, 0));
                 }
                 if (importLog) importLog.textContent += `\n  → ${label} 完了 (${total.toLocaleString()}件${isAppendMode ? ' 追記' : ''})\n`;
@@ -3641,8 +3656,9 @@
         const masters = await db.masters.toArray(); const branches = new Set(); const months = new Set();
         masters.forEach(m => { if(m.branch) branches.add(m.branch); const ts = window.parseDateValue(m.endDate); if(ts) { const d = new Date(ts); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); months.add(yyyymm); } });
         const selMonth = document.getElementById('rank-manager-month'); const selBranch = document.getElementById('rank-manager-branch');
-        if(selMonth && selMonth.options.length === 0) { selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m + ' 完工', m))); }
-        if(selBranch && selBranch.options.length === 1) { Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
+        // ⑤ 毎回リセットして再構築
+        if(selMonth) { selMonth.innerHTML = ''; selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m + ' 完工', m))); }
+        if(selBranch) { selBranch.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
         window.renderManagerRanking();
     }
     window.renderManagerRanking = async function() {
@@ -3650,12 +3666,16 @@
         const selBranch = document.getElementById('rank-manager-branch');
         const targetMonth = selMonth ? selMonth.value : 'ALL'; 
         const targetBranch = selBranch ? selBranch.value : 'ALL';
+        // ① 全期間選択時は集計期間（適用ボタン）を反映
+        const fStart = targetMonth === 'ALL' && rankingFilter.start ? new Date(rankingFilter.start).setHours(0,0,0,0) : 0;
+        const fEnd   = targetMonth === 'ALL' && rankingFilter.end   ? new Date(rankingFilter.end).setHours(23,59,59,999) : 9999999999999;
         const costs = await db.costs.toArray(); const masters = await db.masters.toArray(); const groups = {};
         costs.forEach(c => {
             const m = masters.find(ma => ma.code === c.code); if (!m) return;
             const endTs = window.parseDateValue(m.endDate); 
             if (!endTs) return;
             if (targetMonth !== 'ALL') { const d = new Date(endTs); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); if (yyyymm !== targetMonth) return; }
+            else { if (endTs < fStart || endTs > fEnd) return; }
             if (targetBranch !== 'ALL' && m.branch !== targetBranch) return;
             const k = m.manager || '不明';
             if(!groups[k]) groups[k] = { name:k, sales:0, cost:0, profit:0, count:0, sites:[] };
@@ -3668,19 +3688,25 @@
     // ── ランキング Excel出力 共通ヘルパー ──
     function _exportRankingExcel(data, sheetName, fileName) {
         if (!data || data.length === 0) { alert('出力するデータがありません'); return; }
-        const exportData = data.map((r, i) => ({
-            '順位': i + 1,
-            '名称': r.name,
-            '総売上(税抜)': r.sales,
-            '総原価': r.cost,
-            '総利益(税抜)': r.profit,
-            '粗利率': r.sales ? (r.profit / r.sales * 100).toFixed(1) + '%' : '-',
-            '現場数': r.count
-        }));
+        const periodStr = (rankingFilter.start || rankingFilter.end)
+            ? `${rankingFilter.start || ''}〜${rankingFilter.end || ''}`
+            : '全期間';
+        const exportData = [
+            { '順位': '集計期間（完了日）', '名称': periodStr, '総売上(税抜)': '', '総原価': '', '総利益(税抜)': '', '粗利率': '', '現場数': '' },
+            ...data.map((r, i) => ({
+                '順位': i + 1,
+                '名称': r.name,
+                '総売上(税抜)': r.sales,
+                '総原価': r.cost,
+                '総利益(税抜)': r.profit,
+                '粗利率': r.sales ? (r.profit / r.sales * 100).toFixed(1) + '%' : '-',
+                '現場数': r.count
+            }))
+        ];
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
-        XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `${fileName}_${periodStr.replace(/〜/g,'-')}_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
     window.exportOwnerRankingExcel   = () => _exportRankingExcel(window._lastOwnerRanking,   '施工主別ランキング', '施工主別ランキング');
     window.exportBranchRankingExcel  = () => _exportRankingExcel(window._lastBranchRanking,  '拠点別損益集計',     '拠点別損益集計');
@@ -3688,26 +3714,95 @@
 
     window.setMonthlyMode = function(mode) { currentMonthlyMode = mode; document.getElementById('btn-mode-manager').className = mode==='manager'?'btn-group-item active':'btn-group-item'; document.getElementById('btn-mode-owner').className = mode==='owner'?'btn-group-item active':'btn-group-item'; document.getElementById('mm-header-name').textContent = mode==='manager'?'担当者名':'施工主名'; window.renderMonthlyManagerRanking(); }
     window.renderMonthlyManagerRanking = async function() {
-        const allSales = await db.sales.toArray(); const allMasters = await db.masters.toArray(); const masterMap = new Map(); allMasters.forEach(m => masterMap.set(m.code, { mgr: m.manager, br: m.branch, owner: m.owner }));
-        const monthSelect = document.getElementById('mm-filter-month'); const branchSelect = document.getElementById('mm-filter-branch');
-        const agg = {}; const months = new Set(); const branches = new Set();
-        allSales.forEach(s => {
-            const mInfo = masterMap.get(s.siteCode); const manager = mInfo ? mInfo.mgr : '不明'; const branch = mInfo ? mInfo.br : '不明'; const owner = mInfo ? mInfo.owner : '不明';
-            const yyyymm = s.date.substring(0, 6); if (!yyyymm) return;
-            months.add(yyyymm); if (branch !== '不明') branches.add(branch);
-            const targetName = currentMonthlyMode === 'manager' ? manager : owner; const key = `${yyyymm}_${targetName}_${branch}`;
-            if (!agg[key]) agg[key] = { month: yyyymm, name: targetName, branch, sales: 0 }; agg[key].sales += s.amountExc; 
-        });
-        if (monthSelect && monthSelect.options.length === 0) Array.from(months).sort().reverse().forEach(m => monthSelect.add(new Option(m, m))); 
-        if (branchSelect && branchSelect.options.length === 1) Array.from(branches).sort().forEach(b => branchSelect.add(new Option(b, b)));
-        const selMonth = monthSelect ? monthSelect.value : ''; 
+        const allSales     = await db.sales.toArray();
+        const allPurchases = await db.purchases.toArray();
+        const allMasters   = await db.masters.toArray();
+        const masterMap    = new Map(); allMasters.forEach(m => masterMap.set(m.code, m));
+
+        const monthSelect  = document.getElementById('mm-filter-month');
+        const branchSelect = document.getElementById('mm-filter-branch');
+
+        // ⑤ 選択肢を毎回リセット
+        const months = new Set(); const branches = new Set();
+        allSales.forEach(s => { const ym = (s.date||'').substring(0,6); if(ym) months.add(ym); const br = masterMap.get(s.siteCode)?.branch; if(br) branches.add(br); });
+        allPurchases.forEach(p => { const ym = (p.date||'').substring(0,6); if(ym) months.add(ym); const br = masterMap.get(p.siteCode)?.branch; if(br) branches.add(br); });
+
+        const prevMonth  = monthSelect  ? monthSelect.value  : '';
+        const prevBranch = branchSelect ? branchSelect.value : 'ALL';
+        if(monthSelect)  { monthSelect.innerHTML  = '<option value="">全年月</option>';   Array.from(months).sort().reverse().forEach(m => monthSelect.add(new Option(m, m)));  if(prevMonth)  monthSelect.value = prevMonth; }
+        if(branchSelect) { branchSelect.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => branchSelect.add(new Option(b, b)));         if(prevBranch) branchSelect.value = prevBranch; }
+
+        const selMonth  = monthSelect  ? monthSelect.value  : '';
         const selBranch = branchSelect ? branchSelect.value : 'ALL';
-        const list = Object.values(agg).filter(a => { if (selMonth && a.month !== selMonth) return false; if (selBranch !== 'ALL' && a.branch !== selBranch) return false; return true; });
-        list.sort((a,b) => b.sales - a.sales);
-        const tbody = document.getElementById('ranking-body-monthly-manager'); 
+        const isAllMonth = !selMonth;
+
+        // 全年月時は 担当者×拠点 で合算、月指定時は 年月×担当者×拠点 で分割
+        const agg = {};
+        const getKey  = (ym, name, branch) => isAllMonth ? `${name}_${branch}` : `${ym}_${name}_${branch}`;
+        const addToAgg = (ym, name, branch, sales, cost) => {
+            const key = getKey(ym, name, branch);
+            if (!agg[key]) agg[key] = { month: isAllMonth ? '全期間' : ym, name, branch, sales:0, cost:0, siteDetails:[] };
+            agg[key].sales += sales; agg[key].cost += cost;
+        };
+
+        // 現場単位の明細キャッシュ（Excel出力用）: detailMap[name_branch][siteCode] = {name,branch,siteName,sales,cost,months}
+        const detailMap = {};
+        const addDetail = (ym, name, branch, siteCode, siteName, sales, cost) => {
+            const gKey = `${name}_${branch}`;
+            if (!detailMap[gKey]) detailMap[gKey] = {};
+            if (!detailMap[gKey][siteCode]) detailMap[gKey][siteCode] = { name, branch, siteCode, siteName, sales:0, cost:0 };
+            detailMap[gKey][siteCode].sales += sales;
+            detailMap[gKey][siteCode].cost  += cost;
+        };
+
+        allSales.forEach(s => {
+            const m = masterMap.get(s.siteCode); const branch = m?.branch||'不明';
+            const pName = currentMonthlyMode === 'manager' ? (m?.manager||'不明') : (m?.owner||'不明');
+            const ym = (s.date||'').substring(0,6); if(!ym) return;
+            if(selMonth  && ym !== selMonth) return;
+            if(selBranch !== 'ALL' && branch !== selBranch) return;
+            addToAgg(ym, pName, branch, s.amountExc, 0);
+            addDetail(ym, pName, branch, s.siteCode, m?.name||s.siteCode, s.amountExc, 0);
+        });
+        allPurchases.forEach(p => {
+            const m = masterMap.get(p.siteCode); const branch = m?.branch||'不明';
+            const pName = currentMonthlyMode === 'manager' ? (m?.manager||'不明') : (m?.owner||'不明');
+            const ym = (p.date||'').substring(0,6); if(!ym) return;
+            if(selMonth  && ym !== selMonth) return;
+            if(selBranch !== 'ALL' && branch !== selBranch) return;
+            addToAgg(ym, pName, branch, 0, p.amount);
+            addDetail(ym, pName, branch, p.siteCode, m?.name||p.siteCode, 0, p.amount);
+        });
+
+        const list = Object.values(agg).sort((a,b) => b.sales - a.sales);
+        window._lastMonthlyManagerData   = list;
+        window._lastMonthlyManagerDetail = detailMap;
+
+        // 実データの発生日範囲を表示
+        const allYms = [...months].sort();
+        const rangeEl = document.getElementById('mm-date-range');
+        if (rangeEl) {
+            if (allYms.length >= 2) {
+                rangeEl.textContent = `（${allYms[0].slice(0,4)}/${allYms[0].slice(4,6)} 〜 ${allYms[allYms.length-1].slice(0,4)}/${allYms[allYms.length-1].slice(4,6)}）`;
+            } else if (allYms.length === 1) {
+                rangeEl.textContent = `（${allYms[0].slice(0,4)}/${allYms[0].slice(4,6)}）`;
+            } else {
+                rangeEl.textContent = '';
+            }
+        }
+
+        const tbody = document.getElementById('ranking-body-monthly-manager');
         if(tbody) {
             tbody.innerHTML = '';
-            list.forEach((r, i) => { tbody.innerHTML += `<tr><td class="px-6 py-4 font-bold">${i+1}</td><td class="px-6 py-4">${r.name}</td><td class="px-6 py-4">${r.branch}</td><td class="px-6 py-4 text-right font-bold">${formatCurrency(r.sales)}</td><td class="px-6 py-4 text-right text-slate-300">-</td><td class="px-6 py-4 text-right text-slate-300">-</td></tr>`; });
+            list.forEach((r, i) => {
+                tbody.innerHTML += `<tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-4 py-2.5 text-center font-bold text-slate-500 text-sm">${i+1}</td>
+                    <td class="px-4 py-2.5 font-bold text-slate-800">${r.name}</td>
+                    <td class="px-4 py-2.5 text-slate-500 text-xs">${r.branch}</td>
+                    <td class="px-4 py-2.5 text-right font-mono text-sm font-bold">${formatCurrency(r.sales)}</td>
+                    <td class="px-4 py-2.5 text-right font-mono text-sm text-red-500">${r.cost ? formatCurrency(r.cost) : '-'}</td>
+                </tr>`;
+            });
         }
     }
 
@@ -3778,6 +3873,19 @@
             // キャッシュ保存（Sheet4クロス集計で完了日フィルター適用するためmasterMapも保持）
             window._monthlyExportCache = { stats, filteredSales, filteredPurchases, targetB, targetYm, masterMap, rankFilterSnap: { ...rankingFilter } };
 
+            // 実データの発生日範囲を表示
+            const ymKeys = Object.keys(stats).sort();
+            const rangeEl2 = document.getElementById('month-date-range');
+            if (rangeEl2) {
+                if (ymKeys.length >= 2) {
+                    rangeEl2.textContent = `（${ymKeys[0].slice(0,4)}/${ymKeys[0].slice(4,6)} 〜 ${ymKeys[ymKeys.length-1].slice(0,4)}/${ymKeys[ymKeys.length-1].slice(4,6)}）`;
+                } else if (ymKeys.length === 1) {
+                    rangeEl2.textContent = `（${ymKeys[0].slice(0,4)}/${ymKeys[0].slice(4,6)}）`;
+                } else {
+                    rangeEl2.textContent = '';
+                }
+            }
+
             const labels = Object.keys(stats).sort();
             chartMonthly = window.destroyChart(chartMonthly);
             const ctx = document.getElementById('chart-monthly-total');
@@ -3797,6 +3905,76 @@
             if(tfoot) tfoot.innerHTML = `<tr>${footRow}</tr>`;
         } catch (e) { console.error("Monthly Render Error:", e); }
     }
+
+    // ── 月別・拠点内 Excel出力（担当者/施工主ごとの現場明細） ──
+    window.exportMonthlyManagerExcel = async function() {
+        const detailMap = window._lastMonthlyManagerDetail;
+        if (!detailMap || Object.keys(detailMap).length === 0) { alert('出力するデータがありません'); return; }
+        const selMonth  = document.getElementById('mm-filter-month')?.value  || '全年月';
+        const selBranch = document.getElementById('mm-filter-branch')?.value || 'ALL';
+        const modeLabel = currentMonthlyMode === 'manager' ? '担当者別' : '施工主別';
+        const nameLabel = currentMonthlyMode === 'manager' ? '担当者名' : '施工主名';
+        const periodStr = selMonth + '_' + (selBranch === 'ALL' ? '全拠点' : selBranch);
+
+        const wb = new ExcelJS.Workbook();
+        const numFmt = '#,##0';
+        const hdrS = (color) => ({ font:{bold:true,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:color}}, alignment:{horizontal:'center'} });
+        const totS  = { font:{bold:true}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}}, alignment:{horizontal:'right'} };
+
+        // 担当者/施工主ごとに1シート
+        const groups = window._lastMonthlyManagerData || [];
+        for (const g of groups) {
+            const gKey = `${g.name}_${g.branch}`;
+            const sites = Object.values(detailMap[gKey] || {}).sort((a,b) => b.sales - a.sales);
+            if (sites.length === 0) continue;
+
+            // シート名は担当者名+拠点（31文字制限）
+            const sheetName = `${g.name}_${g.branch}`.substring(0, 31);
+            const ws = wb.addWorksheet(sheetName);
+            ws.getColumn(1).width = 12; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 14; ws.getColumn(5).width = 14; ws.getColumn(6).width = 12;
+
+            // タイトル行
+            const tr = ws.getRow(1);
+            tr.getCell(1).value = `${nameLabel}：${g.name}　拠点：${g.branch}　期間：${selMonth === '全年月' ? '全年月' : selMonth}`;
+            tr.getCell(1).style = { font:{bold:true,size:11,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}}, alignment:{horizontal:'left'} };
+            ws.mergeCells(1,1,1,6); tr.height = 22;
+
+            // ヘッダー
+            const hr = ws.getRow(2);
+            ['工番', '現場名', '拠点', '売上（税抜）', '原価', '粗利率'].forEach((v,i) => { hr.getCell(i+1).value=v; hr.getCell(i+1).style=hdrS('FF1E3A5F'); });
+            hr.height = 18;
+
+            // データ行
+            let totS2=0, totC=0;
+            sites.forEach((s,si) => {
+                totS2+=s.sales; totC+=s.cost;
+                const margin = s.sales ? ((s.sales-s.cost)/s.sales*100) : null;
+                const row = ws.getRow(si+3);
+                row.getCell(1).value = s.siteCode; row.getCell(1).alignment={horizontal:'left'}; row.getCell(1).font={color:{argb:'FF475569'}};
+                row.getCell(2).value = s.siteName;
+                row.getCell(3).value = s.branch;   row.getCell(3).alignment={horizontal:'center'}; row.getCell(3).font={color:{argb:'FF64748B'}};
+                row.getCell(4).value = s.sales||null; row.getCell(4).numFmt=numFmt; row.getCell(4).alignment={horizontal:'right'};
+                row.getCell(5).value = s.cost||null;  row.getCell(5).numFmt=numFmt; row.getCell(5).alignment={horizontal:'right'}; row.getCell(5).font={color:{argb:'FFDC2626'}};
+                row.getCell(6).value = margin;        row.getCell(6).numFmt='0.0"%"'; row.getCell(6).alignment={horizontal:'right'};
+                if(margin!==null) row.getCell(6).font={color:{argb: margin<0?'FFDC2626':margin<20?'FFEA580C':'FF374151'}};
+                row.height=15;
+            });
+
+            // 合計行
+            const totRow = ws.getRow(sites.length+3);
+            totRow.getCell(1).value='合計'; totRow.getCell(1).style={...totS, alignment:{horizontal:'center'}};
+            totRow.getCell(2).value=''; totRow.getCell(3).value='';
+            totRow.getCell(4).value=totS2||null; totRow.getCell(4).style={...totS,numFmt}; 
+            totRow.getCell(5).value=totC||null;  totRow.getCell(5).style={font:{bold:true,color:{argb:'FFDC2626'}},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}},alignment:{horizontal:'right'},numFmt};
+            const gm = totS2 ? ((totS2-totC)/totS2*100) : null;
+            totRow.getCell(6).value=gm; totRow.getCell(6).numFmt='0.0"%"'; totRow.getCell(6).style={font:{bold:true,color:{argb:gm!==null&&gm<20?'FFEA580C':'FF1D4ED8'}},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}},alignment:{horizontal:'right'}};
+            totRow.height=18;
+        }
+
+        if (wb.worksheets.length === 0) { alert('出力するデータがありません'); return; }
+        const dateStr = new Date().toISOString().slice(0,10);
+        wb.xlsx.writeBuffer().then(buf => saveAs(new Blob([buf]), `月別拠点内_${modeLabel}_${periodStr}_${dateStr}.xlsx`));
+    };
 
     // ── 月次推移 Excel出力（月次サマリー・売上内訳・原価内訳・クロス集計 の4シート）──
     window.exportMonthlyExcel = function() {
@@ -4219,13 +4397,9 @@
         });
         const selMonth = document.getElementById('worst-alert-month');
         const selBranch = document.getElementById('worst-alert-branch');
-        if(selMonth && selMonth.options.length === 0) {
-            selMonth.add(new Option('全期間', 'ALL'));
-            Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m, m)));
-        }
-        if(selBranch && selBranch.options.length === 1) {
-            Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b)));
-        }
+        // ⑤ 毎回リセットして再構築
+        if(selMonth) { selMonth.innerHTML = ''; selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m, m))); }
+        if(selBranch) { selBranch.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
         window.renderWorstRanking();
     }
     window.renderWorstRanking = async function() {
@@ -4254,9 +4428,12 @@
             list = list.slice(0, 30);
         } else {
             // 閾値フィルター: 入力値以下を抽出
+            // ② 全期間選択時は集計期間（適用ボタン）を反映
             const threshold = parseFloat(document.getElementById('worst-threshold')?.value ?? 20);
             const targetMonth  = document.getElementById('worst-alert-month')?.value  || 'ALL';
             const targetBranch = document.getElementById('worst-alert-branch')?.value || 'ALL';
+            const afStart = targetMonth === 'ALL' && rankingFilter.start ? new Date(rankingFilter.start).setHours(0,0,0,0) : 0;
+            const afEnd   = targetMonth === 'ALL' && rankingFilter.end   ? new Date(rankingFilter.end).setHours(23,59,59,999) : 9999999999999;
             costs.forEach(c => {
                 const m = masters.find(ma => ma.code === c.code); if(!m) return;
                 const endTs = window.parseDateValue(m.endDate); if(!endTs) return;
@@ -4264,6 +4441,8 @@
                     const d = new Date(endTs);
                     const ym = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
                     if(ym !== targetMonth) return;
+                } else {
+                    if (endTs < afStart || endTs > afEnd) return;
                 }
                 if(targetBranch !== 'ALL' && m.branch !== targetBranch) return;
                 if(c.salesTotal <= 0) return;
