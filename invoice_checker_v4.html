@@ -332,9 +332,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
                 <th style="padding:7px 8px;font-size:11px;min-width:110px;">現場①・得意先</th>
                 <th style="width:58px;padding:7px 6px;text-align:center;font-size:11px;">工番②</th>
                 <th style="padding:7px 8px;font-size:11px;min-width:110px;">現場②・得意先</th>
-                <th style="width:42px;padding:7px 4px;text-align:center;font-size:11px;color:#7c3aed;">人工</th>
+                <th style="width:42px;padding:7px 4px;text-align:center;font-size:11px;color:#7c3aed;">割当</th>
                 <th style="width:36px;padding:7px 4px;text-align:center;font-size:11px;color:#ea580c;">🚛</th>
-                <th style="width:96px;padding:7px 8px;text-align:right;font-size:11px;color:#1e40af;">記載金額</th>
+                <th style="width:96px;padding:7px 8px;text-align:center;font-size:11px;color:#1e40af;">出面<br><span style="font-size:9px;font-weight:400;color:#64748b;">1日 / 0.5日</span></th>
               </tr>
             </thead>
             <tbody id="deduri-body"></tbody>
@@ -344,7 +344,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
                 <td colspan="2"></td>
                 <td id="deduri-ninku-total" style="font-family:'Courier New',monospace;font-weight:900;color:#7c3aed;font-size:13px;text-align:center;padding:8px 4px;"></td>
                 <td id="deduri-dump-total" style="font-family:'Courier New',monospace;font-weight:700;color:#ea580c;font-size:12px;text-align:center;padding:8px 4px;"></td>
-                <td id="deduri-claimed-total" style="font-family:'Courier New',monospace;font-weight:700;color:#1e40af;font-size:12px;text-align:right;padding:8px 8px;"></td>
+                <td id="deduri-claimed-total" style="font-family:'Courier New',monospace;font-weight:700;color:#1e40af;font-size:12px;text-align:center;padding:8px 8px;"></td>
               </tr>
             </tfoot>
           </table>
@@ -2922,6 +2922,13 @@ function closeCMM(){ document.getElementById('mo-cm').classList.remove('open'); 
 function chkInv(){ const v=document.getElementById('cm-inv').value.trim(), h=document.getElementById('cm-inv-hint'); if(!v){h.textContent='空欄→未対応';h.style.color='#d97706';}else if(/^T\d{13}$/.test(v)){h.textContent='✓ 正しい形式';h.style.color='#059669';}else{h.textContent='形式: T+13桁数字';h.style.color='#dc2626';} }
 function saveCM(){
   const name=document.getElementById('cm-name').value.trim(); if(!name){alert('職人名を入力してください');return;}
+  const category=document.getElementById('cm-category').value;
+  const dailyRateVal=+document.getElementById('cm-daily-rate')?.value||0;
+  if(category==='サポート'&&dailyRateVal<=0){
+    alert('サポートの場合は「日給額（サポート用）」の入力が必須です。');
+    document.getElementById('cm-daily-rate')?.focus();
+    return;
+  }
   const id=document.getElementById('cm-id').value||uid();
   const g=id=>document.getElementById(id);
   // 個人情報（piModeのときのみ保存）
@@ -3324,7 +3331,7 @@ function renderDeduri(){
   // 全日のデータを確保（なければ空レコード作成）
   for(let day=1;day<=daysInMonth;day++){
     if(!sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day))
-      sess.deduri.push({year:y,month:m,day,site1:'',site2:'',dump:false,claimedAmount:0});
+      sess.deduri.push({year:y,month:m,day,site1:'',site2:'',dump:false,claimedAmount:0,dayFrac:null});
   }
 
   let html='';
@@ -3339,14 +3346,15 @@ function renderDeduri(){
     const s2=sess.headRows.find(h=>h.code&&r.site2&&h.code===r.site2);
     const c=craftsmen.find(x=>x.id===sess.cid);
     const dr=c?.dailyRate||0;
-    const hasData=r.site1||r.site2||r.claimedAmount;
+    const hasData=r.site1||r.site2||r.dayFrac;
 
-    // 人工：記載金額がある場合は記載金額÷日給、なければ現場数で判定
+    // 人工：2現場＝各0.5人工、1現場＝1人工（記載金額は参考情報のみ）
     let ninkuVal=0, ninkuLabel='—';
-    if(r.claimedAmount&&dr>0){
-      ninkuVal=roundJ(Number(r.claimedAmount)/dr);
-      ninkuLabel=ninkuVal%1===0?String(ninkuVal):ninkuVal.toFixed(2).replace(/\.?0+$/,'');
-    } else if(r.site1||r.site2){
+    const s2cnt=[r.site1,r.site2].filter(Boolean).length;
+    if(s2cnt>=2){
+      ninkuVal=0.5;
+      ninkuLabel='0.5';
+    } else if(s2cnt===1){
       ninkuVal=1;
       ninkuLabel='1';
     }
@@ -3388,12 +3396,16 @@ function renderDeduri(){
           style="font-size:15px;line-height:1;padding:2px 5px;border:${dumpActive?'2px solid #ea580c':'1px solid #e2e8f0'};background:${dumpActive?'#fff7ed':'#fff'};border-radius:5px;cursor:pointer;opacity:${dumpFeePerDay>0?1:0.4};">🚛</button>
         ${dumpActive?`<div style="font-size:9px;color:#ea580c;font-weight:700;">¥${dumpFeePerDay.toLocaleString()}</div>`:''}
       </td>
-      <td style="padding:3px 6px;">
-        <input type="number" class="fi-n ded-inp" value="${r.claimedAmount||''}" placeholder="—" min="0"
-          data-day="${day}" data-field="claimedAmount"
-          onchange="setDeduriNum(${day},'claimedAmount',this.value)"
+      <td style="padding:3px 6px;text-align:center;">
+        <select class="fi ded-inp" data-day="${day}" data-field="claimedAmount"
+          onchange="setDeduriDayFrac(${day},this.value)"
           onkeydown="deduriKD(event,this,${day},'claimedAmount')"
-          style="width:90px;padding:4px 6px;font-size:12px;text-align:right;">
+          style="width:88px;padding:3px 5px;font-size:12px;font-weight:700;text-align:center;">
+          <option value="" ${!r.dayFrac?'selected':''}>—</option>
+          <option value="1" ${r.dayFrac===1?'selected':''}>1日</option>
+          <option value="0.5" ${r.dayFrac===0.5?'selected':''}>0.5日</option>
+        </select>
+        ${r.dayFrac&&dr>0?`<div style="font-size:10px;color:#1e40af;font-weight:700;margin-top:1px;">¥${roundJ(r.dayFrac*dr).toLocaleString()}</div>`:''}
       </td>
     </tr>`;
   }
@@ -3456,17 +3468,10 @@ function lookupDeduriSite(inp, day, field){
   // 人工セル更新（記載金額があれば計算値、なければ現場数）
   const ninkuCell=tr.cells[6];
   if(ninkuCell){
-    const c2=craftsmen.find(x=>x.id===sess.cid);
-    const dr2=c2?.dailyRate||0;
-    const claimed=Number(r.claimedAmount)||0;
+    const siteCnt=[r.site1,r.site2].filter(Boolean).length;
     let lbl='—', col='#d1d5db';
-    if(claimed&&dr2>0){
-      const nv=roundJ(claimed/dr2);
-      lbl=nv%1===0?String(nv):nv.toFixed(2).replace(/\.?0+$/,'');
-      col='#7c3aed';
-    } else if(r.site1||r.site2){
-      lbl='1'; col='#7c3aed';
-    }
+    if(siteCnt>=2){ lbl='0.5'; col='#7c3aed'; }
+    else if(siteCnt===1){ lbl='1'; col='#7c3aed'; }
     ninkuCell.textContent=lbl;
     ninkuCell.style.color=col;
   }
@@ -3480,24 +3485,35 @@ function setDeduriNum(day, field, val){
   if(!r) return;
   r[field]=Number(val)||0;
   autoSaveSess();
-  // 記載金額が変わったら人工セルも更新
+  // 記載金額が変わったらサマリーを再描画（人工は現場数ベースなので人工セル変更不要）
   if(field==='claimedAmount'){
-    const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
-    const ninkuCell=tr?.cells[6];
-    if(ninkuCell){
-      const c2=craftsmen.find(x=>x.id===sess.cid);
-      const dr2=c2?.dailyRate||0;
-      const claimed=r.claimedAmount;
-      let lbl='—', col='#d1d5db';
-      if(claimed&&dr2>0){
-        const nv=roundJ(claimed/dr2);
-        lbl=nv%1===0?String(nv):nv.toFixed(2).replace(/\.?0+$/,'');
-        col='#7c3aed';
-      } else if(r.site1||r.site2){
-        lbl='1'; col='#7c3aed';
-      }
-      ninkuCell.textContent=lbl;
-      ninkuCell.style.color=col;
+    // 人工セルは現場数ベースなので変更不要（サマリーのみ更新）
+  }
+  renderDeduriTotals();
+  renderSupSiteSummary();
+}
+
+// 出面（1日/0.5日）セレクト変更
+function setDeduriDayFrac(day, val){
+  const y=sess.deduriYear, m=sess.deduriMonth;
+  const r=sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day);
+  if(!r) return;
+  const frac=val===''?null:Number(val);
+  r.dayFrac=frac;
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  const dr=c?.dailyRate||0;
+  r.claimedAmount=frac&&dr>0?roundJ(frac*dr):0;
+  autoSaveSess();
+  // 金額表示サブラベルをDOM直接更新
+  const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
+  const lastTd=tr?.cells[tr.cells.length-1];
+  if(lastTd){
+    const sub=lastTd.querySelector('div');
+    if(frac&&dr>0){
+      if(sub) sub.textContent='¥'+roundJ(frac*dr).toLocaleString();
+      else { const d=document.createElement('div'); d.style.cssText='font-size:10px;color:#1e40af;font-weight:700;margin-top:1px;'; d.textContent='¥'+roundJ(frac*dr).toLocaleString(); lastTd.appendChild(d); }
+    } else {
+      if(sub) sub.remove();
     }
   }
   renderDeduriTotals();
@@ -3509,12 +3525,16 @@ function renderDeduriTotals(){
   const m=sess.deduriMonth||new Date().getMonth()+1;
   const rows=sess.deduri.filter(r=>r.year===y&&r.month===m);
   const dumpFee=sess.dumpFeePerDay||0;
-  const totalNinku=rows.reduce((s,r)=>s+(r.site1||r.site2?1:0),0);
+  const totalNinku=rows.reduce((s,r)=>{
+    const cnt=[r.site1,r.site2].filter(Boolean).length;
+    return s+(cnt>=2?1:cnt===1?1:0);// 月計は実働日数（2現場でも1日）
+  },0);
   const totalDump=rows.reduce((s,r)=>s+(r.dump&&dumpFee>0?dumpFee:0),0);
+  const totalFrac=rows.reduce((s,r)=>s+(r.dayFrac||0),0);
   const totalClaimed=rows.reduce((s,r)=>s+(Number(r.claimedAmount)||0),0);
-  setTxt('deduri-ninku-total',totalNinku?totalNinku+'人工':'');
+  setTxt('deduri-ninku-total',totalNinku?totalNinku+'稼働日':'');
   setTxt('deduri-dump-total',totalDump>0?'¥'+totalDump.toLocaleString():'');
-  setTxt('deduri-claimed-total',totalClaimed>0?'¥'+totalClaimed.toLocaleString():'');
+  setTxt('deduri-claimed-total',totalFrac?totalFrac+'日'+( totalClaimed>0?' / ¥'+totalClaimed.toLocaleString():''):'');
 }
 
 // ━━ キーボードナビゲーション ━━
@@ -3662,8 +3682,12 @@ function renderSupSiteSummary(){
   if(!sites.length){wrap.innerHTML='<div style="color:#94a3b8;font-size:13px;">ヘッド入力で現場を登録してください</div>';return;}
   if(!sess.deduri||!sess.deduri.length){wrap.innerHTML='<div style="color:#94a3b8;font-size:13px;">出面を入力してください</div>';return;}
 
+  // 日給未登録警告
+  const drWarn=dr<=0?`<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:7px;padding:8px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> 日給が未登録です。職人マスターで「日給額（サポート用）」を入力してください。</div>`:'';
+
   // 現場ごとに人工・ダンプ代・記載金額を集計
-  const ninkuMap={}, dumpMap={}, claimedMap={};
+  const ninkuMap={}, dumpMap={};
+  let fracTotal=0;
   const dumpFeePerDay=sess.dumpFeePerDay||0;
   sess.deduri.forEach(r=>{
     const s2=[r.site1,r.site2].filter(Boolean);
@@ -3675,65 +3699,75 @@ function renderSupSiteSummary(){
     if(r.dump&&dumpFeePerDay>0&&r.site1){
       dumpMap[r.site1]=(dumpMap[r.site1]||0)+dumpFeePerDay;
     }
-    // 記載金額は工番①に紐づけ
-    if(r.claimedAmount&&r.site1){
-      claimedMap[r.site1]=(claimedMap[r.site1]||0)+(Number(r.claimedAmount)||0);
+    // 出面（dayFrac）×日給で月合計を集計（現場に振り分けず合計のみ）
+    const frac=r.dayFrac||0;
+    if(frac>0&&dr>0){
+      const amt=roundJ(frac*dr);
+      fracTotal=(fracTotal||0)+amt;
     }
+
+
+
+
+
+
+
+
+
+
+
+
   });
 
   let html='<table class="tb" style="font-size:12px;"><thead><tr>';
   html+='<th>工番・現場名</th>';
   html+='<th style="text-align:right;width:55px;">人工</th>';
-  html+='<th style="text-align:right;width:80px;">計算金額<br><span style="font-size:9px;font-weight:400;">人工×日給</span></th>';
   html+='<th style="text-align:right;width:70px;">ダンプ代</th>';
-  html+='<th style="text-align:right;width:85px;background:#f0f9ff;">合計計算</th>';
   html+='<th style="text-align:right;width:85px;">請求金額</th>';
   html+='<th style="text-align:right;width:65px;">差異</th>';
   html+='<th style="width:36px;text-align:center;">✓</th>';
   html+='</tr></thead><tbody>';
 
-  let totalCalc=0,totalClaim=0,totalDump=0,totalClaimed=0;
+  let totalClaim=0,totalDump=0;
   sites.forEach(row=>{
     const ninku=ninkuMap[row.code]||0;
-    const calcBase=roundJ(ninku*dr);
     const dump=dumpMap[row.code]||0;
-    const calcTotal=roundJ(calcBase+dump);
     const claim=Number(row.amount)||0;
-    const claimed=claimedMap[row.code]||0;
-    const diff=roundJ(claim-calcTotal);
-    const ok=Math.abs(diff)<1;
-    totalCalc+=calcTotal; totalClaim+=claim; totalDump+=dump; totalClaimed+=claimed;
+    totalClaim+=claim; totalDump+=dump;
     html+=`<tr>
       <td><b>${row.code}</b> ${row.name}</td>
-      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;">${ninku}</td>
-      <td style="text-align:right;font-family:'Courier New',monospace;">¥${calcBase.toLocaleString()}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;">${ninku||'—'}</td>
       <td style="text-align:right;font-family:'Courier New',monospace;color:${dump>0?'#ea580c':'#94a3b8'};">${dump>0?'¥'+dump.toLocaleString():'—'}</td>
-      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;background:#f0f9ff;">¥${calcTotal.toLocaleString()}</td>
       <td style="text-align:right;font-family:'Courier New',monospace;">¥${claim.toLocaleString()}</td>
-      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${ok?'#059669':diff>0?'#1e40af':'#dc2626'};">
-        ${ok?'±0':(diff>0?'+':'')+diff.toLocaleString()}
-      </td>
-      <td style="text-align:center;font-size:16px;">${ok?'✅':'⚠️'}</td>
+      <td></td>
+      <td></td>
     </tr>`;
   });
+  // 出面計算合計（月全体：出面×日給＋ダンプ代合計）
+  const totalFracAmt=roundJ(fracTotal);
+  const totalCalc=roundJ(totalFracAmt+totalDump);
   const tdiff=roundJ(totalClaim-totalCalc);
-  const tok=Math.abs(tdiff)<1;
-  html+=`</tbody><tfoot><tr style="font-weight:900;background:#f8fafc;">
-    <td>合計</td>
+  const tok=totalCalc>0&&Math.abs(tdiff)<1;
+  html+=`</tbody><tfoot>
+  <tr style="background:#f5f3ff;border-top:1px solid #e2e8f0;">
+    <td colspan="2" style="padding:6px 10px;font-size:11px;color:#5b21b6;font-weight:700;">出面計算合計（出面×日給）</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;color:#ea580c;">${totalDump>0?'¥'+totalDump.toLocaleString():'—'}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;font-weight:900;color:#7c3aed;" colspan="3">¥${totalCalc.toLocaleString()}</td>
+  </tr>
+  <tr style="font-weight:900;background:#f8fafc;border-top:2px solid #e2e8f0;">
+    <td>請求合計</td>
     <td style="text-align:right;font-family:'Courier New',monospace;">${Object.values(ninkuMap).reduce((s,v)=>s+v,0)}</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;">¥${roundJ(totalCalc-totalDump).toLocaleString()}</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;color:#ea580c;">¥${totalDump.toLocaleString()}</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;background:#f0f9ff;">¥${totalCalc.toLocaleString()}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;color:#ea580c;">${totalDump>0?'¥'+totalDump.toLocaleString():'—'}</td>
     <td style="text-align:right;font-family:'Courier New',monospace;">¥${totalClaim.toLocaleString()}</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;color:${tok?'#059669':tdiff>0?'#1e40af':'#dc2626'};">
-      ${tok?'±0':(tdiff>0?'+':'')+tdiff.toLocaleString()}
+    <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${tok?'#059669':totalCalc===0?'#94a3b8':tdiff>0?'#1e40af':'#dc2626'};">
+      ${tok?'±0':totalCalc===0?'—':(tdiff>0?'+':'')+tdiff.toLocaleString()}
     </td>
-    <td style="text-align:center;font-size:18px;">${tok?'✅':'⚠️'}</td>
+    <td style="text-align:center;font-size:18px;">${tok?'✅':totalCalc===0?'—':'⚠️'}</td>
   </tr></tfoot></table>`;
-  wrap.innerHTML=`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border-radius:6px;border-left:3px solid #7c3aed;">
+  wrap.innerHTML=drWarn+`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border-radius:6px;border-left:3px solid #7c3aed;">
     <span style="font-size:12px;font-weight:700;color:#5b21b6;">日給</span>
-    <span style="font-family:'Courier New',monospace;font-size:16px;font-weight:900;color:#7c3aed;">¥${dr.toLocaleString()}</span>
-    <span style="font-size:11px;color:#64748b;">合計計算 ＝ 人工 × 日給 ＋ ダンプ代</span>
+    <span style="font-family:'Courier New',monospace;font-size:16px;font-weight:900;color:${dr>0?'#7c3aed':'#dc2626'};">${dr>0?'¥'+dr.toLocaleString():'未登録'}</span>
+    <span style="font-size:11px;color:#64748b;">出面計算 ＝ 出面合計 × 日給 ＋ ダンプ代</span>
   </div>`+html;
 }
 
