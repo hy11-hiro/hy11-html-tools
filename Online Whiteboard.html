@@ -33,6 +33,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;background:var(-
 .cs.on{border-color:#222;transform:scale(1.2);}.cs:hover{transform:scale(1.12);}
 .sb{padding:3px 8px;border:1px solid var(--br);border-radius:6px;background:var(--w);cursor:pointer;font-size:11.5px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;transition:all .15s;white-space:nowrap;}
 .sb.on,.sb:hover{background:var(--ac);color:#fff;border-color:var(--ac);}
+.alb{width:28px;height:28px;border:1px solid var(--br);background:var(--w);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#555;transition:all .15s;flex-shrink:0;padding:0;}
+.alb:hover{background:var(--ac);color:#fff;border-color:var(--ac);}
 .p-sel{padding:2px 6px;border:1px solid var(--br);border-radius:6px;background:var(--w);cursor:pointer;font-size:11.5px;font-family:'Plus Jakarta Sans',sans-serif;height:28px;outline:none;color:#333;transition:border-color .15s;flex-shrink:0;}
 .p-sel:focus,.p-sel:hover{border-color:var(--ac);}
 .shb{width:28px;height:28px;border:1px solid var(--br);border-radius:6px;background:var(--w);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
@@ -1214,8 +1216,84 @@ function renderPbar(){
     h+=`<div class="p-sep"></div>`+colRow()+`<div class="p-sep"></div>`+swRow();
   }
   // ヒントテキストは非表示
+  if(multiSel.size>=2) h+=getAlignRow();
   bar.innerHTML=h;
 }
+// ── 整列機能 ──────────────────────────────────────────
+function getAlignRow(){
+  const icons={
+    left:    `<line x1="4" y1="3" x2="4" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="6" y="6" width="8" height="4" rx="1" fill="currentColor"/><rect x="6" y="14" width="13" height="4" rx="1" fill="currentColor"/>`,
+    centerH: `<line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2,2"/><rect x="6" y="6" width="12" height="4" rx="1" fill="currentColor"/><rect x="4" y="14" width="16" height="4" rx="1" fill="currentColor"/>`,
+    right:   `<line x1="20" y1="3" x2="20" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="10" y="6" width="8" height="4" rx="1" fill="currentColor"/><rect x="5" y="14" width="13" height="4" rx="1" fill="currentColor"/>`,
+    top:     `<line x1="3" y1="4" x2="21" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="6" y="6" width="4" height="8" rx="1" fill="currentColor"/><rect x="14" y="6" width="4" height="13" rx="1" fill="currentColor"/>`,
+    centerV: `<line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2,2"/><rect x="6" y="6" width="4" height="12" rx="1" fill="currentColor"/><rect x="14" y="4" width="4" height="16" rx="1" fill="currentColor"/>`,
+    bottom:  `<line x1="3" y1="20" x2="21" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="6" y="10" width="4" height="8" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="13" rx="1" fill="currentColor"/>`,
+    distH:   `<rect x="2" y="8" width="5" height="8" rx="1" fill="currentColor"/><rect x="9.5" y="8" width="5" height="8" rx="1" fill="currentColor"/><rect x="17" y="8" width="5" height="8" rx="1" fill="currentColor"/>`,
+    distV:   `<rect x="8" y="2" width="8" height="5" rx="1" fill="currentColor"/><rect x="8" y="9.5" width="8" height="5" rx="1" fill="currentColor"/><rect x="8" y="17" width="8" height="5" rx="1" fill="currentColor"/>`,
+  };
+  const labels={left:'左揃え',centerH:'左右中央',right:'右揃え',top:'上揃え',centerV:'上下中央',bottom:'下揃え',distH:'横均等配置',distV:'縦均等配置'};
+  let r=`<div class="p-sep"></div><span class="p-lbl">整列</span>`;
+  Object.keys(icons).forEach(k=>{
+    r+=`<button class="alb" onclick="alignSel('${k}')" title="${labels[k]}">` +
+       `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="none">${icons[k]}</svg></button>`;
+  });
+  return r;
+}
+function alignSel(type){
+  const ids=[...multiSel]; if(ids.length<2)return;
+  const elems=ids.map(id=>S.elems.find(e=>e.id===id)).filter(Boolean);
+  const W=d=>d.bw||120, H=d=>d.bh||30;
+  switch(type){
+    case 'left':{
+      const mx=Math.min(...elems.map(d=>d.bx));
+      elems.forEach(d=>d.bx=mx); break;
+    }
+    case 'centerH':{
+      const minX=Math.min(...elems.map(d=>d.bx)), maxX=Math.max(...elems.map(d=>d.bx+W(d)));
+      const cx=(minX+maxX)/2;
+      elems.forEach(d=>d.bx=cx-W(d)/2); break;
+    }
+    case 'right':{
+      const mx=Math.max(...elems.map(d=>d.bx+W(d)));
+      elems.forEach(d=>d.bx=mx-W(d)); break;
+    }
+    case 'top':{
+      const my=Math.min(...elems.map(d=>d.by));
+      elems.forEach(d=>d.by=my); break;
+    }
+    case 'centerV':{
+      const minY=Math.min(...elems.map(d=>d.by)), maxY=Math.max(...elems.map(d=>d.by+H(d)));
+      const cy=(minY+maxY)/2;
+      elems.forEach(d=>d.by=cy-H(d)/2); break;
+    }
+    case 'bottom':{
+      const my=Math.max(...elems.map(d=>d.by+H(d)));
+      elems.forEach(d=>d.by=my-H(d)); break;
+    }
+    case 'distH':{
+      const sorted=[...elems].sort((a,b)=>a.bx-b.bx);
+      const totalW=sorted.reduce((s,d)=>s+W(d),0);
+      const span=sorted[sorted.length-1].bx+W(sorted[sorted.length-1])-sorted[0].bx;
+      const gap=(span-totalW)/Math.max(1,sorted.length-1);
+      let x=sorted[0].bx; sorted.forEach(d=>{d.bx=x;x+=W(d)+gap;}); break;
+    }
+    case 'distV':{
+      const sorted=[...elems].sort((a,b)=>a.by-b.by);
+      const totalH=sorted.reduce((s,d)=>s+H(d),0);
+      const span=sorted[sorted.length-1].by+H(sorted[sorted.length-1])-sorted[0].by;
+      const gap=(span-totalH)/Math.max(1,sorted.length-1);
+      let y=sorted[0].by; sorted.forEach(d=>{d.by=y;y+=H(d)+gap;}); break;
+    }
+  }
+  // DOM位置を更新
+  elems.forEach(d=>{
+    const el=document.getElementById(d.id); if(!el)return;
+    const sc=b2s(d.bx,d.by); el.style.left=sc.x+'px'; el.style.top=sc.y+'px';
+  });
+  updateMultiSelBox(); updateGroupBoxes(); reRenderAllConnectors();
+  saveHist(); renderPbar();
+}
+
 function setColor(c){S.color=c;renderPbar();}function setSC(c){S.sc=c;renderPbar();}
 function setSW(w){S.sw=w;renderPbar();}function setFS(s){S.fs=s;renderPbar();}
 function setSH(s){S.shape=s;renderPbar();}function openCP(){const ci=document.getElementById('ci');ci.value=S.color;ci.click();}
@@ -1309,6 +1387,7 @@ function renderSelPbar(id){
   } else if(d.type==='img'){
     h+=`<span class="p-lbl">画像を選択中</span>`;
   } else { renderPbar(); return; }
+  if(multiSel.size>=2) h+=getAlignRow();
   bar.innerHTML=h;
 }
 
@@ -2758,6 +2837,7 @@ function addMultiSel(id){
   if(el) el.classList.add('multi-sel');
   updateSelInfo();
   updateMultiSelBox();
+  if(multiSel.size>=2) renderPbar();
 }
 // 複数選択をクリア
 function clearMultiSel(){
@@ -3034,6 +3114,7 @@ function endMarquee(x,y){
   marqueeStart=null; marqueeActive=false;
   updateMultiSelBox();
   updateGroupBoxes();
+  if(multiSel.size>=2) renderPbar();
 }
 
 // ── makeDrag をラップして複数選択対応に ──
@@ -3146,10 +3227,14 @@ function makeDrag(el, ibx, iby){
     // ペン・マーカー・消しゴムは図形の上でも描画を優先
     if(S.tool==='pen'||S.tool==='marker'||S.tool==='eraser'){_orig(e);return;}
     if(onElem||onLine){ clearMultiSel(); _orig(e); return; }
-    if(S.tool==='select'){
+    // ── 空白クリック：全ツール共通で選択を解除してからツール処理 ──
+    if(S.selId||multiSel.size>0){
       clearMultiSel();
-      S.selId=null;
       deselAll();
+      S.selId=null;
+      renderPbar(); // ツール本来のpbarに戻す
+    }
+    if(S.tool==='select'){
       const{x,y}=gxy(e);
       startMarquee(x,y);
       return;
