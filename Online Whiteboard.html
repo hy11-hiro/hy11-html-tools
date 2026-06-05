@@ -34,7 +34,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;background:var(-
 .sb{padding:3px 8px;border:1px solid var(--br);border-radius:6px;background:var(--w);cursor:pointer;font-size:11.5px;font-family:'Plus Jakarta Sans',sans-serif;font-weight:500;transition:all .15s;white-space:nowrap;}
 .sb.on,.sb:hover{background:var(--ac);color:#fff;border-color:var(--ac);}
 .alb{width:28px;height:28px;border:1px solid var(--br);background:var(--w);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#555;transition:all .15s;flex-shrink:0;padding:0;}
-.alb:hover{background:var(--ac);color:#fff;border-color:var(--ac);}
+.alb:hover,.alb.on{background:var(--ac);color:#fff;border-color:var(--ac);}
 .p-sel{padding:2px 6px;border:1px solid var(--br);border-radius:6px;background:var(--w);cursor:pointer;font-size:11.5px;font-family:'Plus Jakarta Sans',sans-serif;height:28px;outline:none;color:#333;transition:border-color .15s;flex-shrink:0;}
 .p-sel:focus,.p-sel:hover{border-color:var(--ac);}
 .shb{width:28px;height:28px;border:1px solid var(--br);border-radius:6px;background:var(--w);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
@@ -874,6 +874,7 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
     lblEl.style.color=opts.labelColor||'#1a1a1a';
     lblEl.style.fontWeight=labelFw;
     lblEl.style.fontFamily=fontCss(opts.labelFont||S.font||'sans');
+    lblEl.style.textAlign=opts.labelAlign||'center';
     if(lbl)lblEl.innerHTML=lbl;
     el.appendChild(lblEl);
     lblEl.addEventListener('blur',()=>{
@@ -908,7 +909,8 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
     addSmartAddBtns(el,id);
     S.elems.push({id,type:'shape',sh,isLine:false,bx:rx,by:ry,bw:w,bh:h,
       label:lbl,labelFs:opts.labelFs||S.labelFs||13,labelFw:opts.labelFw||(opts.bold?'700':S.fw||'400'),
-      labelColor:opts.labelColor||'#1a1a1a',labelFont:opts.labelFont||S.font||'sans',color,lw,fill});
+      labelColor:opts.labelColor||'#1a1a1a',labelFont:opts.labelFont||S.font||'sans',
+      labelAlign:opts.labelAlign||'center',color,lw,fill});
   }
   return el;
 }
@@ -1219,8 +1221,41 @@ function renderPbar(){
   if(multiSel.size>=2) h+=getAlignRow();
   bar.innerHTML=h;
 }
+// ── 文字揃え ──────────────────────────────────────────
+function getTextAlignRow(cur, fn){
+  const TA=[
+    {v:'left',    t:'左揃え',   svg:`<line x1="3" y1="6" x2="17" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="11" x2="21" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="16" x2="14" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`},
+    {v:'center',  t:'中央揃え', svg:`<line x1="7" y1="6" x2="17" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="11" x2="21" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="16" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`},
+    {v:'right',   t:'右揃え',   svg:`<line x1="7" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="11" x2="21" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="10" y1="16" x2="21" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`},
+    {v:'justify', t:'両端揃え', svg:`<line x1="3" y1="6" x2="21" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="11" x2="21" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="16" x2="21" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`},
+  ];
+  let r=`<div class="p-sep"></div><span class="p-lbl">文字揃え</span>`;
+  TA.forEach(a=>{
+    r+=`<button class="alb${(cur||'left')===a.v?' on':''}" onclick="${fn}('${a.v}')" title="${a.t}">` +
+       `<svg viewBox="0 0 24 24" width="15" height="15" fill="none">${a.svg}</svg></button>`;
+  });
+  return r;
+}
+function selSetLabelAlign(align){
+  const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
+  d.labelAlign=align;
+  const el=document.getElementById(id);
+  if(el){const lbl=el.querySelector('.sh-label');if(lbl)lbl.style.textAlign=align;}
+  saveHist(); renderSelPbar(id);
+}
+function selSetTextAlign(align){
+  const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
+  d.textAlign=align;
+  const el=document.getElementById(id);
+  if(el){
+    el.style.textAlign=align;
+    const ta=el.querySelector('[contenteditable],.txb-ta');if(ta)ta.style.textAlign=align;
+  }
+  saveHist(); renderSelPbar(id);
+}
+
 // ── 整列機能 ──────────────────────────────────────────
-function getAlignRow(){
+function getAlignRow(disabled){
   const icons={
     left:    `<line x1="4" y1="3" x2="4" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="6" y="6" width="8" height="4" rx="1" fill="currentColor"/><rect x="6" y="14" width="13" height="4" rx="1" fill="currentColor"/>`,
     centerH: `<line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2,2"/><rect x="6" y="6" width="12" height="4" rx="1" fill="currentColor"/><rect x="4" y="14" width="16" height="4" rx="1" fill="currentColor"/>`,
@@ -1232,15 +1267,20 @@ function getAlignRow(){
     distV:   `<rect x="8" y="2" width="8" height="5" rx="1" fill="currentColor"/><rect x="8" y="9.5" width="8" height="5" rx="1" fill="currentColor"/><rect x="8" y="17" width="8" height="5" rx="1" fill="currentColor"/>`,
   };
   const labels={left:'左揃え',centerH:'左右中央',right:'右揃え',top:'上揃え',centerV:'上下中央',bottom:'下揃え',distH:'横均等配置',distV:'縦均等配置'};
-  let r=`<div class="p-sep"></div><span class="p-lbl">整列</span>`;
+  const dis = disabled ? ' disabled' : '';
+  const sty = disabled ? ' style="opacity:.35;cursor:not-allowed;pointer-events:none"' : '';
+  let r=`<div class="p-sep"></div><span class="p-lbl"${disabled?' style="opacity:.4"':''}>整列${disabled?' (複数選択で有効)':''}</span>`;
   Object.keys(icons).forEach(k=>{
-    r+=`<button class="alb" onclick="alignSel('${k}')" title="${labels[k]}">` +
+    r+=`<button class="alb"${dis}${sty} onclick="alignSel('${k}')" title="${labels[k]}">` +
        `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="none">${icons[k]}</svg></button>`;
   });
   return r;
 }
 function alignSel(type){
-  const ids=[...multiSel]; if(ids.length<2)return;
+  // S.selId と multiSel の両方を対象にする
+  const idSet=new Set([...multiSel]);
+  if(S.selId) idSet.add(S.selId);
+  const ids=[...idSet]; if(ids.length<2)return;
   const elems=ids.map(id=>S.elems.find(e=>e.id===id)).filter(Boolean);
   const W=d=>d.bw||120, H=d=>d.bh||30;
   switch(type){
@@ -1273,16 +1313,22 @@ function alignSel(type){
     case 'distH':{
       const sorted=[...elems].sort((a,b)=>a.bx-b.bx);
       const totalW=sorted.reduce((s,d)=>s+W(d),0);
-      const span=sorted[sorted.length-1].bx+W(sorted[sorted.length-1])-sorted[0].bx;
-      const gap=(span-totalW)/Math.max(1,sorted.length-1);
-      let x=sorted[0].bx; sorted.forEach(d=>{d.bx=x;x+=W(d)+gap;}); break;
+      const minX=sorted[0].bx;
+      const naturalMaxX=sorted[sorted.length-1].bx+W(sorted[sorted.length-1]);
+      // 重なっている場合でも最低限 totalW 分のスペースを確保して展開
+      const effectiveMaxX=Math.max(naturalMaxX, minX+totalW);
+      const gap=(effectiveMaxX-minX-totalW)/Math.max(1,sorted.length-1);
+      let x=minX; sorted.forEach(d=>{d.bx=x; x+=W(d)+gap;}); break;
     }
     case 'distV':{
       const sorted=[...elems].sort((a,b)=>a.by-b.by);
       const totalH=sorted.reduce((s,d)=>s+H(d),0);
-      const span=sorted[sorted.length-1].by+H(sorted[sorted.length-1])-sorted[0].by;
-      const gap=(span-totalH)/Math.max(1,sorted.length-1);
-      let y=sorted[0].by; sorted.forEach(d=>{d.by=y;y+=H(d)+gap;}); break;
+      const minY=sorted[0].by;
+      const naturalMaxY=sorted[sorted.length-1].by+H(sorted[sorted.length-1]);
+      // 重なっている場合でも最低限 totalH 分のスペースを確保して展開
+      const effectiveMaxY=Math.max(naturalMaxY, minY+totalH);
+      const gap=(effectiveMaxY-minY-totalH)/Math.max(1,sorted.length-1);
+      let y=minY; sorted.forEach(d=>{d.by=y; y+=H(d)+gap;}); break;
     }
   }
   // DOM位置を更新
@@ -1387,7 +1433,14 @@ function renderSelPbar(id){
   } else if(d.type==='img'){
     h+=`<span class="p-lbl">画像を選択中</span>`;
   } else { renderPbar(); return; }
-  if(multiSel.size>=2) h+=getAlignRow();
+  // shape / tx は文字揃えボタンを表示
+  if(d.type==='shape'&&!d.isLine){
+    h+=getTextAlignRow(d.labelAlign||'center','selSetLabelAlign');
+  } else if(d.type==='tx'){
+    h+=getTextAlignRow(d.textAlign||'left','selSetTextAlign');
+  }
+  // 複数選択中なら末尾に図形整列を追加（有効）
+  if(multiSel.size>=1) h+=getAlignRow(false);
   bar.innerHTML=h;
 }
 
