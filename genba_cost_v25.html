@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v63</title>
+    <title>G-Ledger | 現場原価管理台帳システム v68</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v63</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v68</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -161,6 +161,9 @@
                         <button onclick="window.setBrowseTab('estimator')" id="btab-estimator" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-compass-drafting mr-1"></i> 積算
                         </button>
+                        <button onclick="window.setBrowseTab('uncollected')" id="btab-uncollected" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-solid fa-circle-exclamation mr-1 text-orange-500"></i> 未回収
+                        </button>
                     </div>
 
                     <!-- キーワード検索パネル -->
@@ -237,6 +240,78 @@
                         <div id="browse-estimator-buttons" class="flex flex-wrap gap-2"></div>
                     </div>
 
+                    <!-- 未回収フィルターパネル -->
+                    <div id="browse-panel-uncollected" class="browse-filter-panel hidden">
+                        <!-- 行①：チェックボックスと件数 -->
+                        <div class="flex flex-wrap items-center gap-4 mb-3">
+                            <div class="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
+                                <i class="fa-solid fa-circle-exclamation text-orange-500"></i>
+                                <span class="text-sm font-bold text-orange-700">回収データが紐づく現場を絞り込み</span>
+                            </div>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
+                                <input type="checkbox" id="browse-chk-uncollected-only" class="w-3.5 h-3.5 text-orange-500 rounded" onchange="window.applyBrowseFilter()">
+                                <span>未回収残高 &gt; 0 のみ</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-red-600 font-bold">
+                                <input type="checkbox" id="browse-chk-coll-anomaly" class="w-3.5 h-3.5 text-red-500 rounded" onchange="window.applyBrowseFilter(); window.renderCollAnomalyTable();">
+                                <span>回収差異あり（売上税込 ≠ 回収済額）</span>
+                            </label>
+                            <span class="text-xs text-slate-400" id="browse-uncollected-count"></span>
+                            <!-- Excel出力ボタン -->
+                            <button onclick="window.exportUncollectedExcel()" class="ml-auto bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1.5 shadow transition-colors">
+                                <i class="fa-solid fa-file-excel"></i> Excel出力（回収データ付）
+                            </button>
+                        </div>
+                        <!-- 行②：拠点・担当者絞り込み -->
+                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 space-y-2">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">拠点:</span>
+                                <div id="uncoll-branch-buttons" class="flex flex-wrap gap-1.5"></div>
+                                <button onclick="window.clearUncollSelection('branch')" class="text-[10px] text-slate-400 hover:text-slate-600 underline whitespace-nowrap">解除</button>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">担当者:</span>
+                                <div id="uncoll-manager-buttons" class="flex flex-wrap gap-1.5"></div>
+                                <button onclick="window.clearUncollSelection('manager')" class="text-[10px] text-slate-400 hover:text-slate-600 underline whitespace-nowrap">解除</button>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">キーワード:</span>
+                                <input type="text" id="uncoll-keyword-input" placeholder="現場名・施工主・工番など..."
+                                    class="flex-1 min-w-[180px] pl-3 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                                    oninput="window.applyBrowseFilter(); window.renderCollAnomalyTable();">
+                            </div>
+                        </div>
+                        <!-- 差異詳細テーブル -->
+                        <div id="coll-anomaly-detail" class="hidden mt-4 overflow-x-auto">
+                            <div class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-triangle-exclamation"></i> コード単体ごとの回収差異詳細
+                                <span class="text-slate-400 font-normal">（差異 = 売上税込 ≠ 回収済額 のもの）</span>
+                            </div>
+                            <table class="w-full text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-red-50 text-slate-600">
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">工番</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">種別</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left">現場名</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">担当者</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">積算</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">得意先</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">施工主</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">拠点</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">着手日</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">完了日</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">売上（税抜）</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">売上税込</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">回収済額</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap text-red-600">差額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="coll-anomaly-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- END browse-panel-uncollected -->
+
                     <!-- 追加フィルター（共通） -->
                     <div class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center gap-4">
                         <span class="text-xs font-bold text-slate-500">追加絞り込み:</span>
@@ -268,7 +343,7 @@
                 </div>
 
                 <!-- 結果一覧テーブル -->
-                <div class="glass-panel rounded-xl overflow-hidden">
+                <div class="glass-panel rounded-xl overflow-hidden" id="browse-list-panel">
                     <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
                         <div class="flex items-center gap-3">
                             <h4 class="font-bold text-slate-700 text-sm">現場一覧</h4>
@@ -496,6 +571,17 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 回収情報パネル -->
+                    <div id="res-collection-panel" class="hidden glass-panel p-5 rounded-xl border-l-4 border-orange-400">
+                        <div class="flex items-center gap-2 mb-4">
+                            <i class="fa-solid fa-circle-exclamation text-orange-500"></i>
+                            <h4 class="font-bold text-slate-700 text-sm">回収情報</h4>
+                            <span class="text-xs text-slate-400">（回収予定額は税込・売上税込は売上明細合計）</span>
+                        </div>
+                        <div id="res-collection-body" class="space-y-2 text-sm"></div>
+                    </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4 border-l-4 border-indigo-500 pl-2">月次 売上/原価 推移 (税抜)</h4><div class="h-64"><canvas id="chart-trend"></canvas></div></div>
                         <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4 border-l-4 border-teal-500 pl-2">業者別 原価構成（全業者）</h4><div class="h-64 flex justify-center"><canvas id="chart-composition"></canvas></div></div>
@@ -1414,11 +1500,147 @@
       <div class="text-xl font-bold text-slate-800" id="db-count-sales">-</div>
       <div class="text-[10px] text-slate-400 mt-1" id="db-date-sales">-</div>
     </div>
+    <div class="p-3 bg-white rounded-lg border border-emerald-200">
+      <div class="text-xs text-slate-500 mb-1">回収一覧</div>
+      <div class="text-xl font-bold text-slate-800" id="db-count-collection">-</div>
+      <div class="text-[10px] text-slate-400 mt-1" id="db-date-collection">-</div>
+    </div>
   </div>
   <div class="mt-4 text-right">
     <button onclick="window.clearDatabase()" class="text-xs text-red-500 hover:text-red-700 underline">全データを削除する</button>
   </div>
 </div>
+
+            <!-- カラムマッピング仕様パネル -->
+            <div class="glass-panel rounded-xl overflow-hidden">
+                <button onclick="this.nextElementSibling.classList.toggle('hidden');this.querySelector('i').classList.toggle('rotate-180')"
+                    class="w-full flex items-center justify-between px-6 py-4 bg-slate-50 hover:bg-slate-100 transition-colors text-left">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-table-columns text-slate-500"></i>
+                        <span class="font-bold text-slate-700">カラムマッピング仕様（レイアウト変更時の確認用）</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-slate-400 transition-transform duration-200"></i>
+                </button>
+                <div class="hidden">
+                    <div class="p-6 space-y-6 text-sm">
+
+                        <!-- 原価集計表 -->
+                        <div>
+                            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                <span class="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">Excel</span>
+                                原価集計表　<span class="text-xs text-slate-400 font-normal">ヘッダー行名で参照（列番号に依存しない）</span>
+                            </h4>
+                            <table class="w-full text-xs border-collapse">
+                                <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-left">ヘッダー名（Excel列名）</th><th class="border border-slate-200 px-3 py-2 text-left">用途・保存先フィールド</th><th class="border border-slate-200 px-3 py-2 text-left">備考</th></tr></thead>
+                                <tbody>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">コード</td><td class="border border-slate-200 px-3 py-1.5">工番 <code class="bg-slate-100 px-1 rounded">code</code></td><td class="border border-slate-200 px-3 py-1.5">5桁数字 / 照合キー</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 font-mono">現場メイン名</td><td class="border border-slate-200 px-3 py-1.5">現場名 <code class="bg-slate-100 px-1 rounded">name</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">売上累計</td><td class="border border-slate-200 px-3 py-1.5">売上合計 <code class="bg-slate-100 px-1 rounded">salesTotal</code></td><td class="border border-slate-200 px-3 py-1.5">カンマ除去して数値化</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 font-mono">原価累計</td><td class="border border-slate-200 px-3 py-1.5">原価合計 <code class="bg-slate-100 px-1 rounded">costTotal</code></td><td class="border border-slate-200 px-3 py-1.5">カンマ除去して数値化</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">売上－原価(累計)</td><td class="border border-slate-200 px-3 py-1.5">粗利合計 <code class="bg-slate-100 px-1 rounded">profitTotal</code></td><td class="border border-slate-200 px-3 py-1.5">カンマ除去して数値化</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 font-mono">(売上累計－原価累計)／売上累計 または 粗利率</td><td class="border border-slate-200 px-3 py-1.5">粗利率 <code class="bg-slate-100 px-1 rounded">marginRatio</code></td><td class="border border-slate-200 px-3 py-1.5">%除去して数値化</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">完 了 日（ヘッダー行5行以内）</td><td class="border border-slate-200 px-3 py-1.5">集計期間文字列 <code class="bg-slate-100 px-1 rounded">period</code></td><td class="border border-slate-200 px-3 py-1.5">ヘッダー部のセルから検索</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 現場マスター -->
+                        <div>
+                            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                <span class="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded font-mono">CSV/TXT</span>
+                                現場マスター　<span class="text-xs text-slate-400 font-normal">列番号（0始まり）で参照</span>
+                            </h4>
+                            <table class="w-full text-xs border-collapse">
+                                <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-center w-16">列番号</th><th class="border border-slate-200 px-3 py-2 text-left">用途・保存先フィールド</th><th class="border border-slate-200 px-3 py-2 text-left">備考</th></tr></thead>
+                                <tbody>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">0</td><td class="border border-slate-200 px-3 py-1.5">メインコード <code class="bg-slate-100 px-1 rounded">code</code></td><td class="border border-slate-200 px-3 py-1.5">5桁 / 照合キー</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">1</td><td class="border border-slate-200 px-3 py-1.5">サブコード <code class="bg-slate-100 px-1 rounded">subCode</code></td><td class="border border-slate-200 px-3 py-1.5">空=親コード行</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">2</td><td class="border border-slate-200 px-3 py-1.5">現場名 <code class="bg-slate-100 px-1 rounded">name</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">5</td><td class="border border-slate-200 px-3 py-1.5">サブコード名 <code class="bg-slate-100 px-1 rounded">subName</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">16</td><td class="border border-slate-200 px-3 py-1.5">当初売上 <code class="bg-slate-100 px-1 rounded">initialSales</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">22</td><td class="border border-slate-200 px-3 py-1.5">得意先 <code class="bg-slate-100 px-1 rounded">customer</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">43</td><td class="border border-slate-200 px-3 py-1.5">着工日 <code class="bg-slate-100 px-1 rounded">startDate</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">44</td><td class="border border-slate-200 px-3 py-1.5">納期 <code class="bg-slate-100 px-1 rounded">delivery</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">45</td><td class="border border-slate-200 px-3 py-1.5">完了日 <code class="bg-slate-100 px-1 rounded">endDate</code></td><td class="border border-slate-200 px-3 py-1.5 text-red-600 font-bold">集計期間フィルターの基準</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">47</td><td class="border border-slate-200 px-3 py-1.5">施工主 <code class="bg-slate-100 px-1 rounded">owner</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">49</td><td class="border border-slate-200 px-3 py-1.5">担当者 <code class="bg-slate-100 px-1 rounded">manager</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">51</td><td class="border border-slate-200 px-3 py-1.5">設計者 <code class="bg-slate-100 px-1 rounded">designer</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">53</td><td class="border border-slate-200 px-3 py-1.5">積算者 <code class="bg-slate-100 px-1 rounded">estimator</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">55</td><td class="border border-slate-200 px-3 py-1.5">拠点 <code class="bg-slate-100 px-1 rounded">branch</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">59</td><td class="border border-slate-200 px-3 py-1.5">売上分類① <code class="bg-slate-100 px-1 rounded">salesClass1</code></td><td class="border border-slate-200 px-3 py-1.5">ラベル列（コード列+1）</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">61</td><td class="border border-slate-200 px-3 py-1.5">売上分類② <code class="bg-slate-100 px-1 rounded">salesClass2</code></td><td class="border border-slate-200 px-3 py-1.5">ラベル列（コード列+1）</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 仕入明細 -->
+                        <div>
+                            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                <span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded font-mono">CSV</span>
+                                仕入明細　<span class="text-xs text-slate-400 font-normal">Excel列記号で参照（UTF-16LE）</span>
+                            </h4>
+                            <table class="w-full text-xs border-collapse">
+                                <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-center w-16">列</th><th class="border border-slate-200 px-3 py-2 text-left">用途・保存先フィールド</th><th class="border border-slate-200 px-3 py-2 text-left">備考</th></tr></thead>
+                                <tbody>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">A</td><td class="border border-slate-200 px-3 py-1.5">発生日 <code class="bg-slate-100 px-1 rounded">date</code></td><td class="border border-slate-200 px-3 py-1.5">月次推移の集計軸</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">I</td><td class="border border-slate-200 px-3 py-1.5">業者名 <code class="bg-slate-100 px-1 rounded">vendor</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">M / O / Q</td><td class="border border-slate-200 px-3 py-1.5">品目名 <code class="bg-slate-100 px-1 rounded">item</code></td><td class="border border-slate-200 px-3 py-1.5">空でない最初の列を連結</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">DE</td><td class="border border-slate-200 px-3 py-1.5">金額 <code class="bg-slate-100 px-1 rounded">amount</code></td><td class="border border-slate-200 px-3 py-1.5">カンマ除去して数値化</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">EB</td><td class="border border-slate-200 px-3 py-1.5">現場コード <code class="bg-slate-100 px-1 rounded">siteCode</code></td><td class="border border-slate-200 px-3 py-1.5">マスターとの照合キー</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 売上明細 -->
+                        <div>
+                            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                <span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded font-mono">CSV</span>
+                                売上明細　<span class="text-xs text-slate-400 font-normal">Excel列記号で参照（UTF-16LE）</span>
+                            </h4>
+                            <table class="w-full text-xs border-collapse">
+                                <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-center w-16">列</th><th class="border border-slate-200 px-3 py-2 text-left">用途・保存先フィールド</th><th class="border border-slate-200 px-3 py-2 text-left">備考</th></tr></thead>
+                                <tbody>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">A</td><td class="border border-slate-200 px-3 py-1.5">発生日 <code class="bg-slate-100 px-1 rounded">date</code></td><td class="border border-slate-200 px-3 py-1.5">月次推移の集計軸</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">I</td><td class="border border-slate-200 px-3 py-1.5">得意先 <code class="bg-slate-100 px-1 rounded">customer</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">DG</td><td class="border border-slate-200 px-3 py-1.5">売上金額（税込） <code class="bg-slate-100 px-1 rounded">amountInc</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">DJ</td><td class="border border-slate-200 px-3 py-1.5">売上金額（税抜） <code class="bg-slate-100 px-1 rounded">amountExc</code></td><td class="border border-slate-200 px-3 py-1.5 text-blue-600 font-bold">集計・ランキングの売上基準</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">EI</td><td class="border border-slate-200 px-3 py-1.5">現場コード <code class="bg-slate-100 px-1 rounded">siteCode</code></td><td class="border border-slate-200 px-3 py-1.5">マスターとの照合キー</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">EJ</td><td class="border border-slate-200 px-3 py-1.5">サブコード <code class="bg-slate-100 px-1 rounded">subCode</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- 回収一覧 -->
+                        <div>
+                            <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                <span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded font-mono">Excel</span>
+                                現場別回収一覧表　<span class="text-xs text-slate-400 font-normal">ヘッダー行名で参照（3行目がヘッダー）</span>
+                            </h4>
+                            <table class="w-full text-xs border-collapse">
+                                <thead><tr class="bg-slate-100"><th class="border border-slate-200 px-3 py-2 text-left">ヘッダー名</th><th class="border border-slate-200 px-3 py-2 text-left">用途・保存先フィールド</th><th class="border border-slate-200 px-3 py-2 text-left">備考</th></tr></thead>
+                                <tbody>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">コード</td><td class="border border-slate-200 px-3 py-1.5">メインコード <code class="bg-slate-100 px-1 rounded">code</code> ＋ 枝番 <code class="bg-slate-100 px-1 rounded">subCode</code></td><td class="border border-slate-200 px-3 py-1.5">ハイフン前を小文字化してコードに使用。例: <code>i0087               -01</code> → code=<code>i0087</code>, subCode=<code>01</code></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 font-mono">現場名</td><td class="border border-slate-200 px-3 py-1.5">現場名 <code class="bg-slate-100 px-1 rounded">siteName</code></td><td class="border border-slate-200 px-3 py-1.5">参考表示のみ（マスターの名称を優先）</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">回収予定額</td><td class="border border-slate-200 px-3 py-1.5"><code class="bg-slate-100 px-1 rounded">scheduledAmount</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 font-mono">内未請求分</td><td class="border border-slate-200 px-3 py-1.5"><code class="bg-slate-100 px-1 rounded">unRequestedAmount</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">回収額</td><td class="border border-slate-200 px-3 py-1.5"><code class="bg-slate-100 px-1 rounded">collectedAmount</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 font-mono">未回収残高</td><td class="border border-slate-200 px-3 py-1.5"><code class="bg-slate-100 px-1 rounded">uncollectedAmount</code></td><td class="border border-slate-200 px-3 py-1.5 text-red-600 font-bold">未回収フィルターの基準</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800">
+                            <div class="font-bold mb-1"><i class="fa-solid fa-circle-info mr-1"></i>レイアウト変更時の対応方法</div>
+                            <ul class="space-y-1 list-disc list-inside">
+                                <li><strong>原価集計表</strong>：列名（ヘッダー）が変わった場合はコード内の文字列を修正</li>
+                                <li><strong>現場マスター</strong>：列が追加・削除された場合は列番号（0始まり）を修正</li>
+                                <li><strong>仕入・売上明細</strong>：列が追加・削除された場合はExcel列記号（A, B, … DE 等）を修正</li>
+                            </ul>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
             </div>
         </div>
     </main>
@@ -1428,9 +1650,10 @@
     const db = new Dexie("ConstructionLedgerDB_System_v45_5DigitCode"); 
     db.version(1).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, date', meta: 'key' });
     db.version(2).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, subCode, date', meta: 'key' });
+    db.version(3).stores({ costs: 'code', masters: 'code, owner, branch, manager', purchases: '++id, siteCode, date, vendor', sales: '++id, siteCode, subCode, date', meta: 'key', collections: '++id, code' });
     
     // 2. Global Vars
-    let pendingFiles = { cost: null, master: null, purchase: [], sales: [] };
+    let pendingFiles = { cost: null, master: null, purchase: [], sales: [], collection: null };
     let currentMonthlyMode = 'manager'; 
     let currentWorstType = 'ranking'; 
     let currentWorstSort = 'rate';    
@@ -1522,17 +1745,20 @@
         const elMaster = document.getElementById('db-count-master'); if (elMaster) elMaster.textContent = (await db.masters.count()) + "件";
         const elPurchase = document.getElementById('db-count-purchase'); if (elPurchase) elPurchase.textContent = (await db.purchases.count()) + "件";
         const elSales = document.getElementById('db-count-sales'); if (elSales) elSales.textContent = (await db.sales.count()) + "件";
+        const elCollection = document.getElementById('db-count-collection'); if (elCollection) elCollection.textContent = (await db.collections.count()) + "件";
 
         // 取込日時の表示
         const fmtDate = (meta) => meta?.value ? `取込: ${meta.value}` : '未取込';
-        const [mCost, mMaster, mPurchase, mSales] = await Promise.all([
+        const [mCost, mMaster, mPurchase, mSales, mCollection] = await Promise.all([
             db.meta.get('importedAt_cost'), db.meta.get('importedAt_master'),
-            db.meta.get('importedAt_purchase'), db.meta.get('importedAt_sales')
+            db.meta.get('importedAt_purchase'), db.meta.get('importedAt_sales'),
+            db.meta.get('importedAt_collection')
         ]);
-        const elDCost     = document.getElementById('db-date-cost');     if (elDCost)     elDCost.textContent     = fmtDate(mCost);
-        const elDMaster   = document.getElementById('db-date-master');   if (elDMaster)   elDMaster.textContent   = fmtDate(mMaster);
-        const elDPurchase = document.getElementById('db-date-purchase'); if (elDPurchase) elDPurchase.textContent = fmtDate(mPurchase);
-        const elDSales    = document.getElementById('db-date-sales');    if (elDSales)    elDSales.textContent    = fmtDate(mSales);
+        const elDCost     = document.getElementById('db-date-cost');       if (elDCost)       elDCost.textContent       = fmtDate(mCost);
+        const elDMaster   = document.getElementById('db-date-master');     if (elDMaster)     elDMaster.textContent     = fmtDate(mMaster);
+        const elDPurchase = document.getElementById('db-date-purchase');   if (elDPurchase)   elDPurchase.textContent   = fmtDate(mPurchase);
+        const elDSales    = document.getElementById('db-date-sales');      if (elDSales)      elDSales.textContent      = fmtDate(mSales);
+        const elDCollection = document.getElementById('db-date-collection'); if (elDCollection) elDCollection.textContent = fmtDate(mCollection);
 
         const meta = await db.meta.get('period');
         if(meta && meta.value) { 
@@ -1581,6 +1807,9 @@
                 } else {
                     logMsg += `  (重複スキップ): ${file.name}\n`;
                 }
+            } else if (name.includes('回収')) {
+                pendingFiles.collection = file;
+                logMsg += `✓ 回収一覧: ${file.name} (${mb}MB)\n`;
             } else {
                 logMsg += `? スキップ: ${file.name}\n`;
             }
@@ -1596,7 +1825,7 @@
             logMsg += `   RAM 8GB 以下の PC では Chrome よりも Edge の使用を推奨します。\n`;
         }
         importLog.textContent = logMsg || "認識できませんでした。";
-        if (processBtn) processBtn.disabled = !(pendingFiles.cost || pendingFiles.master || pendingFiles.purchase.length || pendingFiles.sales.length);
+        if (processBtn) processBtn.disabled = !(pendingFiles.cost || pendingFiles.master || pendingFiles.purchase.length || pendingFiles.sales.length || pendingFiles.collection);
     }
     // 追記モードUI切り替え
     window.updateAppendModeUI = function() {
@@ -1856,10 +2085,39 @@
             });
             if (pendingFiles.purchase.length) { await bulkAddChunked(db.purchases, purchaseData, '仕入明細'); await db.meta.put({ key: 'importedAt_purchase', value: nowStr }); }
             if (pendingFiles.sales.length)    { await bulkAddChunked(db.sales,     salesData,    '売上明細'); await db.meta.put({ key: 'importedAt_sales',    value: nowStr }); }
+
+            // 回収一覧 インポート
+            if (pendingFiles.collection) {
+                if(importLog) importLog.textContent += `読込: 回収一覧 → ${pendingFiles.collection.name}\n`;
+                const { rows } = await parseExcel(pendingFiles.collection, 2); // ヘッダー行=3行目(0始まりで2)
+                const collectionData = [];
+                for (const r of rows) {
+                    const rawCode = String(r['コード'] || '').trim();
+                    if (!rawCode) continue;
+                    // "i0087               -01" → メインコード + 枝番 に分割
+                    const hyphenIdx = rawCode.lastIndexOf('-');
+                    const mainCode  = rawCode.substring(0, hyphenIdx).trim().toLowerCase();
+                    const subCode   = rawCode.substring(hyphenIdx + 1).trim();
+                    if (!mainCode) continue;
+                    collectionData.push({
+                        code:              mainCode,
+                        subCode:           subCode,
+                        siteName:          String(r['現場名'] || '').trim(),
+                        scheduledAmount:   parseFloat(String(r['回収予定額']    || '0').replace(/,/g, '')) || 0,
+                        unRequestedAmount: parseFloat(String(r['内未請求分']    || '0').replace(/,/g, '')) || 0,
+                        collectedAmount:   parseFloat(String(r['回収額']        || '0').replace(/,/g, '')) || 0,
+                        uncollectedAmount: parseFloat(String(r['未回収残高']    || '0').replace(/,/g, '')) || 0,
+                    });
+                }
+                await db.collections.clear();
+                await db.collections.bulkAdd(collectionData);
+                await db.meta.put({ key: 'importedAt_collection', value: nowStr });
+                if(importLog) importLog.textContent += `  → 回収一覧 完了 (${collectionData.length.toLocaleString()}件)\n`;
+            }
             if(importLog) importLog.textContent += "完了！\n"; 
             await window.updateDBStats(); 
             // 取込完了後にpendingFilesをリセット（前回ファイルの残留防止）
-            pendingFiles = { cost: null, master: null, purchase: [], sales: [] };
+            pendingFiles = { cost: null, master: null, purchase: [], sales: [], collection: null };
             if (processBtn) processBtn.disabled = true;
             alert("完了しました。");
             window.showPage('dashboard');
@@ -2438,6 +2696,183 @@
         ptc.style={font:{bold:true,size:13,color:{argb:'FF'+C.green}},numFmt:'#,##0',
                    alignment:{horizontal:'right',vertical:'middle'},
                    fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFD1FAE5'}}};
+        row += 2;
+
+        // ━━ 回収情報セクション ━━
+        const collRows = data.collRows || [];
+        if (collRows.length > 0) {
+            // セクションタイトル
+            ws.mergeCells('B'+row+':R'+row);
+            ws.getCell('B'+row).value = '■ 回収情報　（' + collRows.length + '件）';
+            ws.getCell('B'+row).style = {
+                font:{bold:true, size:11, color:{argb:'FFFFFFFF'}},
+                fill:{type:'pattern',pattern:'solid', fgColor:{argb:'FFEA580C'}},  // orange-600
+                alignment:{horizontal:'left', vertical:'middle', indent:1}
+            };
+            ws.getRow(row).height = 28; row++;
+
+            // 凡例メモ行
+            ws.mergeCells('B'+row+':R'+row);
+            ws.getCell('B'+row).value = '※ 回収予定額は税込。差異判定: 売上（税込）≠ 回収済額 の場合に警告表示。全額未請求中（回収済=0 かつ 内未請求=回収予定）は差異なし扱い。';
+            ws.getCell('B'+row).style = {
+                font:{size:8, italic:true, color:{argb:'FF94A3B8'}},
+                alignment:{horizontal:'left', vertical:'middle', indent:1}
+            };
+            ws.getRow(row).height = 14; row++;
+
+            for (const col of collRows) {
+                const sub  = String(col.subCode||'').trim();
+                const kind = sub ? `枝番 ${sub}` : '親コード';
+
+                // 対応する売上（税込）を算出
+                const matchSales = (data.salesDetails||[]).filter(s => {
+                    const ss = String(s.subCode||'').trim();
+                    return sub ? ss === sub : !ss;
+                });
+                const salesTaxInc = matchSales.reduce((sum, s) => sum + (s.amountInc||0), 0);
+                const isFullyUnrequested = col.collectedAmount === 0 && Math.abs(col.unRequestedAmount - col.scheduledAmount) <= 1;
+                const diff = salesTaxInc - col.collectedAmount;
+                const isAnomaly = !isFullyUnrequested && salesTaxInc > 0 && Math.abs(diff) > 1;
+
+                // ── 枝番ラベル行 ──
+                ws.getRow(row).height = 22;
+                ws.mergeCells('B'+row+':R'+row);
+                const kindCell = ws.getCell('B'+row);
+                kindCell.value = kind + (col.siteName ? '　' + col.siteName : '');
+                kindCell.style = {
+                    font:{bold:true, size:10, color:{argb: sub ? 'FF1D4ED8' : 'FF1E293B'}},
+                    fill:{type:'pattern',pattern:'solid',
+                          fgColor:{argb: isAnomaly ? 'FFFEE2E2' : (isFullyUnrequested ? 'FFDBEAFE' : 'FFF1F5F9')}},
+                    alignment:{horizontal:'left', vertical:'middle', indent:1},
+                    border:{bottom:{style:'thin',color:{argb:'FFE2E8F0'}}}
+                };
+                row++;
+
+                // ── 数値グリッド（4列）──
+                //  B〜D: ラベル+値, E〜G: ラベル+値, H〜J: ラベル+値, K〜M: ラベル+値
+                const gridCols  = [['B','C','D'], ['E','F','G'], ['H','I','J'], ['K','L','M']];
+                const gridItems = [
+                    { label:'回収予定額（税込）',  value: col.scheduledAmount,   color: C.navy,  bg:'FFF8FAFC' },
+                    { label:'内未請求分',           value: col.unRequestedAmount, color: C.gray,  bg:'FFF8FAFC' },
+                    { label:'回収済額',             value: col.collectedAmount,   color: C.green, bg:'FFF0FDF4' },
+                    { label:'未回収残高',           value: col.uncollectedAmount,
+                      color: col.uncollectedAmount > 0 ? C.orange : C.green,
+                      bg: col.uncollectedAmount > 0 ? 'FFFFF7ED' : 'FFF0FDF4' },
+                ];
+                ws.getRow(row).height = 14;
+                ws.getRow(row+1).height = 26;
+                gridItems.forEach(({label, value, color, bg}, gi) => {
+                    const [la, va, vb] = gridCols[gi];
+                    // ラベル行
+                    ws.getCell(la + row).value = label;
+                    ws.getCell(la + row).style = {
+                        font:{size:8, color:{argb:'FF94A3B8'}, bold:true},
+                        fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}},
+                        alignment:{horizontal:'center', vertical:'middle'},
+                        border:{left:{style:'thin',color:{argb:'FFE2E8F0'}},
+                                top:{style:'thin',color:{argb:'FFE2E8F0'}}}
+                    };
+                    ws.mergeCells(la+row+':'+vb+row);
+                    // 値行
+                    ws.mergeCells(la+(row+1)+':'+vb+(row+1));
+                    const vc = ws.getCell(la+(row+1));
+                    vc.value = value;
+                    vc.style = {
+                        font:{bold:true, size:13, color:{argb:'FF'+color}},
+                        fill:{type:'pattern',pattern:'solid',fgColor:{argb:bg}},
+                        numFmt:'#,##0',
+                        alignment:{horizontal:'right', vertical:'middle'},
+                        border:{left:{style:'thin',color:{argb:'FFE2E8F0'}},
+                                bottom:{style:'thin',color:{argb:'FFE2E8F0'}}}
+                    };
+                });
+                row += 2;
+
+                // ── 売上照合行 ──
+                ws.getRow(row).height = 20;
+                ws.mergeCells('B'+row+':D'+row);
+                ws.getCell('B'+row).value = '売上照合';
+                ws.getCell('B'+row).style = {
+                    font:{size:9, color:{argb:'FF64748B'}, bold:true},
+                    fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFF8FAFC'}},
+                    alignment:{horizontal:'left', vertical:'middle', indent:1}
+                };
+
+                ws.mergeCells('E'+row+':G'+row);
+                ws.getCell('E'+row).value = '売上（税込）';
+                ws.getCell('E'+row).style = {font:{size:9,color:{argb:'FF64748B'}}, alignment:{horizontal:'right',vertical:'middle'}};
+
+                ws.mergeCells('H'+row+':I'+row);
+                const staxCell = ws.getCell('H'+row);
+                staxCell.value = salesTaxInc || '（明細なし）';
+                staxCell.style = {
+                    font:{bold:true, size:10, color:{argb:'FF1E293B'}},
+                    numFmt: salesTaxInc ? '#,##0' : '@',
+                    alignment:{horizontal:'right',vertical:'middle'}
+                };
+
+                ws.getCell('J'+row).value = '→ 差額';
+                ws.getCell('J'+row).style = {font:{size:9,color:{argb:'FF94A3B8'}},alignment:{horizontal:'center',vertical:'middle'}};
+
+                ws.mergeCells('K'+row+':M'+row);
+                const diffCell = ws.getCell('K'+row);
+                if (isAnomaly) {
+                    diffCell.value = diff;
+                    diffCell.style = {font:{bold:true,size:11,color:{argb:'FFDC2626'}},numFmt:'+#,##0;-#,##0;±0',alignment:{horizontal:'right',vertical:'middle'}};
+                } else {
+                    diffCell.value = '± 0';
+                    diffCell.style = {font:{bold:true,size:10,color:{argb:'FF059669'}},alignment:{horizontal:'right',vertical:'middle'}};
+                }
+
+                ws.mergeCells('N'+row+':R'+row);
+                const noteCell = ws.getCell('N'+row);
+                if (isAnomaly) {
+                    noteCell.value = '⚠ 差異あり';
+                    noteCell.style = {font:{bold:true,size:10,color:{argb:'FFDC2626'}},
+                                      fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFFEE2E2'}},
+                                      alignment:{horizontal:'center',vertical:'middle'},
+                                      border:{left:{style:'medium',color:{argb:'FFDC2626'}}}};
+                } else if (isFullyUnrequested) {
+                    noteCell.value = '未請求中';
+                    noteCell.style = {font:{bold:true,size:10,color:{argb:'FF2563EB'}},
+                                      fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}},
+                                      alignment:{horizontal:'center',vertical:'middle'}};
+                } else {
+                    noteCell.value = '✓ 差異なし';
+                    noteCell.style = {font:{bold:true,size:10,color:{argb:'FF059669'}},
+                                      fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFD1FAE5'}},
+                                      alignment:{horizontal:'center',vertical:'middle'}};
+                }
+                row++;
+
+                // 補足行（差異ありの場合のみ）
+                if (isAnomaly) {
+                    ws.getRow(row).height = 14;
+                    ws.mergeCells('B'+row+':R'+row);
+                    ws.getCell('B'+row).value =
+                        `  ※ 売上（税込）${salesTaxInc.toLocaleString()}円 に対し 回収済額 ${col.collectedAmount.toLocaleString()}円 — 差額 ${Math.abs(diff).toLocaleString()}円`;
+                    ws.getCell('B'+row).style = {
+                        font:{size:8, italic:true, color:{argb:'FFDC2626'}},
+                        fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFFEF2F2'}},
+                        alignment:{horizontal:'left',vertical:'middle',indent:1}
+                    };
+                    row++;
+                }
+                if (isFullyUnrequested) {
+                    ws.getRow(row).height = 14;
+                    ws.mergeCells('B'+row+':R'+row);
+                    ws.getCell('B'+row).value =
+                        '  ※ 内未請求分＝回収予定額のため、まだ請求前の案件です。回収済額が計上された時点で差異チェックの対象となります。';
+                    ws.getCell('B'+row).style = {
+                        font:{size:8, italic:true, color:{argb:'FF2563EB'}},
+                        fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFEFF6FF'}},
+                        alignment:{horizontal:'left',vertical:'middle',indent:1}
+                    };
+                    row++;
+                }
+                row++; // 各レコード間にスペース
+            }
+        }
 
         return ws;
     }
@@ -2506,6 +2941,7 @@
 
                 const sales     = await db.sales.where('siteCode').equals(code).toArray();
                 const purchases = await db.purchases.where('siteCode').equals(code).toArray();
+                const collRows  = await db.collections.where('code').equals(code).toArray();
 
                 const sVal3 = cost ? cost.salesTotal  : 0;
                 const pVal3 = cost ? cost.profitTotal : 0;
@@ -2526,7 +2962,8 @@
                     profit:   window.formatCurrency(pVal3),
                     margin:   (gpDec3*100).toFixed(1) + '%',
                     salesDetails:    sales,
-                    purchaseDetails: purchases
+                    purchaseDetails: purchases,
+                    collRows:        collRows   // ★回収行を追加
                 };
 
                 // オフスクリーンでグラフ生成
@@ -2616,9 +3053,19 @@
             }
             
             const sales = await db.sales.where('siteCode').equals(resolvedCode).toArray(); 
-            const purchases = await db.purchases.where('siteCode').equals(resolvedCode).toArray(); 
-            
-            if (!master && !cost) { alert("見つかりませんでした。コードを確認してください: " + inputCode); return; } 
+            const purchases = await db.purchases.where('siteCode').equals(resolvedCode).toArray();
+            // 回収データ（同一メインコードを合算）
+            const collRows = await db.collections.where('code').equals(resolvedCode).toArray();
+            const colData = collRows.reduce((acc, r) => {
+                acc.scheduledAmount   += r.scheduledAmount   || 0;
+                acc.unRequestedAmount += r.unRequestedAmount || 0;
+                acc.collectedAmount   += r.collectedAmount   || 0;
+                acc.uncollectedAmount += r.uncollectedAmount || 0;
+                return acc;
+            }, { scheduledAmount:0, unRequestedAmount:0, collectedAmount:0, uncollectedAmount:0 });
+            const hasCollData = collRows.length > 0;
+
+            if (!master && !cost) { alert("見つかりませんでした。コードを確認してください: " + inputCode); return; }
             
             currentSiteData = {
                 code: resolvedCode,
@@ -2635,7 +3082,8 @@
                 profit: window.formatCurrency(cost ? cost.profitTotal : 0),
                 margin: (cost ? cost.marginRatio : 0).toFixed(1) + '%',
                 salesDetails: sales,
-                purchaseDetails: purchases
+                purchaseDetails: purchases,
+                collRows: collRows   // ★回収行を追加
             };
 
             document.getElementById('search-result').classList.remove('hidden'); 
@@ -2660,6 +3108,63 @@
             const elEst = document.getElementById('res-estimator');   if(elEst)    elEst.textContent    = fmtMasterVal(master?.estimator);
             const elSc1 = document.getElementById('res-sales-class1');if(elSc1)    elSc1.textContent    = fmtMasterVal(master?.salesClass1);
             const elSc2 = document.getElementById('res-sales-class2');if(elSc2)    elSc2.textContent    = fmtMasterVal(master?.salesClass2);
+
+            // 回収情報パネル（コード単体ごとに個別表示）
+            const colPanel = document.getElementById('res-collection-panel');
+            const colBody  = document.getElementById('res-collection-body');
+            if (colPanel && colBody) {
+                if (hasCollData) {
+                    colPanel.classList.remove('hidden');
+                    colBody.innerHTML = '';
+                    const fmt = window.formatCurrency;
+                    for (const col of collRows) {
+                        const sub  = String(col.subCode||'').trim();
+                        const kind = sub ? `枝番 ${sub}` : '親コード';
+                        const kindColor = sub ? 'text-blue-600' : 'text-slate-700';
+                        // この回収レコードに対応する売上（同コード・同枝番）
+                        const matchSales = sales.filter(s => {
+                            const ss = String(s.subCode||'').trim();
+                            return sub ? ss === sub : !ss;
+                        });
+                        const salesTaxInc = matchSales.reduce((sum, s) => sum + (s.amountInc || 0), 0);
+                        // 全額未請求判定: 回収済額=0 かつ 内未請求分=回収予定額 → 未請求中のため差異なしとする
+                        const isFullyUnrequested = col.collectedAmount === 0 && Math.abs(col.unRequestedAmount - col.scheduledAmount) <= 1;
+                        // 差異判定: 全額未請求中は除外。それ以外で売上（税込）≠ 回収済額 の場合に異常値とする
+                        const diff = salesTaxInc - col.collectedAmount;
+                        const isAnomaly = !isFullyUnrequested && salesTaxInc > 0 && Math.abs(diff) > 1;
+                        const diffColor = isAnomaly ? 'text-red-600 font-black' : 'text-emerald-600 font-bold';
+                        const diffNote  = isAnomaly ? '⚠️ 差異あり' : (isFullyUnrequested ? '📋 未請求中' : '✅ 差異なし');
+                        const noteColor = isAnomaly ? 'text-red-600' : (isFullyUnrequested ? 'text-blue-600' : 'text-emerald-600');
+                        colBody.innerHTML += `
+                        <div class="rounded-lg border ${isAnomaly ? 'border-red-200 bg-red-50/40' : 'border-slate-200 bg-white'} p-3">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-bold px-2 py-0.5 rounded ${sub ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}">${kind}</span>
+                                <span class="text-xs text-slate-400">${col.siteName || ''}</span>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-center text-xs mb-2">
+                                <div><div class="text-slate-400 mb-0.5">回収予定額（税込）</div><div class="font-bold text-slate-700">${fmt(col.scheduledAmount)}</div></div>
+                                <div><div class="text-slate-400 mb-0.5">内未請求分</div><div class="font-bold text-slate-500">${fmt(col.unRequestedAmount)}</div></div>
+                                <div><div class="text-slate-400 mb-0.5">回収済額</div><div class="font-bold text-emerald-600">${fmt(col.collectedAmount)}</div></div>
+                                <div class="${col.uncollectedAmount > 0 ? 'bg-orange-50 rounded border border-orange-100' : ''}">
+                                    <div class="text-orange-500 font-bold mb-0.5">未回収残高</div>
+                                    <div class="font-black ${col.uncollectedAmount > 0 ? 'text-orange-600' : 'text-emerald-600'}">${fmt(col.uncollectedAmount)}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 text-xs pt-2 border-t border-slate-100">
+                                <span class="text-slate-400">売上照合：</span>
+                                <span class="text-slate-500">売上（税込）<span class="font-mono font-bold ml-1">${salesTaxInc ? fmt(salesTaxInc) : '（明細なし）'}</span></span>
+                                <span class="text-slate-400">→ 差額（回収済額比）</span>
+                                <span class="font-mono ${diffColor}">${isAnomaly ? (diff > 0 ? '+' : '') + fmt(diff) : '± 0'}</span>
+                                <span class="${noteColor} font-bold">${diffNote}</span>
+                            </div>
+                            ${isAnomaly ? `<div class="text-[10px] text-red-500 mt-1 pl-1">※ 売上（税込）${fmt(salesTaxInc)} に対し 回収済額 ${fmt(col.collectedAmount)} — 差額 ${fmt(Math.abs(diff))}</div>` : ''}
+                            ${isFullyUnrequested ? `<div class="text-[10px] text-blue-500 mt-1 pl-1">※ 内未請求分＝回収予定額のため、まだ請求前の案件です。回収済額が計上された時点で差異チェックの対象となります。</div>` : ''}
+                        </div>`;
+                    }
+                } else {
+                    colPanel.classList.add('hidden');
+                }
+            }
             
             // ▼▼▼▼▼ 修正箇所: 紐づくサブコード (現場チェック.htmlのロジックを適用・調整) ▼▼▼▼▼
             const subCont = document.getElementById('res-subcodes-container');
@@ -4824,6 +5329,9 @@
     let browseSelectedCustomers = new Set();
     let browseSelectedBranches = new Set();
     let browseSelectedEstimators = new Set();
+    // 未回収タブ専用フィルターセット
+    let uncollSelectedBranches = new Set();
+    let uncollSelectedManagers = new Set();
     const BROWSE_PAGE_SIZE = 50;
     let browseCurrentPage = 1;
 
@@ -4859,92 +5367,145 @@
 
     // データ構築：基準に応じて browseAllData を作り直す
     window.buildBrowseData = function() {
-        const { costs, masters } = window._browseRawData || {};
+        const { costs, masters, collectionMap, salesTaxIncMap } = window._browseRawData || {};
         if (!costs || !masters) return;
+        const colMap   = collectionMap || new Map();
+        const txMap    = salesTaxIncMap || new Map();
+        const anomaly  = window._browseAnomalyCodes || new Set();
+        const getCol = (code) => colMap.get(String(code||'').trim().toLowerCase()) || null;
+        const getSalesTaxInc = (code) => txMap.get(String(code||'').trim()) || 0;
 
-        // ★修正: コード比較をtrimしてスペース差異による不一致を防ぐ
         const masterMap = new Map(masters.map(m => [String(m.code||'').trim(), m]));
         const costMap   = new Map(costs.map(c   => [String(c.code||'').trim(), c]));
 
-        // ★修正: hasCost判定 - 親コード直接一致 OR サブコード結合キー（区切りなし/スペース区切り）で一致
         const checkHasCost = (parentKey, subCodes) => {
             if (costMap.has(parentKey)) return true;
-            // 原価集計がサブコード単位で登録されている場合に対応
-            // 例: 親"i0151" + サブ"01" → "i015101" or "i0151 01" or "i0151_01"
             return (subCodes || []).some(sc => {
                 const sfx = String(sc.subCode||'').trim();
                 if (!sfx) return false;
-                return costMap.has(parentKey + sfx)
-                    || costMap.has(parentKey + ' ' + sfx)
-                    || costMap.has(parentKey + '_' + sfx);
+                return costMap.has(parentKey + sfx) || costMap.has(parentKey + ' ' + sfx) || costMap.has(parentKey + '_' + sfx);
             });
         };
-
-        // ★共通: endDateを文字列に正規化するヘルパー
         const normalizeEnd = (v) => v != null ? String(v).trim() : '';
 
         if (browseCurrentBasis === 'cost') {
-            // 原価集計に存在する工番が主役。マスター情報を付加
             browseAllData = costs.map(c => {
                 const m = masterMap.get(String(c.code||'').trim()) || {};
                 const margin = c.salesTotal > 0 ? (c.profitTotal / c.salesTotal * 100) : null;
+                const col = getCol(c.code);
+                const salesTaxInc = getSalesTaxInc(String(c.code||'').trim());
+                const collDiff    = col ? salesTaxInc - col.collectedAmount : null;
                 return {
-                    code: c.code,
-                    name: m.name || c.name || '',
-                    subName: m.subName || '',
-                    subCodes: m.subCodes || [],
-                    subCodeCount: (m.subCodes || []).length,
-                    manager: m.manager || '',
-                    estimator: m.estimator || '',
-                    customer: m.customer || '',
-                    owner: m.owner || '',
-                    branch: m.branch || '',
-                    startDate: String(m.startDate || ''),
-                    endDate: normalizeEnd(m.endDate),
-                    delivery: m.delivery || '',
-                    hasCost: true,
-                    hasMaster: masterMap.has(String(c.code||'').trim()),                    salesTotal: c.salesTotal || 0,
-                    costTotal: c.costTotal || 0,
-                    profitTotal: c.profitTotal || 0,
-                    margin: margin
+                    code: c.code, name: m.name || c.name || '', subName: m.subName || '',
+                    subCodes: m.subCodes || [], subCodeCount: (m.subCodes || []).length,
+                    manager: m.manager || '', estimator: m.estimator || '',
+                    customer: m.customer || '', owner: m.owner || '', branch: m.branch || '',
+                    startDate: String(m.startDate || ''), endDate: normalizeEnd(m.endDate),
+                    delivery: m.delivery || '', hasCost: true,
+                    hasMaster: masterMap.has(String(c.code||'').trim()),
+                    salesTotal: c.salesTotal || 0, costTotal: c.costTotal || 0,
+                    profitTotal: c.profitTotal || 0, margin, salesTaxInc,
+                    scheduledAmount:   col ? col.scheduledAmount   : 0,
+                    unRequestedAmount: col ? col.unRequestedAmount : 0,
+                    collectedAmount:   col ? col.collectedAmount   : 0,
+                    uncollectedAmount: col ? col.uncollectedAmount : 0,
+                    hasCollData:       col !== null,
+                    collDiff,
+                    hasCollAnomaly: anomaly.has(String(c.code||'').trim().toLowerCase()),
                 };
             });
         } else {
-            // マスター全件が主役。原価データを付加
             browseAllData = masters.map(m => {
                 const key = String(m.code||'').trim();
                 const c = costMap.get(key) || {};
                 const margin = c.salesTotal > 0 ? (c.profitTotal / c.salesTotal * 100) : null;
+                const col = getCol(m.code);
+                const salesTaxInc = getSalesTaxInc(key);
+                const collDiff    = col ? salesTaxInc - col.collectedAmount : null;
                 return {
-                    code: m.code,
-                    name: m.name || '',
-                    subName: m.subName || '',
-                    subCodes: m.subCodes || [],
-                    subCodeCount: (m.subCodes || []).length,
-                    manager: m.manager || '',
-                    estimator: m.estimator || '',
-                    customer: m.customer || '',
-                    owner: m.owner || '',
-                    branch: m.branch || '',
-                    startDate: String(m.startDate || ''),
-                    endDate: normalizeEnd(m.endDate),
-                    delivery: m.delivery || '',
-                    hasCost: checkHasCost(key, m.subCodes),
-                    hasMaster: true,
-                    salesTotal: c.salesTotal || 0,
-                    costTotal: c.costTotal || 0,
-                    profitTotal: c.profitTotal || 0,
-                    margin: margin
+                    code: m.code, name: m.name || '', subName: m.subName || '',
+                    subCodes: m.subCodes || [], subCodeCount: (m.subCodes || []).length,
+                    manager: m.manager || '', estimator: m.estimator || '',
+                    customer: m.customer || '', owner: m.owner || '', branch: m.branch || '',
+                    startDate: String(m.startDate || ''), endDate: normalizeEnd(m.endDate),
+                    delivery: m.delivery || '', hasCost: checkHasCost(key, m.subCodes), hasMaster: true,
+                    salesTotal: c.salesTotal || 0, costTotal: c.costTotal || 0,
+                    profitTotal: c.profitTotal || 0, margin, salesTaxInc,
+                    scheduledAmount:   col ? col.scheduledAmount   : 0,
+                    unRequestedAmount: col ? col.unRequestedAmount : 0,
+                    collectedAmount:   col ? col.collectedAmount   : 0,
+                    uncollectedAmount: col ? col.uncollectedAmount : 0,
+                    hasCollData:       col !== null,
+                    collDiff,
+                    hasCollAnomaly: anomaly.has(String(m.code||'').trim().toLowerCase()),
                 };
             });
         }
     }
 
     window.initBrowsePage = async function() {
-        // 生データ取得（キャッシュ）
         const costs = await db.costs.toArray();
         const masters = await db.masters.toArray();
-        window._browseRawData = { costs, masters };
+        const collections = await db.collections.toArray();
+
+        // 税込売上合計をサイトコード別に集計（売上明細の amountInc を使用）
+        const salesTaxIncMap = new Map();
+        const allSales = await db.sales.toArray();
+        allSales.forEach(s => {
+            const key = String(s.siteCode||'').trim();
+            salesTaxIncMap.set(key, (salesTaxIncMap.get(key) || 0) + (s.amountInc || 0));
+        });
+        // コード単体ごとの差異計算（回収一覧レコード × 対応する売上税込）
+        const anomalyCodes   = new Set();
+        const anomalyDetails = []; // 差異詳細リスト（テーブル表示用）
+        for (const col of collections) {
+            const mainCode = String(col.code||'').trim().toLowerCase();
+            const sub      = String(col.subCode||'').trim();
+            // 対応する売上明細を抽出（枝番ありは枝番一致、なしは親行のみ）
+            const matchSales = allSales.filter(s => {
+                const sc = String(s.siteCode||'').trim();
+                const ss = String(s.subCode||'').trim();
+                if (sc !== mainCode) return false;
+                return sub ? ss === sub : !ss;
+            });
+            const salesTaxInc = matchSales.reduce((sum, s) => sum + (s.amountInc || 0), 0);
+            // 全額未請求判定: 回収済額=0 かつ 内未請求分=回収予定額 → 未請求中のため差異なし
+            const isFullyUnrequested = col.collectedAmount === 0 && Math.abs(col.unRequestedAmount - col.scheduledAmount) <= 1;
+            // 差異判定: 売上（税込）と回収済額が異なる場合に異常値とする（全額未請求中は除外）
+            const diff = salesTaxInc - col.collectedAmount;
+            const isAnomaly = !isFullyUnrequested && salesTaxInc > 0 && Math.abs(diff) > 1;
+            if (isAnomaly) anomalyCodes.add(mainCode);
+            anomalyDetails.push({
+                code: mainCode, subCode: sub,
+                siteName: col.siteName || '',
+                scheduled: col.scheduledAmount,
+                collectedAmount: col.collectedAmount,
+                salesTaxInc, diff, isAnomaly, isFullyUnrequested,
+                label: sub ? `${mainCode} - ${sub}（枝番）` : `${mainCode}（親コード）`,
+            });
+        }
+        window._browseAnomalyCodes   = anomalyCodes;
+        window._browseAnomalyDetails = anomalyDetails;
+        // 回収レコード配列をコード別に格納（ダッシュボード用）
+        const collectionArrayMap = new Map();
+        collections.forEach(col => {
+            const key = String(col.code||'').trim().toLowerCase();
+            if (!collectionArrayMap.has(key)) collectionArrayMap.set(key, []);
+            collectionArrayMap.get(key).push(col);
+        });
+        // 合算Map（一覧表示用）
+        const collectionMap = new Map();
+        collectionArrayMap.forEach((recs, key) => {
+            collectionMap.set(key, recs.reduce((acc, r) => {
+                acc.scheduledAmount   += r.scheduledAmount   || 0;
+                acc.unRequestedAmount += r.unRequestedAmount || 0;
+                acc.collectedAmount   += r.collectedAmount   || 0;
+                acc.uncollectedAmount += r.uncollectedAmount || 0;
+                return acc;
+            }, { scheduledAmount:0, unRequestedAmount:0, collectedAmount:0, uncollectedAmount:0 }));
+        });
+
+        window._browseRawData = { costs, masters, collectionMap, collectionArrayMap, salesTaxIncMap };
 
         // データ構築
         window.buildBrowseData();
@@ -4968,6 +5529,8 @@
         browseSelectedCustomers.clear();
         browseSelectedBranches.clear();
         browseSelectedEstimators.clear();
+        uncollSelectedBranches.clear();
+        uncollSelectedManagers.clear();
     }
 
     window.buildBrowseButtons = function() {
@@ -5038,7 +5601,144 @@
                 eContainer.appendChild(btn);
             });
         }
+
+        // ★ 未回収タブ専用ボタン（回収データのある現場のみ対象）
+        const collData = browseAllData.filter(d => d.hasCollData);
+        // 拠点ボタン
+        const uncollBranches = [...new Set(collData.map(d => d.branch).filter(Boolean))].sort();
+        const ubContainer = document.getElementById('uncoll-branch-buttons');
+        if (ubContainer) {
+            ubContainer.innerHTML = '';
+            if (uncollBranches.length === 0) {
+                ubContainer.innerHTML = '<span class="text-[10px] text-slate-400">（データなし）</span>';
+            }
+            uncollBranches.forEach(br => {
+                const cnt = collData.filter(d => d.branch === br).length;
+                const btn = document.createElement('button');
+                btn.className = 'uncoll-branch-btn px-2.5 py-1 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-700 transition-all flex items-center gap-1';
+                btn.innerHTML = `${br} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
+                btn.dataset.value = br;
+                btn.onclick = () => window.toggleUncollButton(btn, 'branch');
+                ubContainer.appendChild(btn);
+            });
+        }
+        // 担当者ボタン
+        const uncollManagers = [...new Set(collData.map(d => d.manager).filter(Boolean))].sort();
+        const umContainer = document.getElementById('uncoll-manager-buttons');
+        if (umContainer) {
+            umContainer.innerHTML = '';
+            if (uncollManagers.length === 0) {
+                umContainer.innerHTML = '<span class="text-[10px] text-slate-400">（データなし）</span>';
+            }
+            uncollManagers.forEach(mgr => {
+                const cnt = collData.filter(d => d.manager === mgr).length;
+                const btn = document.createElement('button');
+                btn.className = 'uncoll-manager-btn px-2.5 py-1 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-700 transition-all flex items-center gap-1';
+                btn.innerHTML = `${mgr} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
+                btn.dataset.value = mgr;
+                btn.onclick = () => window.toggleUncollButton(btn, 'manager');
+                umContainer.appendChild(btn);
+            });
+        }
     }
+
+    window.toggleUncollButton = function(btn, group) {
+        const val = btn.dataset.value;
+        const selSet = group === 'branch' ? uncollSelectedBranches : uncollSelectedManagers;
+        if (selSet.has(val)) {
+            selSet.delete(val);
+            btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
+            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
+        } else {
+            selSet.add(val);
+            btn.classList.add('bg-orange-500', 'border-orange-500', 'text-white');
+            btn.classList.remove('bg-white', 'border-slate-300', 'text-slate-600');
+        }
+        window.applyBrowseFilter();
+        window.renderCollAnomalyTable();
+    }
+
+    window.clearUncollSelection = function(group) {
+        const selSet = group === 'branch' ? uncollSelectedBranches : uncollSelectedManagers;
+        selSet.clear();
+        const cls = group === 'branch' ? '.uncoll-branch-btn' : '.uncoll-manager-btn';
+        document.querySelectorAll(cls).forEach(btn => {
+            btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
+            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
+        });
+        window.applyBrowseFilter();
+        window.renderCollAnomalyTable();
+    }
+
+    window.renderCollAnomalyTable = function() {
+        const panel     = document.getElementById('coll-anomaly-detail');
+        const tbody     = document.getElementById('coll-anomaly-tbody');
+        const listPanel = document.getElementById('browse-list-panel');
+        const isOn      = document.getElementById('browse-chk-coll-anomaly')?.checked;
+        if (!panel || !tbody) return;
+        // 差異チェック時は現場一覧テーブルを非表示・差異詳細のみ表示
+        if (listPanel) listPanel.classList.toggle('hidden', !!isOn);
+        if (!isOn) { panel.classList.add('hidden'); return; }
+        panel.classList.remove('hidden');
+
+        const details = (window._browseAnomalyDetails || []).filter(d => {
+            if (!d.isAnomaly) return false;
+            // 未回収タブ専用フィルターを差異詳細テーブルにも適用
+            const masterMap2 = new Map();
+            (window._browseRawData?.masters || []).forEach(m => masterMap2.set(String(m.code||'').trim(), m));
+            const m2 = masterMap2.get(d.code) || {};
+            if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(m2.branch || '')) return false;
+            if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(m2.manager || '')) return false;
+            const uncollKw = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
+            if (uncollKw) {
+                const hay = window.normalizeStr([d.code, d.siteName, m2.owner||'', m2.manager||'', m2.branch||''].join(' '));
+                if (!hay.includes(uncollKw)) return false;
+            }
+            return true;
+        });
+        const fmt = window.formatCurrency;
+        const fmtDate = (v) => {
+            const s = String(v||'').replace(/\D/g,'');
+            return s.length === 8 ? s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8) : '-';
+        };
+        const masterMap = new Map();
+        (window._browseRawData?.masters || []).forEach(m => masterMap.set(String(m.code||'').trim(), m));
+        const costMap = new Map();
+        (window._browseRawData?.costs || []).forEach(c => costMap.set(String(c.code||'').trim(), c));
+
+        tbody.innerHTML = '';
+        if (details.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="14" class="px-4 py-6 text-center text-slate-400">差異のあるデータがありません</td></tr>';
+            return;
+        }
+        details.forEach(d => {
+            const m = masterMap.get(d.code) || {};
+            const c = costMap.get(d.code) || {};
+            const kindLabel = d.subCode ? '枝 '+d.subCode : '親';
+            const kindColor = d.subCode ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600';
+            const diffSign  = d.diff > 0 ? '+' : '';
+            tbody.innerHTML += `<tr class="hover:bg-red-50/40 transition-colors">
+                <td class="border-b border-slate-100 px-3 py-2 font-mono font-bold text-xs whitespace-nowrap">
+                    <button class="hover:text-blue-600 hover:underline" onclick="window.browseJumpToSite('${d.code}','browse','現場一覧に戻る')">${d.code}</button>
+                </td>
+                <td class="border-b border-slate-100 px-2 py-2 whitespace-nowrap">
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${kindColor}">${kindLabel}</span>
+                </td>
+                <td class="border-b border-slate-100 px-3 py-2 font-bold text-slate-800 text-xs max-w-[150px] truncate" title="${m.name||d.siteName||''}">${m.name||d.siteName||'-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-600 whitespace-nowrap">${m.manager||'-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 whitespace-nowrap">${m.estimator||'-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 max-w-[90px] truncate" title="${m.customer||''}">${m.customer||'-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 max-w-[90px] truncate" title="${m.owner||''}">${m.owner||'-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-400 whitespace-nowrap">${m.branch||'-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-400 whitespace-nowrap">${fmtDate(m.startDate)}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-400 whitespace-nowrap">${fmtDate(m.endDate)}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono text-slate-700">${c.salesTotal ? fmt(c.salesTotal) : '-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono text-slate-600">${d.salesTaxInc ? fmt(d.salesTaxInc) : '明細なし'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono text-slate-400">${fmt(d.collectedAmount)}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono font-black text-red-600 whitespace-nowrap">${diffSign}${fmt(d.diff)}</td>
+            </tr>`;
+        });
+    };
 
     window.setBrowseTab = function(tab) {
         browseCurrentTab = tab;
@@ -5120,7 +5820,11 @@
         const chkSub         = document.getElementById('browse-chk-subcodes')?.checked;
         const chkCostNoEnd   = document.getElementById('browse-chk-cost-and-no-end')?.checked;
         const chkNoEnd       = document.getElementById('browse-chk-no-end')?.checked;
+        const chkUncollected  = document.getElementById('browse-chk-uncollected-only')?.checked;
+        const chkCollAnomaly  = document.getElementById('browse-chk-coll-anomaly')?.checked;
         const sortVal = document.getElementById('browse-sort')?.value || 'code_asc';
+        // 未回収タブ専用フィルター
+        const uncollKeyword = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
 
         browseFiltered = browseAllData.filter(d => {
             // キーワードフィルター（キーワードタブ選択中のみ）
@@ -5145,15 +5849,30 @@
             }
             // 追加フィルター
             if (chkSub && d.subCodeCount === 0) return false;
-            // ★修正: endDate を文字列として安全に評価
             const edStr = String(d.endDate ?? '').replace(/\D/g,'');
             const hasEndDate = edStr.length === 8 && edStr !== '00000000';
-            // 原価データあり＆完了日なし（進行中）: AND条件を1チェックで判定
             if (chkCostNoEnd && !(d.hasCost && !hasEndDate)) return false;
-            // 完了日なし（進行中）のみ
             if (chkNoEnd && hasEndDate) return false;
+            // 未回収フィルター
+            if (chkUncollected  && !(d.uncollectedAmount > 0)) return false;
+            if (chkCollAnomaly  && !d.hasCollAnomaly)           return false;
+            // 未回収タブ専用フィルター（タブ選択中のみ）
+            if (browseCurrentTab === 'uncollected') {
+                if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(d.branch)) return false;
+                if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(d.manager)) return false;
+                if (uncollKeyword) {
+                    const hay = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.code, d.branch].join(' '));
+                    if (!hay.includes(uncollKeyword)) return false;
+                }
+            }
             return true;
         });
+
+        // 未回収・差異件数を表示
+        const uncollectedCount = browseAllData.filter(d => d.uncollectedAmount > 0).length;
+        const anomalyCount     = browseAllData.filter(d => d.hasCollAnomaly).length;
+        const cntEl = document.getElementById('browse-uncollected-count');
+        if (cntEl) cntEl.textContent = `未回収 ${uncollectedCount}件　差異あり ${anomalyCount}件`;
 
         // ソート
         browseFiltered.sort((a, b) => {
@@ -5225,10 +5944,18 @@
             const marginColor = d.margin === null ? 'text-slate-300' : d.margin < 10 ? 'text-red-500 font-bold' : d.margin < 20 ? 'text-orange-500 font-bold' : 'text-emerald-600 font-bold';
             const marginCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs ${marginColor}">${d.margin !== null ? d.margin.toFixed(1)+'%' : '-'}</td>`;
 
+            // 未回収バッジ・差異バッジ
+            const uncollBadge = d.uncollectedAmount > 0
+                ? `<span class="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">未回収 ${window.formatCurrency(d.uncollectedAmount)}</span>`
+                : '';
+            const anomalyBadge = d.hasCollAnomaly
+                ? `<span class="text-[10px] bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap" title="売上税込と回収済額の差: ${window.formatCurrency(Math.abs(d.collDiff))}">差異 ${d.collDiff > 0 ? '+' : ''}${window.formatCurrency(d.collDiff)}</span>`
+                : '';
+
             html += `<tr class="hover:bg-teal-50/40 transition-colors cursor-pointer" onclick="window.browseJumpToSite('${d.code}', 'browse', '現場一覧に戻る')">
                 <td class="px-4 py-2.5 font-mono text-sm font-black text-slate-800 border-b border-slate-100 bg-slate-50/60 whitespace-nowrap">${d.code}${noMasterWarn}</td>
                 <td class="px-4 py-2.5 border-b border-slate-100">
-                    <div class="flex items-center gap-1">${statusDot}<span class="font-bold text-slate-800 text-sm truncate max-w-[200px]" title="${d.name}">${d.name || '-'}</span></div>
+                    <div class="flex items-center gap-1">${statusDot}<span class="font-bold text-slate-800 text-sm truncate max-w-[200px]" title="${d.name}">${d.name || '-'}</span>${uncollBadge}${anomalyBadge}</div>
                     ${d.subName ? `<div class="text-xs text-slate-400 mt-0.5 pl-3 truncate max-w-[200px]">${d.subName}</div>` : ''}
                 </td>
                 <td class="px-4 py-2.5 border-b border-slate-100 text-sm text-slate-600 whitespace-nowrap">${d.manager || '-'}</td>
@@ -5356,6 +6083,51 @@
         const basis = browseCurrentBasis === 'cost' ? '原価集計基準' : 'マスター全件';
         XLSX.writeFile(wb, `現場一覧_${basis}_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
+
+    // ★ 未回収タブ専用 Excel出力（回収データ列付き）
+    window.exportUncollectedExcel = function() {
+        // 現在の browseFiltered から回収データがある現場を出力対象とする
+        const chkUncollected = document.getElementById('browse-chk-uncollected-only')?.checked;
+        const chkAnomaly     = document.getElementById('browse-chk-coll-anomaly')?.checked;
+        let target = browseFiltered.filter(d => d.hasCollData);
+        if (target.length === 0) { alert("出力対象の回収データがありません。"); return; }
+
+        const fmtDate = (v) => {
+            const s = String(v||'').replace(/\D/g,'');
+            return s.length === 8 ? s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8) : '';
+        };
+
+        const exportData = target.map(d => ({
+            "工番":               d.code,
+            "現場名":              d.name,
+            "担当者":              d.manager,
+            "積算担当":             d.estimator,
+            "得意先":              d.customer,
+            "施工主":              d.owner,
+            "拠点":               d.branch,
+            "着手日":              fmtDate(d.startDate),
+            "完了日":              fmtDate(d.endDate),
+            "売上(税抜)":           d.salesTotal  || 0,
+            "売上(税込)":           d.salesTaxInc || 0,
+            "回収予定額(税込)":      d.scheduledAmount   || 0,
+            "内未請求分":           d.unRequestedAmount  || 0,
+            "回収済額":             d.collectedAmount    || 0,
+            "未回収残高":           d.uncollectedAmount  || 0,
+            "回収差異":             d.hasCollAnomaly ? `${d.collDiff > 0 ? '+' : ''}${d.collDiff}` : '差異なし',
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        // 列幅設定
+        ws['!cols'] = [
+            {wch:10},{wch:30},{wch:12},{wch:12},{wch:16},{wch:16},{wch:8},
+            {wch:12},{wch:12},{wch:14},{wch:14},{wch:16},{wch:12},{wch:12},{wch:12},{wch:14}
+        ];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "未回収一覧");
+        const suffix = chkUncollected ? '_未回収残高あり' : chkAnomaly ? '_差異あり' : '';
+        XLSX.writeFile(wb, `未回収一覧${suffix}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
     // ============================================================
     // ★ END BROWSE PAGE LOGIC
     // ============================================================
