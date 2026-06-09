@@ -54,7 +54,7 @@
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 41.0 (合計表示追加)</small></h5>
+        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 41.2 (金額スピナー削除・出力ルール詳細)</small></h5>
         <div>
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#masterModal">⚙️ マスタ取込</button>
             <button class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="modal" data-bs-target="#templateModal">📑 テンプレート</button>
@@ -166,6 +166,110 @@
                     </label>
                     <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="clearDetails()">明細クリア</button>
                     <button class="btn btn-outline-danger btn-sm flex-fill" onclick="clearAll()">全消去</button>
+                </div>
+            </div>
+            <!-- テキスト出力ルール注意事項 (アコーディオン) -->
+            <div class="mt-2">
+                <button class="btn btn-outline-secondary btn-sm w-100 text-start" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#outputRulesCollapse"
+                    aria-expanded="false" aria-controls="outputRulesCollapse"
+                    style="font-size:0.8rem;">
+                    📋 テキスト出力ルール・列レイアウト詳細 <span class="text-muted">(クリックで開閉)</span>
+                </button>
+                <div class="collapse" id="outputRulesCollapse">
+                    <div class="border rounded p-3 mt-1 bg-white" style="font-size:0.78rem;">
+
+                        <!-- ファイル形式 -->
+                        <p class="fw-bold mb-1 border-bottom pb-1">▍ファイル形式</p>
+                        <ul class="mb-3 ps-3" style="line-height:1.8;">
+                            <li><strong>文字コード：</strong>UTF-16LE（BOM <code>FF FE</code> 付き）</li>
+                            <li><strong>区切り：</strong>タブ区切り（TSV）</li>
+                            <li><strong>セル囲み：</strong>すべてのセルをダブルクォート <code>"..."</code> で囲む。セル内に <code>"</code> がある場合は <code>""</code> にエスケープ</li>
+                            <li><strong>行末：</strong>CRLF（<code>\r\n</code>）</li>
+                            <li><strong>1行目：</strong>ヘッダー行（列名）を出力</li>
+                            <li><strong>列数：</strong>136列固定（未使用列も空文字で出力）</li>
+                            <li><strong>ファイル名：</strong><code>取込レイアウト_YYYYMMDD_HHMMSS.txt</code></li>
+                        </ul>
+
+                        <!-- 金額計算 -->
+                        <p class="fw-bold mb-1 border-bottom pb-1">▍金額の計算ロジック</p>
+                        <table class="table table-sm table-bordered mb-3" style="font-size:0.78rem;">
+                            <thead class="table-light"><tr><th>列番号</th><th>列名</th><th>計算方法・値</th></tr></thead>
+                            <tbody>
+                                <tr><td>27列目 (AA)</td><td>金額</td><td>入力値そのまま（<strong>税込金額</strong>）</td></tr>
+                                <tr><td>31列目 (AE)</td><td>粗利</td><td><code>Math.round(金額 ÷ 1.1)</code>　→ 税抜金額として使用 ⚠️</td></tr>
+                                <tr><td>36列目 (AJ)</td><td>内消費税等</td><td><code>金額 − 粗利(税抜)</code>　→ 消費税額</td></tr>
+                                <tr><td>35列目 (AI)</td><td>消費税率</td><td>固定値 <code>"10"</code></td></tr>
+                                <tr><td>33列目 (AG)</td><td>課税区分</td><td>固定値 <code>"1"</code></td></tr>
+                                <tr><td>28列目 (AB)</td><td>原単価</td><td>固定値 <code>"0"</code></td></tr>
+                                <tr><td>29列目 (AC)</td><td>原価金額</td><td>固定値 <code>"0"</code></td></tr>
+                                <tr><td>26列目 (Z)</td><td>単価</td><td>固定値 <code>"0"</code></td></tr>
+                                <tr><td>24列目 (X)</td><td>数量</td><td>固定値 <code>"0"</code></td></tr>
+                            </tbody>
+                        </table>
+                        <div class="alert alert-warning py-1 px-2 mb-3" style="font-size:0.75rem;">
+                            ⚠️ <strong>「粗利」列に税抜金額を格納しています。</strong>レイアウト変更で「粗利」の定義が変わった場合は上記計算ロジックの見直しが必要です。
+                        </div>
+
+                        <!-- 列レイアウト一覧 (出力値あり列のみ) -->
+                        <p class="fw-bold mb-1 border-bottom pb-1">▍出力値がある列（136列中）</p>
+                        <table class="table table-sm table-bordered mb-3" style="font-size:0.78rem;">
+                            <thead class="table-light">
+                                <tr><th>列番号</th><th>列名 (LAYOUT_HEADER)</th><th>入力元・固定値</th><th>備考</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr class="table-info"><td>1列目</td><td>伝票日付</td><td>明細「完了日」入力値</td><td>yyyymmdd形式に正規化済み</td></tr>
+                                <tr><td>2列目</td><td>伝票№</td><td>（空）</td><td></td></tr>
+                                <tr class="table-info"><td>3列目</td><td>処理連番</td><td>自動採番（1〜連番）</td><td>転記ごとに継続。TXT読込後は再採番</td></tr>
+                                <tr><td>4列目</td><td>明細区分</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>5列目</td><td>行</td><td>固定 <code>"1"</code></td><td></td></tr>
+                                <tr class="table-info"><td>6列目</td><td>得意先コード</td><td>得意先マスタのコード</td><td></td></tr>
+                                <tr class="table-info"><td>7列目</td><td>得意先名１</td><td>得意先名（入力値）</td><td></td></tr>
+                                <tr class="table-info"><td>8列目</td><td>得意先名２</td><td>得意先マスタの3列目（v列）</td><td>マスタに登録がある場合のみ</td></tr>
+                                <tr class="table-info"><td>11列目</td><td>担当者コード</td><td>担当者コード（":"前の数値部分）</td><td></td></tr>
+                                <tr class="table-info"><td>14列目</td><td>請求区分</td><td>取引区分「2:売掛」→ <code>1</code>、それ以外→ <code>0</code></td><td></td></tr>
+                                <tr class="table-info"><td>15列目</td><td>売掛区分</td><td>取引区分「3:現金」→ <code>1</code>、それ以外→ <code>0</code></td><td></td></tr>
+                                <tr><td>16列目</td><td>取引区分</td><td>固定 <code>"1"</code></td><td></td></tr>
+                                <tr><td>17列目</td><td>取引区分属性</td><td>固定 <code>"1"</code></td><td></td></tr>
+                                <tr class="table-info"><td>19列目</td><td>商品コード</td><td>商品マスタのコード</td><td></td></tr>
+                                <tr class="table-info"><td>20列目</td><td>商品名</td><td>商品名（入力値）</td><td></td></tr>
+                                <tr><td>24列目</td><td>数量</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>26列目</td><td>単価</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr class="table-warning"><td>27列目</td><td>金額</td><td>明細「金額(税込)」入力値</td><td><strong>税込金額をそのまま格納</strong></td></tr>
+                                <tr><td>28列目</td><td>原単価</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>29列目</td><td>原価金額</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr class="table-warning"><td>31列目</td><td>粗利</td><td><code>round(金額 ÷ 1.1)</code></td><td>⚠️ 実態は税抜金額</td></tr>
+                                <tr><td>32列目</td><td>単価掛率</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>33列目</td><td>課税区分</td><td>固定 <code>"1"</code></td><td></td></tr>
+                                <tr><td>35列目</td><td>消費税率</td><td>固定 <code>"10"</code></td><td>10%固定</td></tr>
+                                <tr class="table-warning"><td>36列目</td><td>内消費税等</td><td><code>金額 − 税抜金額</code></td><td>消費税額</td></tr>
+                                <tr><td>38列目</td><td>行摘要コード</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>41列目</td><td>備考コード</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>43列目</td><td>受注№</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>44列目</td><td>受注行</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>45列目</td><td>見積処理連番</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>46列目</td><td>見積行</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>47列目</td><td>自動生成区分</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr class="table-info"><td>49列目</td><td>伝票消費税計算区分</td><td>取引方法の「:」前の数値</td><td>例：「0:自動」→ <code>0</code>、「1:なし」→ <code>1</code></td></tr>
+                                <tr><td>51列目</td><td>データ発生区分</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>52列目</td><td>相手処理連番</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr class="table-info"><td>97列目</td><td>現場メインコード</td><td>明細「工番」入力値</td><td>半角英小文字に正規化済み</td></tr>
+                                <tr class="table-info"><td>98列目</td><td>現場サブコード</td><td>明細「サブ」入力値</td><td></td></tr>
+                                <tr class="table-info"><td>99列目</td><td>完了日</td><td>明細「完了日」入力値</td><td>yyyymmdd形式（伝票日付と同じ値）</td></tr>
+                                <tr><td>107列目</td><td>チェックマーク区分</td><td>固定 <code>"0"</code></td><td></td></tr>
+                                <tr><td>126列目</td><td>消費税分類</td><td>固定 <code>"0"</code></td><td></td></tr>
+                            </tbody>
+                        </table>
+
+                        <!-- 採番ルール -->
+                        <p class="fw-bold mb-1 border-bottom pb-1">▍処理連番の採番ルール</p>
+                        <ul class="mb-0 ps-3" style="line-height:1.8;">
+                            <li>ページを開いた時点から <code>1</code> スタート</li>
+                            <li>転記処理のたびに行数分インクリメント（複数回転記しても通しで連番）</li>
+                            <li>TXT読込時：読み込んだ行を <code>1〜N</code> で<strong>再採番</strong>。以降の転記はその続き番号から</li>
+                            <li>「全消去」実行時は <code>1</code> にリセット</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -441,12 +545,12 @@ function setupArrowNavigation() {
             case 'ArrowUp': e.preventDefault(); nextRowIndex--; shouldMove = true; break;
             case 'ArrowDown': e.preventDefault(); nextRowIndex++; shouldMove = true; break;
             case 'ArrowLeft':
-                if (currentInput.type === 'number' || currentInput.value === '' || (currentInput.selectionStart === 0 && currentInput.selectionEnd === 0)) {
+                if (currentInput.classList.contains('amount-col') || currentInput.value === '' || (currentInput.selectionStart === 0 && currentInput.selectionEnd === 0)) {
                      e.preventDefault(); nextColIndex--; shouldMove = true;
                 }
                 break;
             case 'ArrowRight':
-                if (currentInput.type === 'number' || currentInput.value === '' || (currentInput.selectionStart === currentInput.value.length)) {
+                if (currentInput.classList.contains('amount-col') || currentInput.value === '' || (currentInput.selectionStart === currentInput.value.length)) {
                     e.preventDefault(); nextColIndex++; shouldMove = true;
                 }
                 break;
@@ -800,7 +904,7 @@ function addGridRow() {
         <td><input type="text" class="form-control form-control-sm sub-code"></td>
         <td><input type="text" class="form-control form-control-sm manual-genba-name manual-check-col"></td>
         <td><input type="text" class="form-control form-control-sm date-col" placeholder="yyyymmdd" inputmode="numeric"></td>
-        <td><input type="number" class="form-control form-control-sm amount-col"></td>
+        <td><input type="text" class="form-control form-control-sm amount-col" inputmode="numeric" pattern="[0-9]*"></td>
         <td><input type="text" class="form-control form-control-sm genba-name" readonly tabindex="-1"></td>
         <td><input type="text" class="form-control form-control-sm genba-type" readonly tabindex="-1"></td>
         <td><input type="text" class="form-control form-control-sm h-col" readonly tabindex="-1"></td>
@@ -856,6 +960,7 @@ function addGridRow() {
     subIn.addEventListener('change', searchHandler);
     
     dateIn.addEventListener('change', function() { this.value = normalizeDateStr(this.value); });
+    amtIn.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
     amtIn.addEventListener('change', () => {
         let sum = 0; document.querySelectorAll('.amount-col').forEach(i => sum += (parseInt(i.value)||0));
         document.getElementById('textBox1').value = sum.toLocaleString();
