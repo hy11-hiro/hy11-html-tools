@@ -957,7 +957,6 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
 }
 
 var updElPos = function(){
-  // コネクタ再描画は後で呼ぶ
   S.elems.forEach(d=>{
     const el=document.getElementById(d.id);if(!el)return;
     const sc=b2s(d.bx,d.by);el.style.left=sc.x+'px';el.style.top=sc.y+'px';
@@ -965,7 +964,20 @@ var updElPos = function(){
     if(d.type==='shape'&&!d.isLine){
       const lbl=el.querySelector('.sh-label');
       const tx=el.querySelector('.sh-text');
-      if(tx)tx.style.fontSize=(d.labelFs||13)+'px';
+      // S.zoom を掛けて正しいフォントサイズに更新
+      if(tx)tx.style.fontSize=((d.labelFs||13)*S.zoom)+'px';
+    }
+    if(d.type==='tx'){
+      // テキストボックスのフォントサイズをズームに合わせて更新
+      const fs=(d.fs||16)*S.zoom;
+      el.style.fontSize=fs+'px';
+      const ta=el.querySelector('[contenteditable],.txb-ta');
+      if(ta)ta.style.fontSize=fs+'px';
+    }
+    if(d.type==='sn'){
+      // 付箋サイズをズームに合わせて更新
+      if(d.bw)el.style.width=(d.bw*S.zoom)+'px';
+      if(d.bh)el.style.height=(d.bh*S.zoom)+'px';
     }
     // Re-position line endpoint handles on zoom/pan
     if(d.type==='shape'&&d.isLine){
@@ -3134,6 +3146,8 @@ function setAsBg(id){
   if(el){
     el.classList.toggle('is-bg', d.isBg);
     if(d.isBg){
+      // インラインスタイルでも確実に非インタラクティブに設定（CSS !important だけでは不十分な場合がある）
+      el.style.pointerEvents='none';
       d.zc=1; el.style.zIndex=1;
       // 背景にしたら選択解除
       clearMultiSel(); deselAll(); S.selId=null; hideFCP();
@@ -3143,6 +3157,9 @@ function setAsBg(id){
       renderPbar();
       showToast('🖼 背景に設定しました。ツールバーの🖼ボタンで編集できます');
     } else {
+      // 背景解除: インラインスタイルをクリアして通常の操作を復元
+      el.style.pointerEvents='';
+      el.style.zIndex=d.zc||'';
       showToast('背景を解除しました');
       renderSelPbar(id);
     }
