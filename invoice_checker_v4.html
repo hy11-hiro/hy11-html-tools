@@ -595,6 +595,21 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
         <button class="btn gray sm" style="width:100%;justify-content:center;margin-top:6px;" onclick="resetSess()">
           <i class="fa-solid fa-rotate-left"></i> 新しいチェック開始
         </button>
+
+        <!-- セッション保存・読み込み -->
+        <div style="border-top:1px dashed #e2e8f0;margin-top:14px;padding-top:12px;">
+          <div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:7px;"><i class="fa-solid fa-floppy-disk"></i> データ保存 / 読み込み</div>
+          <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">①〜⑤の入力データをJSONファイルに保存し、後から復元できます。</div>
+          <button class="btn gray sm" style="width:100%;justify-content:center;margin-bottom:6px;" onclick="exportSessJSON()">
+            <i class="fa-solid fa-download"></i> 入力データを保存（JSON）
+          </button>
+          <label style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;cursor:pointer;">
+            <span class="btn gray sm" style="width:100%;justify-content:center;pointer-events:none;">
+              <i class="fa-solid fa-upload"></i> 保存データを読み込む
+            </span>
+            <input type="file" accept=".json" style="display:none;" onchange="importSessJSON(this)">
+          </label>
+        </div>
       </div>
     </div>
   </div>
@@ -612,7 +627,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
     </div>
     <div style="overflow-x:auto;overflow-y:auto;flex:1;min-height:0;">
       <table class="tb">
-        <thead><tr><th>日時</th><th>職人名</th><th>月分</th><th>現場</th><th>支払金額</th><th>担当者</th><th>メモ</th><th></th></tr></thead>
+        <thead><tr><th>日時</th><th>職人名</th><th>月分</th><th>現場</th><th>支払金額</th><th>担当者</th><th>メモ</th><th style="min-width:64px;"></th></tr></thead>
         <tbody id="log-tb"><tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:20px;">履歴なし</td></tr></tbody>
       </table>
     </div>
@@ -1279,6 +1294,48 @@ function resetSess(){
 }
 
 // ══════════════════════════════════════
+// SESSION EXPORT / IMPORT
+// ══════════════════════════════════════
+function exportSessJSON(){
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  const name=c?.name||'unknown';
+  const y=sess.deduriYear||new Date().getFullYear();
+  const m=String(sess.deduriMonth||new Date().getMonth()+1).padStart(2,'0');
+  const filename=`請求チェック_${name}_${y}${m}.json`;
+  const data={ exportedAt:new Date().toISOString(), version:'v5', sess };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click();
+}
+
+function importSessJSON(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.sess) throw new Error('形式が違います');
+      if(!confirm(`「${file.name}」を読み込みます。\n現在の入力内容は上書きされます。よろしいですか？`)){
+        input.value=''; return;
+      }
+      sess=data.sess;
+      autoSaveSess();
+      wfStep=5; wfDone=new Set([1,2,3,4,5]); renderWfBar();
+      document.querySelectorAll('.sp').forEach(s=>s.classList.remove('on'));
+      document.getElementById('sp5')?.classList.add('on');
+      if(typeof renderCGrid==='function') renderCGrid();
+      if(typeof renderHeadRows==='function') renderHeadRows();
+      if(typeof renderDeduri==='function') renderDeduri();
+      if(typeof recalc==='function') recalc();
+      alert('読み込み完了！ステップ⑤に移動しました。\n必要な箇所を修正してください。');
+    } catch(err){
+      alert('読み込み失敗：' + err.message);
+    }
+    input.value='';
+  };
+  reader.readAsText(file,'utf-8');
+}
+
+// ══════════════════════════════════════
 // SESSION
 // ══════════════════════════════════════
 let sess={
@@ -1831,7 +1888,7 @@ function setSQtyX(code,type,si,xi,val){
   ensureSx(code);
   const r=sess.dData[code].sx[si][xi]; if(!r) return;
   r.qty=Number(val)||0;
-  updateSub(code); updateGrand(code); autoSaveSess();
+  sxLiveCalc(code,si,xi,null);
 }
 
 function openPriceSX(code,si,xi,name){
@@ -1843,59 +1900,71 @@ function openPriceSX(code,si,xi,name){
 }
 
 function renderSTbl(code){
-  const rows=sess.dData[code]?.s||[];
   ensureSx(code);
-  const sx=sess.dData[code].sx;
+  const d=sess.dData[code]; if(!d) return;
+  const rows=d.s||[];
+  const sx=d.sx;
   const wrap=document.getElementById('tb-s'); if(!wrap) return;
   const allItems=SOZEI_DEF.flatMap(s=>s.items);
-  let idx=0;
+  let defIdx=0;
   let cards='';
   SOZEI_DEF.forEach((sec,si)=>{
     let rowsHtml='';
     sec.items.forEach(()=>{
-      const r=rows[idx]||{qty:0,memo:''};
-      const defItem=allItems[idx];
+      const r=rows[defIdx]||{qty:0};
+      const defItem=allItems[defIdx];
       const name=r.n||defItem.n;
       const unit=r.u||defItem.u;
-      const price=r.p||0;
+      const price=r.p!==undefined?r.p:defItem.p||0;
       const qty=Number(r.qty)||0;
       const amt=qty*price;
       const sn=name.replace(/'/g,"\'");
       rowsHtml+=`<tr>
-        <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditS('${code}',${idx},this)">${name}</span></td>
+        <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditS('${code}',${defIdx},this)">${name}</span></td>
         <td class="s-col-qty"><input type="number" class="fi-n s-qty-inp" value="${qty||''}" min="0" placeholder="0"
-          data-code="${code}" data-idx="${idx}"
-          onchange="setSQty('${code}',${idx},this.value)" onkeydown="numKD(event,this)" style="width:80px;box-sizing:border-box;"></td>
+          data-code="${code}" data-idx="${defIdx}"
+          onchange="setSQty('${code}',${defIdx},this.value)" onkeydown="numKD(event,this)" style="width:80px;box-sizing:border-box;"></td>
         <td class="s-col-unit">${unit}</td>
-        <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${idx},'${sn}')">¥${price.toLocaleString()}</span></td>
-        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+        <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${defIdx},'${sn}')">\u00a5${price.toLocaleString()}</span></td>
+        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'\u00a5'+amt.toLocaleString():''}</td>
         <td class="s-col-act">
-          <button class="ins-btn" onclick="insertSRowX('${code}',${si})" title="このセクションに行追加">＋</button>
-          <button class="clr-btn" onclick="clearRowQtyS('${code}',${idx})" title="この行の数量をクリア">0</button>
+          <button class="ins-btn" onclick="insertSRowX('${code}',${si})" title="\u3053\u306e\u30bb\u30af\u30b7\u30e7\u30f3\u306b\u884c\u3092\u8ffd\u52a0">\uff0b</button>
+          <button class="clr-btn" onclick="clearRowQtyS('${code}',${defIdx})" title="\u6570\u91cf\u30af\u30ea\u30a2">0</button>
         </td>
       </tr>`;
-      idx++;
+      defIdx++;
     });
-    // セクション別追加行 (sx[si])
     let sxHtml='';
     (sx[si]||[]).forEach((r,xi)=>{
-      const amt=(Number(r.qty)||0)*(r.p||0);
-      sxHtml+=`<tr style="background:#f0fdf4;">
-        <td class="s-col-name"><input class="fi" value="${r.n||''}" placeholder="項目名"
-          oninput="sess.dData['${code}'].sx[${si}][${xi}].n=this.value;autoSaveSess();"
-          style="width:100%;box-sizing:border-box;font-size:12px;"></td>
-        <td class="s-col-qty"><input type="number" class="fi-n s-qty-inp" value="${r.qty||''}" min="0" placeholder="0"
-          data-code="${code}" data-idx="sx:${si}:${xi}"
-          onchange="setSQtyX('${code}','sx',${si},${xi},this.value)" onkeydown="numKD(event,this)"
-          style="width:80px;box-sizing:border-box;"></td>
-        <td class="s-col-unit"><input class="fi" value="${r.u||''}" placeholder="単位"
-          oninput="sess.dData['${code}'].sx[${si}][${xi}].u=this.value;autoSaveSess();"
-          style="width:28px;font-size:11px;text-align:center;"></td>
-        <td class="s-col-price"><span class="editable" style="font-family:'Courier New',monospace;" ondblclick="openPriceSX('${code}',${si},${xi},'${(r.n||'').replace(/'/g,"\\'")}')">¥${(r.p||0).toLocaleString()}</span></td>
-        <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
+      const price=r.p||0;
+      const amt=roundJ((Number(r.qty)||0)*price);
+      sxHtml+=`<tr class="gx-tr" style="background:#f0fdf4;">
+        <td>
+          <input class="fi gx-name" value="${r.n||''}" placeholder="\u9805\u76ee\u540d"
+            onchange="sess.dData['${code}'].sx[${si}][${xi}].n=this.value;autoSaveSess();"
+            style="width:100%;box-sizing:border-box;font-size:12px;">
+        </td>
+        <td class="s-col-qty">
+          <input type="number" class="fi-n s-qty-inp" value="${r.qty||''}" placeholder="0" min="0"
+            data-code="${code}" data-idx="sx:${si}:${xi}"
+            onchange="sxLiveCalc('${code}',${si},${xi},this)"
+            onkeydown="numKD(event,this)"
+            style="width:100%;box-sizing:border-box;">
+        </td>
+        <td class="s-col-unit">
+          <input class="fi gx-unit" value="${r.u||''}" placeholder="\u5358\u4f4d"
+            onchange="sess.dData['${code}'].sx[${si}][${xi}].u=this.value;autoSaveSess();"
+            style="width:100%;box-sizing:border-box;text-align:center;font-size:12px;">
+        </td>
+        <td class="s-col-price">
+          <input type="number" class="fi-n" value="${r.p||''}" placeholder="\u5358\u4fa1" min="0"
+            onchange="sess.dData['${code}'].sx[${si}][${xi}].p=Number(this.value)||0;sxLiveCalc('${code}',${si},${xi},null);autoSaveSess();"
+            style="width:100%;box-sizing:border-box;font-size:12px;">
+        </td>
+        <td class="s-col-amt sx-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'\u00a5'+amt.toLocaleString():''}</td>
         <td class="s-col-act">
-          <button class="clr-btn" onclick="clearSRowX('${code}',${si},${xi})" title="数量クリア">0</button>
-          <button class="del-btn" onclick="delSRowX('${code}',${si},${xi})">×</button>
+          <button class="clr-btn" onclick="clearSRowX('${code}',${si},${xi})" title="\u6570\u91cf\u30af\u30ea\u30a2">0</button>
+          <button class="del-btn" onclick="delSRowX('${code}',${si},${xi})">\u00d7</button>
         </td>
       </tr>`;
     });
@@ -1903,11 +1972,11 @@ function renderSTbl(code){
       <div class="sec-card-hd">${sec.sec}</div>
       <table class="sec-tbl">
         <thead><tr>
-          <th class="s-col-name">項目</th>
-          <th class="s-col-qty">数量</th>
-          <th class="s-col-unit">単位</th>
-          <th class="s-col-price">単価✎</th>
-          <th class="s-col-amt">金額</th>
+          <th class="s-col-name">\u9805\u76ee</th>
+          <th class="s-col-qty">\u6570\u91cf</th>
+          <th class="s-col-unit">\u5358\u4f4d</th>
+          <th class="s-col-price">\u5358\u4fa1\u270e</th>
+          <th class="s-col-amt">\u91d1\u984d</th>
           <th class="s-col-act"></th>
         </tr></thead>
         <tbody>${rowsHtml}${sxHtml}</tbody>
@@ -1926,7 +1995,7 @@ function sRow(code,i,name,unit,price,qty,amt,memo,isFree){
     <td class="col-qty"><input type="number" class="fi-n s-qty-inp" value="${qty||''}" min="0" placeholder="0"
       data-code="${code}" data-idx="${i}"
       onchange="setSQty('${code}',${i},this.value)" onkeydown="numKD(event,this)" style="width:70px;"></td>
-    <td class="col-unit" style="text-align:center;font-size:13px;color:#475569;">${isFree?`<input class="fi" value="${unit||''}" oninput="sess.dData['${code}'].s[${i}].u=this.value" style="font-size:12px;width:40px;">`:unit}</td>
+    <td class="col-unit" style="text-align:center;font-size:13px;color:#475569;">${isFree?`<input class="fi gx-unit" value="${unit||''}" onchange="sess.dData['${code}'].s[${i}].u=this.value;autoSaveSess();" style="font-size:12px;width:100%;box-sizing:border-box;text-align:center;">`:unit}</td>
     <td class="col-price" style="text-align:right;"><span class="editable" style="font-size:13px;font-family:'Courier New',monospace;" ondblclick="openPriceS('${code}',${i},'${sn}')" title="ダブルクリックで変更">¥${(price||0).toLocaleString()}</span></td>
     <td class="col-amt" style="text-align:right;font-family:'Courier New',monospace;font-weight:700;font-size:13px;">${amt>0?'¥'+amt.toLocaleString():''}</td>
     <td class="col-memo"><input class="fi" value="${memo||''}" placeholder="備考" oninput="sess.dData['${code}'].s[${i}].memo=this.value" style="font-size:12px;"></td>
@@ -1953,17 +2022,39 @@ function updateSub(code){
   (d.sx||[]).forEach(sec=>sec.forEach(r=>{ t+=(Number(r.qty)||0)*(r.p||0); }));
   setTxt('sub-s','¥'+t.toLocaleString()); return t;
 }
+
+// 造成追加行のリアルタイム金額計算（gxLiveCalcの造成版）
+function sxLiveCalc(code,si,xi,qtyInp){
+  const r=sess.dData[code]?.sx?.[si]?.[xi]; if(!r) return;
+  if(qtyInp) r.qty=Number(qtyInp.value)||0;
+  const amt=roundJ((Number(r.qty)||0)*(r.p||0));
+  // DOM更新：該当行のsx-amtセルを直接書き換え
+  const rows=document.querySelectorAll(`#tb-s .gx-tr`);
+  let found=0;
+  for(const tr of rows){
+    const qInp=tr.querySelector('.s-qty-inp');
+    if(qInp&&qInp.dataset.idx===`sx:${si}:${xi}`){
+      const amtCell=tr.querySelector('.sx-amt');
+      if(amtCell) amtCell.textContent=amt>0?'¥'+amt.toLocaleString():'';
+      break;
+    }
+  }
+  updateSub(code); updateGrand(code); autoSaveSess();
+}
 function addFreeRowS(){
   const c=document.getElementById('d-site')?.value; if(!c) return;
-  if(!sess.dData[c]) return;
-  sess.dData[c].s.push({n:'',u:'',p:0,qty:0,memo:'',free:true});
-  renderSTbl(c);
-  // 追加したフリー行の最初の入力にフォーカス（スクロールは最小限）
+  ensureSx(c);
+  const lastSi=SOZEI_DEF.length-1;
+  sess.dData[c].sx[lastSi].push({n:'',u:'',p:0,qty:0});
+  renderSTbl(c); updateSub(c); updateGrand(c); autoSaveSess();
   setTimeout(()=>{
-    const freeInputs=document.querySelectorAll('#dp-s .sec-card:last-child input');
-    const first=freeInputs[0];
-    if(first){ first.scrollIntoView({behavior:'smooth',block:'nearest'}); first.focus(); }
-  },50);
+    const cards=document.querySelectorAll('#tb-s .sec-card');
+    const lastCard=cards[lastSi];
+    if(lastCard){
+      const inp=Array.from(lastCard.querySelectorAll('tbody tr:last-child input.fi'))[0];
+      if(inp){ inp.scrollIntoView({behavior:'smooth',block:'center'}); inp.focus(); }
+    }
+  },60);
 }
 function addFreeRowG(){
   const c=document.getElementById('d-site')?.value; if(!c) return;
@@ -2041,7 +2132,7 @@ function renderGTbl(code){
         <td class="g-col-ap"><span class="${rankCls}" style="font-family:'Courier New',monospace;font-size:12px;">¥${ap.toLocaleString()}</span></td>
         <td class="s-col-amt" style="font-family:'Courier New',monospace;font-weight:700;">${amt>0?'¥'+amt.toLocaleString():''}</td>
         <td class="s-col-act">
-          <button class="ins-btn" onclick="insertGRow('${code}',${si})" title="この行の下にカスタム行追加">＋</button>
+          <button class="ins-btn" onclick="insertGRow('${code}',${si})" title="このセクションに行を追加">＋</button>
           <button class="clr-btn" onclick="clearRowQtyGK('${code}','${key}')" title="数量クリア">0</button>
         </td>
       </tr>`;
@@ -2056,35 +2147,35 @@ function renderGTbl(code){
       gxHtml+=`<tr class="gx-tr" data-code="${code}" data-si="${si}" data-xi="${xi}" style="background:#fffbeb;">
         <td>
           <input class="fi gx-name" value="${r.n||''}" placeholder="項目名"
-            oninput="gxRow('${code}',${si},${xi}).n=this.value;autoSaveSess();"
+            onchange="gxRow('${code}',${si},${xi}).n=this.value;autoSaveSess();"
             style="width:100%;box-sizing:border-box;font-size:12px;">
         </td>
         <td class="s-col-qty">
           <input type="number" class="fi-n g-qty-inp" value="${r.qty||''}" placeholder="0" min="0"
             data-code="${code}" data-key="${xkey}"
-            oninput="gxLiveCalc('${code}',${si},${xi},this)"
+            onchange="gxLiveCalc('${code}',${si},${xi},this)"
             onkeydown="gxKD(event,this,'${code}',${si},${xi})"
             style="width:100%;box-sizing:border-box;">
         </td>
         <td class="s-col-unit">
           <input class="fi gx-unit" value="${r.u||''}" placeholder="単位"
-            oninput="gxRow('${code}',${si},${xi}).u=this.value;autoSaveSess();"
+            onchange="gxRow('${code}',${si},${xi}).u=this.value;autoSaveSess();"
             style="width:100%;box-sizing:border-box;text-align:center;font-size:12px;">
         </td>
         <td class="g-col-pa">
           <input type="number" class="fi-n" value="${r.a||''}" placeholder="A単価" min="0"
-            oninput="gxRow('${code}',${si},${xi}).a=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
+            onchange="gxRow('${code}',${si},${xi}).a=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
             onkeydown="gxKD(event,this,'${code}',${si},${xi})"
             style="width:100%;box-sizing:border-box;font-size:12px;">
         </td>
         <td class="g-col-pb">
           <input type="number" class="fi-n" value="${r.b||''}" placeholder="B" min="0"
-            oninput="gxRow('${code}',${si},${xi}).b=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
+            onchange="gxRow('${code}',${si},${xi}).b=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
             style="width:100%;box-sizing:border-box;font-size:11px;color:#64748b;">
         </td>
         <td class="g-col-pc">
           <input type="number" class="fi-n" value="${r.c||''}" placeholder="C" min="0"
-            oninput="gxRow('${code}',${si},${xi}).c=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
+            onchange="gxRow('${code}',${si},${xi}).c=Number(this.value)||0;gxLiveCalc('${code}',${si},${xi},null);"
             style="width:100%;box-sizing:border-box;font-size:11px;color:#64748b;">
         </td>
         <td class="g-col-ap gx-ap ${rankCls}" style="font-family:'Courier New',monospace;font-size:12px;white-space:nowrap;">¥${ap.toLocaleString()}</td>
@@ -2747,7 +2838,8 @@ function saveLog(){
     sites:sess.headRows.filter(r=>r.code).map(r=>r.code+' '+r.name).join(' / '),
     payment:document.getElementById('c-pay')?.textContent||'—',
     approver:document.getElementById('approver')?.value||'—',
-    memo:document.getElementById('f-memo')?.value||''
+    memo:document.getElementById('f-memo')?.value||'',
+    sessSnapshot:JSON.parse(JSON.stringify(sess))  // ①〜⑤の全データを保存
   };
   logs.unshift(log); lsSave(LS.LOGS,logs);
   wfDone.add(5); renderWfBar();
@@ -3272,10 +3364,29 @@ function renderLogs(q=''){
     <td style="font-family:'Courier New',monospace;font-weight:700;">${l.payment}</td>
     <td>${l.approver}</td>
     <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;">${l.memo||'—'}</td>
-    <td><button class="btn red xs" onclick="delLog('${l.id}')"><i class="fa-solid fa-trash"></i></button></td>
+    <td style="display:flex;gap:4px;">
+      ${l.sessSnapshot?`<button class="btn blue xs" title="このデータで再開" onclick="restoreFromLog('${l.id}')"><i class="fa-solid fa-rotate-right"></i> 再開</button>`:'<span style="font-size:10px;color:#cbd5e1;">—</span>'}
+      <button class="btn red xs" onclick="delLog('${l.id}')"><i class="fa-solid fa-trash"></i></button>
+    </td>
   </tr>`).join('');
 }
 function delLog(id){ if(!confirm('削除しますか？')) return; logs=logs.filter(l=>l.id!==id); lsSave(LS.LOGS,logs); renderLogs(); }
+
+function restoreFromLog(id){
+  const log=logs.find(l=>l.id===id); if(!log||!log.sessSnapshot){ alert('このデータは再開できません（古い履歴）'); return; }
+  if(!confirm(`「${log.craftsmanName} ${log.period}」のデータを呼び出します。\n現在の入力内容は上書きされます。よろしいですか？`)) return;
+  sess=JSON.parse(JSON.stringify(log.sessSnapshot));
+  autoSaveSess();
+  wfStep=5; wfDone=new Set([1,2,3,4,5]); renderWfBar();
+  document.querySelectorAll('.sp').forEach(s=>s.classList.remove('on'));
+  document.getElementById('sp5')?.classList.add('on');
+  if(typeof renderCGrid==='function') renderCGrid();
+  if(typeof renderHeadRows==='function') renderHeadRows();
+  if(typeof renderDeduri==='function') renderDeduri();
+  if(typeof recalc==='function') recalc();
+  goPg('check');
+  alert('呼び出し完了！ステップ⑤で確認・修正できます。');
+}
 function clearLogs(){ logs=[]; lsSave(LS.LOGS,logs); renderLogs(); }
 function exportLogs(){ dlCSV('日時,職人名,月分,現場,支払金額,担当者,メモ\n'+logs.map(l=>[l.ts,l.craftsmanName,l.period,l.sites,l.payment,l.approver,l.memo].map(v=>`"${v||''}"`).join(',')).join('\n'),'チェック履歴.csv'); }
 
@@ -3348,15 +3459,17 @@ function renderDeduri(){
     const dr=c?.dailyRate||0;
     const hasData=r.site1||r.site2||r.dayFrac;
 
-    // 人工：2現場＝各0.5人工、1現場＝1人工（記載金額は参考情報のみ）
-    let ninkuVal=0, ninkuLabel='—';
+    // 割当：出面÷現場数（出面1日×1現場=1、出面1日×2現場=各0.5、出面0.5日×1現場=0.5）
     const s2cnt=[r.site1,r.site2].filter(Boolean).length;
-    if(s2cnt>=2){
-      ninkuVal=0.5;
-      ninkuLabel='0.5';
-    } else if(s2cnt===1){
-      ninkuVal=1;
-      ninkuLabel='1';
+    const frac0=r.dayFrac||0;
+    let ninkuVal=0, ninkuLabel='—';
+    if(s2cnt>0&&frac0>0){
+      ninkuVal=roundJ(frac0/s2cnt);
+      ninkuLabel=String(ninkuVal);
+    } else if(s2cnt>0){
+      // 出面未入力でも現場があれば現場数ベースで表示
+      ninkuVal=roundJ(1/s2cnt);
+      ninkuLabel=String(ninkuVal);
     }
     const dumpActive=r.dump&&dumpFeePerDay>0;
     const rowBg=isSun?'#fff1f2':isSat?'#eff6ff':hasData?'#f0fdf4':'';
@@ -3469,9 +3582,12 @@ function lookupDeduriSite(inp, day, field){
   const ninkuCell=tr.cells[6];
   if(ninkuCell){
     const siteCnt=[r.site1,r.site2].filter(Boolean).length;
+    const frac2=r.dayFrac||0;
     let lbl='—', col='#d1d5db';
-    if(siteCnt>=2){ lbl='0.5'; col='#7c3aed'; }
-    else if(siteCnt===1){ lbl='1'; col='#7c3aed'; }
+    if(siteCnt>0){
+      const nv=frac2>0?roundJ(frac2/siteCnt):roundJ(1/siteCnt);
+      lbl=String(nv); col='#7c3aed';
+    }
     ninkuCell.textContent=lbl;
     ninkuCell.style.color=col;
   }
@@ -3504,8 +3620,22 @@ function setDeduriDayFrac(day, val){
   const dr=c?.dailyRate||0;
   r.claimedAmount=frac&&dr>0?roundJ(frac*dr):0;
   autoSaveSess();
-  // 金額表示サブラベルをDOM直接更新
+  // 割当セルも更新
   const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
+  const ninkuCell2=tr?.cells[6];
+  if(ninkuCell2){
+    const r2=sess.deduri.find(x=>x.year===sess.deduriYear&&x.month===sess.deduriMonth&&x.day===day);
+    const siteCnt2=[r2?.site1,r2?.site2].filter(Boolean).length;
+    const frac3=frac||0;
+    let lbl2='—', col2='#d1d5db';
+    if(siteCnt2>0){
+      const nv2=frac3>0?roundJ(frac3/siteCnt2):roundJ(1/siteCnt2);
+      lbl2=String(nv2); col2='#7c3aed';
+    }
+    ninkuCell2.textContent=lbl2;
+    ninkuCell2.style.color=col2;
+  }
+  // 金額表示サブラベルをDOM直接更新
   const lastTd=tr?.cells[tr.cells.length-1];
   if(lastTd){
     const sub=lastTd.querySelector('div');
@@ -3527,7 +3657,7 @@ function renderDeduriTotals(){
   const dumpFee=sess.dumpFeePerDay||0;
   const totalNinku=rows.reduce((s,r)=>{
     const cnt=[r.site1,r.site2].filter(Boolean).length;
-    return s+(cnt>=2?1:cnt===1?1:0);// 月計は実働日数（2現場でも1日）
+    return s+(cnt>0?1:0); // 月計は実働日数カウント
   },0);
   const totalDump=rows.reduce((s,r)=>s+(r.dump&&dumpFee>0?dumpFee:0),0);
   const totalFrac=rows.reduce((s,r)=>s+(r.dayFrac||0),0);
@@ -3685,13 +3815,14 @@ function renderSupSiteSummary(){
   // 日給未登録警告
   const drWarn=dr<=0?`<div style="background:#fee2e2;border:1px solid #fecaca;border-radius:7px;padding:8px 14px;margin-bottom:10px;font-size:13px;font-weight:700;color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> 日給が未登録です。職人マスターで「日給額（サポート用）」を入力してください。</div>`:'';
 
-  // 現場ごとに人工・ダンプ代・記載金額を集計
-  const ninkuMap={}, dumpMap={};
+  // 現場ごとに人工・ダンプ代・出面金額を集計
+  const ninkuMap={}, dumpMap={}, fracMap={};
   let fracTotal=0;
   const dumpFeePerDay=sess.dumpFeePerDay||0;
   sess.deduri.forEach(r=>{
     const s2=[r.site1,r.site2].filter(Boolean);
-    const np=s2.length>=2?0.5:s2.length===1?1:0;
+    const frac4=r.dayFrac||0;
+    const np=s2.length>0?roundJ((frac4>0?frac4:1)/s2.length):0;
     s2.forEach(code=>{
       ninkuMap[code]=(ninkuMap[code]||0)+np;
     });
@@ -3699,70 +3830,73 @@ function renderSupSiteSummary(){
     if(r.dump&&dumpFeePerDay>0&&r.site1){
       dumpMap[r.site1]=(dumpMap[r.site1]||0)+dumpFeePerDay;
     }
-    // 出面（dayFrac）×日給で月合計を集計（現場に振り分けず合計のみ）
+    // 出面×日給を現場ごとに振り分け（2現場なら0.5ずつ）
     const frac=r.dayFrac||0;
     if(frac>0&&dr>0){
       const amt=roundJ(frac*dr);
-      fracTotal=(fracTotal||0)+amt;
+      fracTotal+=amt;
+      if(s2.length>=2){
+        s2.forEach(code=>{ fracMap[code]=(fracMap[code]||0)+roundJ(amt/s2.length); });
+      } else if(r.site1){
+        fracMap[r.site1]=(fracMap[r.site1]||0)+amt;
+      }
     }
-
-
-
-
-
-
-
-
-
-
-
-
   });
+
 
   let html='<table class="tb" style="font-size:12px;"><thead><tr>';
   html+='<th>工番・現場名</th>';
-  html+='<th style="text-align:right;width:55px;">人工</th>';
-  html+='<th style="text-align:right;width:70px;">ダンプ代</th>';
-  html+='<th style="text-align:right;width:85px;">請求金額</th>';
-  html+='<th style="text-align:right;width:65px;">差異</th>';
-  html+='<th style="width:36px;text-align:center;">✓</th>';
+  html+='<th style="text-align:right;width:45px;">人工</th>';
+  html+='<th style="text-align:right;width:90px;">計算金額<br><span style="font-size:9px;font-weight:400;">出面×日給＋ダンプ</span></th>';
+  html+='<th style="text-align:right;width:85px;">ヘッド金額<br><span style="font-size:9px;font-weight:400;">請求書記載</span></th>';
+  html+='<th style="text-align:right;width:60px;">差異</th>';
+  html+='<th style="width:32px;text-align:center;">✓</th>';
   html+='</tr></thead><tbody>';
 
-  let totalClaim=0,totalDump=0;
+  let totalCalcAll=0,totalClaim=0,totalDump=0;
   sites.forEach(row=>{
     const ninku=ninkuMap[row.code]||0;
     const dump=dumpMap[row.code]||0;
-    const claim=Number(row.amount)||0;
-    totalClaim+=claim; totalDump+=dump;
+    // 現場ごとの計算金額：出面×日給（現場按分）＋ダンプ代
+    const calcBase=fracMap[row.code]||0;
+    const calcTotal=roundJ(calcBase+dump);
+    const headAmt=Number(row.amount)||0;
+    const diff=roundJ(headAmt-calcTotal);
+    const ok=headAmt>0&&calcTotal>0&&Math.abs(diff)<1;
+    const noCalc=calcTotal===0;
+    totalCalcAll+=calcTotal; totalClaim+=headAmt; totalDump+=dump;
     html+=`<tr>
       <td><b>${row.code}</b> ${row.name}</td>
-      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;">${ninku||'—'}</td>
-      <td style="text-align:right;font-family:'Courier New',monospace;color:${dump>0?'#ea580c':'#94a3b8'};">${dump>0?'¥'+dump.toLocaleString():'—'}</td>
-      <td style="text-align:right;font-family:'Courier New',monospace;">¥${claim.toLocaleString()}</td>
-      <td></td>
-      <td></td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:#7c3aed;">${ninku||'—'}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;color:${calcTotal>0?'#1e293b':'#94a3b8'};">${calcTotal>0?'¥'+calcTotal.toLocaleString():'—'}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;">${headAmt>0?'¥'+headAmt.toLocaleString():'—'}</td>
+      <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${ok?'#059669':noCalc?'#94a3b8':diff>0?'#1e40af':'#dc2626'};">
+        ${ok?'±0':noCalc?'—':(diff>0?'+':'')+diff.toLocaleString()}
+      </td>
+      <td style="text-align:center;font-size:15px;">${ok?'✅':noCalc?'—':'⚠️'}</td>
     </tr>`;
   });
-  // 出面計算合計（月全体：出面×日給＋ダンプ代合計）
+  // フッター：月合計（出面×日給 vs ヘッド金額合計）
   const totalFracAmt=roundJ(fracTotal);
-  const totalCalc=roundJ(totalFracAmt+totalDump);
-  const tdiff=roundJ(totalClaim-totalCalc);
-  const tok=totalCalc>0&&Math.abs(tdiff)<1;
+  const totalFracCalc=roundJ(totalFracAmt+totalDump);
+  const tdiff=roundJ(totalClaim-totalFracCalc);
+  const tok=totalFracCalc>0&&Math.abs(tdiff)<1;
   html+=`</tbody><tfoot>
-  <tr style="background:#f5f3ff;border-top:1px solid #e2e8f0;">
-    <td colspan="2" style="padding:6px 10px;font-size:11px;color:#5b21b6;font-weight:700;">出面計算合計（出面×日給）</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;color:#ea580c;">${totalDump>0?'¥'+totalDump.toLocaleString():'—'}</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;font-weight:900;color:#7c3aed;" colspan="3">¥${totalCalc.toLocaleString()}</td>
+  <tr style="background:#f5f3ff;border-top:1px dashed #c4b5fd;">
+    <td style="padding:5px 8px;font-size:11px;color:#5b21b6;font-weight:700;">出面計算（出面×日給）</td>
+    <td></td>
+    <td style="text-align:right;font-family:'Courier New',monospace;font-weight:900;color:#7c3aed;">¥${totalFracCalc.toLocaleString()}</td>
+    <td colspan="3" style="font-size:10px;color:#64748b;padding-left:6px;">出面合計×日給＋ダンプ代</td>
   </tr>
   <tr style="font-weight:900;background:#f8fafc;border-top:2px solid #e2e8f0;">
-    <td>請求合計</td>
+    <td>合計</td>
     <td style="text-align:right;font-family:'Courier New',monospace;">${Object.values(ninkuMap).reduce((s,v)=>s+v,0)}</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;color:#ea580c;">${totalDump>0?'¥'+totalDump.toLocaleString():'—'}</td>
+    <td style="text-align:right;font-family:'Courier New',monospace;">¥${totalCalcAll.toLocaleString()}</td>
     <td style="text-align:right;font-family:'Courier New',monospace;">¥${totalClaim.toLocaleString()}</td>
-    <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${tok?'#059669':totalCalc===0?'#94a3b8':tdiff>0?'#1e40af':'#dc2626'};">
-      ${tok?'±0':totalCalc===0?'—':(tdiff>0?'+':'')+tdiff.toLocaleString()}
+    <td style="text-align:right;font-family:'Courier New',monospace;font-weight:700;color:${tok?'#059669':totalFracCalc===0?'#94a3b8':tdiff>0?'#1e40af':'#dc2626'};">
+      ${tok?'±0':totalFracCalc===0?'—':(tdiff>0?'+':'')+tdiff.toLocaleString()}
     </td>
-    <td style="text-align:center;font-size:18px;">${tok?'✅':totalCalc===0?'—':'⚠️'}</td>
+    <td style="text-align:center;font-size:18px;">${tok?'✅':totalFracCalc===0?'—':'⚠️'}</td>
   </tr></tfoot></table>`;
   wrap.innerHTML=drWarn+`<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px;padding:8px 12px;background:#f5f3ff;border-radius:6px;border-left:3px solid #7c3aed;">
     <span style="font-size:12px;font-weight:700;color:#5b21b6;">日給</span>
