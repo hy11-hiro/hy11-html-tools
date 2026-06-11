@@ -565,8 +565,9 @@ function fontCss(id){return(FONTS.find(f=>f.id===id)||FONTS[0]).css;}
 function alphaHex(a){return Math.round(Math.max(0,Math.min(1,a))*255).toString(16).padStart(2,'0');}
 function fillAlphaColor(c,a){
   if(!c||c==='transparent')return'transparent';
-  if(c.startsWith('rgba')||c.length>7)return c;
-  return c+alphaHex(a==null?(S.shFillAlpha||.28):a);
+  if(c.startsWith('rgba')){return c.replace(/,\s*[\d.]+\s*\)$/,`,${a==null?(S.shFillAlpha||.28):+a})`);}
+  const base=c.startsWith('#')?c.slice(0,7):c;
+  return base+alphaHex(a==null?(S.shFillAlpha||.28):+a);
 }
 function fillAlphaValue(fill){
   if(!fill||fill==='transparent'||fill.startsWith('rgba')||fill.length<9)return S.shFillAlpha||.28;
@@ -705,7 +706,9 @@ function drawShapePreview(p){
 
 // ─── SVG SHAPE ───────────────────────────────────────
 function mkSVG(sh,bw,bh,color,lw,fill){
-  const f=fill||'transparent',p=lw/2,W=bw,H=bh;
+  const f=fill||'transparent';
+  lw=lw==null?2:+lw; color=color||'#1a1a1a';
+  const p=lw/2,W=bw,H=bh;
   let s='';
   if(sh==='rect')s=`<rect x="${p}" y="${p}" width="${Math.max(1,W-lw)}" height="${Math.max(1,H-lw)}" fill="${f}" stroke="${color}" stroke-width="${lw}"/>`;
   else if(sh==='rdrect'){const r=Math.min(18,W*.22,H*.38);s=`<rect x="${p}" y="${p}" width="${Math.max(1,W-lw)}" height="${Math.max(1,H-lw)}" rx="${r}" fill="${f}" stroke="${color}" stroke-width="${lw}"/>`;}
@@ -726,6 +729,31 @@ function mkSVG(sh,bw,bh,color,lw,fill){
   else if(sh==='delay'){const r=Math.min(W*.42,H/2-p);s=`<path d="M${p},${p} H${W-r} A${r},${H/2-p} 0 0 1 ${W-r},${H-p} H${p} Z" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
   else if(sh==='display')s=`<path d="M${p},${p} H${W*.78} Q${W-p},${H/2} ${W*.78},${H-p} H${p} Q${W*.12},${H/2} ${p},${p} Z" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;
   else if(sh==='predef')s=`<rect x="${p}" y="${p}" width="${Math.max(1,W-lw)}" height="${Math.max(1,H-lw)}" fill="${f}" stroke="${color}" stroke-width="${lw}"/><line x1="${W*.18}" y1="${p}" x2="${W*.18}" y2="${H-p}" stroke="${color}" stroke-width="${lw}"/><line x1="${W*.82}" y1="${p}" x2="${W*.82}" y2="${H-p}" stroke="${color}" stroke-width="${lw}"/>`;
+  // ── 追加フローチャート図形 ──
+  // クラウド
+  else if(sh==='cloud'){s=`<path d="M${W*.22},${H*.78} Q${W*.04},${H*.78} ${W*.05},${H*.58} Q${W*.02},${H*.34} ${W*.22},${H*.3} Q${W*.23},${H*.08} ${W*.45},${H*.1} Q${W*.55},${H*.02} ${W*.68},${H*.14} Q${W*.82},${H*.04} ${W*.9},${H*.22} Q${W*1.02},${H*.24} ${W*.98},${H*.45} Q${W*1.04},${H*.6} ${W*.88},${H*.68} Q${W*.92},${H*.86} ${W*.75},${H*.88} L${W*.22},${H*.88} Z" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // 角丸吹き出し
+  else if(sh==='callout'){const r2=Math.min(W*.1,H*.14,8);s=`<path d="M${p+r2},${p} Q${p},${p} ${p},${p+r2} L${p},${H*.68} Q${p},${H*.8} ${p+r2},${H*.8} L${W*.52},${H*.8} L${W*.6},${H-p} L${W*.72},${H*.8} L${W-p-r2},${H*.8} Q${W-p},${H*.8} ${W-p},${H*.68} L${W-p},${p+r2} Q${W-p},${p} ${W-p-r2},${p} Z" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // 角吹き出し（左下しっぽ）
+  else if(sh==='callout2'){s=`<path d="M${p},${p} L${W-p},${p} L${W-p},${H*.72} L${W*.38},${H*.72} L${W*.22},${H-p} L${W*.32},${H*.72} L${p},${H*.72} Z" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // 爆発・強調星（8角）
+  else if(sh==='star'){const cx=W/2,cy=H/2,n=8,r1=Math.min(W,H)/2-p,r2=r1*.48;let pts='';for(let i=0;i<n*2;i++){const a=Math.PI/n*i-Math.PI/2,r=i%2===0?r1:r2;pts+=`${cx+Math.cos(a)*r},${cy+Math.sin(a)*r} `;}s=`<polygon points="${pts.trim()}" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // ペンタゴン（5角形・進捗矢印方向）
+  else if(sh==='pentagon'){s=`<polygon points="${p},${p} ${W-p},${p} ${W-p},${H*.62} ${W/2},${H-p} ${p},${H*.62}" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // シェブロン（→方向矢印ブロック）
+  else if(sh==='chevron'){const notch=H*.38;s=`<polygon points="${p},${p} ${W-notch-p},${p} ${W-p},${H/2} ${W-notch-p},${H-p} ${p},${H-p} ${notch},${H/2}" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // クロス/プラス
+  else if(sh==='cross'){const tw=W*.3,th=H*.3;s=`<polygon points="${tw},${p} ${W-tw},${p} ${W-tw},${th} ${W-p},${th} ${W-p},${H-th} ${W-tw},${H-th} ${W-tw},${H-p} ${tw},${H-p} ${tw},${H-th} ${p},${H-th} ${p},${th} ${tw},${th}" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // 二重枠矩形（サブプロセス）
+  else if(sh==='subproc'){const m=Math.min(W,H)*.09;s=`<rect x="${p}" y="${p}" width="${Math.max(1,W-lw)}" height="${Math.max(1,H-lw)}" fill="${f}" stroke="${color}" stroke-width="${lw}"/><rect x="${p+m}" y="${p+m}" width="${Math.max(1,W-lw-m*2)}" height="${Math.max(1,H-lw-m*2)}" fill="none" stroke="${color}" stroke-width="${lw*.65}"/>`;}
+  // コーナーカット矩形（8角形・Internal Storage）
+  else if(sh==='corncut'){const c=Math.min(W,H)*.18;s=`<polygon points="${p+c},${p} ${W-p-c},${p} ${W-p},${p+c} ${W-p},${H-p-c} ${W-p-c},${H-p} ${p+c},${H-p} ${p},${H-p-c} ${p},${p+c}" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // 波形（論理ストレージ）
+  else if(sh==='wave'){const amp=H*.1,cy=H*.8;s=`<path d="M${p},${p} L${W-p},${p} L${W-p},${cy} Q${W*.75},${cy-amp} ${W/2},${cy} Q${W*.25},${cy+amp} ${p},${cy} Z" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
+  // 複数書類（スタック）
+  else if(sh==='multidoc'){const amp=H*.08,cy=H*.74,sh3=H*.07;s=`<path d="M${W*.06},${p+sh3*2} L${W*.94},${p+sh3*2} L${W*.94},${cy-sh3} Q${W*.75},${cy-sh3-amp} ${W*.5},${cy-sh3} Q${W*.25},${cy-sh3+amp} ${W*.06},${cy-sh3} Z" fill="${f}" stroke="${color}" stroke-width="${lw*.6}"/><path d="M${W*.03},${p+sh3} L${W*.97},${p+sh3} L${W*.97},${cy} Q${W*.75},${cy-amp} ${W*.5},${cy} Q${W*.25},${cy+amp} ${W*.03},${cy} Z" fill="${f}" stroke="${color}" stroke-width="${lw*.75}"/><path d="M${p},${p} L${W-p},${p} L${W-p},${cy+sh3} Q${W*.75},${cy+sh3-amp} ${W*.5},${cy+sh3} Q${W*.25},${cy+sh3+amp} ${p},${cy+sh3} Z" fill="${f}" stroke="${color}" stroke-width="${lw}"/>`;}
+  // 注釈（折り目付き矩形）
+  else if(sh==='note'){const nb=Math.min(W,H)*.2;s=`<path d="M${p+nb},${p} L${W-p},${p} L${W-p},${H-p} L${p},${H-p} L${p},${p+nb} Z" fill="${f}" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/><path d="M${p},${p+nb} L${p+nb},${p+nb} L${p+nb},${p}" fill="none" stroke="${color}" stroke-width="${lw}" stroke-linejoin="round"/>`;}
   return `<svg class="sh-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="pointer-events:fill">${s}</svg>`;
 }
 function mkLineSVG(x1b,y1b,x2b,y2b,color,lw,arrowType,uid,lineStyle,dash,label){
@@ -903,7 +931,7 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
     txtEl.className='sh-text';
     txtEl.contentEditable='true';
     txtEl.setAttribute('data-ph','ダブルクリックで入力');
-    txtEl.style.fontSize=(opts.labelFs||S.labelFs||13)+'px';
+    txtEl.style.fontSize=((opts.labelFs||S.labelFs||13)/S.zoom)+'px';
     txtEl.style.color=opts.labelColor||'#1a1a1a';
     txtEl.style.fontWeight=opts.labelFw||(opts.bold?'700':S.fw||'400');
     txtEl.style.fontFamily=fontCss(opts.labelFont||S.font||'sans');
@@ -957,27 +985,30 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
 }
 
 var updElPos = function(){
+  // コネクタ再描画は後で呼ぶ
   S.elems.forEach(d=>{
     const el=document.getElementById(d.id);if(!el)return;
     const sc=b2s(d.bx,d.by);el.style.left=sc.x+'px';el.style.top=sc.y+'px';
     if(d.type==='shape'||d.type==='img'){el.style.width=(d.bw*S.zoom)+'px';el.style.height=(d.bh*S.zoom)+'px';}
     if(d.type==='shape'&&!d.isLine){
-      const lbl=el.querySelector('.sh-label');
+      // ズームに逆比例させて文字サイズを固定（論理サイズ px ÷ zoom = 画面上一定）
       const tx=el.querySelector('.sh-text');
-      // S.zoom を掛けて正しいフォントサイズに更新
-      if(tx)tx.style.fontSize=((d.labelFs||13)*S.zoom)+'px';
+      if(tx)tx.style.fontSize=((d.labelFs||13)/S.zoom)+'px';
     }
-    if(d.type==='tx'){
-      // テキストボックスのフォントサイズをズームに合わせて更新
-      const fs=(d.fs||16)*S.zoom;
-      el.style.fontSize=fs+'px';
-      const ta=el.querySelector('[contenteditable],.txb-ta');
-      if(ta)ta.style.fontSize=fs+'px';
-    }
+    // 付箋: 図形と同様にサイズをズーム倍にし、文字サイズを逆補正で画面上固定
     if(d.type==='sn'){
-      // 付箋サイズをズームに合わせて更新
-      if(d.bw)el.style.width=(d.bw*S.zoom)+'px';
-      if(d.bh)el.style.height=(d.bh*S.zoom)+'px';
+      el.style.width=(d.bw*S.zoom)+'px';el.style.height=(d.bh*S.zoom)+'px';
+      const ta=el.querySelector('.sn-ta');
+      if(ta)ta.style.fontSize=((d.snFs||15)/S.zoom)+'px';
+      const rot=d._rot||0;
+      el.style.transform=`rotate(${rot}deg)`;
+    }
+    // テキストボックス: ズームに逆比例させて文字サイズを固定
+    if(d.type==='tx'){
+      const txEl=el;
+      txEl.style.fontSize=((d.fs||16)/S.zoom)+'px';
+      const ta=txEl.querySelector('.txb-ta');
+      if(ta)ta.style.fontSize=((d.fs||16)/S.zoom)+'px';
     }
     // Re-position line endpoint handles on zoom/pan
     if(d.type==='shape'&&d.isLine){
@@ -1155,7 +1186,27 @@ function onWheel(e){
 function onDrop(e){e.preventDefault();document.getElementById('drop-ov').classList.remove('show');const{x,y}=gxy(e),b=s2b(x,y);[...e.dataTransfer.files].filter(f=>f.type.startsWith('image/')).forEach((f,i)=>loadImgFile(f,b.x+i*20,b.y+i*20));}
 function onPaste(e){if(e.target.tagName==='TEXTAREA'||e.target.tagName==='INPUT'||e.target.contentEditable==='true')return;const items=[...e.clipboardData.items].filter(i=>i.type.startsWith('image/'));const c=bc();items.forEach((item,i)=>{const f=item.getAsFile();if(f)loadImgFile(f,c.x-150+i*20,c.y-100+i*20);});}
 function onFileInput(inp){const c=bc();[...inp.files].forEach((f,i)=>loadImgFile(f,c.x-200+i*30,c.y-150+i*30));inp.value='';}
-function loadImgFile(file,bx,by){const r=new FileReader();r.onload=e=>{const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;const mx=500,my=400;if(w>mx){h=h*mx/w;w=mx;}if(h>my){w=w*my/h;h=my;}addImgEl(bx,by,e.target.result,w,h);};img.src=e.target.result;};r.readAsDataURL(file);}
+function loadImgFile(file,bx,by){
+  const r=new FileReader();
+  r.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      let w=img.naturalWidth,h=img.naturalHeight;
+      const mx=500,my=400;
+      if(w>mx){h=h*mx/w;w=mx;}if(h>my){w=w*my/h;h=my;}
+      // Firebase Storage が使える場合はアップロード、なければ base64 のまま
+      if(window._fbUploadImg){
+        window._fbUploadImg(file, e.target.result, (url)=>{
+          addImgEl(bx,by,url,w,h);
+        });
+      } else {
+        addImgEl(bx,by,e.target.result,w,h);
+      }
+    };
+    img.src=e.target.result;
+  };
+  r.readAsDataURL(file);
+}
 function addImgEl(bx,by,src,bw,bh,_id){
   imgC++;const id=_id||('img-'+imgC);
   const el=document.createElement('div');el.className='wb-img';el.id=id;el.style.zIndex=++zc;
@@ -1276,6 +1327,19 @@ function renderPbar(){
       {id:'arrow',l:'矢印',svg:'<line x1="4" y1="20" x2="20" y2="4"/><polyline points="13 4 20 4 20 11"/>'},
       {id:'dbarrow',l:'双方向矢印',svg:'<line x1="4" y1="12" x2="20" y2="12"/><polyline points="8,8 4,12 8,16"/><polyline points="16,8 20,12 16,16"/>'},
       {id:'orthoarrow',l:'直角矢印',svg:'<polyline points="4,20 4,8 18,8"/><polyline points="14,4 18,8 14,12"/>'},
+      // ── 追加フローチャート図形 ──
+      {id:'cloud',    l:'クラウド',              svg:'<path d="M7,17 Q2,17 2,13 Q1,9 5,8 Q5,3 9,3 Q12,1 14,4 Q17,1 19,5 Q23,5 22,10 Q24,13 21,15 Q22,19 18,19 L7,19 Z"/>'},
+      {id:'callout',  l:'吹き出し（角丸）',       svg:'<path d="M3,3 Q3,3 21,3 L21,14 Q21,17 18,17 L13,17 L11,21 L9,17 L6,17 Q3,17 3,14 Z"/>'},
+      {id:'callout2', l:'吹き出し（角型）',       svg:'<path d="M3,3 L21,3 L21,15 L9,15 L6,21 L7,15 L3,15 Z"/>'},
+      {id:'star',     l:'星/爆発',               svg:'<polygon points="12,2 14.5,9 22,9 16,14 18,21 12,17 6,21 8,14 2,9 9.5,9"/>'},
+      {id:'pentagon', l:'ペンタゴン',             svg:'<polygon points="3,3 21,3 21,16 12,22 3,16"/>'},
+      {id:'chevron',  l:'シェブロン（進捗矢印）', svg:'<polygon points="3,4 16,4 22,12 16,20 3,20 9,12"/>'},
+      {id:'cross',    l:'クロス/プラス',          svg:'<polygon points="8,3 16,3 16,8 21,8 21,16 16,16 16,21 8,21 8,16 3,16 3,8 8,8"/>'},
+      {id:'subproc',  l:'サブプロセス（二重枠）', svg:'<rect x="3" y="3" width="18" height="18"/><rect x="6" y="6" width="12" height="12"/>'},
+      {id:'corncut',  l:'コーナーカット（8角）',  svg:'<polygon points="8,3 16,3 21,8 21,16 16,21 8,21 3,16 3,8"/>'},
+      {id:'wave',     l:'波形（論理ストレージ）', svg:'<path d="M3,3 L21,3 L21,16 Q16,19 12,16 Q8,13 3,16 Z"/>'},
+      {id:'multidoc', l:'複数書類',               svg:'<path d="M5,5 L19,5 L19,14 Q15,17 12,14 Q9,11 5,14 Z"/><path d="M3,3 L19,3"/><path d="M1,1 L19,1"/>'},
+      {id:'note',     l:'注釈（折り目）',         svg:'<path d="M8,3 L21,3 L21,21 L3,21 L3,10 Z"/><path d="M3,10 L8,10 L8,3"/>'},
     ];
     h+=`<span class="p-lbl">図形</span><div style="display:grid;grid-template-columns:repeat(8,28px);gap:3px;flex-shrink:0">`;shapes.forEach(s=>{h+=`<button class="shb${S.shape===s.id?' on':''}" onclick="setSH('${s.id}')" title="${s.l}"><svg viewBox="0 0 24 24">${s.svg}</svg></button>`;});h+=`</div><div class="p-sep"></div>`;
     h+=colRow()+`<div class="p-sep"></div>`+swRowShape();
@@ -1283,6 +1347,7 @@ function renderPbar(){
     h+=`<div class="cs${!S.shFill?' on':''}" style="background:#fff;border:1.5px solid #d0d0d0;display:flex;align-items:center;justify-content:center;" onclick="clearPbarFill()" title="塗りなし"><svg width="12" height="12" viewBox="0 0 12 12" style="pointer-events:none;display:block;flex-shrink:0"><line x1="1" y1="1" x2="11" y2="11" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/><line x1="11" y1="1" x2="1" y2="11" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/></svg></div>`;
     PCOLS.forEach(fc=>{h+=`<div class="cs${S.shFill&&S.shFillCol===fc?' on':''}" style="background:${fc};opacity:.8;${fc==='#ffffff'?'border:1px solid #d0d0d0;':''}" onclick="setPbarFill('${fc}')" title="${fc}"></div>`;});
     h+=`<div class="cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onclick="openPbarFillCP()" title="カスタム"></div></div>`;
+    if(S.shFill){h+=`<div class="p-sep"></div><span class="p-lbl">透明度</span>`+`<input type="range" min="0" max="100" value="${Math.round((S.shFillAlpha||.28)*100)}" data-alpha-slider onmousedown="event.stopPropagation()" oninput="setFillAlpha(this.value/100)" onchange="setFillAlphaCommit()" style="width:72px;accent-color:var(--ac);cursor:pointer;vertical-align:middle">`+`<span data-alpha-disp style="font-size:11px;color:#888;min-width:28px;text-align:right">${Math.round((S.shFillAlpha||.28)*100)}%</span>`;}
     h+=`<div class="p-sep"></div><span class="p-lbl">文字</span>`;
     h+=_fszSel(S.labelFs||13,'setLabelFs','62px');
     h+=_fwSel(S.fw||'400','setFW','68px');
@@ -1463,7 +1528,17 @@ function setFont(fId){S.font=fId;renderPbar();}
 function setFW(fw){S.fw=fw;renderPbar();}
 function setLabelFs(s){S.labelFs=s;renderPbar();}
 function setPbarFill(c){S.shFill=true;S.shFillCol=c;renderPbar();}
-function setFillAlpha(a){S.shFillAlpha=a;renderPbar();}
+function setFillAlpha(a){
+  S.shFillAlpha=+a;
+  // スライダードラッグ中は%表示だけ更新
+  const pct=Math.round(+a*100);
+  const bar=document.getElementById('pbar');
+  if(bar){
+    const spans=bar.querySelectorAll('span[data-alpha-disp]');spans.forEach(s=>s.textContent=pct+'%');
+    const sliders=bar.querySelectorAll('input[data-alpha-slider]');sliders.forEach(s=>s.value=pct);
+  }
+}
+function setFillAlphaCommit(){renderPbar();}
 function clearPbarFill(){S.shFill=false;renderPbar();}
 function openPbarFillCP(){
   const ci=document.getElementById('ci');
@@ -1505,7 +1580,8 @@ function renderSelPbar(id){
     h+=`<span class="p-lbl">塗り</span><div style="display:flex;gap:5px;align-items:center">`;
     h+=`<div class="cs${!hasFill?' on':''}" style="background:#fff;border:1.5px solid #d0d0d0;display:flex;align-items:center;justify-content:center;" onclick="selToggleFill(false)" title="塗りなし"><svg width="12" height="12" viewBox="0 0 12 12" style="pointer-events:none;display:block;flex-shrink:0"><line x1="1" y1="1" x2="11" y2="11" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/><line x1="11" y1="1" x2="1" y2="11" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/></svg></div>`;
     PCOLS2.forEach(c=>{h+=`<div class="cs${hasFill&&fc===c?' on':''}" style="background:${c};opacity:.85;${c==='#ffffff'?'border:1px solid #d0d0d0;':''}" onclick="selSetFill('${c}')" title="${c}"></div>`;});
-    h+=`<div class="cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onclick="openSelCP('selSetFill')" title="カスタム"></div></div>`;}
+    h+=`<div class="cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onclick="openSelCP('selSetFill')" title="カスタム"></div></div>`;
+    if(hasFill){h+=`<div class="p-sep"></div><span class="p-lbl">透明度</span>`+`<input type="range" min="0" max="100" value="${Math.round(fillAlphaValue(d.fill)*100)}" data-alpha-slider onmousedown="event.stopPropagation()" oninput="selSetFillAlpha(this.value/100)" onchange="selSetFillAlphaCommit()" style="width:72px;accent-color:var(--ac);cursor:pointer;vertical-align:middle">`+`<span data-alpha-disp style="font-size:11px;color:#888;min-width:28px;text-align:right">${Math.round(fillAlphaValue(d.fill)*100)}%</span>`;}}
     h+=`<div class="p-sep"></div><span class="p-lbl">文字</span>`;
     h+=_fszSel(d.labelFs||13,'selSetLabelFs','62px');
     h+=_fwSel(d.labelFw||'400','selSetLabelFw','68px');
@@ -1645,18 +1721,27 @@ function selSetFill(c){
 }
 function selSetFillAlpha(a){
   const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d||!d.fill||d.fill==='transparent')return;
-  S.shFillAlpha=a;
-  const base=d.fill.startsWith('#')?d.fill.slice(0,7):(d.color||S.color);
-  d.fill=fillAlphaColor(base,a);
+  S.shFillAlpha=+a;
+  // base color: fill が #rrggbbAA(9文字) → 先頭7文字、それ以外は d.color を使う
+  const fill=d.fill;
+  const base=(fill.startsWith('#')&&fill.length>=7)?fill.slice(0,7):(d.color||S.color||'#1a1a1a');
+  d.fill=fillAlphaColor(base,+a);
   const el=document.getElementById(id);
   if(el){const old=el.querySelector('.sh-svg');if(old)old.remove();el.insertAdjacentHTML('afterbegin',mkSVG(d.sh,d.bw,d.bh,d.color,d.lw,d.fill));}
-  saveHist(); renderSelPbar(id); refreshFCP(id);
+  // スライダードラッグ中は%表示だけ更新
+  const pct=Math.round(+a*100);
+  const bar=document.getElementById('pbar');
+  if(bar){
+    bar.querySelectorAll('span[data-alpha-disp]').forEach(s=>s.textContent=pct+'%');
+    bar.querySelectorAll('input[data-alpha-slider]').forEach(s=>s.value=pct);
+  }
 }
+function selSetFillAlphaCommit(){saveHist();renderSelPbar(S.selId);}
 function selSetLabelFs(s){
   const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
   d.labelFs=s;
   const el=document.getElementById(id);
-  if(el){const t=getLblText(el);if(t)t.style.fontSize=s+'px';}
+  if(el){const t=getLblText(el);if(t)t.style.fontSize=(s/S.zoom)+'px';}
   saveHist(); renderSelPbar(id);
 }
 function selSetLabelColor(c){
@@ -1671,8 +1756,8 @@ function selSetTxFs(s){
   d.fs=s;
   const el=document.getElementById(id);
   if(el){
-    el.style.fontSize=s+'px';
-    const ta=el.querySelector('.txb-ta');if(ta)ta.style.fontSize=s+'px';
+    el.style.fontSize=(s/S.zoom)+'px';
+    const ta=el.querySelector('.txb-ta');if(ta)ta.style.fontSize=(s/S.zoom)+'px';
   }
   saveHist(); renderSelPbar(id);
 }
@@ -1740,13 +1825,14 @@ function selSetConnLabel(label){
 function addSN(bx,by,opts={}){
   snC++;const id='sn-'+snC;const col=opts.col||S.sc;const w=opts.w||170,h=opts.h||150;
   const el=document.createElement('div');el.className='sn';el.id=id;
-  el.style.backgroundColor=col;el.style.width=w+'px';el.style.height=h+'px';
-  el.style.transform=`rotate(${(Math.random()-.5)*3}deg)`;el.style.zIndex=++zc;
+  const rot=(opts._rot!==undefined)?opts._rot:(Math.random()-.5)*3;
+  el.style.backgroundColor=col;el.style.width=(w*S.zoom)+'px';el.style.height=(h*S.zoom)+'px';
+  el.style.transform=`rotate(${rot}deg)`;el.style.zIndex=++zc;
   const dots=SCOLS.map(c=>`<div class="sc" style="background:${c}" onclick="chSC('${id}','${c}')"></div>`).join('');
   const phText='ここに入力...'; const initHtml=opts.text?(opts.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')):''; el.innerHTML=`<div class="sn-hd"><div class="sc-row">${dots}</div><button class="sn-del" onclick="delElem('${id}')">✕</button></div><div class="sn-ta" contenteditable="true" data-ph="${phText}">${initHtml}</div>`;
   const sc=b2s(bx,by);el.style.left=sc.x+'px';el.style.top=sc.y+'px';
   makeDrag(el,bx,by);elLayer.appendChild(el);addConnPts(el,id);
-  S.elems.push({id,type:'sn',bx,by,bw:w,bh:h,col,text:opts.text||'',w,h});
+  S.elems.push({id,type:'sn',bx,by,bw:w,bh:h,col,text:opts.text||'',w,h,_rot:rot});
   const ta=el.querySelector('.sn-ta');
   ta.addEventListener('focus',()=>setTimeout(()=>showFtb(ta,'ta'),50));
   ta.addEventListener('mouseup',()=>{saveRange();showFtb(ta,'ta');});
@@ -1770,7 +1856,7 @@ function addSN(bx,by,opts={}){
 function chSC(id,col){const el=document.getElementById(id);if(el)el.style.backgroundColor=col;const d=S.elems.find(e=>e.id===id);if(d)d.col=col;}
 function chSNFs(id,fs){
   const el=document.getElementById(id);if(!el)return;
-  const ta=el.querySelector('.sn-ta');if(ta)ta.style.fontSize=fs+'px';
+  const ta=el.querySelector('.sn-ta');if(ta)ta.style.fontSize=(fs/S.zoom)+'px';
   el.querySelectorAll('.sn-fsb').forEach(b=>b.classList.toggle('sn-fsb-on',parseInt(b.textContent)===fs));
   const d=S.elems.find(e=>e.id===id);if(d)d.snFs=fs;
 }
@@ -1785,7 +1871,7 @@ function addTxb(bx,by,opts={}){
   const col=opts.color||S.color;
   const ff=fontCss(opts.font||S.font||'sans');
   const fw=opts.fw||(opts.bold?'700':'400')||S.fw||'400';
-  wrap.style.fontSize=fs+'px';
+  wrap.style.fontSize=(fs/S.zoom)+'px';
   wrap.style.color=col;
   wrap.style.fontFamily=ff;
   wrap.style.fontWeight=fw;
@@ -1799,7 +1885,7 @@ function addTxb(bx,by,opts={}){
 
   const ta=document.createElement('textarea');
   ta.className='txb-ta';
-  ta.style.cssText=`display:none;position:absolute;inset:0;width:100%;height:100%;min-width:100px;min-height:32px;border:none;outline:none;background:transparent;resize:none;font-family:${ff};font-size:${fs}px;color:${col};font-weight:${fw};line-height:1.4;padding:0;margin:0;overflow:hidden;`;
+  ta.style.cssText=`display:none;position:absolute;inset:0;width:100%;height:100%;min-width:100px;min-height:32px;border:none;outline:none;background:transparent;resize:none;font-family:${ff};font-size:${fs/S.zoom}px;color:${col};font-weight:${fw};line-height:1.4;padding:0;margin:0;overflow:hidden;`;
   ta.value=opts.text||'';
   ta.placeholder='テキストを入力...';
 
@@ -1818,7 +1904,7 @@ function addTxb(bx,by,opts={}){
     wrap.style.pointerEvents='all';
     display.style.visibility='hidden';
     ta.style.display='block';
-    ta.style.fontSize=wrap.style.fontSize;
+    ta.style.fontSize=wrap.style.fontSize; // already zoom-corrected
     ta.style.color=wrap.style.color;
     ta.style.fontWeight=wrap.style.fontWeight;
     autoH();
@@ -2115,7 +2201,7 @@ function _restoreSnap(snap){
       const el=document.getElementById(d.id);
       if(!el) addConnector(d.fromId,d.fromPt,d.toId,d.toPt,{style:d.style,arrow:d.arrow,color:d.color,lw:d.lw});
     } else if(d.type==='sn'){
-      const el=addSN(d.bx,d.by,{col:d.col,text:d.text,w:d.w||d.bw||170,h:d.h||d.bh||150});
+      const el=addSN(d.bx,d.by,{col:d.col,text:d.text,w:d.w||d.bw||170,h:d.h||d.bh||150,_rot:d._rot});
       const justAdded=S.elems[S.elems.length-1];
       const newEl=document.getElementById(justAdded.id);
       if(newEl&&justAdded.id!==d.id){newEl.id=d.id;justAdded.id=d.id;}
@@ -2127,6 +2213,12 @@ function _restoreSnap(snap){
     } else if(d.type==='img'&&d.src){
       addImgEl(d.bx,d.by,d.src,d.bw,d.bh,d.id);
     }
+  });
+  // isBg・locked の状態を復元（addShapeEl等の後に適用）
+  S.elems.forEach(d=>{
+    const el=document.getElementById(d.id); if(!el)return;
+    if(d.isBg){el.classList.add('is-bg');el.style.zIndex=1;el.style.setProperty('pointer-events','none','important');}
+    if(d.locked)el.classList.add('locked');
   });
   renderPbar();
 }
@@ -2385,13 +2477,13 @@ function loadFromJSON(ev){
           }
         }
         else if(d.type==='text')addTxb(d.bx,d.by,{text:d.text,fs:d.fs,color:d.color,bold:d.bold,_id:d.id});
-        else if(d.type==='sn')addSN(d.bx,d.by,{col:d.col,text:d.text,w:d.w,h:d.h,_id:d.id});
+        else if(d.type==='sn')addSN(d.bx,d.by,{col:d.col,text:d.text,w:d.w,h:d.h,_id:d.id,_rot:d._rot});
         else if(d.type==='img'&&d.src){const img=new Image();img.src=d.src;addImgEl(img,d.bx,d.by,d.bw,d.bh,d._id||d.id);}
       });
       // isBg・locked・zc の状態を復元
       S.elems.forEach(d=>{
         const el=document.getElementById(d.id); if(!el)return;
-        if(d.isBg){el.classList.add('is-bg');el.style.zIndex=1;}
+        if(d.isBg){el.classList.add('is-bg');el.style.zIndex=1;el.style.setProperty('pointer-events','none','important');}
         if(d.locked)el.classList.add('locked');
         if(d.zc&&!d.isBg)el.style.zIndex=d.zc;
       });
@@ -3111,7 +3203,7 @@ function _msResizeStart(ev){
             const old=el2.querySelector('.sh-svg');if(old)old.remove();
             el2.insertAdjacentHTML('afterbegin',mkSVG(d.sh,d.bw,d.bh,d.color,d.lw,d.fill));
             const tx=el2.querySelector('.sh-text');
-            if(tx)tx.style.fontSize=(d.labelFs||13)+'px';
+            if(tx)tx.style.fontSize=((d.labelFs||13)/S.zoom)+'px';
           }
         } else if(d.type==='sn'){
           el2.style.width=d.bw+'px'; el2.style.height=d.bh+'px';
@@ -3146,9 +3238,9 @@ function setAsBg(id){
   if(el){
     el.classList.toggle('is-bg', d.isBg);
     if(d.isBg){
-      // インラインスタイルでも確実に非インタラクティブに設定（CSS !important だけでは不十分な場合がある）
-      el.style.pointerEvents='none';
       d.zc=1; el.style.zIndex=1;
+      // インラインで明示的に操作不可にする（makeDrag等のインライン上書きに対抗）
+      el.style.setProperty('pointer-events','none','important');
       // 背景にしたら選択解除
       clearMultiSel(); deselAll(); S.selId=null; hideFCP();
       // 背景編集モードを終了
@@ -3157,9 +3249,8 @@ function setAsBg(id){
       renderPbar();
       showToast('🖼 背景に設定しました。ツールバーの🖼ボタンで編集できます');
     } else {
-      // 背景解除: インラインスタイルをクリアして通常の操作を復元
-      el.style.pointerEvents='';
-      el.style.zIndex=d.zc||'';
+      // 背景解除時はインラインを消してCSSクラス制御に戻す
+      el.style.removeProperty('pointer-events');
       showToast('背景を解除しました');
       renderSelPbar(id);
     }
@@ -3170,8 +3261,20 @@ function toggleBgMode(){
   const active=elLayer.classList.toggle('bg-edit-mode');
   document.getElementById('btn-bg-edit')?.classList.toggle('on', active);
   if(active){
+    // bg-edit-mode ON：背景要素のインライン pointer-events を一時解除してクリック可能にする
+    S.elems.forEach(d=>{
+      if(!d.isBg)return;
+      const el=document.getElementById(d.id);
+      if(el)el.style.removeProperty('pointer-events');
+    });
     showToast('🖼 背景編集モード ON：背景要素をクリックして選択・解除できます');
   } else {
+    // bg-edit-mode OFF：背景要素のインライン pointer-events を再設定して操作不可に戻す
+    S.elems.forEach(d=>{
+      if(!d.isBg)return;
+      const el=document.getElementById(d.id);
+      if(el)el.style.setProperty('pointer-events','none','important');
+    });
     // 背景編集モード終了時、背景要素が選択中なら解除
     if(S.selId){const d=S.elems.find(e=>e.id===S.selId);if(d&&d.isBg){deselAll();S.selId=null;renderPbar();}}
     showToast('背景編集モードを終了しました');
@@ -3271,7 +3374,7 @@ function updateGroupBoxes(){
                   const old=el2.querySelector('.sh-svg');if(old)old.remove();
                   el2.insertAdjacentHTML('afterbegin',mkSVG(d.sh,d.bw,d.bh,d.color,d.lw,d.fill));
                   const tx2=el2.querySelector('.sh-text');
-                  if(tx2)tx2.style.fontSize=(d.labelFs||13)+'px';
+                  if(tx2)tx2.style.fontSize=((d.labelFs||13)/S.zoom)+'px';
                 }
               } else if(d.type==='sn'){
                 el2.style.width=d.bw+'px'; el2.style.height=d.bh+'px';
@@ -4325,6 +4428,166 @@ function autoSave(){
     localStorage.setItem('wb_elems', JSON.stringify(S.elems.map(e=>({...e, src: e.type==='img'?'[image]':undefined}))));
   } catch(ex){}
 }
+
+// ─── FIREBASE REALTIME SYNC ──────────────────────────
+(async function initFirebaseSync(){
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyAfcc7MDiOqIqp2le2G82frZr7fz_nTMh8",
+    authDomain: "whiteboard-pro-d04e1.firebaseapp.com",
+    databaseURL: "https://whiteboard-pro-d04e1-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "whiteboard-pro-d04e1",
+    storageBucket: "whiteboard-pro-d04e1.firebasestorage.app",
+    messagingSenderId: "526105533653",
+    appId: "1:526105533653:web:889735023627c152bf165c"
+  };
+
+  // URLパラメータからルームID（?room=xxx, なければ "default"）
+  const roomId = new URLSearchParams(location.search).get('room') || 'default';
+  const mySessionId = Math.random().toString(36).slice(2);
+
+  // ── ステータス表示 ──
+  function showSyncStatus(text, color='#666'){
+    let el = document.getElementById('sync-status');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'sync-status';
+      el.style.cssText = 'position:fixed;bottom:44px;right:12px;font-size:11px;padding:3px 8px;border-radius:10px;background:rgba(255,255,255,.92);border:1px solid #ddd;z-index:9999;pointer-events:none;transition:opacity .3s';
+      document.body.appendChild(el);
+    }
+    el.textContent = text; el.style.color = color;
+  }
+
+  // ── ルームバッジ ──
+  function showRoomBadge(){
+    let el = document.getElementById('room-badge');
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'room-badge';
+      el.style.cssText = 'position:fixed;bottom:12px;right:12px;font-size:11px;padding:3px 10px;border-radius:10px;background:#4f46e5;color:#fff;z-index:9999;cursor:pointer;user-select:all';
+      el.title = 'クリックで共有URLをコピー';
+      el.addEventListener('click', ()=>{
+        const url = location.origin + location.pathname + '?room=' + encodeURIComponent(roomId);
+        navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
+      });
+      document.body.appendChild(el);
+    }
+    el.textContent = '🔗 ルーム: ' + roomId;
+  }
+  showRoomBadge();
+  showSyncStatus('⏳ 接続中…');
+
+  // ── Firebase SDK ロード ──
+  let db, stg, dbRef, dbSet, dbOnValue, stgRef, stgUpload, stgGetUrl;
+  try {
+    const appMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
+    const dbMod  = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
+    const stgMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
+    const app = appMod.initializeApp(FIREBASE_CONFIG, 'wb-sync-' + Math.random());
+    db  = dbMod.getDatabase(app);
+    stg = stgMod.getStorage(app);
+    dbRef    = dbMod.ref;
+    dbSet    = dbMod.set;
+    dbOnValue= dbMod.onValue;
+    stgRef   = stgMod.ref;
+    stgUpload= stgMod.uploadBytes;
+    stgGetUrl= stgMod.getDownloadURL;
+  } catch(e){
+    showSyncStatus('❌ Firebase接続失敗', 'red');
+    console.error('Firebase load error:', e);
+    return;
+  }
+
+  const boardRef = dbRef(db, 'boards/' + roomId);
+
+  // ── 画像アップロード（Firebase Storage → Storage URL を d.src に保存）──
+  window._fbUploadImg = async function(file, base64fallback, callback){
+    showSyncStatus('⬆ 画像アップロード中…', '#ca8a04');
+    try {
+      const ext  = file.type.split('/')[1] || 'png';
+      const path = 'rooms/' + roomId + '/images/' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.' + ext;
+      const sRef = stgRef(stg, path);
+      const snap = await stgUpload(sRef, file);
+      const url  = await stgGetUrl(snap.ref);
+      showSyncStatus('☁ 同期済み', '#16a34a');
+      callback(url);  // Storage URL で addImgEl を呼ぶ
+    } catch(e){
+      console.error('Storage upload error:', e);
+      showSyncStatus('⚠ 画像: ローカルのみ', '#ca8a04');
+      callback(base64fallback);  // 失敗時は base64 フォールバック
+    }
+  };
+
+  // ── 送信スロットル ──
+  let pushTimer = null;
+  let isSyncing = false;
+
+  function pushToFirebase(){
+    if(isSyncing) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(async ()=>{
+      try {
+        // base64 画像（Storage未アップロード分）は URL か "data:" で区別
+        // Storage URL はそのまま送る、base64 は "[img-local]" で除外
+        const elemsToSend = S.elems.map(e => {
+          if(e.type !== 'img') return e;
+          const isStorageUrl = e.src && (e.src.startsWith('http://') || e.src.startsWith('https://'));
+          return {...e, src: isStorageUrl ? e.src : null, _localImg: !isStorageUrl};
+        });
+        await dbSet(boardRef, {
+          paths: S.paths,
+          elems: elemsToSend,
+          sessionId: mySessionId,
+          ts: Date.now()
+        });
+        showSyncStatus('☁ 同期済み', '#16a34a');
+      } catch(e){
+        showSyncStatus('❌ 送信エラー', 'red');
+        console.error('Firebase push error:', e);
+      }
+    }, 120);
+  }
+
+  // ── 受信リスナー ──
+  dbOnValue(boardRef, (snapshot) => {
+    const data = snapshot.val();
+    if(!data){ showSyncStatus('🟡 新規ルーム', '#ca8a04'); return; }
+    if(data.sessionId === mySessionId) return;  // 自分の送信は無視
+
+    showSyncStatus('⬇ 受信中…', '#2563eb');
+    isSyncing = true;
+    try {
+      // _localImg フラグの画像は受信側では表示しない（src が null）
+      const snap = {
+        paths: data.paths || [],
+        elems: (data.elems || []).filter(e => !(e.type === 'img' && e._localImg))
+      };
+      _restoreSnap(snap);
+      S.hist = S.hist.slice(0, S.hidx + 1);
+      S.hist.push({paths: JSON.parse(JSON.stringify(snap.paths)), elems: JSON.parse(JSON.stringify(snap.elems))});
+      if(S.hist.length > 80) S.hist.shift();
+      S.hidx = S.hist.length - 1;
+    } catch(e){ console.error('Firebase restore error:', e); }
+    isSyncing = false;
+    showSyncStatus('☁ 同期済み', '#16a34a');
+  });
+
+  // saveHist フック
+  const _origSaveHist = saveHist;
+  window.saveHist = function(){ _origSaveHist(); pushToFirebase(); };
+
+  // ペン描画フック
+  const _origRedrawPen = redrawPen;
+  let penSyncTimer = null;
+  window.redrawPen = function(){
+    _origRedrawPen();
+    if(isSyncing) return;
+    clearTimeout(penSyncTimer);
+    penSyncTimer = setTimeout(pushToFirebase, 300);
+  };
+
+  showSyncStatus('☁ 同期済み', '#16a34a');
+  showToast('🔗 同期が有効です　ルーム: ' + roomId + '　（右下バッジをクリックで共有URL取得）');
+})();
 
 // showToast が未定義の場合のフォールバック
 if(typeof showToast==='undefined'){
