@@ -6182,45 +6182,96 @@
 
     // ★ 未回収タブ専用 Excel出力（回収データ列付き）
     window.exportUncollectedExcel = function() {
-        // 現在の browseFiltered から回収データがある現場を出力対象とする
         const chkUncollected = document.getElementById('browse-chk-uncollected-only')?.checked;
         const chkAnomaly     = document.getElementById('browse-chk-coll-anomaly')?.checked;
-        let target = browseFiltered.filter(d => d.hasCollData);
-        if (target.length === 0) { alert("出力対象の回収データがありません。"); return; }
 
         const fmtDate = (v) => {
             const s = String(v||'').replace(/\D/g,'');
             return s.length === 8 ? s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8) : '';
         };
+        const fmtDiff = (n) => n === 0 ? '0' : (n > 0 ? '+' : '') + Math.round(n).toLocaleString();
 
-        const exportData = target.map(d => ({
-            "工番":               d.code,
-            "現場名":              d.name,
-            "担当者":              d.manager,
-            "積算担当":             d.estimator,
-            "得意先":              d.customer,
-            "施工主":              d.owner,
-            "拠点":               d.branch,
-            "着手日":              fmtDate(d.startDate),
-            "完了日":              fmtDate(d.endDate),
-            "売上(税抜)":           d.salesTotal  || 0,
-            "売上(税込)":           d.salesTaxInc || 0,
-            "回収予定額(税込)":      d.scheduledAmount   || 0,
-            "内未請求分":           d.unRequestedAmount  || 0,
-            "回収済額":             d.collectedAmount    || 0,
-            "未回収残高":           d.uncollectedAmount  || 0,
-            "回収差異":             d.hasCollAnomaly ? `${d.collDiff > 0 ? '+' : ''}${d.collDiff}` : '差異なし',
-        }));
+        let exportData = [];
+
+        if (chkAnomaly) {
+            // ★ 差異ありチェック時: _browseAnomalyDetails（コレクションレコード単位）から出力
+            // 枝番・マイナス差異を含むすべての差異レコードを対象にする
+            const _mmap = new Map();
+            (window._browseRawData?.masters || []).forEach(m => _mmap.set(String(m.code||'').trim(), m));
+
+            const details = (window._browseAnomalyDetails || []).filter(d => {
+                if (!d.isAnomaly) return false;
+                const m = _mmap.get(d.code) || {};
+                const br  = m.branch  || '';
+                const mgr = m.manager || '';
+                // 現在の拠点・担当者選択フィルターを適用
+                if (uncollSelectedBranches.size  > 0 && !uncollSelectedBranches.has(br))  return false;
+                if (uncollSelectedManagers.size  > 0 && !uncollSelectedManagers.has(mgr)) return false;
+                // ★ 差異あり出力では未回収残高フィルターを適用しない
+                // （マイナス差異＝過払いも出力対象）
+                return true;
+            });
+
+            if (details.length === 0) { alert("出力対象の差異データがありません。"); return; }
+
+            exportData = details.map(d => {
+                const m = _mmap.get(d.code) || {};
+                const subNorm = (d.subCode === '00' || d.subCode === '') ? '' : d.subCode;
+                const kindLabel = subNorm ? `枝 ${subNorm}` : '親';
+                return {
+                    "工番":                 d.code,
+                    "種別":                 kindLabel,
+                    "現場名":               d.siteName || m.name || '',
+                    "担当者":               m.manager   || '',
+                    "積算担当":             m.estimator  || '',
+                    "得意先":               m.customer   || '',
+                    "施工主":               m.owner      || '',
+                    "拠点":                 m.branch     || '',
+                    "着手日":               fmtDate(m.startDate || ''),
+                    "完了日":               fmtDate(m.endDate   || ''),
+                    "売上(税抜)":            m.salesTotal  || '',
+                    "売上(税込)":            d.salesTaxInc || 0,
+                    "回収予定額(税込)":      d.scheduled   || 0,
+                    "回収済額":              d.collectedAmount || 0,
+                    "差異(売上税込-回収済額)": d.diff        || 0,
+                    "差異(表示)":            fmtDiff(d.diff || 0),
+                };
+            });
+
+        } else {
+            // 未回収残高のみ時: browseFiltered から出力（親コード単位）
+            const target = browseFiltered.filter(d => d.hasCollData);
+            if (target.length === 0) { alert("出力対象の回収データがありません。"); return; }
+
+            exportData = target.map(d => ({
+                "工番":               d.code,
+                "現場名":              d.name,
+                "担当者":              d.manager,
+                "積算担当":             d.estimator,
+                "得意先":              d.customer,
+                "施工主":              d.owner,
+                "拠点":               d.branch,
+                "着手日":              fmtDate(d.startDate),
+                "完了日":              fmtDate(d.endDate),
+                "売上(税抜)":           d.salesTotal  || 0,
+                "売上(税込)":           d.salesTaxInc || 0,
+                "回収予定額(税込)":      d.scheduledAmount   || 0,
+                "内未請求分":           d.unRequestedAmount  || 0,
+                "回収済額":             d.collectedAmount    || 0,
+                "未回収残高":           d.uncollectedAmount  || 0,
+                "回収差異":             d.hasCollAnomaly ? fmtDiff(d.collDiff) : '差異なし',
+            }));
+        }
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         // 列幅設定
-        ws['!cols'] = [
-            {wch:10},{wch:30},{wch:12},{wch:12},{wch:16},{wch:16},{wch:8},
-            {wch:12},{wch:12},{wch:14},{wch:14},{wch:16},{wch:12},{wch:12},{wch:12},{wch:14}
-        ];
+        ws['!cols'] = chkAnomaly
+            ? [{wch:10},{wch:6},{wch:30},{wch:12},{wch:12},{wch:16},{wch:16},{wch:10},{wch:12},{wch:12},{wch:14},{wch:14},{wch:16},{wch:12},{wch:16},{wch:12}]
+            : [{wch:10},{wch:30},{wch:12},{wch:12},{wch:16},{wch:16},{wch:8},{wch:12},{wch:12},{wch:14},{wch:14},{wch:16},{wch:12},{wch:12},{wch:12},{wch:14}];
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "未回収一覧");
-        const suffix = chkUncollected ? '_未回収残高あり' : chkAnomaly ? '_差異あり' : '';
+        const sheetName = chkAnomaly ? "差異一覧" : "未回収一覧";
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        const suffix = chkAnomaly ? '_差異あり' : chkUncollected ? '_未回収残高あり' : '';
         XLSX.writeFile(wb, `未回収一覧${suffix}_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
