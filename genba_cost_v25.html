@@ -1772,7 +1772,7 @@
 
     window.clearDatabase = async function() { 
         if(confirm("全データを削除しますか？")) { 
-            await Promise.all([db.costs.clear(), db.masters.clear(), db.purchases.clear(), db.sales.clear(), db.meta.clear()]); 
+            await Promise.all([db.costs.clear(), db.masters.clear(), db.purchases.clear(), db.sales.clear(), db.collections.clear(), db.meta.clear()]); 
             window.updateDBStats(); 
         } 
     }
@@ -2090,29 +2090,50 @@
             if (pendingFiles.collection) {
                 if(importLog) importLog.textContent += `読込: 回収一覧 → ${pendingFiles.collection.name}\n`;
                 const { rows } = await parseExcel(pendingFiles.collection, 2); // ヘッダー行=3行目(0始まりで2)
+                // ★ 診断: 検出された列名を表示
+                const detectedCols = rows.length > 0 ? Object.keys(rows[0]).filter(k => k).join(', ') : '（行なし）';
+                if(importLog) importLog.textContent += `  検出列: ${detectedCols}\n`;
                 const collectionData = [];
                 for (const r of rows) {
-                    const rawCode = String(r['コード'] || '').trim();
+                    // ★ 複数列名に対応（"コード" or "工番"）
+                    const rawCode = String(r['コード'] || r['工番'] || '').trim();
                     if (!rawCode) continue;
                     // "i0087               -01" → メインコード + 枝番 に分割
+                    // ★ 修正: ハイフンなしコード（例: "i1544" のみ）も正しく処理する
                     const hyphenIdx = rawCode.lastIndexOf('-');
-                    const mainCode  = rawCode.substring(0, hyphenIdx).trim().toLowerCase();
-                    const subCode   = rawCode.substring(hyphenIdx + 1).trim();
+                    let mainCode, subCode;
+                    if (hyphenIdx > 0) {
+                        // ハイフンあり: 左がメインコード、右が枝番
+                        mainCode = rawCode.substring(0, hyphenIdx).trim().toLowerCase();
+                        subCode  = rawCode.substring(hyphenIdx + 1).trim();
+                    } else {
+                        // ハイフンなし: コード全体をメインコードとして扱う
+                        mainCode = rawCode.toLowerCase();
+                        subCode  = '';
+                    }
                     if (!mainCode) continue;
+                    // ★ 複数列名に対応（列名の揺れを吸収）
+                    const getVal = (...keys) => {
+                        for (const k of keys) { if (r[k] !== undefined && r[k] !== null && r[k] !== '') return r[k]; }
+                        return '0';
+                    };
                     collectionData.push({
                         code:              mainCode,
                         subCode:           subCode,
                         siteName:          String(r['現場名'] || '').trim(),
-                        scheduledAmount:   parseFloat(String(r['回収予定額']    || '0').replace(/,/g, '')) || 0,
-                        unRequestedAmount: parseFloat(String(r['内未請求分']    || '0').replace(/,/g, '')) || 0,
-                        collectedAmount:   parseFloat(String(r['回収額']        || '0').replace(/,/g, '')) || 0,
-                        uncollectedAmount: parseFloat(String(r['未回収残高']    || '0').replace(/,/g, '')) || 0,
+                        scheduledAmount:   parseFloat(String(getVal('回収予定額','予定額','回収予定')).replace(/,/g, '')) || 0,
+                        unRequestedAmount: parseFloat(String(getVal('内未請求分','未請求分','未請求額')).replace(/,/g, '')) || 0,
+                        collectedAmount:   parseFloat(String(getVal('回収額','回収済額','回収済')).replace(/,/g, '')) || 0,
+                        uncollectedAmount: parseFloat(String(getVal('未回収残高','未回収額','残高')).replace(/,/g, '')) || 0,
                     });
                 }
                 await db.collections.clear();
                 await db.collections.bulkAdd(collectionData);
                 await db.meta.put({ key: 'importedAt_collection', value: nowStr });
                 if(importLog) importLog.textContent += `  → 回収一覧 完了 (${collectionData.length.toLocaleString()}件)\n`;
+                if (collectionData.length === 0 && rows.length > 0) {
+                    if(importLog) importLog.textContent += `  ⚠️ 0件: "コード"列が見つからないか空白です。検出列名を確認してください。\n`;
+                }
             }
             if(importLog) importLog.textContent += "完了！\n"; 
             await window.updateDBStats(); 
@@ -2725,9 +2746,11 @@
                 const kind = sub ? `枝番 ${sub}` : '親コード';
 
                 // 対応する売上（税込）を算出
+                // ★ 修正: sub="00" は枝番なし（親コード）として扱う
+                const subNormEx = (sub === '00' || sub === '') ? '' : sub;
                 const matchSales = (data.salesDetails||[]).filter(s => {
                     const ss = String(s.subCode||'').trim();
-                    return sub ? ss === sub : !ss;
+                    return subNormEx ? ss === subNormEx : (ss === '' || ss === '00');
                 });
                 const salesTaxInc = matchSales.reduce((sum, s) => sum + (s.amountInc||0), 0);
                 const isFullyUnrequested = col.collectedAmount === 0 && Math.abs(col.unRequestedAmount - col.scheduledAmount) <= 1;
@@ -2941,7 +2964,8 @@
 
                 const sales     = await db.sales.where('siteCode').equals(code).toArray();
                 const purchases = await db.purchases.where('siteCode').equals(code).toArray();
-                const collRows  = await db.collections.where('code').equals(code).toArray();
+                // ★ 修正: 回収DBのcodeはlowerCase保存のため小文字化して照合
+                const collRows  = await db.collections.where('code').equals(code.toLowerCase()).toArray();
 
                 const sVal3 = cost ? cost.salesTotal  : 0;
                 const pVal3 = cost ? cost.profitTotal : 0;
@@ -3055,7 +3079,8 @@
             const sales = await db.sales.where('siteCode').equals(resolvedCode).toArray(); 
             const purchases = await db.purchases.where('siteCode').equals(resolvedCode).toArray();
             // 回収データ（同一メインコードを合算）
-            const collRows = await db.collections.where('code').equals(resolvedCode).toArray();
+            // ★ 修正: 回収DBのcodeはlowerCase保存のため小文字化して照合
+            const collRows = await db.collections.where('code').equals(resolvedCode.toLowerCase()).toArray();
             const colData = collRows.reduce((acc, r) => {
                 acc.scheduledAmount   += r.scheduledAmount   || 0;
                 acc.unRequestedAmount += r.unRequestedAmount || 0;
@@ -3109,22 +3134,26 @@
             const elSc1 = document.getElementById('res-sales-class1');if(elSc1)    elSc1.textContent    = fmtMasterVal(master?.salesClass1);
             const elSc2 = document.getElementById('res-sales-class2');if(elSc2)    elSc2.textContent    = fmtMasterVal(master?.salesClass2);
 
-            // 回収情報パネル（コード単体ごとに個別表示）
+            // 回収情報パネル（常に表示 - データなし時はその旨を表示）
             const colPanel = document.getElementById('res-collection-panel');
             const colBody  = document.getElementById('res-collection-body');
             if (colPanel && colBody) {
-                if (hasCollData) {
-                    colPanel.classList.remove('hidden');
-                    colBody.innerHTML = '';
+                colPanel.classList.remove('hidden');
+                colBody.innerHTML = '';
+                if (!hasCollData) {
+                    colBody.innerHTML = `<div class="text-sm text-slate-400 text-center py-3"><i class="fa-solid fa-circle-info mr-1"></i>この工番の回収データはありません（回収一覧ファイルに該当データなし）</div>`;
+                } else {
                     const fmt = window.formatCurrency;
                     for (const col of collRows) {
                         const sub  = String(col.subCode||'').trim();
                         const kind = sub ? `枝番 ${sub}` : '親コード';
                         const kindColor = sub ? 'text-blue-600' : 'text-slate-700';
                         // この回収レコードに対応する売上（同コード・同枝番）
+                        // ★ 修正: sub="00" は枝番なし（親コード）として扱い、salesのsubCode=""/"00"と照合
+                        const subNorm = (sub === '00' || sub === '') ? '' : sub;
                         const matchSales = sales.filter(s => {
                             const ss = String(s.subCode||'').trim();
-                            return sub ? ss === sub : !ss;
+                            return subNorm ? ss === subNorm : (ss === '' || ss === '00');
                         });
                         const salesTaxInc = matchSales.reduce((sum, s) => sum + (s.amountInc || 0), 0);
                         // 全額未請求判定: 回収済額=0 かつ 内未請求分=回収予定額 → 未請求中のため差異なしとする
@@ -3161,8 +3190,6 @@
                             ${isFullyUnrequested ? `<div class="text-[10px] text-blue-500 mt-1 pl-1">※ 内未請求分＝回収予定額のため、まだ請求前の案件です。回収済額が計上された時点で差異チェックの対象となります。</div>` : ''}
                         </div>`;
                     }
-                } else {
-                    colPanel.classList.add('hidden');
                 }
             }
             
@@ -5373,7 +5400,7 @@
         const txMap    = salesTaxIncMap || new Map();
         const anomaly  = window._browseAnomalyCodes || new Set();
         const getCol = (code) => colMap.get(String(code||'').trim().toLowerCase()) || null;
-        const getSalesTaxInc = (code) => txMap.get(String(code||'').trim()) || 0;
+        const getSalesTaxInc = (code) => txMap.get(String(code||'').trim().toLowerCase()) || 0; // ★ 修正: 小文字統一
 
         const masterMap = new Map(masters.map(m => [String(m.code||'').trim(), m]));
         const costMap   = new Map(costs.map(c   => [String(c.code||'').trim(), c]));
@@ -5452,7 +5479,8 @@
         const salesTaxIncMap = new Map();
         const allSales = await db.sales.toArray();
         allSales.forEach(s => {
-            const key = String(s.siteCode||'').trim();
+            // ★ 修正: コード比較を小文字統一（回収データと大文字小文字を合わせる）
+            const key = String(s.siteCode||'').trim().toLowerCase();
             salesTaxIncMap.set(key, (salesTaxIncMap.get(key) || 0) + (s.amountInc || 0));
         });
         // コード単体ごとの差異計算（回収一覧レコード × 対応する売上税込）
@@ -5461,17 +5489,21 @@
         for (const col of collections) {
             const mainCode = String(col.code||'').trim().toLowerCase();
             const sub      = String(col.subCode||'').trim();
+            // ★ 修正: sub="00" は枝番なし（親コード）として扱う
+            const subNorm  = (sub === '00' || sub === '') ? '' : sub;
             // 対応する売上明細を抽出（枝番ありは枝番一致、なしは親行のみ）
+            // ★ 修正: siteCode を小文字で比較（売上データの大文字小文字揺れを吸収）
             const matchSales = allSales.filter(s => {
-                const sc = String(s.siteCode||'').trim();
+                const sc = String(s.siteCode||'').trim().toLowerCase();
                 const ss = String(s.subCode||'').trim();
                 if (sc !== mainCode) return false;
-                return sub ? ss === sub : !ss;
+                return subNorm ? ss === subNorm : (ss === '' || ss === '00');
             });
             const salesTaxInc = matchSales.reduce((sum, s) => sum + (s.amountInc || 0), 0);
             // 全額未請求判定: 回収済額=0 かつ 内未請求分=回収予定額 → 未請求中のため差異なし
             const isFullyUnrequested = col.collectedAmount === 0 && Math.abs(col.unRequestedAmount - col.scheduledAmount) <= 1;
             // 差異判定: 売上（税込）と回収済額が異なる場合に異常値とする（全額未請求中は除外）
+            // ※ salesTaxInc > 0 の条件で赤伝（マイナス売上）は自然に除外される
             const diff = salesTaxInc - col.collectedAmount;
             const isAnomaly = !isFullyUnrequested && salesTaxInc > 0 && Math.abs(diff) > 1;
             if (isAnomaly) anomalyCodes.add(mainCode);
@@ -5481,7 +5513,7 @@
                 scheduled: col.scheduledAmount,
                 collectedAmount: col.collectedAmount,
                 salesTaxInc, diff, isAnomaly, isFullyUnrequested,
-                label: sub ? `${mainCode} - ${sub}（枝番）` : `${mainCode}（親コード）`,
+                label: subNorm ? `${mainCode} - ${sub}（枝番）` : `${mainCode}（親コード）`,
             });
         }
         window._browseAnomalyCodes   = anomalyCodes;
@@ -5676,8 +5708,7 @@
         const listPanel = document.getElementById('browse-list-panel');
         const isOn      = document.getElementById('browse-chk-coll-anomaly')?.checked;
         if (!panel || !tbody) return;
-        // 差異チェック時は現場一覧テーブルを非表示・差異詳細のみ表示
-        if (listPanel) listPanel.classList.toggle('hidden', !!isOn);
+        // リストパネルの表示制御は applyBrowseFilter で行うためここでは差異パネルのみ制御
         if (!isOn) { panel.classList.add('hidden'); return; }
         panel.classList.remove('hidden');
 
@@ -5754,6 +5785,8 @@
         document.querySelectorAll('.browse-filter-panel').forEach(p => p.classList.add('hidden'));
         const panel = document.getElementById('browse-panel-' + tab);
         if (panel) panel.classList.remove('hidden');
+        // ★ タブ切り替え時にフィルターを再適用（未回収タブ専用フィルターのリセット含む）
+        window.applyBrowseFilter();
     }
 
     window.toggleBrowseButton = function(btn, group) {
@@ -5858,6 +5891,8 @@
             if (chkCollAnomaly  && !d.hasCollAnomaly)           return false;
             // 未回収タブ専用フィルター（タブ選択中のみ）
             if (browseCurrentTab === 'uncollected') {
+                // ★ 修正: 回収データが紐づく現場のみを対象とする（タブの基本条件）
+                if (!d.hasCollData) return false;
                 if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(d.branch)) return false;
                 if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(d.manager)) return false;
                 if (uncollKeyword) {
@@ -5874,6 +5909,59 @@
         const cntEl = document.getElementById('browse-uncollected-count');
         if (cntEl) cntEl.textContent = `未回収 ${uncollectedCount}件　差異あり ${anomalyCount}件`;
 
+        // ★ 修正: 未回収タブのボタンバッジ件数をチェックボックス状態に合わせて動的更新
+        if (browseCurrentTab === 'uncollected') {
+            // マスターマップ（差異詳細レコードの拠点・担当者取得用）
+            const _mmap = new Map();
+            (window._browseRawData?.masters || []).forEach(m => _mmap.set(String(m.code||'').trim(), m));
+
+            // 差異チェックON時: _browseAnomalyDetails（コレクションレコード単位）で集計
+            // → 枝番・親コード問わず1レコード=1件としてカウントするため詳細テーブルと一致する
+            // 未回収残高のみON時: browseAllData（親コード単位）で集計
+            const countPerBranch  = new Map();
+            const countPerManager = new Map();
+
+            if (chkCollAnomaly) {
+                // 差異詳細レコード単位でカウント
+                // ★ 差異テーブルは未回収フィルターを適用しないので、バッジも同様にしない
+                (window._browseAnomalyDetails || []).forEach(d => {
+                    if (!d.isAnomaly) return;
+                    const m = _mmap.get(d.code) || {};
+                    const br  = m.branch  || '';
+                    const mgr = m.manager || '';
+                    if (uncollKeyword) {
+                        const hay = window.normalizeStr([d.code, d.siteName, m.owner||'', mgr, br].join(' '));
+                        if (!hay.includes(uncollKeyword)) return;
+                    }
+                    if (br)  countPerBranch.set(br,   (countPerBranch.get(br)   || 0) + 1);
+                    if (mgr) countPerManager.set(mgr, (countPerManager.get(mgr) || 0) + 1);
+                });
+            } else {
+                // 親コード単位でカウント（未回収残高フィルターのみの場合）
+                browseAllData.forEach(d => {
+                    if (!d.hasCollData) return;
+                    if (chkUncollected && !(d.uncollectedAmount > 0)) return;
+                    if (uncollKeyword) {
+                        const hay = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.code, d.branch].join(' '));
+                        if (!hay.includes(uncollKeyword)) return;
+                    }
+                    const br  = d.branch  || '';
+                    const mgr = d.manager || '';
+                    if (br)  countPerBranch.set(br,   (countPerBranch.get(br)   || 0) + 1);
+                    if (mgr) countPerManager.set(mgr, (countPerManager.get(mgr) || 0) + 1);
+                });
+            }
+
+            document.querySelectorAll('.uncoll-branch-btn').forEach(btn => {
+                const sp = btn.querySelector('span');
+                if (sp) sp.textContent = countPerBranch.get(btn.dataset.value) || 0;
+            });
+            document.querySelectorAll('.uncoll-manager-btn').forEach(btn => {
+                const sp = btn.querySelector('span');
+                if (sp) sp.textContent = countPerManager.get(btn.dataset.value) || 0;
+            });
+        }
+
         // ソート
         browseFiltered.sort((a, b) => {
             if (sortVal === 'code_asc') return a.code.localeCompare(b.code);
@@ -5888,6 +5976,14 @@
 
         const badge = document.getElementById('browse-count-badge');
         if (badge) badge.textContent = browseFiltered.length + ' 件';
+
+        // ★ 修正: 現場一覧パネルの表示/非表示を applyBrowseFilter で一元管理
+        // 差異ありチェックON かつ 未回収タブ の場合のみリストを隠す（タブ切り替え時も確実に戻る）
+        const _listPanel = document.getElementById('browse-list-panel');
+        if (_listPanel) {
+            const _hideList = browseCurrentTab === 'uncollected' && chkCollAnomaly;
+            _listPanel.classList.toggle('hidden', _hideList);
+        }
 
         window.renderBrowseTable();
     }
@@ -5944,11 +6040,11 @@
             const marginColor = d.margin === null ? 'text-slate-300' : d.margin < 10 ? 'text-red-500 font-bold' : d.margin < 20 ? 'text-orange-500 font-bold' : 'text-emerald-600 font-bold';
             const marginCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs ${marginColor}">${d.margin !== null ? d.margin.toFixed(1)+'%' : '-'}</td>`;
 
-            // 未回収バッジ・差異バッジ
-            const uncollBadge = d.uncollectedAmount > 0
+            // 未回収バッジ・差異バッジ（未回収タブ選択中のみ表示）
+            const uncollBadge = browseCurrentTab === 'uncollected' && d.uncollectedAmount > 0
                 ? `<span class="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">未回収 ${window.formatCurrency(d.uncollectedAmount)}</span>`
                 : '';
-            const anomalyBadge = d.hasCollAnomaly
+            const anomalyBadge = browseCurrentTab === 'uncollected' && d.hasCollAnomaly
                 ? `<span class="text-[10px] bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap" title="売上税込と回収済額の差: ${window.formatCurrency(Math.abs(d.collDiff))}">差異 ${d.collDiff > 0 ? '+' : ''}${window.formatCurrency(d.collDiff)}</span>`
                 : '';
 
