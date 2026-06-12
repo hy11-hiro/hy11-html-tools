@@ -518,6 +518,17 @@ body{font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;background:var(-
     <div class="mc-body"><div class="tgrid" id="tgrid"></div></div>
   </div>
 </div>
+<!-- カレンダー日付指定ダイアログ -->
+<div id="cal-dialog" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;padding:28px 32px;min-width:300px;box-shadow:0 8px 40px rgba(0,0,0,.18);font-family:sans-serif;">
+    <div id="cal-dialog-title" style="font-size:16px;font-weight:700;margin-bottom:20px;color:#1e293b"></div>
+    <div id="cal-dialog-fields" style="display:flex;flex-direction:column;gap:14px;"></div>
+    <div style="display:flex;gap:10px;margin-top:24px;justify-content:flex-end;">
+      <button onclick="closeCalDialog()" style="padding:8px 18px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;font-size:14px;">キャンセル</button>
+      <button id="cal-dialog-ok" style="padding:8px 22px;border-radius:8px;border:none;background:#4f46e5;color:#fff;cursor:pointer;font-size:14px;font-weight:600;">生成</button>
+    </div>
+  </div>
+</div>
 <div id="ctx">
   <div class="ci" onclick="ctxDup()">⧉ &nbsp;複製 (Ctrl+D)</div>
   <div class="csep"></div>
@@ -1194,13 +1205,19 @@ function loadImgFile(file,bx,by){
       let w=img.naturalWidth,h=img.naturalHeight;
       const mx=500,my=400;
       if(w>mx){h=h*mx/w;w=mx;}if(h>my){w=w*my/h;h=my;}
-      // Firebase Storage が使える場合はアップロード、なければ base64 のまま
-      if(window._fbUploadImg){
+      // 即座にローカルbase64で表示（体感ゼロ）
+      const imgEl=addImgEl(bx,by,e.target.result,w,h);
+      const d=S.elems.find(el=>el.type==='img'&&el.bx===bx&&el.by===by);
+      // バックグラウンドでStorageにアップロードしてURLを差し替え
+      if(window._fbUploadImg && d){
         window._fbUploadImg(file, e.target.result, (url)=>{
-          addImgEl(bx,by,url,w,h);
+          if(url!==e.target.result && d){
+            d.src=url;
+            const domEl=document.getElementById(d.id);
+            if(domEl){const i=domEl.querySelector('img');if(i)i.src=url;}
+            saveHist();
+          }
         });
-      } else {
-        addImgEl(bx,by,e.target.result,w,h);
       }
     };
     img.src=e.target.result;
@@ -2271,6 +2288,8 @@ const TMPL_CATS=[
     {id:'roadmap',name:'プロダクトロードマップ',icon:'🗺',desc:'四半期ごとのストリーム計画',col:'#f5f3ff'},
     {id:'gantt',name:'ガントチャート',icon:'📊',desc:'タスクと期間・担当者の計画',col:'#fef9c3'},
     {id:'tln',name:'タイムライン',icon:'📅',desc:'マイルストーン管理',col:'#ecfdf5'},
+    {id:'timeline2',name:'プロジェクトタイムライン',icon:'📊',desc:'12ヶ月の詳細タスク管理表（年・開始月指定）',col:'#fef9c3'},
+    {id:'milestone',name:'マイルストーンタイムライン',icon:'🏁',desc:'イベントを上下交互に表示（年指定）',col:'#fdf4ff'},
     {id:'wbs',name:'WBS（作業分解構造）',icon:'🗂',desc:'プロジェクト作業の階層化',col:'#fff7ed'},
     {id:'risk',name:'リスク管理表',icon:'⚠️',desc:'影響度×発生確率マトリクス',col:'#fdf4ff'},
   ]},
@@ -2281,6 +2300,10 @@ const TMPL_CATS=[
     {id:'er',name:'ER図（概念）',icon:'🗄',desc:'エンティティ関連図',col:'#f0fdf4'},
     {id:'seq',name:'シーケンス図',icon:'↔️',desc:'システム間の処理フロー',col:'#fdf4ff'},
     {id:'fish',name:'フィッシュボーン図',icon:'🐟',desc:'原因分析（特性要因図）',col:'#fff7ed'},
+  ]},
+  {id:'calendar',label:'📆 カレンダー',templates:[
+    {id:'cal_month',name:'月間カレンダー',icon:'📅',desc:'年・月を指定して生成',col:'#eff6ff'},
+    {id:'cal_week', name:'週間カレンダー',icon:'🗓',desc:'年・月・週を指定して生成',col:'#f0fdf4'},
   ]},
 ];
 function buildTGrid(){
@@ -2508,7 +2531,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHModal();});
 
 function openTModal(){document.getElementById('tmod').classList.add('open');}
 function closeTModal(){document.getElementById('tmod').classList.remove('open');}
-const TFN={kpt:tKPT,ls4:t4Ls,stf:tSTF,ywt:tYWT,bst:tBST,mnd:tMND,pos:tPOS,swt:tSWT,len:tLEN,emp:tEMP,fc1:tFC1,swlane:tSWLANE,fish:tFISH,dtree:tDTREE,standup:tSTANDUP,oneon1:t1ON1,minutes:tMINUTES,orgchart:tORG,er:tER,seq:tSEQ,tln:tTLN,kanban:tKANBAN,roadmap:tROADMAP,wkly:tWKLY,kick:tKICK,okr:tOKR,a3rpt:tA3,gantt:tGANTT,wbs:tWBS,risk:tRISK};
+const TFN={kpt:tKPT,ls4:t4Ls,stf:tSTF,ywt:tYWT,bst:tBST,mnd:tMND,pos:tPOS,swt:tSWT,len:tLEN,emp:tEMP,fc1:tFC1,swlane:tSWLANE,fish:tFISH,dtree:tDTREE,standup:tSTANDUP,oneon1:t1ON1,minutes:tMINUTES,orgchart:tORG,er:tER,seq:tSEQ,tln:tTLN,kanban:tKANBAN,roadmap:tROADMAP,wkly:tWKLY,kick:tKICK,okr:tOKR,a3rpt:tA3,gantt:tGANTT,wbs:tWBS,risk:tRISK,cal_month:tCAL_MONTH,cal_week:tCAL_WEEK,timeline2:tTIMELINE,milestone:tMILESTONE};
 function showToast(msg,dur=3200){
   let t=document.getElementById('wb-toast');
   if(!t){t=document.createElement('div');t.id='wb-toast';
@@ -2517,10 +2540,84 @@ function showToast(msg,dur=3200){
   t.innerHTML=msg;t.style.opacity='1';
   clearTimeout(t._tid);t._tid=setTimeout(()=>{t.style.opacity='0';},dur);
 }
-function loadT(id){clearBoardSilent();if(TFN[id])TFN[id]();saveHist();
-  setTool('select');  // テンプレート読み込み後は選択ツールに切り替え
+// カレンダー・タイムラインは日付指定ダイアログを挟む
+const CAL_DIALOG_IDS = {
+  cal_month: {
+    title: '📅 月間カレンダー',
+    fields: [
+      {id:'cal_year',  label:'年',  type:'number', min:2000, max:2099, defaultFn:()=>new Date().getFullYear()},
+      {id:'cal_month', label:'月',  type:'number', min:1,    max:12,   defaultFn:()=>new Date().getMonth()+1},
+    ],
+    fn: (vals)=>{ tCAL_MONTH(parseInt(vals.cal_year), parseInt(vals.cal_month)-1); }
+  },
+  cal_week: {
+    title: '🗓 週間カレンダー',
+    fields: [
+      {id:'cw_year',  label:'年',  type:'number', min:2000, max:2099, defaultFn:()=>new Date().getFullYear()},
+      {id:'cw_month', label:'月',  type:'number', min:1,    max:12,   defaultFn:()=>new Date().getMonth()+1},
+      {id:'cw_week',  label:'第N週（1〜5）', type:'number', min:1, max:5, defaultFn:()=>{
+        const d=new Date(); return Math.ceil(d.getDate()/7);
+      }},
+    ],
+    fn: (vals)=>{ tCAL_WEEK(parseInt(vals.cw_year), parseInt(vals.cw_month)-1, parseInt(vals.cw_week)); }
+  },
+  timeline2: {
+    title: '📊 プロジェクトタイムライン',
+    fields: [
+      {id:'tl_year',  label:'対象年',    type:'number', min:2000, max:2099, defaultFn:()=>new Date().getFullYear()},
+      {id:'tl_start', label:'開始月（1〜12）', type:'number', min:1, max:12, defaultFn:()=>1},
+    ],
+    fn: (vals)=>{ tTIMELINE(parseInt(vals.tl_year), parseInt(vals.tl_start)-1); }
+  },
+  milestone: {
+    title: '🏁 マイルストーンタイムライン',
+    fields: [
+      {id:'ms_year', label:'対象年', type:'number', min:2000, max:2099, defaultFn:()=>new Date().getFullYear()},
+    ],
+    fn: (vals)=>{ tMILESTONE(parseInt(vals.ms_year)); }
+  },
+};
+
+function loadT(id){
+  if(CAL_DIALOG_IDS[id]){
+    openCalDialog(id);
+    return;
+  }
+  clearBoardSilent();if(TFN[id])TFN[id]();saveHist();
+  setTool('select');
   showToast('💡 要素を選択して <b>Ctrl+D</b> で複製 ／ 角をドラッグで拡大縮小');
 }
+
+function openCalDialog(id){
+  const cfg = CAL_DIALOG_IDS[id];
+  const dlg = document.getElementById('cal-dialog');
+  document.getElementById('cal-dialog-title').textContent = cfg.title;
+  const fields = document.getElementById('cal-dialog-fields');
+  fields.innerHTML = cfg.fields.map(f=>`
+    <div style="display:flex;align-items:center;gap:12px;">
+      <label style="min-width:120px;font-size:14px;color:#374151;font-weight:500;">${f.label}</label>
+      <input id="${f.id}" type="${f.type}" value="${f.defaultFn()}" min="${f.min}" max="${f.max}"
+        style="width:90px;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;text-align:center;"
+        onkeydown="if(event.key==='Enter')document.getElementById('cal-dialog-ok').click()">
+    </div>`).join('');
+  document.getElementById('cal-dialog-ok').onclick = ()=>{
+    const vals = {};
+    cfg.fields.forEach(f=>{ vals[f.id]=document.getElementById(f.id).value; });
+    closeCalDialog();
+    clearBoardSilent();
+    cfg.fn(vals);
+    saveHist();
+    setTool('select');
+    closeTModal();
+    showToast('💡 要素を選択して <b>Ctrl+D</b> で複製 ／ 角をドラッグで拡大縮小');
+  };
+  dlg.style.display = 'flex';
+  // 最初のフィールドにフォーカス
+  setTimeout(()=>{ const first=document.getElementById(cfg.fields[0].id); if(first)first.focus(); },50);
+}
+function closeCalDialog(){ document.getElementById('cal-dialog').style.display='none'; }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeCalDialog(); });
+
 
 // ─── TEMPLATE HELPERS ────────────────────────────────
 function bc(){return s2b(main.clientWidth/2,main.clientHeight/2);}
@@ -3123,9 +3220,13 @@ function updateSelInfo(){
     }).filter(Boolean)).size;
     const allLocked=[...multiSel].every(id=>{const d=S.elems.find(e=>e.id===id);return d&&d.locked;});
     const someLocked=[...multiSel].some(id=>{const d=S.elems.find(e=>e.id===id);return d&&d.locked;});
+    const allBg=[...multiSel].every(id=>{const d=S.elems.find(e=>e.id===id);return d&&d.isBg;});
+    const someBg=[...multiSel].some(id=>{const d=S.elems.find(e=>e.id===id);return d&&d.isBg;});
     bar.innerHTML=`<span>${n}個選択中${gn>0?' ('+gn+'グループ)':''}</span>`
       +`<button onmousedown="event.stopPropagation()" onclick="toggleMultiLock()" style="background:rgba(255,255,255,${allLocked?'.9':'.25'});border:none;border-radius:10px;padding:2px 9px;cursor:pointer;font-size:12px;font-weight:700;color:${allLocked?'#4f46e5':'#fff'}">`
       +`${allLocked?'🔒 全て解除':someLocked?'🔒 残り固定':'🔓 全て固定'}</button>`
+      +`<button onmousedown="event.stopPropagation()" onclick="toggleMultiBg()" style="background:rgba(255,255,255,${allBg?'.9':'.25'});border:none;border-radius:10px;padding:2px 9px;cursor:pointer;font-size:12px;font-weight:700;color:${allBg?'#4f46e5':'#fff'}">`
+      +`${allBg?'🖼 背景解除':someBg?'🖼 残り背景':'🖼 全て背景'}</button>`
       +`<span style="opacity:.7;font-weight:400">Ctrl+G: グループ化 &nbsp; Ctrl+D: 複製 &nbsp; Delete: 削除</span>`;
     bar.style.display = 'flex';
   } else {
@@ -3293,6 +3394,28 @@ function toggleMultiLock(){
   });
   saveHist(); updateSelInfo();
   showToast(allLocked?`🔓 ${ids.length}個のロックを解除しました`:`🔒 ${ids.length}個を固定しました`);
+}
+function toggleMultiBg(){
+  const ids=[...multiSel];
+  const allBg=ids.every(id=>{const d=S.elems.find(e=>e.id===id);return d&&d.isBg;});
+  // 全て背景済みなら全解除、そうでなければ未背景のみ背景化
+  ids.forEach(id=>{
+    const d=S.elems.find(e=>e.id===id); if(!d)return;
+    const el=document.getElementById(id); if(!el)return;
+    d.isBg=!allBg;
+    el.classList.toggle('is-bg',!allBg);
+    if(!allBg){
+      d.zc=1; el.style.zIndex=1;
+      el.style.setProperty('pointer-events','none','important');
+    } else {
+      el.style.removeProperty('pointer-events');
+      el.style.zIndex=d.zc||'';
+    }
+  });
+  // 背景化した場合は選択解除
+  if(!allBg){ clearMultiSel(); deselAll(); S.selId=null; hideFCP(); renderPbar(); }
+  saveHist(); updateSelInfo();
+  showToast(allBg?`🖼 ${ids.length}個の背景設定を解除しました`:`🖼 ${ids.length}個を背景に設定しました`);
 }
 function lockAll(ids){
   const allLocked=ids.every(id=>{const d=S.elems.find(e=>e.id===id);return d&&d.locked;});
@@ -4421,6 +4544,206 @@ function tRISK(){
   });
 }
 
+// ── 月間カレンダー ──────────────────────────────────────
+function tCAL_MONTH(year,month){
+  const c=bc();
+  const now=new Date();
+  if(year==null)year=now.getFullYear();
+  if(month==null)month=now.getMonth();
+  const monthName=`${year}年${month+1}月`;
+  const dow=['日','月','火','水','木','金','土'];
+  const firstDay=new Date(year,month,1).getDay();
+  const lastDate=new Date(year,month+1,0).getDate();
+  const today=now.getDate();
+  const cW=88,cH=76,hH=40,dowH=28;
+  const cols=7,totalW=cW*cols,totalH=hH+dowH+cH*6;
+  const sx=c.x-totalW/2,sy=c.y-totalH/2;
+  // タイトル
+  addShapeEl(sx,sy,totalW,hH,'rect','#1e293b',0,'#1e293b',{label:`📅 ${monthName}`,labelFs:16,labelColor:'#fff'});
+  // 曜日ヘッダー
+  dow.forEach((d,i)=>{
+    const hc=i===0?'#fee2e2':i===6?'#dbeafe':'#f1f5f9';
+    const tc=i===0?'#dc2626':i===6?'#2563eb':'#475569';
+    addShapeEl(sx+i*cW,sy+hH,cW,dowH,'rect',tc,0.5,hc,{label:d,labelFs:12,labelColor:tc});
+  });
+  // 日付セル
+  let cell=0;
+  for(let r=0;r<6;r++){
+    for(let col2=0;col2<7;col2++){
+      const dateNum=cell-firstDay+1;
+      const cx=sx+col2*cW,cy=sy+hH+dowH+r*cH;
+      const isToday=dateNum===today;
+      const inMonth=dateNum>=1&&dateNum<=lastDate;
+      const isSun=col2===0,isSat=col2===6;
+      let bg=inMonth?(isSun?'#fff5f5':isSat?'#f0f8ff':'#ffffff'):'#f9fafb';
+      let border=inMonth?'#e2e8f0':'#f1f5f9';
+      if(isToday&&inMonth){bg='#fef9c3';border='#eab308';}
+      addShapeEl(cx,cy,cW,cH,'rect',border,0.8,bg);
+      if(inMonth){
+        const tc=isSun?'#dc2626':isSat?'#2563eb':'#1e293b';
+        const fs=isToday?14:12;
+        tx(cx+5,cy+5,String(dateNum),fs,isToday?'#854d0e':tc,{bold:isToday});
+      }
+      cell++;
+    }
+  }
+}
+
+// ── 週間カレンダー ──────────────────────────────────────
+function tCAL_WEEK(year,month,weekNum){
+  const c=bc();
+  const now=new Date();
+  if(year==null)year=now.getFullYear();
+  if(month==null)month=now.getMonth();
+  if(weekNum==null)weekNum=Math.ceil(now.getDate()/7);
+  // 指定年月の第N週の日曜日を求める
+  const firstOfMonth=new Date(year,month,1);
+  const firstSunday=new Date(firstOfMonth);
+  firstSunday.setDate(1-(firstOfMonth.getDay()));
+  if(firstSunday.getDate()>1&&firstSunday.getMonth()===month) firstSunday.setDate(firstSunday.getDate()-7);
+  // 月の1日の週番号0から、weekNum-1週後
+  const weekStart=new Date(year,month,1);
+  weekStart.setDate(1 - new Date(year,month,1).getDay() + (weekNum-1)*7);
+  const startOfWeek=weekStart;
+  const days=['日','月','火','水','木','金','土'];
+  const hours=['9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00'];
+  const lW=52,cW=110,hH=44,rH=52;
+  const totalW=lW+cW*7,totalH=hH+rH*hours.length;
+  const sx=c.x-totalW/2,sy=c.y-totalH/2;
+  // タイトル
+  const wd=new Date(startOfWeek),we=new Date(startOfWeek);
+  we.setDate(wd.getDate()+6);
+  const fmt=d=>`${d.getMonth()+1}/${d.getDate()}`;
+  addShapeEl(sx,sy,totalW,hH,'rect','#1e293b',0,'#1e293b',{label:`📅 ${fmt(wd)}〜${fmt(we)} の週`,labelFs:14,labelColor:'#fff'});
+  // 左上コーナー
+  addShapeEl(sx,sy+hH,lW,hH*0.8,'rect','#475569',0.5,'#475569');
+  // 曜日ヘッダー
+  days.forEach((d,i)=>{
+    const dt=new Date(startOfWeek);dt.setDate(startOfWeek.getDate()+i);
+    const isToday=dt.toDateString()===now.toDateString();
+    const isSun=i===0,isSat=i===6;
+    const hc=isToday?'#fef9c3':(isSun?'#fee2e2':isSat?'#dbeafe':'#f8fafc');
+    const tc=isToday?'#854d0e':(isSun?'#dc2626':isSat?'#2563eb':'#1e293b');
+    addShapeEl(sx+lW+i*cW,sy+hH,cW,hH*0.8,'rect',tc,0.8,hc,
+      {label:`${d} ${dt.getMonth()+1}/${dt.getDate()}`,labelFs:12,labelColor:tc});
+  });
+  // 時間スロット
+  hours.forEach((h,hi)=>{
+    const ry=sy+hH+Math.round(hH*0.8)+hi*rH;
+    addShapeEl(sx,ry,lW,rH,'rect','#94a3b8',0.5,'#f1f5f9',{label:h,labelFs:10,labelColor:'#64748b'});
+    days.forEach((_,di)=>{
+      const dt=new Date(startOfWeek);dt.setDate(startOfWeek.getDate()+di);
+      const isToday=dt.toDateString()===now.toDateString();
+      const bg=isToday?'#fefce8':'#ffffff';
+      addShapeEl(sx+lW+di*cW,ry,cW,rH,'rect','#e2e8f0',0.5,bg);
+    });
+  });
+}
+
+// ── プロジェクトタイムライン（詳細版）──────────────────
+function tTIMELINE(year,startMonth){
+  const c=bc();
+  const now=new Date();
+  const yr=year||now.getFullYear();
+  const smIdx=startMonth||0;
+  // 月ラベル12ヶ月分
+  const months=Array.from({length:12},(_,i)=>{
+    const d=new Date(yr,smIdx+i,1);
+    return `${d.getMonth()+1}月`;
+  });
+  const curMonth=now.getFullYear()===yr?((now.getMonth()-smIdx+12)%12):-1;
+  const lW=150,mW=70,rH=44,hH=36;
+  const totalW=lW+mW*12,totalH=hH+rH*8;
+  const sx=c.x-totalW/2,sy=c.y-totalH/2;
+  // ヘッダー行（年）
+  addShapeEl(sx,sy,totalW,hH*0.6,'rect','#1e293b',0,'#1e293b',{label:`${yr}年 プロジェクトタイムライン`,labelFs:13,labelColor:'#fff'});
+  // 月ヘッダー
+  addShapeEl(sx,sy+Math.round(hH*0.6),lW,Math.round(hH*0.7),'rect','#475569',0,'#475569',{label:'タスク / マイルストーン',labelFs:10,labelColor:'#e2e8f0'});
+  months.forEach((m,mi)=>{
+    const isCur=mi===curMonth;
+    addShapeEl(sx+lW+mi*mW,sy+Math.round(hH*0.6),mW,Math.round(hH*0.7),'rect',
+      isCur?'#4f46e5':'#334155',0.5,isCur?'#4f46e5':'#334155',
+      {label:m,labelFs:11,labelColor:isCur?'#ffffff':'#cbd5e1'});
+  });
+  // 今月の縦線マーカー
+  const markerX=sx+lW+curMonth*mW+mW/2;
+  aArr(markerX,sy+hH-4,0,totalH-hH+8,'#ef4444',2);
+  tx(markerX-14,sy+hH-22,'今月',11,'#ef4444',{bold:true});
+  // タスク行サンプル
+  const tasks=[
+    {l:'📋 企画・要件定義',start:0,end:2, col:'#2563eb'},
+    {l:'🎨 デザイン',       start:1,end:4, col:'#7c3aed'},
+    {l:'⚙️ 開発フェーズ1', start:3,end:6, col:'#059669'},
+    {l:'⚙️ 開発フェーズ2', start:5,end:9, col:'#16a34a'},
+    {l:'🧪 テスト・QA',    start:8,end:10,col:'#d97706'},
+    {l:'📢 マーケティング', start:2,end:11,col:'#db2777'},
+    {l:'🚀 リリース準備',  start:10,end:11,col:'#dc2626'},
+    {l:'📊 効果測定',       start:11,end:11,col:'#0891b2'},
+  ];
+  const rowStartY=sy+hH+Math.round(hH*0.7);
+  tasks.forEach((t,ti)=>{
+    const ry=rowStartY+ti*rH;
+    // 行背景（交互）
+    addShapeEl(sx,ry,lW,rH,'rect','#e2e8f0',0.4,ti%2===0?'#f8fafc':'#f1f5f9');
+    tx(sx+6,ry+rH/2-8,t.l,10,'#374151');
+    // 月グリッド
+    months.forEach((_,mi)=>{
+      addShapeEl(sx+lW+mi*mW,ry,mW,rH,'rect','#e2e8f0',0.3,ti%2===0?'#fafafa':'#f5f5f5');
+    });
+    // タスクバー
+    const bx=sx+lW+t.start*mW+3;
+    const bw=(t.end-t.start+1)*mW-6;
+    addShapeEl(bx,ry+8,bw,rH-16,'rdrect',t.col,0,t.col+'dd',
+      {label:t.l.replace(/^[^\s]+\s/,''),labelFs:10,labelColor:'#fff'});
+  });
+}
+
+// ── イベント・マイルストーンタイムライン ────────────────
+function tMILESTONE(year){
+  const c=bc();
+  const now=new Date();
+  const yr=year||now.getFullYear();
+  // 左右に長い水平タイムライン（上下にイベントを交互配置）
+  const events=[
+    {m:1, l:'📋 プロジェクト開始',    d:'キックオフMTG・体制確定', col:'#2563eb'},
+    {m:2, l:'🎨 基本設計完了',         d:'画面設計・DB設計のレビュー', col:'#7c3aed'},
+    {m:4, l:'⚙️ α版リリース',         d:'社内テスト開始', col:'#059669'},
+    {m:6, l:'🧪 ユーザーテスト',       d:'フィードバック収集・改善', col:'#d97706'},
+    {m:8, l:'🔧 β版リリース',          d:'限定公開・バグ修正', col:'#db2777'},
+    {m:10,l:'📢 正式リリース',          d:'全ユーザー公開', col:'#dc2626'},
+    {m:11,l:'📊 振り返り',              d:'KPI確認・次フェーズ計画', col:'#0891b2'},
+  ];
+  const axisY=c.y,totalW=900,startX=c.x-totalW/2;
+  const monthW=totalW/11;
+  // 軸線
+  aArr(startX-20,axisY,totalW+40,0,'#94a3b8',3);
+  // 年ラベル
+  tx(startX-18,axisY-24,`${yr}`,12,'#64748b',{bold:true});
+  tx(startX+totalW+8,axisY-8,`${yr+1}`,12,'#64748b',{bold:true});
+  // 月目盛り
+  for(let mi=0;mi<=11;mi++){
+    const mx=startX+mi*monthW;
+    aL(mx,axisY-8,0,16,'#94a3b8',1.5);
+    tx(mx-8,axisY+12,`${mi+1}月`,10,'#94a3b8');
+  }
+  // イベント
+  events.forEach((ev,i)=>{
+    const ex=startX+(ev.m-1)*monthW;
+    const up=i%2===0;
+    const stemH=90;
+    const boxH=70,boxW=148;
+    // ステム（縦線）
+    aL(ex,axisY+(up?-8:8),0,(up?-stemH:stemH),ev.col,2);
+    // マーカーサークル
+    addShapeEl(ex-10,axisY-10,20,20,'circle',ev.col,2.5,ev.col);
+    // イベントボックス
+    const bx=ex-boxW/2,by=up?axisY-stemH-boxH-4:axisY+stemH+4;
+    addShapeEl(bx,by,boxW,boxH,'rdrect',ev.col,1.5,ev.col+'22',
+      {label:`${ev.m}月\n${ev.l}`,labelFs:11,labelColor:'#1a1a1a'});
+    tx(bx+6,by+boxH-22,ev.d,9,'#6b7280');
+  });
+}
+
 // autoSave（LocalStorage保存のスタブ）
 function autoSave(){
   try {
@@ -4429,170 +4752,120 @@ function autoSave(){
   } catch(ex){}
 }
 
-// ─── FIREBASE REALTIME SYNC ──────────────────────────
-(async function initFirebaseSync(){
-  const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyAfcc7MDiOqIqp2le2G82frZr7fz_nTMh8",
-    authDomain: "whiteboard-pro-d04e1.firebaseapp.com",
-    databaseURL: "https://whiteboard-pro-d04e1-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "whiteboard-pro-d04e1",
-    storageBucket: "whiteboard-pro-d04e1.firebasestorage.app",
-    messagingSenderId: "526105533653",
-    appId: "1:526105533653:web:889735023627c152bf165c"
-  };
-
-  // URLパラメータからルームID（?room=xxx, なければ "default"）
-  const roomId = new URLSearchParams(location.search).get('room') || 'default';
-  const mySessionId = Math.random().toString(36).slice(2);
-
-  // ── ステータス表示 ──
-  function showSyncStatus(text, color='#666'){
-    let el = document.getElementById('sync-status');
-    if(!el){
-      el = document.createElement('div');
-      el.id = 'sync-status';
-      el.style.cssText = 'position:fixed;bottom:44px;right:12px;font-size:11px;padding:3px 8px;border-radius:10px;background:rgba(255,255,255,.92);border:1px solid #ddd;z-index:9999;pointer-events:none;transition:opacity .3s';
-      document.body.appendChild(el);
-    }
-    el.textContent = text; el.style.color = color;
-  }
-
-  // ── ルームバッジ ──
-  function showRoomBadge(){
-    let el = document.getElementById('room-badge');
-    if(!el){
-      el = document.createElement('div');
-      el.id = 'room-badge';
-      el.style.cssText = 'position:fixed;bottom:12px;right:12px;font-size:11px;padding:3px 10px;border-radius:10px;background:#4f46e5;color:#fff;z-index:9999;cursor:pointer;user-select:all';
-      el.title = 'クリックで共有URLをコピー';
-      el.addEventListener('click', ()=>{
-        const url = location.origin + location.pathname + '?room=' + encodeURIComponent(roomId);
-        navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
-      });
-      document.body.appendChild(el);
-    }
-    el.textContent = '🔗 ルーム: ' + roomId;
-  }
-  showRoomBadge();
-  showSyncStatus('⏳ 接続中…');
-
-  // ── Firebase SDK ロード ──
-  let db, stg, dbRef, dbSet, dbOnValue, stgRef, stgUpload, stgGetUrl;
-  try {
-    const appMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js');
-    const dbMod  = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js');
-    const stgMod = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js');
-    const app = appMod.initializeApp(FIREBASE_CONFIG, 'wb-sync-' + Math.random());
-    db  = dbMod.getDatabase(app);
-    stg = stgMod.getStorage(app);
-    dbRef    = dbMod.ref;
-    dbSet    = dbMod.set;
-    dbOnValue= dbMod.onValue;
-    stgRef   = stgMod.ref;
-    stgUpload= stgMod.uploadBytes;
-    stgGetUrl= stgMod.getDownloadURL;
-  } catch(e){
-    showSyncStatus('❌ Firebase接続失敗', 'red');
-    console.error('Firebase load error:', e);
-    return;
-  }
-
-  const boardRef = dbRef(db, 'boards/' + roomId);
-
-  // ── 画像アップロード（Firebase Storage → Storage URL を d.src に保存）──
-  window._fbUploadImg = async function(file, base64fallback, callback){
-    showSyncStatus('⬆ 画像アップロード中…', '#ca8a04');
-    try {
-      const ext  = file.type.split('/')[1] || 'png';
-      const path = 'rooms/' + roomId + '/images/' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.' + ext;
-      const sRef = stgRef(stg, path);
-      const snap = await stgUpload(sRef, file);
-      const url  = await stgGetUrl(snap.ref);
-      showSyncStatus('☁ 同期済み', '#16a34a');
-      callback(url);  // Storage URL で addImgEl を呼ぶ
-    } catch(e){
-      console.error('Storage upload error:', e);
-      showSyncStatus('⚠ 画像: ローカルのみ', '#ca8a04');
-      callback(base64fallback);  // 失敗時は base64 フォールバック
-    }
-  };
-
-  // ── 送信スロットル ──
-  let pushTimer = null;
-  let isSyncing = false;
-
-  function pushToFirebase(){
-    if(isSyncing) return;
-    clearTimeout(pushTimer);
-    pushTimer = setTimeout(async ()=>{
-      try {
-        // base64 画像（Storage未アップロード分）は URL か "data:" で区別
-        // Storage URL はそのまま送る、base64 は "[img-local]" で除外
-        const elemsToSend = S.elems.map(e => {
-          if(e.type !== 'img') return e;
-          const isStorageUrl = e.src && (e.src.startsWith('http://') || e.src.startsWith('https://'));
-          return {...e, src: isStorageUrl ? e.src : null, _localImg: !isStorageUrl};
-        });
-        await dbSet(boardRef, {
-          paths: S.paths,
-          elems: elemsToSend,
-          sessionId: mySessionId,
-          ts: Date.now()
-        });
-        showSyncStatus('☁ 同期済み', '#16a34a');
-      } catch(e){
-        showSyncStatus('❌ 送信エラー', 'red');
-        console.error('Firebase push error:', e);
-      }
-    }, 120);
-  }
-
-  // ── 受信リスナー ──
-  dbOnValue(boardRef, (snapshot) => {
-    const data = snapshot.val();
-    if(!data){ showSyncStatus('🟡 新規ルーム', '#ca8a04'); return; }
-    if(data.sessionId === mySessionId) return;  // 自分の送信は無視
-
-    showSyncStatus('⬇ 受信中…', '#2563eb');
-    isSyncing = true;
-    try {
-      // _localImg フラグの画像は受信側では表示しない（src が null）
-      const snap = {
-        paths: data.paths || [],
-        elems: (data.elems || []).filter(e => !(e.type === 'img' && e._localImg))
-      };
-      _restoreSnap(snap);
-      S.hist = S.hist.slice(0, S.hidx + 1);
-      S.hist.push({paths: JSON.parse(JSON.stringify(snap.paths)), elems: JSON.parse(JSON.stringify(snap.elems))});
-      if(S.hist.length > 80) S.hist.shift();
-      S.hidx = S.hist.length - 1;
-    } catch(e){ console.error('Firebase restore error:', e); }
-    isSyncing = false;
-    showSyncStatus('☁ 同期済み', '#16a34a');
-  });
-
-  // saveHist フック
-  const _origSaveHist = saveHist;
-  window.saveHist = function(){ _origSaveHist(); pushToFirebase(); };
-
-  // ペン描画フック
-  const _origRedrawPen = redrawPen;
-  let penSyncTimer = null;
-  window.redrawPen = function(){
-    _origRedrawPen();
-    if(isSyncing) return;
-    clearTimeout(penSyncTimer);
-    penSyncTimer = setTimeout(pushToFirebase, 300);
-  };
-
-  showSyncStatus('☁ 同期済み', '#16a34a');
-  showToast('🔗 同期が有効です　ルーム: ' + roomId + '　（右下バッジをクリックで共有URL取得）');
-})();
-
 // showToast が未定義の場合のフォールバック
 if(typeof showToast==='undefined'){
   window.showToast=function(msg){console.log(msg);}
 }
+
+// ─── FIREBASE REALTIME SYNC ──────────────────────────
+(async function initFirebaseSync(){
+  const FIREBASE_CONFIG={
+    apiKey:"AIzaSyAfcc7MDiOqIqp2le2G82frZr7fz_nTMh8",
+    authDomain:"whiteboard-pro-d04e1.firebaseapp.com",
+    databaseURL:"https://whiteboard-pro-d04e1-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:"whiteboard-pro-d04e1",
+    storageBucket:"whiteboard-pro-d04e1.firebasestorage.app",
+    messagingSenderId:"526105533653",
+    appId:"1:526105533653:web:889735023627c152bf165c"
+  };
+  const roomId=new URLSearchParams(location.search).get('room')||'default';
+  const myId=Math.random().toString(36).slice(2);
+
+  // ── UI ──
+  const mkEl=(tag,css,html='')=>{const e=document.createElement(tag);e.style.cssText=css;e.innerHTML=html;return e;};
+  const statusEl=mkEl('div','position:fixed;bottom:44px;right:12px;font-size:11px;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,.93);border:1px solid #ddd;z-index:9999;pointer-events:none;transition:opacity .3s');
+  document.body.appendChild(statusEl);
+  const setStatus=(t,c='#555')=>{statusEl.textContent=t;statusEl.style.color=c;};
+
+  const badgeEl=mkEl('div','position:fixed;bottom:12px;right:12px;font-size:11px;padding:3px 12px;border-radius:10px;background:#4f46e5;color:#fff;z-index:9999;cursor:pointer;user-select:all','🔗 ルーム: '+roomId);
+  badgeEl.title='クリックで共有URLをコピー';
+  badgeEl.addEventListener('click',()=>{
+    const url=location.origin+location.pathname+'?room='+encodeURIComponent(roomId);
+    navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
+  });
+  document.body.appendChild(badgeEl);
+  setStatus('⏳ 接続中…');
+
+  // ── SDK ロード ──
+  let db,stg,dbRef,dbSet,dbOnValue,stgRef,stgUpload,stgGetUrl;
+  try{
+    const [aM,dM,sM]=await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'),
+    ]);
+    const app=aM.initializeApp(FIREBASE_CONFIG,'wb-'+Math.random());
+    db=dM.getDatabase(app);stg=sM.getStorage(app);
+    dbRef=dM.ref;dbSet=dM.set;dbOnValue=dM.onValue;
+    stgRef=sM.ref;stgUpload=sM.uploadBytes;stgGetUrl=sM.getDownloadURL;
+  }catch(e){setStatus('❌ 接続失敗','red');console.error(e);return;}
+
+  const boardRef=dbRef(db,'boards/'+roomId);
+  let pushTimer=null,isSyncing=false;
+
+  // ── 画像アップロード（バックグラウンド・ローカル即時表示済み）──
+  window._fbUploadImg=async(file,base64,cb)=>{
+    try{
+      const ext=file.type.split('/')[1]||'png';
+      const path=`rooms/${roomId}/images/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const snap=await stgUpload(stgRef(stg,path),file);
+      const url=await stgGetUrl(snap.ref);
+      cb(url);
+    }catch(e){
+      console.error('Storage upload error:',e);
+      cb(base64); // 失敗時はbase64のまま（自分だけ見える）
+    }
+  };
+
+  // ── 送信（100msスロットル）──
+  function push(){
+    if(isSyncing)return;
+    clearTimeout(pushTimer);
+    pushTimer=setTimeout(async()=>{
+      try{
+        const elems=S.elems.map(e=>{
+          if(e.type!=='img')return e;
+          const isUrl=e.src&&(e.src.startsWith('http://')||e.src.startsWith('https://'));
+          return{...e,src:isUrl?e.src:null,_localOnly:!isUrl};
+        });
+        await dbSet(boardRef,{paths:S.paths,elems,sessionId:myId,ts:Date.now()});
+        setStatus('☁ 同期済み','#16a34a');
+      }catch(e){setStatus('❌ 送信エラー','red');}
+    },100);
+  }
+
+  // ── 受信 ──
+  dbOnValue(boardRef,snap=>{
+    const data=snap.val();
+    if(!data){setStatus('🟡 新規ルーム','#ca8a04');return;}
+    if(data.sessionId===myId)return;
+    setStatus('⬇ 受信中…','#2563eb');
+    isSyncing=true;
+    try{
+      const s={
+        paths:data.paths||[],
+        elems:(data.elems||[]).filter(e=>!(e.type==='img'&&e._localOnly))
+      };
+      _restoreSnap(s);
+      S.hist=S.hist.slice(0,S.hidx+1);
+      S.hist.push({paths:JSON.parse(JSON.stringify(s.paths)),elems:JSON.parse(JSON.stringify(s.elems))});
+      if(S.hist.length>80)S.hist.shift();
+      S.hidx=S.hist.length-1;
+    }catch(e){console.error(e);}
+    isSyncing=false;
+    setStatus('☁ 同期済み','#16a34a');
+  });
+
+  // フック
+  const _sh=saveHist;
+  window.saveHist=()=>{_sh();push();};
+  const _rp=redrawPen;
+  let penTimer=null;
+  window.redrawPen=()=>{_rp();if(!isSyncing){clearTimeout(penTimer);penTimer=setTimeout(push,300);}};
+
+  setStatus('☁ 同期済み','#16a34a');
+  showToast('🔗 同期ON　ルーム: '+roomId+'　（右下バッジをクリックで共有URL）');
+})();
 
 </script>
 </body>
