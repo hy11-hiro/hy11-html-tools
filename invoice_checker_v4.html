@@ -302,7 +302,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
           style="width:100px;font-size:14px;font-weight:700;">
         <span style="font-size:11px;color:#64748b;">金額を登録してからダンプ使用日の🚛ボタンをクリック</span>
         <div style="margin-left:auto;display:flex;align-items:center;gap:14px;">
-          <div style="font-size:12px;color:#475569;font-weight:700;">日給：<span id="sup-daily-rate-lbl" style="font-family:'Courier New',monospace;font-size:15px;color:#7c3aed;font-weight:900;">¥0</span></div>
+          <div style="font-size:12px;color:#475569;font-weight:700;display:flex;align-items:center;gap:6px;">
+            日給：<span id="sup-daily-rate-lbl" style="font-family:'Courier New',monospace;font-size:15px;color:#7c3aed;font-weight:900;">¥0</span>
+            <button onclick="editDailyRateInline()" id="btn-edit-dr"
+              style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #a78bfa;background:#f5f3ff;color:#7c3aed;cursor:pointer;">✎ 編集</button>
+          </div>
         </div>
       </div>
 
@@ -318,7 +322,8 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
             title="ONにすると工番①→工番②→次の日へ（記載金額をスキップ）">
             金額スキップ：<span id="skip-amt-lbl">OFF</span>
           </button>
-          <button class="btn gray sm" onclick="manualSaveSess()" style="margin-left:auto;"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
+          <button class="btn red sm" onclick="clearAllDeduriRows()" title="この月の全工番・出面をクリア" style="margin-left:auto;"><i class="fa-solid fa-trash-can"></i> 一括削除</button>
+          <button class="btn gray sm" onclick="manualSaveSess()"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
         </div>
 
         <!-- 固定31日テーブル -->
@@ -335,6 +340,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
                 <th style="width:42px;padding:7px 4px;text-align:center;font-size:11px;color:#7c3aed;">割当</th>
                 <th style="width:36px;padding:7px 4px;text-align:center;font-size:11px;color:#ea580c;">🚛</th>
                 <th style="width:96px;padding:7px 8px;text-align:center;font-size:11px;color:#1e40af;">出面<br><span style="font-size:9px;font-weight:400;color:#64748b;">1日 / 0.5日</span></th>
+                <th style="width:24px;padding:7px 2px;text-align:center;font-size:11px;color:#dc2626;" title="工番削除">×</th>
               </tr>
             </thead>
             <tbody id="deduri-body"></tbody>
@@ -573,6 +579,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
       <!-- 右：確認 -->
       <div class="card" style="margin-bottom:0;">
         <div class="ch"><i class="fa-solid fa-check-double" style="color:#1e40af"></i>最終確認</div>
+
+        <!-- 職人情報（インライン編集） -->
+        <div id="s5-cm-info" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px 12px;margin-bottom:12px;font-size:12px;"></div>
         <div class="fg">
           <label class="fl">請求書記載 支払金額</label>
           <input class="fi" type="number" id="inv-stated" placeholder="請求書の金額" oninput="chkMatch()">
@@ -1250,7 +1259,7 @@ function goStep(n){
   if(n===2) initS2();
   if(n===3){ if(isSupport()) initS3Sup(); else initS3(); }
   if(n===4){ if(isSupport()) initS4Sup(); else initS4(); }
-  if(n===5){ if(isSupport()) recalcSup(); else { initDRows(); recalc(); } }
+  if(n===5){ if(isSupport()) recalcSup(); else { initDRows(); recalc(); } renderS5CmInfo(); }
 }
 // 金額確認から特定工番の内訳へ戻る
 function goStep3Site(code){
@@ -1326,6 +1335,7 @@ function importSessJSON(input){
       if(typeof renderHeadRows==='function') renderHeadRows();
       if(typeof renderDeduri==='function') renderDeduri();
       if(typeof recalc==='function') recalc();
+      if(typeof renderS5CmInfo==='function') renderS5CmInfo();
       alert('読み込み完了！ステップ⑤に移動しました。\n必要な箇所を修正してください。');
     } catch(err){
       alert('読み込み失敗：' + err.message);
@@ -1365,10 +1375,15 @@ function renderCGrid(){
     html+=`<div style="grid-column:1/-1;font-size:11px;font-weight:700;color:#7c3aed;background:#f5f3ff;padding:5px 12px;border-radius:5px;margin-top:8px;border-left:3px solid #7c3aed;">${br} <span style="font-weight:400;color:#94a3b8;margin-left:4px;">${group.length}名</span></div>`;
     html+=group.map(c=>`
       <div class="cg-card ${sess.cid===c.id?'sel':''}" onclick="selC('${c.id}')">
-        <div style="font-weight:700;font-size:15px;color:#1e293b;">${c.name}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-weight:700;font-size:15px;color:#1e293b;">${c.name}</div>
+          <button onclick="event.stopPropagation();openCMEdit('${c.id}')" title="職人情報を編集"
+            style="font-size:11px;padding:2px 7px;border-radius:4px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;cursor:pointer;">✎</button>
+        </div>
         <div style="display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;">
           <span class="bk gray-bk">${c.category||c.type||'職人'}</span>
           ${c.invoice&&/^T\d{13}$/.test(c.invoice)?`<span class="bk blue-bk" title="${c.invoice}">インボイス</span>`:'<span class="bk warn">未対応</span>'}
+          ${(c.category||'職人')==='サポート'?`<span class="bk" style="background:#f5f3ff;color:#7c3aed;font-size:10px;">日給：${c.dailyRate>0?'¥'+c.dailyRate.toLocaleString():'<b style=color:#dc2626>未設定</b>'}</span>`:''}
         </div>
         <div style="font-size:12px;color:#94a3b8;margin-top:4px;">${deductSummary(c)}</div>
       </div>`).join('');
@@ -1382,6 +1397,13 @@ function deductSummary(c){
   return x.length?x.join('・'):'控除なし';
 }
 function selC(id){ sess.cid=id; document.getElementById('s1btn').disabled=false; renderCGrid(); }
+
+// 職人カードから編集画面へ（職人マスターページへ遷移して該当職人を開く）
+function openCMEdit(id){
+  sess.cid=id;
+  goPg('cm');
+  setTimeout(()=>{ openCM(id); },120);
+}
 
 // ══════════════════════════════════════
 // STEP 2
@@ -2693,12 +2715,12 @@ function initDRows(){
   if(!sess.dRows.length&&c){
     // 基本控除（車両リース以外）
     const base=[
-      {id:uid(),label:'労災組合費',amount:Number(c.rosai)||0},
-      {id:uid(),label:'健康保険料',amount:Number(c.kenko)||0},
-      {id:uid(),label:'駐車場代',amount:Number(c.parking)||0},
-      {id:uid(),label:'道具代',amount:Number(c.tools)||0},
-      {id:uid(),label:'電話代',amount:Number(c.phone)||0},
-      {id:uid(),label:'その他控除',amount:Number(c.otherDeduct)||0},
+      {id:uid(),label:'労災組合費',amount:Number(c.rosai)||0,cmField:'rosai'},
+      {id:uid(),label:'健康保険料',amount:Number(c.kenko)||0,cmField:'kenko'},
+      {id:uid(),label:'駐車場代',amount:Number(c.parking)||0,cmField:'parking'},
+      {id:uid(),label:'道具代',amount:Number(c.tools)||0,cmField:'tools'},
+      {id:uid(),label:'電話代',amount:Number(c.phone)||0,cmField:'phone'},
+      {id:uid(),label:'その他控除',amount:Number(c.otherDeduct)||0,cmField:'otherDeduct'},
     ].filter(x=>x.amount>0);
 
     // 車両管理から個別展開（契約中のものを1台ずつ）
@@ -2801,7 +2823,7 @@ function recalc(){
   let dTot=jimuFee+(anzen!==0?Math.abs(anzen):0);
   // deduct rows
   let dHtml='';
-  sess.dRows.forEach(r=>{ dTot+=Number(r.amount)||0; dHtml+=`<div class="ar"><div style="display:flex;align-items:center;gap:4px;"><input class="fi" value="${r.label}" style="width:130px;font-size:13px;padding:5px 8px;" oninput="updDR('${r.id}','label',this.value)"></div><div style="display:flex;align-items:center;gap:4px;"><span style="font-size:13px;color:#dc2626;font-weight:700;">−¥</span><input type="number" class="fi-n" value="${r.amount}" min="0" onchange="updDR('${r.id}','amount',Number(this.value));recalc()" style="width:100px;font-size:14px;"><button onclick="rmDR('${r.id}');recalc()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;">×</button></div></div>`; });
+  sess.dRows.forEach(r=>{ dTot+=Number(r.amount)||0; dHtml+=`<div class="ar"><div style="display:flex;align-items:center;gap:4px;"><input class="fi" value="${r.label}" style="width:130px;font-size:13px;padding:5px 8px;" oninput="updDR('${r.id}','label',this.value)"></div><div style="display:flex;align-items:center;gap:4px;"><span style="font-size:13px;color:#dc2626;font-weight:700;">−¥</span><input type="number" class="fi-n" value="${r.amount}" min="0" onchange="updDR('${r.id}','amount',Number(this.value));recalc()" style="width:100px;font-size:14px;">${r.cmField?`<button onclick="editCMFieldFromCheck('${r.id}','${r.cmField}','${r.label}')" title="職人マスターの値を編集" style="background:none;border:1px solid #a78bfa;border-radius:4px;cursor:pointer;color:#7c3aed;font-size:12px;padding:1px 5px;">✎</button>`:''}<button onclick="rmDR('${r.id}');recalc()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;">×</button></div></div>`; });
   setTxt('d-rows',dHtml||'',true);
   setTxt('c-dtot','−¥'+dTot.toLocaleString());
   // add rows
@@ -2826,6 +2848,81 @@ function chkMatch(){
   const el=document.getElementById('match-res'); if(!el||!s) return;
   const d=s-c;
   el.innerHTML=d===0?'<span style="color:#059669;">✓ 金額一致</span>':`<span style="color:#dc2626;">✗ 差異 ${d>0?'+':''}¥${d.toLocaleString()}</span>`;
+}
+
+// ── 金額確認：職人情報インライン編集 ──
+const CM_EDITABLE_FIELDS=[
+  {key:'dailyRate',  label:'日給',       type:'number'},
+  {key:'rosai',      label:'労災組合費',  type:'number'},
+  {key:'kenko',      label:'健康保険料',  type:'number'},
+  {key:'parking',    label:'駐車場代',    type:'number'},
+  {key:'tools',      label:'道具代',      type:'number'},
+  {key:'phone',      label:'電話代',      type:'number'},
+  {key:'vehicle',    label:'車両リース費', type:'number'},
+  {key:'otherDeduct',label:'その他控除',  type:'number'},
+  {key:'invoice',    label:'インボイス番号',type:'text'},
+];
+
+function renderS5CmInfo(){
+  const el=document.getElementById('s5-cm-info'); if(!el) return;
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  if(!c){ el.innerHTML='<span style="color:#94a3b8;">職人未選択</span>'; return; }
+  const isSupp=isSupport();
+  const fields=isSupp
+    ? CM_EDITABLE_FIELDS
+    : CM_EDITABLE_FIELDS.filter(f=>f.key!=='dailyRate');
+  let rows=fields.map(f=>{
+    const val=c[f.key];
+    const disp=f.type==='number'?(Number(val)||0)>0?'¥'+(Number(val)).toLocaleString():'—':val||'—';
+    const warn=f.key==='dailyRate'&&isSupp&&!(Number(val)>0);
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #f1f5f9;">
+      <span style="color:#475569;${warn?'color:#dc2626;font-weight:700;':''}">${f.label}${warn?' ⚠':''}:</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-family:'Courier New',monospace;font-weight:700;color:${warn?'#dc2626':'#1e293b'};">${disp}</span>
+        <button onclick="editCMFieldInS5('${f.key}')"
+          style="font-size:11px;padding:1px 6px;border-radius:4px;border:1px solid #e2e8f0;background:#fff;color:#475569;cursor:pointer;">✎</button>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML=`<div style="font-weight:700;font-size:12px;color:#1e293b;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+    <span><i class="fa-solid fa-user" style="color:#7c3aed;margin-right:4px;"></i>${c.name}</span>
+    <button onclick="openCMEdit('${c.id}')" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #a78bfa;background:#f5f3ff;color:#7c3aed;cursor:pointer;">マスター編集</button>
+  </div>${rows}`;
+}
+
+function editCMFieldInS5(key){
+  const c=craftsmen.find(x=>x.id===sess.cid); if(!c) return;
+  const fieldDef=CM_EDITABLE_FIELDS.find(f=>f.key===key);
+  if(!fieldDef) return;
+  const current=c[key]||'';
+  const dispCurrent=fieldDef.type==='number'&&Number(current)>0?Number(current).toLocaleString():current||'0';
+  const v=prompt(`${fieldDef.label} を入力（現在：${dispCurrent}）`, current||'');
+  if(v===null) return;
+  const newVal=fieldDef.type==='number'?Number(v)||0:v.trim();
+  c[key]=newVal;
+  lsSave(LS.CM, craftsmen);
+  // dRowsに同じフィールドがあれば金額を同期
+  const dr=sess.dRows.find(r=>r.cmField===key);
+  if(dr){ dr.amount=Number(newVal)||0; }
+  // 日給の場合は出面表示も更新
+  if(key==='dailyRate'){
+    const lbl=document.getElementById('sup-daily-rate-lbl');
+    if(lbl){ lbl.textContent='¥'+Number(newVal).toLocaleString(); lbl.style.color=Number(newVal)>0?'#7c3aed':'#dc2626'; }
+  }
+  renderS5CmInfo();
+  recalc();
+}
+
+function editCMFieldFromCheck(rowId, key, label){
+  const c=craftsmen.find(x=>x.id===sess.cid); if(!c) return;
+  const r=sess.dRows.find(x=>x.id===rowId); if(!r) return;
+  const v=prompt(`${label}（職人マスター）を編集\n現在：¥${Number(c[key]||0).toLocaleString()}`, c[key]||0);
+  if(v===null) return;
+  const newVal=Number(v)||0;
+  c[key]=newVal; r.amount=newVal;
+  lsSave(LS.CM, craftsmen);
+  renderS5CmInfo();
+  recalc();
 }
 
 function saveLog(){
@@ -3384,6 +3481,7 @@ function restoreFromLog(id){
   if(typeof renderHeadRows==='function') renderHeadRows();
   if(typeof renderDeduri==='function') renderDeduri();
   if(typeof recalc==='function') recalc();
+  if(typeof renderS5CmInfo==='function') renderS5CmInfo();
   goPg('check');
   alert('呼び出し完了！ステップ⑤で確認・修正できます。');
 }
@@ -3520,11 +3618,78 @@ function renderDeduri(){
         </select>
         ${r.dayFrac&&dr>0?`<div style="font-size:10px;color:#1e40af;font-weight:700;margin-top:1px;">¥${roundJ(r.dayFrac*dr).toLocaleString()}</div>`:''}
       </td>
+      <td style="padding:2px 2px;text-align:center;">
+        ${hasData?`<button onclick="clearDeduriRow(${day})" title="この日の工番・出面をクリア"
+          style="font-size:12px;color:#dc2626;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1;"
+          onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">×</button>`:''}
+      </td>
     </tr>`;
   }
   tbody.innerHTML=html;
   renderDeduriTotals();
   renderSupSiteSummary();
+}
+
+// ── 工番削除 ──
+function clearDeduriRow(day){
+  const y=sess.deduriYear, m=sess.deduriMonth;
+  const r=sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day);
+  if(!r) return;
+  r.site1=''; r.site2=''; r.dayFrac=null; r.claimedAmount=0; r.dump=false;
+  autoSaveSess();
+  // その行を再描画
+  const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
+  if(tr){
+    const c=craftsmen.find(x=>x.id===sess.cid);
+    const dr=c?.dailyRate||0;
+    const dow=new Date(y,m-1,day).getDay();
+    const isSun=dow===0,isSat=dow===6;
+    tr.style.background=isSun?'#fff1f2':isSat?'#eff6ff':'';
+    // 現場名セルをクリア
+    tr.cells[2].querySelector('input').value='';
+    tr.cells[3].innerHTML='';
+    tr.cells[4].querySelector('input').value='';
+    tr.cells[5].innerHTML='';
+    // 割当セル
+    tr.cells[6].textContent='—'; tr.cells[6].style.color='#d1d5db';
+    // 出面セル
+    tr.cells[8].querySelector('select').value='';
+    const sub=tr.cells[8].querySelector('div');
+    if(sub) sub.remove();
+    // 削除ボタンセル
+    tr.cells[9].innerHTML='';
+  }
+  renderDeduriTotals();
+  renderSupSiteSummary();
+}
+
+function clearAllDeduriRows(){
+  if(!confirm('この月の全工番・出面をクリアします。よろしいですか？')) return;
+  const y=sess.deduriYear, m=sess.deduriMonth;
+  sess.deduri.filter(x=>x.year===y&&x.month===m).forEach(r=>{
+    r.site1=''; r.site2=''; r.dayFrac=null; r.claimedAmount=0; r.dump=false;
+  });
+  autoSaveSess();
+  renderDeduri();
+}
+
+// 日給インライン編集（出面画面から直接編集）
+function editDailyRateInline(){
+  const c=craftsmen.find(x=>x.id===sess.cid);
+  if(!c){ alert('職人が選択されていません'); return; }
+  const current=c.dailyRate||0;
+  const v=prompt(`${c.name} の日給を入力してください（現在：¥${current.toLocaleString()}）`, current||'');
+  if(v===null) return;
+  const val=Number(v)||0;
+  if(val<0){ alert('0以上の金額を入力してください'); return; }
+  c.dailyRate=val;
+  lsSave(LS.CM, craftsmen);
+  // 表示更新
+  document.getElementById('sup-daily-rate-lbl').textContent='¥'+val.toLocaleString();
+  document.getElementById('sup-daily-rate-lbl').style.color=val>0?'#7c3aed':'#dc2626';
+  renderDeduri();
+  renderSupSiteSummary();
+  alert(`日給を¥${val.toLocaleString()}に更新しました。`);
 }
 
 // ダンプON/OFFトグル
