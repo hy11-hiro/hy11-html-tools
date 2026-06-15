@@ -1511,6 +1511,144 @@
   </div>
 </div>
 
+            <!-- データ結合作成タブ -->
+            <div class="glass-panel rounded-xl overflow-hidden">
+                <button onclick="this.nextElementSibling.classList.toggle('hidden');this.querySelector('i.fa-chevron-down').classList.toggle('rotate-180'); if(!this.nextElementSibling.classList.contains('hidden')) window.initMergeBuilder();"
+                    class="w-full flex items-center justify-between px-6 py-4 bg-blue-50 hover:bg-blue-100 transition-colors text-left border-b border-blue-100">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-code-merge text-blue-500"></i>
+                        <span class="font-bold text-blue-700">データ結合・カスタムExcel出力</span>
+                        <span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full border border-blue-200">現場コードをキーに結合</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down text-blue-400 transition-transform duration-200"></i>
+                </button>
+                <div class="hidden p-6 space-y-6" id="merge-builder-panel">
+
+                    <!-- 基準データ選択 -->
+                    <div class="p-4 bg-slate-100 rounded-xl border border-slate-300">
+                        <div class="text-sm font-bold text-slate-700 mb-3">
+                            <i class="fa-solid fa-database mr-1 text-slate-500"></i>
+                            結合の基準データ
+                            <span class="text-xs font-normal text-slate-500 ml-2">どのデータを軸に行を作るか</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <label class="flex items-start gap-2 px-4 py-2.5 rounded-lg border-2 border-slate-300 bg-white cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+                                <input type="radio" name="merge-base" value="master" checked class="text-blue-600 mt-0.5">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700">現場マスター基準</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">全現場が対象。原価集計・回収データがない現場も出力される</div>
+                                    <div class="text-xs text-amber-600 mt-0.5">⚠ 件数が多くなりやすい</div>
+                                </div>
+                            </label>
+                            <label class="flex items-start gap-2 px-4 py-2.5 rounded-lg border-2 border-slate-300 bg-white cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+                                <input type="radio" name="merge-base" value="cost" class="text-blue-600 mt-0.5">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700">原価集計基準</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">原価集計に存在する工番のみ出力。取込期間内で動きのある現場に絞れる</div>
+                                    <div class="text-xs text-blue-600 mt-0.5">✓ 件数を絞り込みやすい</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- STEP 1: 親/枝コードの扱い -->
+                    <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <div class="text-sm font-bold text-slate-700 mb-3">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold mr-2">1</span>
+                            親コード・枝コードの出力方法
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <label class="flex items-start gap-2 px-4 py-2.5 rounded-lg border-2 border-blue-400 bg-blue-50 cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-100">
+                                <input type="radio" name="merge-subcode" value="parent" checked class="text-blue-600 mt-0.5">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700">親コードのみ</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">1現場＝1行で出力</div>
+                                    <div class="text-xs text-blue-700 mt-1 bg-blue-50 border border-blue-200 rounded p-1">
+                                        枝コードの回収データは<br>親コードに合算して表示
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="flex items-start gap-2 px-4 py-2.5 rounded-lg border-2 border-slate-200 bg-white cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-100">
+                                <input type="radio" name="merge-subcode" value="all" class="text-blue-600 mt-0.5">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700">親＋枝コード両方</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">枝番ごとに行を展開</div>
+                                    <div class="text-xs text-blue-700 mt-1 bg-blue-50 border border-blue-200 rounded p-1">
+                                        親行＋枝番行の両方を出力<br>原価集計は枝番を持たないため<br>下のSTEP2で処理方法を選択
+                                    </div>
+                                </div>
+                            </label>
+                            <label class="flex items-start gap-2 px-4 py-2.5 rounded-lg border-2 border-slate-200 bg-white cursor-pointer has-[:checked]:border-blue-600 has-[:checked]:bg-blue-100">
+                                <input type="radio" name="merge-subcode" value="sub_only" class="text-blue-600 mt-0.5">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700">枝コードのみ</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">枝番がある行だけ出力</div>
+                                    <div class="text-xs text-blue-700 mt-1 bg-blue-50 border border-blue-200 rounded p-1">
+                                        現場名・担当者など現場マスターの<br>情報は親コードから引き継ぐ<br>原価集計はSTEP2の設定に従う
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- STEP 2: 枝コードを持たないデータの処理 -->
+                    <div class="p-4 bg-amber-50 rounded-xl border border-amber-200" id="merge-step2-panel">
+                        <div class="text-sm font-bold text-amber-800 mb-3">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-xs font-bold mr-2">2</span>
+                            枝コードを持たないデータ（原価集計）の値の扱い
+                            <span class="text-xs font-normal text-amber-600 ml-2">※ 枝コード展開時のみ関係します</span>
+                        </div>
+                        <div class="flex flex-wrap gap-3">
+                            <label class="flex items-start gap-2 px-4 py-2.5 rounded-lg border-2 border-amber-400 bg-white cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-100">
+                                <input type="radio" name="merge-nosubcode" value="parent_row" checked class="text-amber-500 mt-0.5">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700">親コード行にのみ表示</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">親行だけ原価集計値を出力<br>枝番行は空欄</div>
+                                </div>
+                            </label>
+                            <label class="flex items-start gap-2 px-4 py-2.5 rounded-lg border-2 border-slate-200 bg-white cursor-pointer has-[:checked]:border-amber-500 has-[:checked]:bg-amber-100">
+                                <input type="radio" name="merge-nosubcode" value="blank" class="text-amber-500 mt-0.5">
+                                <div>
+                                    <div class="text-sm font-bold text-slate-700">すべて空白にする</div>
+                                    <div class="text-xs text-slate-500 mt-0.5">親行・枝番行ともに<br>原価集計列は空欄で出力</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3: 列選択 -->
+                    <div>
+                        <div class="text-sm font-bold text-slate-700 mb-3">
+                            <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-xs font-bold mr-2">3</span>
+                            出力する列を選択
+                        </div>
+                        <div id="merge-col-selector" class="space-y-3">
+                            <!-- JSで動的生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 出力ボタン -->
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <div id="merge-preview-count" class="text-sm text-slate-500"></div>
+                        <div class="flex gap-2">
+                            <button onclick="window.previewMerge()" class="bg-slate-600 hover:bg-slate-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow transition-colors flex items-center gap-2">
+                                <i class="fa-solid fa-eye"></i> プレビュー（先頭5件）
+                            </button>
+                            <button onclick="window.exportMergeExcel()" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow transition-colors flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel"></i> Excel出力
+                            </button>
+                        </div>
+                    </div>
+                    <!-- プレビューテーブル -->
+                    <div id="merge-preview-area" class="hidden overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="text-xs w-full border-collapse">
+                            <thead id="merge-preview-head" class="bg-slate-100 sticky top-0"></thead>
+                            <tbody id="merge-preview-body" class="bg-white divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- カラムマッピング仕様パネル -->
             <div class="glass-panel rounded-xl overflow-hidden">
                 <button onclick="this.nextElementSibling.classList.toggle('hidden');this.querySelector('i').classList.toggle('rotate-180')"
@@ -1910,7 +2048,7 @@
                      }
                 }
                 costData = validRows.map(r => ({
-                    code: String(r['コード'] || ''), 
+                    code: String(r['コード'] || '').trim().toLowerCase(),
                     name: String(r['現場メイン名'] || ''),
                     salesTotal: parseFloat(String(r['売上累計'] || '0').replace(/,/g, '')),
                     costTotal: parseFloat(String(r['原価累計'] || '0').replace(/,/g, '')),
@@ -5403,7 +5541,7 @@
         const getSalesTaxInc = (code) => txMap.get(String(code||'').trim().toLowerCase()) || 0; // ★ 修正: 小文字統一
 
         const masterMap = new Map(masters.map(m => [String(m.code||'').trim(), m]));
-        const costMap   = new Map(costs.map(c   => [String(c.code||'').trim(), c]));
+        const costMap   = new Map(costs.map(c   => [String(c.code||'').trim().toLowerCase(), c]));
 
         const checkHasCost = (parentKey, subCodes) => {
             if (costMap.has(parentKey)) return true;
@@ -5443,7 +5581,7 @@
             });
         } else {
             browseAllData = masters.map(m => {
-                const key = String(m.code||'').trim();
+                const key = String(m.code||'').trim().toLowerCase();
                 const c = costMap.get(key) || {};
                 const margin = c.salesTotal > 0 ? (c.profitTotal / c.salesTotal * 100) : null;
                 const col = getCol(m.code);
@@ -6152,6 +6290,326 @@
         if (badge) badge.textContent = browseAllData.length + ' 件';
         window.renderBrowseTable();
     }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // データ結合・カスタムExcel出力
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    const MERGE_FIELDS = {
+        master: {
+            label: '現場マスター',
+            color: 'blue',
+            fields: [
+                { key: 'code',        label: '工番' },
+                { key: 'subCode',     label: 'サブコード' },
+                { key: 'name',        label: '現場名' },
+                { key: 'subName',     label: '現場サブ名' },
+                { key: 'branch',      label: '拠点' },
+                { key: 'manager',     label: '担当者' },
+                { key: 'estimator',   label: '積算担当' },
+                { key: 'designer',    label: '設計担当' },
+                { key: 'owner',       label: '施工主' },
+                { key: 'customer',    label: '得意先' },
+                { key: 'delivery',    label: '納期' },
+                { key: 'startDate',   label: '着手日' },
+                { key: 'endDate',     label: '完了日' },
+                { key: 'salesClass1', label: '売上分類①' },
+                { key: 'salesClass2', label: '売上分類②' },
+                { key: 'initialSales',label: '当初請負金額' },
+            ]
+        },
+        cost: {
+            label: '原価集計',
+            color: 'purple',
+            fields: [
+                { key: 'cost_salesTotal',  label: '売上累計(原価集計)' },
+                { key: 'cost_costTotal',   label: '原価累計' },
+                { key: 'cost_profitTotal', label: '粗利益' },
+                { key: 'cost_marginRatio', label: '粗利率(%)' },
+            ]
+        },
+        sales: {
+            label: '売上明細（集計）',
+            color: 'green',
+            fields: [
+                { key: 'sales_count',   label: '売上件数' },
+                { key: 'sales_sumEx',   label: '売上合計(税抜)' },
+                { key: 'sales_sumInc',  label: '売上合計(税込)' },
+            ]
+        },
+        purchase: {
+            label: '仕入明細（集計）',
+            color: 'orange',
+            fields: [
+                { key: 'purchase_count',  label: '仕入件数' },
+                { key: 'purchase_sum',    label: '仕入合計' },
+            ]
+        },
+        collection: {
+            label: '回収一覧',
+            color: 'red',
+            fields: [
+                { key: 'coll_subCode',        label: '回収サブコード' },
+                { key: 'coll_scheduled',      label: '回収予定額' },
+                { key: 'coll_unRequested',    label: '内未請求分' },
+                { key: 'coll_collected',      label: '回収済額' },
+                { key: 'coll_uncollected',    label: '未回収残高' },
+            ]
+        },
+    };
+
+    const COLOR_MAP = { blue:'bg-blue-100 text-blue-700 border-blue-200', purple:'bg-purple-100 text-purple-700 border-purple-200', green:'bg-green-100 text-green-700 border-green-200', orange:'bg-orange-100 text-orange-700 border-orange-200', red:'bg-red-100 text-red-700 border-red-200' };
+
+    window.initMergeBuilder = function() {
+        const sel = document.getElementById('merge-col-selector');
+        if (!sel || sel.childElementCount > 0) return;
+        for (const [srcKey, src] of Object.entries(MERGE_FIELDS)) {
+            const colorCls = COLOR_MAP[src.color];
+            const div = document.createElement('div');
+            div.className = 'merge-field-group p-3 rounded-lg border border-slate-200 bg-slate-50';
+            div.dataset.src = srcKey;
+            // デフォルト選択: マスターの基本列のみ
+            const defaultKeys = ['code','name','branch','manager'];
+            div.innerHTML = `
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs font-bold px-2 py-0.5 rounded border ${colorCls}">${src.label}</span>
+                    <button onclick="window.toggleMergeGroup('${srcKey}',true)"  class="text-[10px] text-slate-400 hover:text-blue-600 underline">全選択</button>
+                    <button onclick="window.toggleMergeGroup('${srcKey}',false)" class="text-[10px] text-slate-400 hover:text-red-500 underline">全解除</button>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    ${src.fields.map(f => `
+                        <label class="merge-field-chip flex items-center gap-1 text-xs px-2 py-1 rounded-full border border-slate-300 bg-white cursor-pointer hover:bg-slate-100 select-none">
+                            <input type="checkbox" class="merge-col-chk rounded" data-key="${f.key}" data-src="${srcKey}" ${srcKey==='master'&&defaultKeys.includes(f.key)?'checked':''}> ${f.label}
+                        </label>`).join('')}
+                </div>`;
+            sel.appendChild(div);
+        }
+        window.updateMergePreviewCount();
+    };
+
+    window.toggleMergeGroup = function(srcKey, on) {
+        document.querySelectorAll(`.merge-col-chk[data-src="${srcKey}"]`).forEach(c => c.checked = on);
+        window.updateMergePreviewCount();
+    };
+
+    window.updateMergePreviewCount = async function() {
+        const subMode = document.querySelector('input[name="merge-subcode"]:checked')?.value || 'parent';
+        const rows = await window.buildMergeRows(subMode, 0);
+        const el = document.getElementById('merge-preview-count');
+        if (el) el.textContent = `対象: ${rows.length.toLocaleString()} 行`;
+    };
+
+    window.buildMergeRows = async function(subMode, limit) {
+        const noSubMode  = document.querySelector('input[name="merge-nosubcode"]:checked')?.value || 'parent_row';
+        const baseMode   = document.querySelector('input[name="merge-base"]:checked')?.value || 'master';
+
+        const masters   = await db.masters.toArray();
+        const costs     = await db.costs.toArray();
+        const salesAll  = await db.sales.toArray();
+        const purchAll  = await db.purchases.toArray();
+        const collAll   = await db.collections.toArray();
+
+        const costMap  = new Map(costs.map(c => [String(c.code||'').trim().toLowerCase(), c]));
+        // 売上: 親コード単位 と サブコード単位 の両方でMap化
+        const salesMap    = new Map(); // key: parentCode
+        const salesSubMap = new Map(); // key: parentCode + ':' + subCode
+        salesAll.forEach(s => {
+            const pk  = String(s.siteCode||'').trim().toLowerCase();
+            const sk  = String(s.subCode ||'').trim();
+            const cur = salesMap.get(pk) || { sum_ex:0, sum_inc:0, count:0 };
+            cur.sum_ex  += s.amount    || 0;
+            cur.sum_inc += s.amountInc || 0;
+            cur.count++;
+            salesMap.set(pk, cur);
+            // サブコード単位
+            const subKey = pk + ':' + (sk || '__parent__');
+            const curSub = salesSubMap.get(subKey) || { sum_ex:0, sum_inc:0, count:0 };
+            curSub.sum_ex  += s.amount    || 0;
+            curSub.sum_inc += s.amountInc || 0;
+            curSub.count++;
+            salesSubMap.set(subKey, curSub);
+        });
+        // 仕入: 親コード単位 と サブコード単位 の両方でMap化
+        const purchMap    = new Map(); // key: parentCode
+        const purchSubMap = new Map(); // key: parentCode + ':' + subCode
+        purchAll.forEach(p => {
+            const pk  = String(p.siteCode||'').trim().toLowerCase();
+            const sk  = String(p.subCode ||'').trim();
+            const cur = purchMap.get(pk) || { sum:0, count:0 };
+            cur.sum += p.amount || 0;
+            cur.count++;
+            purchMap.set(pk, cur);
+            // サブコード単位
+            const subKey = pk + ':' + (sk || '__parent__');
+            const curSub = purchSubMap.get(subKey) || { sum:0, count:0 };
+            curSub.sum += p.amount || 0;
+            curSub.count++;
+            purchSubMap.set(subKey, curSub);
+        });
+        const collMap = new Map();
+        collAll.forEach(c => {
+            const k = String(c.code||'').trim().toLowerCase();
+            if (!collMap.has(k)) collMap.set(k, []);
+            collMap.get(k).push(c);
+        });
+
+        // 現場マスターをコードでマップ化（枝番展開用）
+        const masterMap = new Map(masters.map(m => [String(m.code||'').trim().toLowerCase(), m]));
+
+        const fmtDate = v => { const s=String(v||'').replace(/\D/g,''); return s.length===8?s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8):String(v||''); };
+
+        const buildRow = (m, sub, isParentRow) => {
+            const code    = String(m.code||'').trim().toLowerCase();
+            const subCode = sub ? String(sub.subCode||'').trim() : '';
+            const cost    = costMap.get(code) || {};
+            // 枝番行は枝番単位の集計、親行は親コード単位の集計を使用
+            const saleKey  = subCode ? code + ':' + subCode : code + ':__parent__';
+            const purchKey = subCode ? code + ':' + subCode : code + ':__parent__';
+            const sale     = subCode ? (salesSubMap.get(saleKey)  || { sum_ex:0, sum_inc:0, count:0 })
+                                     : (salesMap.get(code)        || { sum_ex:0, sum_inc:0, count:0 });
+            const purch    = subCode ? (purchSubMap.get(purchKey) || { sum:0, count:0 })
+                                     : (purchMap.get(code)        || { sum:0, count:0 });
+            const colls   = collMap.get(code)  || [];
+
+            const collMatch = subCode
+                ? colls.filter(c => String(c.subCode||'').trim() === subCode)
+                : colls;
+            const collAgg = collMatch.reduce((a,c) => ({
+                scheduled:   a.scheduled   + (c.scheduledAmount   ||0),
+                unRequested: a.unRequested + (c.unRequestedAmount ||0),
+                collected:   a.collected   + (c.collectedAmount   ||0),
+                uncollected: a.uncollected + (c.uncollectedAmount ||0),
+            }), {scheduled:0, unRequested:0, collected:0, uncollected:0});
+
+            const isSub = !!sub;
+            const getCost = (val) => {
+                if (!isSub) return val ?? '';
+                // 枝番行: 原価集計は「親行のみ表示」か「すべて空白」のみ（inherit廃止）
+                if (noSubMode === 'blank') return '';
+                return isParentRow ? (val ?? '') : ''; // parent_row（デフォルト）
+            };
+
+            return {
+                code:         m.code,
+                subCode:      subCode,
+                kindLabel:    subCode ? `枝 ${subCode}` : '親',
+                name:         (sub?.name) || m.name        || '',
+                subName:      (sub?.subName) || m.subName  || '',
+                branch:       m.branch      || '',
+                manager:      m.manager     || '',
+                estimator:    m.estimator   || '',
+                designer:     m.designer    || '',
+                owner:        m.owner       || '',
+                customer:     m.customer    || '',
+                delivery:     m.delivery    || '',
+                startDate:    fmtDate(m.startDate),
+                endDate:      fmtDate(m.endDate),
+                salesClass1:  m.salesClass1 || '',
+                salesClass2:  m.salesClass2 || '',
+                initialSales: m.initialSales|| '',
+                cost_salesTotal:  getCost(cost.salesTotal),
+                cost_costTotal:   getCost(cost.costTotal),
+                cost_profitTotal: getCost(cost.profitTotal),
+                cost_marginRatio: getCost(cost.marginRatio != null ? cost.marginRatio+'%' : ''),
+                sales_count:  sale.count  || 0,
+                sales_sumEx:  sale.sum_ex || 0,
+                sales_sumInc: sale.sum_inc|| 0,
+                purchase_count: purch.count || 0,
+                purchase_sum:   purch.sum   || 0,
+                coll_subCode:     subCode,
+                coll_scheduled:   collAgg.scheduled,
+                coll_unRequested: collAgg.unRequested,
+                coll_collected:   collAgg.collected,
+                coll_uncollected: collAgg.uncollected,
+            };
+        };
+
+        const rows = [];
+
+        if (baseMode === 'cost') {
+            // ★ 原価集計基準: コストに存在する工番のみ出力（枝番はマスターから補完）
+            for (const c of costs) {
+                if (limit && rows.length >= limit) break;
+                const code = String(c.code||'').trim().toLowerCase();
+                const m = masterMap.get(code) || { code: c.code, name: c.name || '' };
+                if (subMode === 'parent') {
+                    rows.push(buildRow(m, null, true));
+                } else if (subMode === 'all') {
+                    rows.push(buildRow(m, null, true));
+                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
+                } else {
+                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
+                }
+            }
+        } else {
+            // 現場マスター基準: 全マスターを出力
+            for (const m of masters) {
+                if (limit && rows.length >= limit) break;
+                if (subMode === 'parent') {
+                    rows.push(buildRow(m, null, true));
+                } else if (subMode === 'all') {
+                    rows.push(buildRow(m, null, true));
+                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
+                } else {
+                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
+                }
+            }
+        }
+        return rows;
+    };
+
+    window.getSelectedMergeFields = function() {
+        const checked = [...document.querySelectorAll('.merge-col-chk:checked')];
+        return checked.map(c => {
+            const src = c.dataset.src;
+            const key = c.dataset.key;
+            const srcDef = MERGE_FIELDS[src];
+            const field = srcDef?.fields.find(f => f.key === key);
+            return { key, label: field?.label || key };
+        });
+    };
+
+    window.previewMerge = async function() {
+        const subMode = document.querySelector('input[name="merge-subcode"]:checked')?.value || 'parent';
+        const fields  = window.getSelectedMergeFields();
+        if (fields.length === 0) { alert('列を1つ以上選択してください。'); return; }
+        const allRows = await window.buildMergeRows(subMode, 0);
+        const preview = allRows.slice(0, 5);
+        const head = document.getElementById('merge-preview-head');
+        const body = document.getElementById('merge-preview-body');
+        const area = document.getElementById('merge-preview-area');
+        head.innerHTML = '<tr>' + fields.map(f => `<th class="p-1.5 border border-slate-200 bg-slate-100 text-slate-600 whitespace-nowrap">${f.label}</th>`).join('') + '</tr>';
+        body.innerHTML = preview.map(r =>
+            '<tr>' + fields.map(f => `<td class="p-1.5 border border-slate-200 whitespace-nowrap">${r[f.key] ?? ''}</td>`).join('') + '</tr>'
+        ).join('');
+        area.classList.remove('hidden');
+        const el = document.getElementById('merge-preview-count');
+        if (el) el.textContent = `対象: ${allRows.length.toLocaleString()} 行（プレビュー: 先頭5件）`;
+    };
+
+    window.exportMergeExcel = async function() {
+        const subMode = document.querySelector('input[name="merge-subcode"]:checked')?.value || 'parent';
+        const fields  = window.getSelectedMergeFields();
+        if (fields.length === 0) { alert('列を1つ以上選択してください。'); return; }
+        const rows = await window.buildMergeRows(subMode, 0);
+        if (rows.length === 0) { alert('出力対象データがありません。'); return; }
+        const exportData = rows.map(r => {
+            const obj = {};
+            fields.forEach(f => { obj[f.label] = r[f.key] ?? ''; });
+            return obj;
+        });
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = fields.map(() => ({ wch: 16 }));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'データ結合');
+        XLSX.writeFile(wb, `データ結合_${subMode}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
+
+    // 列チェック変更 → プレビュー件数更新
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('merge-col-chk') || e.target.name === 'merge-subcode' || e.target.name === 'merge-nosubcode' || e.target.name === 'merge-base') {
+            window.updateMergePreviewCount?.();
+        }
+    });
 
     window.exportBrowseExcel = function() {
         if (!browseFiltered || browseFiltered.length === 0) { alert("出力するデータがありません。"); return; }
