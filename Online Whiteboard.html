@@ -4789,49 +4789,76 @@ if(typeof showToast==='undefined'){
 
   // ── UI ──
   const mkEl=(tag,css,html='')=>{const e=document.createElement(tag);e.style.cssText=css;e.innerHTML=html;return e;};
-  const statusEl=mkEl('div','position:fixed;bottom:44px;right:12px;font-size:11px;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,.93);border:1px solid #ddd;z-index:9999;pointer-events:none;transition:opacity .3s');
+
+  // ステータスバッジ（同期中のみ表示）
+  const statusEl=mkEl('div','position:fixed;bottom:44px;right:12px;font-size:11px;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,.93);border:1px solid #ddd;z-index:9999;pointer-events:none;transition:opacity .3s;display:none');
   document.body.appendChild(statusEl);
-  const setStatus=(t,c='#555')=>{statusEl.textContent=t;statusEl.style.color=c;};
+  const setStatus=(t,c='#555')=>{statusEl.textContent=t;statusEl.style.color=c;statusEl.style.display='block';};
+  const hideStatus=()=>{statusEl.style.display='none';};
 
-  const badgeEl=mkEl('div','position:fixed;bottom:12px;right:12px;font-size:11px;padding:3px 12px;border-radius:10px;background:#4f46e5;color:#fff;z-index:9999;cursor:pointer;user-select:all','🔗 ルーム: '+roomId);
-  badgeEl.title='クリックで共有URLをコピー';
-  badgeEl.addEventListener('click',()=>{
-    const url=location.origin+location.pathname+'?room='+encodeURIComponent(roomId);
-    navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
-  });
+  // 同期トグルバッジ
+  const badgeEl=mkEl('div',
+    'position:fixed;bottom:12px;right:12px;font-size:11px;padding:4px 12px;border-radius:10px;background:#888;color:#fff;z-index:9999;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;transition:background .2s;',
+    '<span id="sync-icon">☁</span><span id="sync-label">同期OFF</span><span style="opacity:.6;font-size:10px" id="sync-room"></span>'
+  );
+  badgeEl.title='クリックで同期ON/OFF';
   document.body.appendChild(badgeEl);
-  setStatus('⏳ 接続中…');
 
-  // ── SDK ロード ──
-  let db,stg,dbRef,dbSet,dbOnValue,stgRef,stgUpload,stgGetUrl;
-  try{
-    const [aM,dM,sM]=await Promise.all([
-      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
-      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'),
-      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'),
-    ]);
-    const app=aM.initializeApp(FIREBASE_CONFIG,'wb-'+Math.random());
-    db=dM.getDatabase(app);stg=sM.getStorage(app);
-    dbRef=dM.ref;dbSet=dM.set;dbOnValue=dM.onValue;
-    stgRef=sM.ref;stgUpload=sM.uploadBytes;stgGetUrl=sM.getDownloadURL;
-  }catch(e){setStatus('❌ 接続失敗','red');console.error(e);return;}
+  // ── SDK ロード（バックグラウンドで先にロードだけしておく）──
+  let db,stg,dbRef,dbSet,dbOnValue,dbOff,stgRef,stgUpload,stgGetUrl;
+  let sdkReady=false;
+  const sdkPromise=(async()=>{
+    try{
+      const [aM,dM,sM]=await Promise.all([
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'),
+        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'),
+      ]);
+      const app=aM.initializeApp(FIREBASE_CONFIG,'wb-'+Math.random());
+      db=dM.getDatabase(app);stg=sM.getStorage(app);
+      dbRef=dM.ref;dbSet=dM.set;dbOnValue=dM.onValue;dbOff=dM.off;
+      stgRef=sM.ref;stgUpload=sM.uploadBytes;stgGetUrl=sM.getDownloadURL;
+      sdkReady=true;
+    }catch(e){console.error('Firebase SDK load error:',e);sdkReady=false;}
+  })();
 
-  const boardRef=dbRef(db,'boards/'+roomId);
+  // ── 同期状態管理 ──
+  let syncEnabled=false;
   let pushTimer=null,isSyncing=false;
+  let uploadingCount=0;
+  let unsubscribe=null; // onValue の購読解除関数
 
-  // ── 画像アップロード（バックグラウンド・ローカル即時表示済み）──
-  // ── 画像圧縮してからアップロード ──
-  async function compressImage(file, base64){
+  function updateBadge(){
+    const icon=document.getElementById('sync-icon');
+    const label=document.getElementById('sync-label');
+    const room=document.getElementById('sync-room');
+    if(syncEnabled){
+      badgeEl.style.background='#4f46e5';
+      if(icon)icon.textContent='☁';
+      if(label)label.textContent='同期ON';
+      if(room)room.textContent='ルーム: '+roomId;
+      badgeEl.title='クリックで同期OFF / 長押しでURL共有';
+    }else{
+      badgeEl.style.background='#888';
+      if(icon)icon.textContent='⊘';
+      if(label)label.textContent='同期OFF';
+      if(room)room.textContent='';
+      badgeEl.title='クリックで同期ON';
+      hideStatus();
+    }
+  }
+  updateBadge();
+
+  // ── 圧縮 ──
+  async function compressImage(file,base64){
     return new Promise(resolve=>{
       const img=new Image();
       img.onload=()=>{
-        // 最大1200px・JPEG品質0.75で圧縮（元の1/10〜1/30程度になる）
-        const MAX=1200, Q=0.75;
-        let w=img.naturalWidth, h=img.naturalHeight;
+        const MAX=1200,Q=0.75;
+        let w=img.naturalWidth,h=img.naturalHeight;
         if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
         if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
-        const cv=document.createElement('canvas');
-        cv.width=w; cv.height=h;
+        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
         cv.getContext('2d').drawImage(img,0,0,w,h);
         cv.toBlob(blob=>resolve(blob),'image/jpeg',Q);
       };
@@ -4840,37 +4867,40 @@ if(typeof showToast==='undefined'){
     });
   }
 
+  // ── 画像アップロード（同期OFFなら即コールバックでローカルのみ）──
   window._fbUploadImg=async(file,base64,cb)=>{
+    if(!syncEnabled||!sdkReady){cb(base64);return;}
+    uploadingCount++;
+    const startTime=Date.now();
+    let timerInterval=setInterval(()=>{
+      const sec=((Date.now()-startTime)/1000).toFixed(1);
+      setStatus(`⬆ アップロード中… ${sec}秒 (${uploadingCount}件)`,'#ca8a04');
+    },200);
     try{
-      // アップロード開始時間を記録してカウントアップ表示
-      const startTime=Date.now();
-      let timerInterval=setInterval(()=>{
-        const sec=((Date.now()-startTime)/1000).toFixed(1);
-        setStatus(`⬆ アップロード中… ${sec}秒経過`, '#ca8a04');
-      }, 200);
-
-      // Canvas で圧縮
       const blob=await compressImage(file,base64);
       const uploadTarget=blob||file;
       const path=`rooms/${roomId}/images/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
       const snap=await stgUpload(stgRef(stg,path),uploadTarget,{contentType:'image/jpeg'});
       const url=await stgGetUrl(snap.ref);
-
       clearInterval(timerInterval);
-      const elapsed=((Date.now()-startTime)/1000).toFixed(1);
-      setStatus(`☁ 画像同期完了（${elapsed}秒）`, '#16a34a');
-      setTimeout(()=>setStatus('☁ 同期済み','#16a34a'), 2500);
       cb(url);
     }catch(e){
       console.error('Storage upload error:',e);
-      setStatus('⚠ 画像: ローカルのみ（Storage失敗）','#ca8a04');
+      clearInterval(timerInterval);
       cb(base64);
+    }finally{
+      uploadingCount=Math.max(0,uploadingCount-1);
+      if(uploadingCount===0){
+        const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+        setStatus(`☁ 画像完了（${elapsed}秒）`,'#16a34a');
+        setTimeout(()=>{if(syncEnabled)setStatus('☁ 同期済み','#16a34a');},2500);
+      }
     }
   };
 
-  // ── 送信（100msスロットル）──
+  // ── 送信 ──
   function push(){
-    if(isSyncing)return;
+    if(!syncEnabled||!sdkReady||isSyncing)return;
     clearTimeout(pushTimer);
     pushTimer=setTimeout(async()=>{
       try{
@@ -4879,52 +4909,115 @@ if(typeof showToast==='undefined'){
           const isUrl=e.src&&(e.src.startsWith('http://')||e.src.startsWith('https://'));
           return{...e,src:isUrl?e.src:null,_localOnly:!isUrl};
         });
-        await dbSet(boardRef,{paths:S.paths,elems,sessionId:myId,ts:Date.now()});
-        setStatus('☁ 同期済み','#16a34a');
+        await dbSet(dbRef(db,'boards/'+roomId),{paths:S.paths,elems,sessionId:myId,ts:Date.now()});
+        if(uploadingCount===0&&syncEnabled)setStatus('☁ 同期済み','#16a34a');
       }catch(e){setStatus('❌ 送信エラー','red');}
     },100);
   }
 
-  // ── 受信 ──
-  dbOnValue(boardRef,snap=>{
-    const data=snap.val();
-    if(!data){setStatus('🟡 新規ルーム','#ca8a04');return;}
-    if(data.sessionId===myId)return;
-    setStatus('⬇ 受信中…','#2563eb');
-    isSyncing=true;
-    try{
-      // ローカルでアップロード中の画像IDを記録（受信で上書きしない）
-      const localImgIds=new Set(
-        S.elems.filter(e=>e.type==='img'&&e.src&&e.src.startsWith('data:')).map(e=>e.id)
-      );
-      const incomingElems=(data.elems||[]).filter(e=>!(e.type==='img'&&e._localOnly));
-      // ローカル中の画像は受信データより自分のsrcを優先
-      incomingElems.forEach(e=>{
-        if(e.type==='img'&&localImgIds.has(e.id)){
-          const local=S.elems.find(l=>l.id===e.id);
-          if(local)e.src=local.src;
-        }
-      });
-      const s={paths:data.paths||[], elems:incomingElems};
-      _restoreSnap(s);
-      S.hist=S.hist.slice(0,S.hidx+1);
-      S.hist.push({paths:JSON.parse(JSON.stringify(s.paths)),elems:JSON.parse(JSON.stringify(s.elems))});
-      if(S.hist.length>80)S.hist.shift();
-      S.hidx=S.hist.length-1;
-    }catch(e){console.error(e);}
+  // ── 受信購読 開始／停止 ──
+  function startReceive(){
+    if(unsubscribe)return;
+    const boardRef=dbRef(db,'boards/'+roomId);
+    const handler=snap=>{
+      if(!syncEnabled)return;
+      const data=snap.val();
+      if(!data){setStatus('🟡 新規ルーム','#ca8a04');return;}
+      if(data.sessionId===myId)return;
+      setStatus('⬇ 受信中…','#2563eb');
+      isSyncing=true;
+      try{
+        const localImgIds=new Set(
+          S.elems.filter(e=>e.type==='img'&&e.src&&e.src.startsWith('data:')).map(e=>e.id)
+        );
+        const incomingElems=(data.elems||[]).filter(e=>!(e.type==='img'&&e._localOnly));
+        incomingElems.forEach(e=>{
+          if(e.type==='img'&&localImgIds.has(e.id)){
+            const local=S.elems.find(l=>l.id===e.id);
+            if(local)e.src=local.src;
+          }
+        });
+        const s={paths:data.paths||[],elems:incomingElems};
+        _restoreSnap(s);
+        S.hist=S.hist.slice(0,S.hidx+1);
+        S.hist.push({paths:JSON.parse(JSON.stringify(s.paths)),elems:JSON.parse(JSON.stringify(s.elems))});
+        if(S.hist.length>80)S.hist.shift();
+        S.hidx=S.hist.length-1;
+      }catch(e){console.error(e);}
+      isSyncing=false;
+      setStatus('☁ 同期済み','#16a34a');
+    };
+    dbOnValue(boardRef,handler);
+    unsubscribe=()=>dbOff(boardRef,'value',handler);
+  }
+
+  function stopReceive(){
+    if(unsubscribe){unsubscribe();unsubscribe=null;}
+    clearTimeout(pushTimer);
     isSyncing=false;
-    setStatus('☁ 同期済み','#16a34a');
+  }
+
+  // ── 同期ON/OFFトグル ──
+  async function toggleSync(){
+    if(!syncEnabled){
+      // ONにする
+      if(!sdkReady){
+        setStatus('⏳ 接続中…');
+        await sdkPromise;
+        if(!sdkReady){setStatus('❌ 接続失敗','red');return;}
+      }
+      syncEnabled=true;
+      updateBadge();
+      setStatus('⏳ 接続中…');
+      startReceive();
+      push(); // 今の状態を即送信
+      setStatus('☁ 同期済み','#16a34a');
+      showToast('☁ 同期ON　ルーム: '+roomId);
+    }else{
+      // OFFにする
+      syncEnabled=false;
+      stopReceive();
+      updateBadge();
+      showToast('⊘ 同期OFF　ローカルモード');
+    }
+  }
+
+  // バッジ：クリックでトグル、長押しでURL共有
+  let pressTimer=null;
+  badgeEl.addEventListener('mousedown',()=>{
+    pressTimer=setTimeout(()=>{
+      pressTimer=null;
+      if(syncEnabled){
+        const url=location.origin+location.pathname+'?room='+encodeURIComponent(roomId);
+        navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
+      }
+    },600);
+  });
+  badgeEl.addEventListener('mouseup',()=>{
+    if(pressTimer){clearTimeout(pressTimer);pressTimer=null;toggleSync();}
+  });
+  badgeEl.addEventListener('mouseleave',()=>{if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}});
+  // タッチ対応
+  badgeEl.addEventListener('touchstart',e=>{e.preventDefault();
+    pressTimer=setTimeout(()=>{
+      pressTimer=null;
+      if(syncEnabled){
+        const url=location.origin+location.pathname+'?room='+encodeURIComponent(roomId);
+        navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
+      }
+    },600);
+  });
+  badgeEl.addEventListener('touchend',e=>{e.preventDefault();
+    if(pressTimer){clearTimeout(pressTimer);pressTimer=null;toggleSync();}
   });
 
-  // フック
+  // ── saveHist / redrawPen フック ──
   const _sh=saveHist;
   window.saveHist=()=>{_sh();push();};
   const _rp=redrawPen;
   let penTimer=null;
-  window.redrawPen=()=>{_rp();if(!isSyncing){clearTimeout(penTimer);penTimer=setTimeout(push,300);}};
+  window.redrawPen=()=>{_rp();if(syncEnabled&&!isSyncing){clearTimeout(penTimer);penTimer=setTimeout(push,300);}};
 
-  setStatus('☁ 同期済み','#16a34a');
-  showToast('🔗 同期ON　ルーム: '+roomId+'　（右下バッジをクリックで共有URL）');
 })();
 
 </script>
