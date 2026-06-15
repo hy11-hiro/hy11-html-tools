@@ -1,0 +1,1512 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Tools — 無料PDFツール</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F0F2F8;--surface:#fff;--border:#E2E8F0;
+  --primary:#4361EE;--primary-h:#3451D1;--purple:#7209B7;
+  --green:#06D6A0;--red:#EF476F;--orange:#FB8500;--sky:#0EA5E9;
+  --text:#1E293B;--muted:#64748B;
+  --shadow:0 2px 12px rgba(0,0,0,.08);--shadow-lg:0 8px 28px rgba(0,0,0,.13);
+  --r:12px;
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── HEADER ── */
+.header{background:linear-gradient(135deg,#4361EE,#7209B7);padding:14px 22px;color:#fff;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:200;box-shadow:0 4px 20px rgba(67,97,238,.35)}
+.hlogo{width:32px;height:32px;flex-shrink:0}
+.htitle{font-size:18px;font-weight:800;letter-spacing:-.3px;cursor:pointer;transition:opacity .2s}.htitle:hover{opacity:.8}.hlogo{cursor:pointer;transition:opacity .2s}.hlogo:hover{opacity:.8}
+.hsub{font-size:11px;opacity:.75;margin-left:auto}
+.back-btn{background:rgba(255,255,255,.2);border:none;color:#fff;padding:6px 14px;border-radius:20px;cursor:pointer;font-size:13px;display:none;align-items:center;gap:5px;transition:background .2s;white-space:nowrap}
+.back-btn:hover{background:rgba(255,255,255,.32)}
+.back-btn.vis{display:flex}
+
+/* ── LAYOUT ── */
+.main{max-width:900px;margin:0 auto;padding:28px 14px}
+
+/* ── HOME ── */
+.hero{text-align:center;margin-bottom:36px}
+.hero h1{font-size:26px;font-weight:900;margin-bottom:8px}
+.hero p{color:var(--muted);font-size:13px}
+.badge{display:inline-flex;align-items:center;gap:6px;background:#EEF2FF;color:var(--primary);border-radius:20px;padding:4px 13px;font-size:12px;font-weight:600;margin-bottom:16px}
+.tools-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.tc{background:var(--surface);border-radius:var(--r);padding:20px 14px;cursor:pointer;transition:transform .18s,box-shadow .18s;box-shadow:var(--shadow);border:1.5px solid var(--border);display:flex;flex-direction:column;align-items:center;gap:9px;text-align:center;user-select:none}
+.tc:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg)}
+.ti{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center}
+.tc h3{font-size:14px;font-weight:700}
+.tc p{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* ── SCREENS ── */
+.screen{display:none}.screen.active{display:block}
+.tscr{max-width:680px;margin:0 auto}
+.thead{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+.thi{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.thead h2{font-size:20px;font-weight:900}
+.thead p{font-size:12px;color:var(--muted);margin-top:3px}
+
+/* ── DROP ZONE ── */
+.dz{border:2px dashed var(--border);border-radius:var(--r);padding:38px 20px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--surface);position:relative}
+.dz:hover,.dz.over{border-color:var(--primary);background:#EEF2FF}
+.dz input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-ico{width:42px;height:42px;margin:0 auto 9px;color:var(--muted)}
+.dz h4{font-size:14px;font-weight:700;margin-bottom:3px}
+.dz p{font-size:12px;color:var(--muted)}
+
+/* ── FILE LIST (with PDF thumbnails) ── */
+.file-list{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.fi{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface);border-radius:8px;border:1px solid var(--border)}
+.fi-thumb{width:38px;height:50px;border-radius:4px;overflow:hidden;background:#E9EDF5;display:flex;align-items:center;justify-content:center;flex-shrink:0;position:relative}
+.fi-thumb canvas{width:100%;height:100%;object-fit:contain;display:block}
+.fi-thumb-spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fi-info{flex:1;min-width:0}
+.fi-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.fi-rm{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:4px;display:flex;flex-shrink:0;transition:color .15s}
+.fi-rm:hover{color:var(--red)}
+.fl-actions{display:flex;gap:7px;margin-top:7px}
+.fl-btn{font-size:12px;padding:4px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface);cursor:pointer;color:var(--muted);transition:all .15s}
+.fl-btn:hover{color:var(--text);border-color:var(--primary)}
+
+/* ── OPTIONS ── */
+.opts{background:var(--surface);border-radius:var(--r);padding:16px 18px;margin-top:16px;border:1px solid var(--border)}
+.opts h4{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px}
+.or{display:flex;align-items:center;gap:11px;margin-bottom:10px}
+.or:last-child{margin-bottom:0}
+.ol{font-size:13px;font-weight:600;min-width:72px}
+.osel,.oinp{flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);background:var(--bg);outline:none;transition:border-color .15s}
+.osel:focus,.oinp:focus{border-color:var(--primary)}
+.rw{flex:1;display:flex;align-items:center;gap:9px}
+.rv{font-size:12px;font-weight:800;color:var(--primary);min-width:36px;text-align:right}
+input[type=range]{flex:1;accent-color:var(--primary);cursor:pointer}
+.color-pick{width:36px;height:32px;border-radius:6px;border:1.5px solid var(--border);cursor:pointer;padding:2px;background:none}
+
+/* ── PAGE GRID (select/extract/delete) ── */
+.pgwrap{background:var(--surface);border-radius:var(--r);padding:16px 18px;margin-top:14px;border:1px solid var(--border)}
+.pgwrap h4{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px}
+.pg-note{font-size:12px;color:var(--muted);margin-bottom:10px}
+.pg-acts{display:flex;gap:7px;margin-bottom:10px}
+.pg-btn{font-size:12px;padding:4px 11px;border:1px solid var(--border);border-radius:5px;background:var(--surface);cursor:pointer;color:var(--muted);transition:all .15s}
+.pg-btn:hover{color:var(--text);border-color:var(--primary)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:9px}
+.pc{border:2px solid var(--border);border-radius:8px;padding:6px;cursor:pointer;transition:border-color .15s,background .15s;background:var(--surface);position:relative;user-select:none}
+.pc:hover{border-color:var(--primary)}
+.pc.sel{border-color:var(--primary);background:#EEF2FF}
+.pc.sel-del{border-color:var(--red);background:#FFF1F2}
+.pc canvas{width:100%;height:auto;display:block;border-radius:3px}
+.pc-num{text-align:center;font-size:11px;margin-top:5px;color:var(--muted)}
+.pc-chk{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:var(--primary);color:#fff;display:none;align-items:center;justify-content:center;font-size:9px;font-weight:800}
+.pc.sel .pc-chk,.pc.sel-del .pc-chk{display:flex}
+.pc.sel-del .pc-chk{background:var(--red)}
+.pg-loading{color:var(--muted);font-size:13px;padding:18px 0;text-align:center}
+
+/* ── ROTATE CARD (special) ── */
+.rot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:9px}
+.rc{border:2px solid var(--border);border-radius:8px;padding:6px;cursor:pointer;transition:border-color .2s,background .2s;background:var(--surface);position:relative;user-select:none}
+.rc:hover{border-color:#7C3AED;background:#FAF5FF}
+.rc.rotated{border-color:#7C3AED;background:#F5F3FF}
+.rot-box{width:100%;padding-bottom:128%;position:relative;overflow:hidden;border-radius:4px;background:#E9EDF5}
+.rot-box canvas{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:100%;max-height:100%;width:auto;height:auto;transition:transform .35s cubic-bezier(.4,0,.2,1)}
+.rot-badge{position:absolute;bottom:5px;right:5px;background:#7C3AED;color:#fff;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;display:none;pointer-events:none}
+.rc.rotated .rot-badge{display:block}
+.rot-click-hint{font-size:12px;color:var(--muted);background:#F5F3FF;border:1px solid #DDD6FE;border-radius:7px;padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+
+/* ── REORDER ── */
+.reorder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:9px}
+.roc{cursor:grab;border:2px solid var(--border);border-radius:8px;padding:6px;background:var(--surface);position:relative;transition:all .15s;user-select:none}
+.roc:active{cursor:grabbing}
+.roc.dragging{opacity:.25;border-style:dashed}
+.roc.drag-over{border-color:var(--primary);background:#EEF2FF;transform:scale(1.04)}
+.roc canvas{width:100%;height:auto;display:block;border-radius:3px}
+.roc-num{position:absolute;top:5px;left:5px;background:rgba(30,41,59,.7);color:#fff;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px}
+.roc-orig{text-align:center;font-size:10px;color:var(--muted);margin-top:5px}
+.reorder-hint{font-size:12px;color:var(--muted);background:#EEF2FF;border:1px solid #C7D2FE;border-radius:7px;padding:8px 12px;margin-bottom:10px}
+
+/* ── BUTTONS ── */
+.btn{padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none;transition:all .18s;display:inline-flex;align-items:center;gap:7px}
+.btn-p{background:var(--primary);color:#fff}
+.btn-p:hover{background:var(--primary-h)}
+.btn-p:disabled{opacity:.4;cursor:not-allowed}
+.btn-s{background:var(--green);color:#fff}
+.btn-s:hover{filter:brightness(.93)}
+.btn-danger{background:var(--red);color:#fff}
+.abar{margin-top:20px;display:flex;gap:11px;justify-content:center}
+
+/* ── PROGRESS ── */
+.prog{height:6px;background:var(--border);border-radius:3px;margin-top:12px;overflow:hidden;display:none}
+.prog.vis{display:block}
+.pfill{height:100%;background:linear-gradient(90deg,var(--primary),var(--purple));border-radius:3px;transition:width .3s;width:0}
+.stat{text-align:center;font-size:13px;margin-top:9px;color:var(--muted);min-height:16px}
+.stat.ok{color:var(--green)}.stat.err{color:var(--red)}
+
+
+/* ── SPLIT VISUAL ── */
+.split-strip{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:4px}
+.split-pc{width:86px;border:2px solid var(--border);border-radius:7px;padding:5px;background:var(--surface);transition:border-color .15s}
+.split-pc canvas{width:100%;height:auto;display:block;border-radius:3px}
+.split-pc-num{text-align:center;font-size:11px;color:var(--muted);margin-top:4px}
+.split-sep{width:24px;height:80px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#CBD5E1;font-size:15px;border-radius:5px;transition:all .18s;background:none;border:none;flex-shrink:0;position:relative}
+.split-sep:hover{color:#7C3AED;background:#F5F3FF}
+.split-sep.cut{color:#7C3AED;background:#EDE9FE;font-size:17px}
+.split-sep.cut::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;background:#7C3AED;border-radius:2px;opacity:.3}
+.split-group-bar{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.sgb{display:inline-flex;align-items:center;gap:5px;background:#EDE9FE;color:#5B21B6;border-radius:20px;padding:3px 11px;font-size:12px;font-weight:700}
+/* ── ROTATE SIZE ── */
+.rot-size-ctrl{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.rot-size-ctrl label{font-size:12px;color:var(--muted);white-space:nowrap}
+.rot-size-ctrl input{flex:1;accent-color:#7C3AED}
+.rot-size-val{font-size:12px;font-weight:700;color:#7C3AED;min-width:32px;text-align:right}
+/* ── COMPRESS METHODS ── */
+.method-cards{display:flex;gap:10px;margin-bottom:8px}
+.method-card{flex:1;border:2px solid var(--border);border-radius:9px;padding:12px;cursor:pointer;transition:all .18s;background:var(--surface)}
+.method-card:hover{border-color:var(--primary)}
+.method-card.active{border-color:var(--primary);background:#EEF2FF}
+.method-card h5{font-size:13px;font-weight:700;margin-bottom:3px}
+.method-card p{font-size:11px;color:var(--muted);line-height:1.4}
+.method-card .mc-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px;margin-bottom:5px}
+
+/* ── RESULT ── */
+.res{background:var(--surface);border-radius:var(--r);padding:22px;margin-top:16px;border:1.5px solid #D1FAE5;text-align:center;display:none}
+.res.vis{display:block}
+.res-ico{width:44px;height:44px;background:#D1FAE5;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.res h4{font-size:16px;font-weight:800;margin-bottom:4px}
+.res>p{color:var(--muted);font-size:13px;margin-bottom:16px}
+.rfl{display:flex;flex-direction:column;gap:6px;max-height:210px;overflow-y:auto;text-align:left;margin-bottom:13px}
+.rfi{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--bg);border-radius:7px;font-size:13px}
+.rdl{padding:4px 12px;background:var(--primary);color:#fff;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer}
+.rdl:hover{background:var(--primary-h)}
+
+/* ── WARN ── */
+.warn{font-size:12px;color:#92400E;background:#FEF3C7;border:1px solid #FDE68A;border-radius:7px;padding:8px 12px;margin-top:10px}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:20px;right:20px;background:#1E293B;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;box-shadow:var(--shadow-lg);transform:translateY(70px);opacity:0;transition:all .3s;z-index:1000}
+.toast.show{transform:translateY(0);opacity:1}
+
+@media(max-width:600px){.tools-grid{grid-template-columns:repeat(2,1fr)}.main{padding:16px 10px}.hero h1{font-size:20px}.hsub{display:none}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <svg class="hlogo" onclick="showHome()" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="rgba(255,255,255,.18)"/><rect x="6" y="4" width="12" height="16" rx="2" fill="#fff"/><rect x="13" y="10" width="12" height="16" rx="2" fill="rgba(255,255,255,.5)"/></svg>
+  <span class="htitle" onclick="showHome()">PDF Tools</span>
+  <span class="hsub">🔒 完全ブラウザ処理・サーバー送信なし</span>
+  <button class="back-btn" id="backBtn" onclick="showHome()">← ツール一覧</button>
+</div>
+
+<div class="main">
+
+<!-- HOME -->
+<div class="screen active" id="homeScreen">
+  <div class="hero">
+    <div class="badge">🔒 ファイルは端末内だけで処理されます</div>
+    <h1>📄 無料PDFツール</h1>
+    <p>アップロード不要・完全ブラウザ処理。PDFの編集をかんたんに。</p>
+  </div>
+  <div class="tools-grid">
+    <div class="tc" onclick="showTool('merge')">
+      <div class="ti" style="background:#EEF2FF"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 00-2 2v14a2 2 0 002 2h3M16 3h3a2 2 0 012 2v14a2 2 0 01-2 2h-3" stroke="#4361EE" stroke-width="2" stroke-linecap="round"/><path d="M12 8v8M9 11l3-3 3 3" stroke="#4361EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h3>PDF 結合</h3><p>複数のPDFを1つにまとめる</p>
+    </div>
+    <div class="tc" onclick="showTool('split')">
+      <div class="ti" style="background:#F5F3FF"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#7209B7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6M9 17h4" stroke="#7209B7" stroke-width="2" stroke-linecap="round"/></svg></div>
+      <h3>PDF 分割</h3><p>ページごとに分割する</p>
+    </div>
+    <div class="tc" onclick="showTool('convert')">
+      <div class="ti" style="background:#FFF0F6"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="14" rx="2" stroke="#F72585" stroke-width="2"/><circle cx="8" cy="8.5" r="1.5" stroke="#F72585" stroke-width="1.5"/><path d="M21 14l-5-5L5 20" stroke="#F72585" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h3>PDF → 画像</h3><p>PNG/JPEGに変換する</p>
+    </div>
+    <div class="tc" onclick="showTool('img2pdf')">
+      <div class="ti" style="background:#E0F9FF"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#4CC9F0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12h6M9 16h4" stroke="#4CC9F0" stroke-width="2" stroke-linecap="round"/></svg></div>
+      <h3>写真 → PDF</h3><p>画像をPDFにする</p>
+    </div>
+    <div class="tc" onclick="showTool('rotate')">
+      <div class="ti" style="background:#ECFDF5"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8" stroke="#06D6A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16" stroke="#06D6A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h3>PDF 回転</h3><p>クリックでぐるぐる回転</p>
+    </div>
+    <div class="tc" onclick="showTool('delete')">
+      <div class="ti" style="background:#FFF1F2"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#EF476F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 14.5l5-5M14.5 14.5l-5-5" stroke="#EF476F" stroke-width="2" stroke-linecap="round"/></svg></div>
+      <h3>ページ削除</h3><p>不要なページを取り除く</p>
+    </div>
+    <div class="tc" onclick="showTool('extract')">
+      <div class="ti" style="background:#FFF8E6"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#FB8500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6M12 10v6" stroke="#FB8500" stroke-width="2" stroke-linecap="round"/></svg></div>
+      <h3>ページ抽出</h3><p>必要なページだけ取り出す</p>
+    </div>
+    <div class="tc" onclick="showTool('reorder')">
+      <div class="ti" style="background:#F5F3FF"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="#7C3AED" stroke-width="2" stroke-linecap="round"/><path d="M16 9l3-3-3-3M16 18l3 3-3 3" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h3>ページ並べ替え</h3><p>ドラッグで順序を変更</p>
+    </div>
+    <div class="tc" onclick="showTool('watermark')">
+      <div class="ti" style="background:#E0F2FE"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 14l8-8M9 17l6-6" stroke="#0EA5E9" stroke-width="1.5" stroke-linecap="round" opacity=".7"/></svg></div>
+      <h3>透かし追加</h3><p>テキスト透かしを全ページに</p>
+    </div>
+    <div class="tc" onclick="showTool('compress')">
+      <div class="ti" style="background:#ECFDF5"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h3>PDF 圧縮</h3><p>ファイルサイズを削減する</p>
+    </div>
+    <div class="tc" onclick="showTool('pagenum')">
+      <div class="ti" style="background:#FFF0F6"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#F72585" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="16" r="2.5" stroke="#F72585" stroke-width="1.5"/><path d="M12 13.5V11" stroke="#F72585" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+      <h3>ページ番号追加</h3><p>全ページにページ番号を入れる</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ MERGE ═══ -->
+<div class="screen" id="mergeTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#EEF2FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M8 3H5a2 2 0 00-2 2v14a2 2 0 002 2h3M16 3h3a2 2 0 012 2v14a2 2 0 01-2 2h-3" stroke="#4361EE" stroke-width="2" stroke-linecap="round"/><path d="M12 8v8M9 11l3-3 3 3" stroke="#4361EE" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>PDF 結合</h2><p>複数PDFを一つのファイルに結合します</p></div>
+  </div>
+  <div class="dz" id="mergeDZ" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'merge')">
+    <input type="file" id="mergeIn" multiple accept=".pdf" onchange="fin(event,'merge')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択（複数可）</p>
+  </div>
+  <div class="file-list" id="mergeFL"></div>
+  <div class="fl-actions" id="mergeFLA" style="display:none">
+    <button class="fl-btn" onclick="clearF('merge')">✕ リセット</button>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="mergeProcBtn" onclick="doMerge()" disabled>PDF を結合する</button></div>
+  <div class="prog" id="mergeProg"><div class="pfill" id="mergeFill"></div></div>
+  <div class="stat" id="mergeStat"></div>
+  <div class="res" id="mergeRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>結合完了！</h4><p id="mergeResMsg"></p>
+    <button class="btn btn-s" id="mergeDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ SPLIT ═══ -->
+<div class="screen" id="splitTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#F5F3FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#7209B7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>PDF 分割</h2><p>各ページ、またはページ範囲ごとに分割します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'split')">
+    <input type="file" id="splitIn" accept=".pdf" onchange="fin(event,'split')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="splitFL"></div>
+  <div id="splitPageSec" style="display:none">
+    <div class="pgwrap">
+      <h4>分割点を設定</h4>
+      <p class="pg-note">ページ間の <strong>✂</strong> をクリックして分割点を追加・削除します。ページをクリックすると拡大表示します。</p>
+      <div class="pg-acts">
+        <button class="pg-btn" onclick="splitAllPages()">✂ 全ページ分割</button>
+        <button class="pg-btn" onclick="clearSplitPoints()">✕ リセット</button>
+        <span id="splitGroupCount" style="font-size:12px;color:var(--muted);margin-left:auto"></span>
+      </div>
+      <div class="split-strip" id="splitStrip"></div>
+      <div class="split-group-bar" id="splitGroupBar"></div>
+    </div>
+    <div class="opts" style="margin-top:12px">
+      <h4>またはテキストで範囲指定</h4>
+      <div class="or"><span class="ol">範囲</span>
+        <input class="oinp" id="splitRange" placeholder="例: 1-3, 4-6, 7" type="text" oninput="parseSplitRange()">
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px">範囲テキストを入力すると、視覚プレビューの分割点が自動更新されます</p>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="splitProcBtn" onclick="doSplit()" disabled>PDF を分割する</button></div>
+  <div class="prog" id="splitProg"><div class="pfill" id="splitFill"></div></div>
+  <div class="stat" id="splitStat"></div>
+  <div class="res" id="splitRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>分割完了！</h4><p id="splitResMsg"></p>
+    <div class="rfl" id="splitRFL"></div>
+    <button class="btn btn-s" id="splitZip">📥 ZIP でまとめてダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ CONVERT PDF→IMG ═══ -->
+<div class="screen" id="convertTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#FFF0F6"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="14" rx="2" stroke="#F72585" stroke-width="2"/><circle cx="8" cy="8.5" r="1.5" stroke="#F72585" stroke-width="1.5"/><path d="M21 14l-5-5L5 20" stroke="#F72585" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>PDF → 画像変換</h2><p>各ページをPNG/JPEGファイルに変換します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'convert')">
+    <input type="file" id="convertIn" accept=".pdf" onchange="fin(event,'convert')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="convertFL"></div>
+  <div class="opts">
+    <h4>変換オプション</h4>
+    <div class="or"><span class="ol">画像形式</span>
+      <select class="osel" id="convFmt"><option value="png">PNG（高品質）</option><option value="jpeg">JPEG（軽量）</option></select>
+    </div>
+    <div class="or"><span class="ol">解像度</span>
+      <select class="osel" id="convScale">
+        <option value="1">標準（72dpi）</option>
+        <option value="1.5">中品質（108dpi）</option>
+        <option value="2" selected>高品質（144dpi）</option>
+        <option value="3">超高品質（216dpi）</option>
+      </select>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="convertProcBtn" onclick="doConvert()" disabled>画像に変換する</button></div>
+  <div class="prog" id="convertProg"><div class="pfill" id="convertFill"></div></div>
+  <div class="stat" id="convertStat"></div>
+  <div class="res" id="convertRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>変換完了！</h4><p id="convertResMsg"></p>
+    <div class="rfl" id="convertRFL"></div>
+    <button class="btn btn-s" id="convertZip">📥 ZIP でまとめてダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ IMG→PDF ═══ -->
+<div class="screen" id="img2pdfTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#E0F9FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#4CC9F0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>写真 → PDF化</h2><p>JPG・PNG・WebP 画像をPDFに変換します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'img2pdf')">
+    <input type="file" id="img2pdfIn" multiple accept="image/jpeg,image/png,image/webp" onchange="fin(event,'img2pdf')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>画像をドラッグ＆ドロップ</h4><p>またはクリックして選択（複数可）</p>
+  </div>
+  <div class="file-list" id="img2pdfFL"></div>
+  <div class="fl-actions" id="img2pdfFLA" style="display:none">
+    <button class="fl-btn" onclick="clearF('img2pdf')">✕ リセット</button>
+  </div>
+  <div class="opts">
+    <h4>変換オプション</h4>
+    <div class="or"><span class="ol">用紙サイズ</span>
+      <select class="osel" id="imgPaper">
+        <option value="fit">画像サイズに合わせる</option>
+        <option value="a4">A4</option>
+        <option value="letter">Letter</option>
+      </select>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="img2pdfProcBtn" onclick="doImg2Pdf()" disabled>PDF化する</button></div>
+  <div class="prog" id="img2pdfProg"><div class="pfill" id="img2pdfFill"></div></div>
+  <div class="stat" id="img2pdfStat"></div>
+  <div class="res" id="img2pdfRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>変換完了！</h4><p id="img2pdfResMsg"></p>
+    <button class="btn btn-s" id="img2pdfDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ ROTATE ═══ -->
+<div class="screen" id="rotateTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#ECFDF5"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8" stroke="#06D6A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16" stroke="#06D6A0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>PDF 回転</h2><p>各ページをクリックするたびに90°ずつ回転します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'rotate')">
+    <input type="file" id="rotateIn" accept=".pdf" onchange="fin(event,'rotate')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="rotateFL"></div>
+  <div id="rotatePageSec" style="display:none">
+    <div class="pgwrap">
+      <h4>ページ回転</h4>
+      <div class="rot-click-hint">↻ <span>各ページをクリックするたびに <strong>90°時計回り</strong> に回転します（0°→90°→180°→270°→0°）</span></div>
+      <div class="rot-size-ctrl">
+        <label>🔍 サムネイルサイズ</label>
+        <input type="range" min="70" max="200" value="100" id="rotSizeSlider" oninput="updateRotGridSize(this.value)">
+        <span class="rot-size-val" id="rotSizeVal">100px</span>
+      </div>
+      <div class="pg-acts">
+        <button class="pg-btn" onclick="resetRotations()">↺ 全リセット</button>
+      </div>
+      <div class="rot-grid" id="rotateGrid"></div>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="rotateProcBtn" onclick="doRotate()" disabled>回転を適用して保存</button></div>
+  <div class="prog" id="rotateProg"><div class="pfill" id="rotateFill"></div></div>
+  <div class="stat" id="rotateStat"></div>
+  <div class="res" id="rotateRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>回転完了！</h4><p id="rotateResMsg"></p>
+    <button class="btn btn-s" id="rotateDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ DELETE ═══ -->
+<div class="screen" id="deleteTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#FFF1F2"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#EF476F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.5 14.5l5-5M14.5 14.5l-5-5" stroke="#EF476F" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <div><h2>ページ削除</h2><p>削除したいページを選択してください</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'delete')">
+    <input type="file" id="deleteIn" accept=".pdf" onchange="fin(event,'delete')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="deleteFL"></div>
+  <div id="deletePageSec" style="display:none">
+    <div class="pgwrap">
+      <h4>削除するページを選択</h4>
+      <p class="pg-note" style="color:var(--red)">選択（赤枠）されたページが削除されます</p>
+      <div class="pg-acts">
+        <button class="pg-btn" onclick="selAll('delete')">全選択</button>
+        <button class="pg-btn" onclick="selNone('delete')">全解除</button>
+      </div>
+      <div class="pgrid" id="deleteGrid"></div>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-danger" id="deleteProcBtn" onclick="doDelete()" disabled>選択ページを削除する</button></div>
+  <div class="prog" id="deleteProg"><div class="pfill" id="deleteFill"></div></div>
+  <div class="stat" id="deleteStat"></div>
+  <div class="res" id="deleteRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>削除完了！</h4><p id="deleteResMsg"></p>
+    <button class="btn btn-s" id="deleteDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ EXTRACT ═══ -->
+<div class="screen" id="extractTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#FFF8E6"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#FB8500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 13h6M12 10v6" stroke="#FB8500" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <div><h2>ページ抽出</h2><p>取り出したいページを選択して新しいPDFを作成します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'extract')">
+    <input type="file" id="extractIn" accept=".pdf" onchange="fin(event,'extract')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="extractFL"></div>
+  <div id="extractPageSec" style="display:none">
+    <div class="pgwrap">
+      <h4>抽出するページを選択</h4>
+      <p class="pg-note">選択したページのみ新しいPDFに含まれます</p>
+      <div class="pg-acts">
+        <button class="pg-btn" onclick="selAll('extract')">全選択</button>
+        <button class="pg-btn" onclick="selNone('extract')">全解除</button>
+      </div>
+      <div class="pgrid" id="extractGrid"></div>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="extractProcBtn" onclick="doExtract()" disabled>選択ページを抽出する</button></div>
+  <div class="prog" id="extractProg"><div class="pfill" id="extractFill"></div></div>
+  <div class="stat" id="extractStat"></div>
+  <div class="res" id="extractRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>抽出完了！</h4><p id="extractResMsg"></p>
+    <button class="btn btn-s" id="extractDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ REORDER ═══ -->
+<div class="screen" id="reorderTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#F5F3FF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M3 12h18M3 18h18" stroke="#7C3AED" stroke-width="2" stroke-linecap="round"/><path d="M16 9l3-3-3-3M16 18l3 3-3 3" stroke="#7C3AED" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>ページ並べ替え</h2><p>ページをドラッグして順番を入れ替えます</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'reorder')">
+    <input type="file" id="reorderIn" accept=".pdf" onchange="fin(event,'reorder')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="reorderFL"></div>
+  <div id="reorderPageSec" style="display:none">
+    <div class="pgwrap">
+      <h4>ページ順序</h4>
+      <p class="reorder-hint">💡 カードをドラッグ＆ドロップして順番を変更してください</p>
+      <div class="reorder-grid" id="reorderGrid"></div>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="reorderProcBtn" onclick="doReorder()" disabled>並べ替えて保存する</button></div>
+  <div class="prog" id="reorderProg"><div class="pfill" id="reorderFill"></div></div>
+  <div class="stat" id="reorderStat"></div>
+  <div class="res" id="reorderRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>並べ替え完了！</h4><p id="reorderResMsg"></p>
+    <button class="btn btn-s" id="reorderDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ WATERMARK ═══ -->
+<div class="screen" id="watermarkTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#E0F2FE"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#0EA5E9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>透かし追加</h2><p>全ページにテキスト透かしを追加します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'watermark')">
+    <input type="file" id="watermarkIn" accept=".pdf" onchange="fin(event,'watermark')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="watermarkFL"></div>
+  <div class="opts" style="margin-top:14px">
+    <h4>透かしの設定</h4>
+    <div class="or"><span class="ol">テキスト</span><input class="oinp" id="wmText" type="text" placeholder="例: 社外秘・CONFIDENTIAL" value="CONFIDENTIAL"></div>
+    <div class="or"><span class="ol">文字サイズ</span><div class="rw"><input type="range" min="16" max="100" value="52" id="wmSize" oninput="document.getElementById('wmSV').textContent=this.value+'pt'"><span class="rv" id="wmSV">52pt</span></div></div>
+    <div class="or"><span class="ol">不透明度</span><div class="rw"><input type="range" min="5" max="80" value="25" id="wmOp" oninput="document.getElementById('wmOV').textContent=this.value+'%'"><span class="rv" id="wmOV">25%</span></div></div>
+    <div class="or"><span class="ol">回転角度</span><div class="rw"><input type="range" min="0" max="90" value="45" id="wmAng" oninput="document.getElementById('wmAV').textContent=this.value+'°'"><span class="rv" id="wmAV">45°</span></div></div>
+    <div class="or"><span class="ol">文字色</span><input type="color" class="color-pick" id="wmColor" value="#888888"></div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="watermarkProcBtn" onclick="doWatermark()" disabled>透かしを追加する</button></div>
+  <div class="prog" id="watermarkProg"><div class="pfill" id="watermarkFill"></div></div>
+  <div class="stat" id="watermarkStat"></div>
+  <div class="res" id="watermarkRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>透かし追加完了！</h4><p id="watermarkResMsg"></p>
+    <button class="btn btn-s" id="watermarkDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+<!-- ═══ COMPRESS ═══ -->
+<div class="screen" id="compressTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#ECFDF5"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div><h2>PDF 圧縮</h2><p>圧縮方式を選んでファイルサイズを削減します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'compress')">
+    <input type="file" id="compressIn" accept=".pdf" onchange="fin(event,'compress')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="compressFL"></div>
+  <div class="opts" style="margin-top:14px">
+    <h4>圧縮方式</h4>
+    <div class="method-cards">
+      <div class="method-card active" id="mc-rebuild" onclick="selectCompressMethod('rebuild')">
+        <div class="mc-badge" style="background:#D1FAE5;color:#065F46">✅ テキスト維持</div>
+        <h5>PDF を再構築</h5>
+        <p>重複データ削除・構造最適化。テキスト検索・コピーはそのまま使えます。</p>
+      </div>
+      <div class="method-card" id="mc-image" onclick="selectCompressMethod('image')">
+        <div class="mc-badge" style="background:#FEF3C7;color:#92400E">⚠️ テキスト不可</div>
+        <h5>画像として変換</h5>
+        <p>各ページをJPEG画像に変換。高圧縮率ですがテキスト検索・コピーが無効になります。</p>
+      </div>
+    </div>
+    <div id="compImageOpts" style="display:none">
+      <div class="or"><span class="ol">画質</span><div class="rw"><input type="range" min="20" max="95" value="70" id="compQ" oninput="document.getElementById('compQV').textContent=this.value+'%'"><span class="rv" id="compQV">70%</span></div></div>
+      <div class="or"><span class="ol">解像度</span>
+        <select class="osel" id="compScale">
+          <option value="0.6">低解像度（小サイズ）</option>
+          <option value="0.8">中解像度</option>
+          <option value="1.0" selected>標準解像度</option>
+          <option value="1.5">高解像度</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="compressProcBtn" onclick="doCompress()" disabled>PDF を圧縮する</button></div>
+  <div class="prog" id="compressProg"><div class="pfill" id="compressFill"></div></div>
+  <div class="stat" id="compressStat"></div>
+  <div class="res" id="compressRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>圧縮完了！</h4><p id="compressResMsg"></p>
+    <button class="btn btn-s" id="compressDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+
+<!-- ═══ PAGE NUMBERS ═══ -->
+<div class="screen" id="pagenumTool">
+ <div class="tscr">
+  <div class="thead">
+    <div class="thi" style="background:#FFF0F6"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 001 1h4M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" stroke="#F72585" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="16" r="2.5" stroke="#F72585" stroke-width="1.5"/></svg></div>
+    <div><h2>ページ番号追加</h2><p>全ページにページ番号を自動追加します</p></div>
+  </div>
+  <div class="dz" ondragover="dov(event)" ondragleave="dol(event)" ondrop="dod(event,'pagenum')">
+    <input type="file" id="pagenumIn" accept=".pdf" onchange="fin(event,'pagenum')">
+    <svg class="dz-ico" viewBox="0 0 48 48" fill="none"><path d="M24 34V18M16 26l8-8 8 8" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 36h32" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <h4>PDFをドラッグ＆ドロップ</h4><p>またはクリックして選択</p>
+  </div>
+  <div class="file-list" id="pagenumFL"></div>
+  <div class="opts" style="margin-top:14px">
+    <h4>ページ番号の設定</h4>
+    <div class="or"><span class="ol">位置</span>
+      <select class="osel" id="pnPos">
+        <option value="bc">下中央</option>
+        <option value="br">右下</option>
+        <option value="bl">左下</option>
+        <option value="tc">上中央</option>
+        <option value="tr">右上</option>
+        <option value="tl">左上</option>
+      </select>
+    </div>
+    <div class="or"><span class="ol">書式</span>
+      <select class="osel" id="pnFmt">
+        <option value="num">1, 2, 3 ...</option>
+        <option value="slash">1/N, 2/N ...</option>
+        <option value="page">Page 1, Page 2 ...</option>
+        <option value="jp">1ページ, 2ページ ...</option>
+      </select>
+    </div>
+    <div class="or"><span class="ol">開始番号</span>
+      <input class="oinp" id="pnStart" type="number" value="1" min="1" style="width:80px;flex:none">
+    </div>
+    <div class="or"><span class="ol">文字サイズ</span>
+      <div class="rw"><input type="range" min="8" max="24" value="12" id="pnSize" oninput="document.getElementById('pnSV').textContent=this.value+'pt'"><span class="rv" id="pnSV">12pt</span></div>
+    </div>
+    <div class="or"><span class="ol">文字色</span><input type="color" class="color-pick" id="pnColor" value="#444444"></div>
+  </div>
+  <div class="abar"><button class="btn btn-p" id="pagenumProcBtn" onclick="doPageNum()" disabled>ページ番号を追加する</button></div>
+  <div class="prog" id="pagenumProg"><div class="pfill" id="pagenumFill"></div></div>
+  <div class="stat" id="pagenumStat"></div>
+  <div class="res" id="pagenumRes">
+    <div class="res-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <h4>完了！</h4><p id="pagenumResMsg"></p>
+    <button class="btn btn-s" id="pagenumDL">📥 ダウンロード</button>
+  </div>
+ </div>
+</div>
+
+</div>
+
+</div><!-- /main -->
+<div class="toast" id="toast"></div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+const{PDFDocument,degrees,rgb,StandardFonts}=PDFLib;
+
+// ── State ──
+const S={
+  merge:{files:[]},
+  split:{file:null},
+  convert:{file:null},
+  img2pdf:{files:[]},
+  rotate:{file:null,rotMap:new Map()},  // rotMap: pageIdx → cumulative added degrees
+  delete:{file:null,sel:new Set()},
+  extract:{file:null,sel:new Set()},
+  reorder:{file:null,order:[],thumbs:[]},
+  watermark:{file:null},
+  compress:{file:null,method:'rebuild'},
+  pagenum:{file:null},
+};
+const R={};
+const MULTI=['merge','img2pdf'];
+
+// ── Navigation ──
+function showHome(){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('homeScreen').classList.add('active');
+  document.getElementById('backBtn').classList.remove('vis');
+}
+function showTool(t){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(t+'Tool').classList.add('active');
+  document.getElementById('backBtn').classList.add('vis');
+}
+
+// ── Drag & Drop ──
+function dov(e){e.preventDefault();e.currentTarget.classList.add('over')}
+function dol(e){e.currentTarget.classList.remove('over')}
+function dod(e,t){e.preventDefault();e.currentTarget.classList.remove('over');addFiles(t,Array.from(e.dataTransfer.files))}
+function fin(e,t){addFiles(t,Array.from(e.target.files));e.target.value=''}
+
+function addFiles(t,files){
+  if(MULTI.includes(t)){
+    S[t].files.push(...files);
+    if(t==='merge') renderMergeList();
+    else renderImgList(t);
+  } else {
+    if(!files.length)return;
+    S[t].file=files[0];
+    renderSingleFile(t,files[0]);
+    if(t==='rotate') buildRotateGrid();
+    else if(t==='reorder') buildReorderGrid();
+    else if(['delete','extract'].includes(t)) buildPageGrid(t);
+    else if(t==='split') buildSplitGrid();
+  }
+  updateBtn(t);
+}
+
+function clearF(t){
+  S[t].files=[];
+  if(t==='merge') renderMergeList();
+  else renderImgList(t);
+  updateBtn(t);
+}
+
+// ── Format helpers ──
+function fmtB(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB'}
+function fmtName(n){return n.length>28?n.slice(0,12)+'…'+n.slice(-12):n}
+function ckIcon(){return`<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`}
+
+// ── Render single file (PDF) with thumbnail ──
+async function renderSingleFile(t,file){
+  const c=document.getElementById(t+'FL');
+  c.innerHTML='';
+  const item=makeFI(file,false);
+  const thumb=item.querySelector('.fi-thumb');
+  c.appendChild(item);
+  // Render PDF thumbnail
+  try{
+    const bytes=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    const pg=await pdf.getPage(1);
+    const vp=pg.getViewport({scale:0.6});
+    const cv=document.createElement('canvas');
+    cv.width=vp.width;cv.height=vp.height;
+    await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+    cv.style.cssText='width:100%;height:100%;object-fit:contain';
+    thumb.innerHTML='';thumb.appendChild(cv);
+    item.querySelector('.fi-meta').textContent=`${fmtB(file.size)} · ${pdf.numPages}ページ`;
+  }catch(e){thumb.innerHTML=pdfIco()}
+}
+
+// ── Render merge list (multi-PDF with thumbnails) ──
+async function renderMergeList(){
+  const c=document.getElementById('mergeFL');
+  c.innerHTML='';
+  const fla=document.getElementById('mergeFLA');
+  if(fla)fla.style.display=S.merge.files.length?'flex':'none';
+  updateBtn('merge');
+  for(let i=0;i<S.merge.files.length;i++){
+    const f=S.merge.files[i];
+    const item=makeFI(f,true,()=>{S.merge.files.splice(i,1);renderMergeList()});
+    c.appendChild(item);
+    const thumb=item.querySelector('.fi-thumb');
+    // Async thumbnail
+    (async()=>{
+      try{
+        const bytes=await f.arrayBuffer();
+        const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+        const pg=await pdf.getPage(1);
+        const vp=pg.getViewport({scale:0.5});
+        const cv=document.createElement('canvas');
+        cv.width=vp.width;cv.height=vp.height;
+        await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+        cv.style.cssText='width:100%;height:100%;object-fit:contain';
+        thumb.innerHTML='';thumb.appendChild(cv);
+        const meta=item.querySelector('.fi-meta');
+        if(meta)meta.textContent=`${fmtB(f.size)} · ${pdf.numPages}ページ`;
+      }catch(e){thumb.innerHTML=pdfIco()}
+    })();
+  }
+}
+
+// ── Render image list (img2pdf) with image thumbnails ──
+async function renderImgList(t){
+  const c=document.getElementById(t+'FL');
+  c.innerHTML='';
+  const fla=document.getElementById(t+'FLA');
+  if(fla)fla.style.display=S[t].files.length?'flex':'none';
+  updateBtn(t);
+  for(let i=0;i<S[t].files.length;i++){
+    const f=S[t].files[i];
+    const item=makeFI(f,true,()=>{S[t].files.splice(i,1);renderImgList(t)});
+    c.appendChild(item);
+    const thumb=item.querySelector('.fi-thumb');
+    const url=URL.createObjectURL(f);
+    const img=document.createElement('img');
+    img.style.cssText='width:100%;height:100%;object-fit:cover';
+    img.onload=()=>{thumb.innerHTML='';thumb.appendChild(img)};
+    img.src=url;
+  }
+}
+
+// ── Make file item element ──
+function makeFI(file,removable,onRemove){
+  const d=document.createElement('div');d.className='fi';
+  const thumb=document.createElement('div');thumb.className='fi-thumb';
+  thumb.innerHTML=`<div class="fi-thumb-spin"></div>`;
+  const info=document.createElement('div');info.className='fi-info';
+  info.innerHTML=`<div class="fi-name">${fmtName(file.name)}</div><div class="fi-meta">${fmtB(file.size)}</div>`;
+  d.appendChild(thumb);d.appendChild(info);
+  if(removable){
+    const rm=document.createElement('button');rm.className='fi-rm';rm.title='削除';
+    rm.innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+    rm.onclick=onRemove||null;
+    d.appendChild(rm);
+  }
+  return d;
+}
+
+function pdfIco(){return`<svg width="18" height="22" viewBox="0 0 24 28" fill="none"><rect x="2" y="2" width="16" height="24" rx="2" fill="#EEF2FF" stroke="#4361EE" stroke-width="1.5"/><path d="M6 9h8M6 13h6M6 17h4" stroke="#4361EE" stroke-width="1.5" stroke-linecap="round"/></svg>`}
+
+function updateBtn(t){
+  const b=document.getElementById(t+'ProcBtn');
+  if(!b)return;
+  b.disabled=MULTI.includes(t)?S[t].files.length===0:!S[t].file;
+}
+
+// ── Helpers ──
+function setProg(t,p){const b=document.getElementById(t+'Prog');b.classList.add('vis');document.getElementById(t+'Fill').style.width=p+'%'}
+function setStat(t,m,c=''){const e=document.getElementById(t+'Stat');e.textContent=m;e.className='stat '+c}
+function showRes(t){document.getElementById(t+'Res').classList.add('vis')}
+function hideRes(t){document.getElementById(t+'Res').classList.remove('vis')}
+function dlBytes(bytes,name,type='application/pdf'){
+  const url=URL.createObjectURL(new Blob([bytes],{type}));
+  const a=document.createElement('a');a.href=url;a.download=name;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+function dlDataUrl(durl,name){const a=document.createElement('a');a.href=durl;a.download=name;a.click()}
+
+// ── Page Grid (delete / extract) ──
+async function buildPageGrid(t){
+  const secId=t+'PageSec';
+  document.getElementById(secId).style.display='block';
+  const grid=document.getElementById(t+'Grid');
+  grid.innerHTML='<div class="pg-loading">ページを読み込み中...</div>';
+  S[t].sel=new Set();
+  try{
+    const bytes=await S[t].file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    grid.innerHTML='';
+    for(let i=0;i<pdf.numPages;i++){
+      const pg=await pdf.getPage(i+1);
+      const vp=pg.getViewport({scale:.34});
+      const cv=document.createElement('canvas');
+      cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      const card=document.createElement('div');
+      card.className='pc';
+      const chk=document.createElement('div');chk.className='pc-chk';
+      chk.textContent=t==='delete'?'✕':'✓';
+      const num=document.createElement('div');num.className='pc-num';num.textContent='P'+(i+1);
+      card.appendChild(cv);card.appendChild(chk);card.appendChild(num);
+      const cls=t==='delete'?'sel-del':'sel';
+      card.addEventListener('click',()=>{
+        if(S[t].sel.has(i)){S[t].sel.delete(i);card.classList.remove(cls)}
+        else{S[t].sel.add(i);card.classList.add(cls)}
+      });
+      grid.appendChild(card);
+    }
+  }catch(e){grid.innerHTML='<div class="pg-loading" style="color:var(--red)">読み込み失敗: '+e.message+'</div>'}
+}
+function selAll(t){
+  const g=document.getElementById(t+'Grid');
+  const cls=t==='delete'?'sel-del':'sel';
+  g.querySelectorAll('.pc').forEach(c=>{const i=parseInt(c.querySelector('.pc-num').textContent.slice(1))-1;S[t].sel.add(i);c.classList.add(cls)});
+}
+function selNone(t){
+  const cls=t==='delete'?'sel-del':'sel';
+  document.getElementById(t+'Grid').querySelectorAll('.pc').forEach(c=>c.classList.remove(cls));
+  S[t].sel.clear();
+}
+
+// ── ROTATE GRID (click-to-cycle) ──
+async function buildRotateGrid(){
+  document.getElementById('rotatePageSec').style.display='block';
+  const grid=document.getElementById('rotateGrid');
+  grid.innerHTML='<div class="pg-loading">ページを読み込み中...</div>';
+  S.rotate.rotMap=new Map();
+  try{
+    const bytes=await S.rotate.file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    grid.innerHTML='';
+    for(let i=0;i<pdf.numPages;i++){
+      const pg=await pdf.getPage(i+1);
+      const vp=pg.getViewport({scale:.34});
+      const cv=document.createElement('canvas');
+      cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      cv.style.cssText='position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);max-width:100%;max-height:100%;width:auto;height:auto;transition:transform .35s cubic-bezier(.4,0,.2,1)';
+
+      const box=document.createElement('div');box.className='rot-box';box.appendChild(cv);
+
+      const badge=document.createElement('div');badge.className='rot-badge';badge.textContent='';
+
+      const num=document.createElement('div');num.className='pc-num';num.textContent='P'+(i+1);
+
+      const card=document.createElement('div');card.className='rc';
+      card.appendChild(box);card.appendChild(badge);card.appendChild(num);
+
+      card.addEventListener('click',()=>{
+        const cur=S.rotate.rotMap.get(i)||0;
+        const next=(cur+90)%360;
+        if(next===0)S.rotate.rotMap.delete(i);
+        else S.rotate.rotMap.set(i,next);
+        // Animate thumbnail
+        const is90or270=(next===90||next===270);
+        cv.style.transform=next===0
+          ?'translate(-50%,-50%)'
+          :`translate(-50%,-50%) rotate(${next}deg)${is90or270?' scale(0.7)':''}`;
+        // Badge
+        if(next===0){badge.textContent='';card.classList.remove('rotated')}
+        else{badge.textContent='+'+next+'°';card.classList.add('rotated')}
+        num.textContent=next===0?`P${i+1}`:`P${i+1} ↻${next}°`;
+      });
+      grid.appendChild(card);
+    }
+  }catch(e){grid.innerHTML='<div class="pg-loading" style="color:var(--red)">読み込み失敗: '+e.message+'</div>'}
+}
+
+function resetRotations(){
+  S.rotate.rotMap.clear();
+  document.querySelectorAll('#rotateGrid .rc').forEach((card,i)=>{
+    const cv=card.querySelector('canvas');
+    if(cv)cv.style.transform='translate(-50%,-50%)';
+    const badge=card.querySelector('.rot-badge');
+    if(badge)badge.textContent='';
+    card.classList.remove('rotated');
+    const num=card.querySelector('.pc-num');
+    if(num)num.textContent='P'+(i+1);
+  });
+}
+
+// ── REORDER GRID ──
+let _dsrc=null;
+async function buildReorderGrid(){
+  document.getElementById('reorderPageSec').style.display='block';
+  const grid=document.getElementById('reorderGrid');
+  grid.innerHTML='<div class="pg-loading">ページを読み込み中...</div>';
+  S.reorder.order=[];S.reorder.thumbs=[];
+  try{
+    const bytes=await S.reorder.file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    for(let i=0;i<pdf.numPages;i++){
+      const pg=await pdf.getPage(i+1);
+      const vp=pg.getViewport({scale:.3});
+      const cv=document.createElement('canvas');
+      cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      S.reorder.thumbs.push(cv);
+      S.reorder.order.push(i);
+    }
+    renderReorderGrid();
+  }catch(e){grid.innerHTML='<div class="pg-loading" style="color:var(--red)">読み込み失敗: '+e.message+'</div>'}
+}
+
+function renderReorderGrid(){
+  const grid=document.getElementById('reorderGrid');grid.innerHTML='';
+  S.reorder.order.forEach((orig,pos)=>{
+    const src=S.reorder.thumbs[orig];
+    const cv=document.createElement('canvas');
+    cv.width=src.width;cv.height=src.height;
+    cv.getContext('2d').drawImage(src,0,0);
+    cv.style.cssText='width:100%;height:auto;display:block;border-radius:3px';
+    const num=document.createElement('div');num.className='roc-num';num.textContent=pos+1;
+    const orig2=document.createElement('div');orig2.className='roc-orig';orig2.textContent='元 P'+(orig+1);
+    const card=document.createElement('div');card.className='roc';card.draggable=true;
+    card.appendChild(num);card.appendChild(cv);card.appendChild(orig2);
+    card.addEventListener('dragstart',e=>{_dsrc=pos;card.classList.add('dragging');e.dataTransfer.effectAllowed='move'});
+    card.addEventListener('dragend',()=>{card.classList.remove('dragging');_dsrc=null});
+    card.addEventListener('dragover',e=>{e.preventDefault();card.classList.add('drag-over')});
+    card.addEventListener('dragleave',()=>card.classList.remove('drag-over'));
+    card.addEventListener('drop',e=>{
+      e.preventDefault();card.classList.remove('drag-over');
+      if(_dsrc===null||_dsrc===pos)return;
+      const[m]=S.reorder.order.splice(_dsrc,1);
+      S.reorder.order.splice(pos,0,m);
+      renderReorderGrid();
+    });
+    grid.appendChild(card);
+  });
+}
+
+// ════ MERGE ════
+async function doMerge(){
+  const files=S.merge.files;if(!files.length)return;
+  const btn=document.getElementById('mergeProcBtn');btn.disabled=true;
+  hideRes('merge');setProg('merge',5);setStat('merge','読み込み中...');
+  try{
+    const merged=await PDFDocument.create();
+    for(let i=0;i<files.length;i++){
+      setProg('merge',5+(i/files.length)*88);setStat('merge',`結合中: ${i+1}/${files.length}`);
+      const src=await PDFDocument.load(await files[i].arrayBuffer());
+      const pgs=await merged.copyPages(src,src.getPageIndices());
+      pgs.forEach(p=>merged.addPage(p));
+    }
+    const out=await merged.save();
+    setProg('merge',100);setStat('merge','✅ 結合が完了しました','ok');
+    R.merge=out;
+    document.getElementById('mergeResMsg').textContent=`${files.length}個のPDFを結合しました（合計 ${merged.getPageCount()} ページ）`;
+    document.getElementById('mergeDL').onclick=()=>dlBytes(out,'merged.pdf');
+    showRes('merge');
+  }catch(e){setStat('merge','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+// ════ CONVERT PDF→IMG ════
+async function doConvert(){
+  const file=S.convert.file;if(!file)return;
+  const btn=document.getElementById('convertProcBtn');btn.disabled=true;
+  hideRes('convert');setProg('convert',3);
+  try{
+    const fmt=document.getElementById('convFmt').value;
+    const scale=parseFloat(document.getElementById('convScale').value);
+    const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+    const n=pdf.numPages;const images=[];
+    for(let i=1;i<=n;i++){
+      setProg('convert',3+((i-1)/n)*92);setStat('convert',`変換中: ${i}/${n} ページ`);
+      const pg=await pdf.getPage(i);const vp=pg.getViewport({scale});
+      const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      const durl=cv.toDataURL(fmt==='png'?'image/png':'image/jpeg',.92);
+      images.push({name:`page_${String(i).padStart(3,'0')}.${fmt}`,durl});
+    }
+    setProg('convert',100);setStat('convert','✅ 変換が完了しました','ok');
+    R.convert=images;
+    document.getElementById('convertResMsg').textContent=`${n}ページを${fmt.toUpperCase()}画像に変換しました`;
+    const list=document.getElementById('convertRFL');list.innerHTML='';
+    images.forEach((img,i)=>{
+      const d=document.createElement('div');d.className='rfi';
+      d.innerHTML=`<span>🖼️ ${img.name}</span><button class="rdl" onclick="dlDataUrl(R.convert[${i}].durl,R.convert[${i}].name)">DL</button>`;
+      list.appendChild(d);
+    });
+    document.getElementById('convertZip').onclick=async()=>{
+      const zip=new JSZip();
+      images.forEach(img=>zip.file(img.name,img.durl.split(',')[1],{base64:true}));
+      dlBytes(await zip.generateAsync({type:'uint8array'}),'converted_images.zip','application/zip');
+    };
+    showRes('convert');
+  }catch(e){setStat('convert','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+// ════ IMG→PDF ════
+async function doImg2Pdf(){
+  const files=S.img2pdf.files;if(!files.length)return;
+  const btn=document.getElementById('img2pdfProcBtn');btn.disabled=true;
+  hideRes('img2pdf');setProg('img2pdf',5);
+  try{
+    const paper=document.getElementById('imgPaper').value;
+    const pdf=await PDFDocument.create();
+    const A4=[595.28,841.89],LT=[612,792];
+    for(let i=0;i<files.length;i++){
+      setProg('img2pdf',5+(i/files.length)*90);setStat('img2pdf',`変換中: ${i+1}/${files.length}`);
+      let bytes=await files[i].arrayBuffer();
+      const t=files[i].type;
+      if(t==='image/webp'){
+        const url=URL.createObjectURL(new Blob([bytes],{type:'image/webp'}));
+        const el=await new Promise((ok,ng)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=ng;im.src=url});
+        const cv=document.createElement('canvas');cv.width=el.naturalWidth;cv.height=el.naturalHeight;
+        cv.getContext('2d').drawImage(el,0,0);
+        const b64=cv.toDataURL('image/png').split(',')[1];
+        bytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)).buffer;URL.revokeObjectURL(url);
+      }
+      let emb;
+      if(t==='image/jpeg'||t==='image/jpg')emb=await pdf.embedJpg(bytes);
+      else emb=await pdf.embedPng(bytes);
+      const{width:iw,height:ih}=emb.size();
+      let pw,ph;
+      if(paper==='fit'){pw=iw;ph=ih}
+      else{[pw,ph]=paper==='a4'?[...A4]:[...LT];if(iw>ih)[pw,ph]=[ph,pw]}
+      const page=pdf.addPage([pw,ph]);
+      const pad=paper==='fit'?0:20;
+      const r=Math.min((pw-pad*2)/iw,(ph-pad*2)/ih);
+      const dw=iw*r,dh=ih*r;
+      page.drawImage(emb,{x:(pw-dw)/2,y:(ph-dh)/2,width:dw,height:dh});
+    }
+    const out=await pdf.save();
+    setProg('img2pdf',100);setStat('img2pdf','✅ PDF化が完了しました','ok');
+    R.img2pdf=out;
+    document.getElementById('img2pdfResMsg').textContent=`${files.length}枚の画像をPDFに変換しました`;
+    document.getElementById('img2pdfDL').onclick=()=>dlBytes(out,'images.pdf');
+    showRes('img2pdf');
+  }catch(e){setStat('img2pdf','❌ エラー: '+e.message,'err');console.error(e)}
+  btn.disabled=false;
+}
+
+// ════ ROTATE ════
+async function doRotate(){
+  const file=S.rotate.file;if(!file)return;
+  if(S.rotate.rotMap.size===0){setStat('rotate','⚠️ ページをクリックして回転してください','err');return}
+  const btn=document.getElementById('rotateProcBtn');btn.disabled=true;
+  hideRes('rotate');setProg('rotate',20);
+  try{
+    const pdf=await PDFDocument.load(await file.arrayBuffer());
+    const pages=pdf.getPages();
+    for(const[idx,add]of S.rotate.rotMap){
+      const cur=pages[idx].getRotation().angle;
+      pages[idx].setRotation(degrees((cur+add)%360));
+    }
+    const out=await pdf.save();
+    setProg('rotate',100);setStat('rotate','✅ 回転が完了しました','ok');
+    R.rotate=out;
+    document.getElementById('rotateResMsg').textContent=`${S.rotate.rotMap.size}ページを回転させました`;
+    document.getElementById('rotateDL').onclick=()=>dlBytes(out,file.name.replace('.pdf','')+'_rotated.pdf');
+    showRes('rotate');
+  }catch(e){setStat('rotate','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+// ════ DELETE ════
+async function doDelete(){
+  const file=S.delete.file;if(!file)return;
+  if(S.delete.sel.size===0){setStat('delete','⚠️ 削除するページを選択してください','err');return}
+  const btn=document.getElementById('deleteProcBtn');btn.disabled=true;
+  hideRes('delete');setProg('delete',20);
+  try{
+    const pdf=await PDFDocument.load(await file.arrayBuffer());
+    const total=pdf.getPageCount();
+    [...S.delete.sel].sort((a,b)=>b-a).forEach(i=>pdf.removePage(i));
+    const out=await pdf.save();
+    setProg('delete',100);setStat('delete','✅ 削除が完了しました','ok');
+    R.delete=out;
+    document.getElementById('deleteResMsg').textContent=`${S.delete.sel.size}ページを削除しました（残り${total-S.delete.sel.size}ページ）`;
+    document.getElementById('deleteDL').onclick=()=>dlBytes(out,file.name.replace('.pdf','')+'_deleted.pdf');
+    showRes('delete');
+  }catch(e){setStat('delete','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+// ════ EXTRACT ════
+async function doExtract(){
+  const file=S.extract.file;if(!file)return;
+  if(S.extract.sel.size===0){setStat('extract','⚠️ 抽出するページを選択してください','err');return}
+  const btn=document.getElementById('extractProcBtn');btn.disabled=true;
+  hideRes('extract');setProg('extract',20);
+  try{
+    const src=await PDFDocument.load(await file.arrayBuffer());
+    const nd=await PDFDocument.create();
+    const sorted=[...S.extract.sel].sort((a,b)=>a-b);
+    const pgs=await nd.copyPages(src,sorted);
+    pgs.forEach(p=>nd.addPage(p));
+    const out=await nd.save();
+    setProg('extract',100);setStat('extract','✅ 抽出が完了しました','ok');
+    R.extract=out;
+    document.getElementById('extractResMsg').textContent=`${S.extract.sel.size}ページを抽出して新しいPDFを作成しました`;
+    document.getElementById('extractDL').onclick=()=>dlBytes(out,file.name.replace('.pdf','')+'_extracted.pdf');
+    showRes('extract');
+  }catch(e){setStat('extract','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+
+async function doReorder(){
+  const file=S.reorder.file;if(!file)return;
+  const btn=document.getElementById('reorderProcBtn');btn.disabled=true;
+  hideRes('reorder');setProg('reorder',20);
+  try{
+    const src=await PDFDocument.load(await file.arrayBuffer());
+    const nd=await PDFDocument.create();
+    const pgs=await nd.copyPages(src,S.reorder.order);
+    pgs.forEach(p=>nd.addPage(p));
+    const out=await nd.save();
+    setProg('reorder',100);setStat('reorder','✅ 並べ替えが完了しました','ok');
+    R.reorder=out;
+    document.getElementById('reorderResMsg').textContent=`${S.reorder.order.length}ページを新しい順序で保存しました`;
+    document.getElementById('reorderDL').onclick=()=>dlBytes(out,file.name.replace('.pdf','')+'_reordered.pdf');
+    showRes('reorder');
+  }catch(e){setStat('reorder','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+// ════ WATERMARK ════
+async function doWatermark(){
+  const file=S.watermark.file;if(!file)return;
+  const btn=document.getElementById('watermarkProcBtn');btn.disabled=true;
+  hideRes('watermark');setProg('watermark',10);
+  try{
+    const text=document.getElementById('wmText').value.trim();
+    if(!text){setStat('watermark','⚠️ テキストを入力してください','err');btn.disabled=false;return}
+    const fontSize=parseInt(document.getElementById('wmSize').value);
+    const opacity=parseFloat(document.getElementById('wmOp').value)/100;
+    const angle=parseInt(document.getElementById('wmAng').value);
+    const hex=document.getElementById('wmColor').value;
+    const cr=parseInt(hex.slice(1,3),16)/255;
+    const cg=parseInt(hex.slice(3,5),16)/255;
+    const cb=parseInt(hex.slice(5,7),16)/255;
+    const pdf=await PDFDocument.load(await file.arrayBuffer());
+    const font=await pdf.embedFont(StandardFonts.Helvetica);
+    const pages=pdf.getPages();
+    pages.forEach((pg,i)=>{
+      setProg('watermark',10+(i/pages.length)*82);
+      const{width,height}=pg.getSize();
+      const tw=font.widthOfTextAtSize(text,fontSize);
+      pg.drawText(text,{x:(width-tw)/2,y:height/2-(fontSize/3),size:fontSize,font,color:rgb(cr,cg,cb),opacity,rotate:degrees(angle)});
+    });
+    const out=await pdf.save();
+    setProg('watermark',100);setStat('watermark','✅ 透かしを追加しました','ok');
+    R.watermark=out;
+    document.getElementById('watermarkResMsg').textContent=`全${pages.length}ページに「${text}」の透かしを追加しました`;
+    document.getElementById('watermarkDL').onclick=()=>dlBytes(out,file.name.replace('.pdf','')+'_watermarked.pdf');
+    showRes('watermark');
+  }catch(e){setStat('watermark','❌ エラー: '+e.message,'err');console.error(e)}
+  btn.disabled=false;
+}
+
+
+// ════ UPDATE ROTATE GRID SIZE ════
+function updateRotGridSize(val){
+  document.getElementById('rotSizeVal').textContent=val+'px';
+  document.getElementById('rotateGrid').style.gridTemplateColumns=`repeat(auto-fill,minmax(${val}px,1fr))`;
+}
+
+// ════ SPLIT VISUAL GRID ════
+async function buildSplitGrid(){
+  document.getElementById('splitPageSec').style.display='block';
+  const strip=document.getElementById('splitStrip');
+  strip.innerHTML='<div class="pg-loading">ページを読み込み中...</div>';
+  S.split.cutPoints=new Set();
+  updateSplitGroupBar();
+  try{
+    const bytes=await S.split.file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:bytes}).promise;
+    const n=pdf.numPages;
+    strip.innerHTML='';
+    for(let i=0;i<n;i++){
+      const pg=await pdf.getPage(i+1);
+      const vp=pg.getViewport({scale:.28});
+      const cv=document.createElement('canvas');
+      cv.width=vp.width;cv.height=vp.height;
+      await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise;
+      const card=document.createElement('div');
+      card.className='split-pc';card.title=`P${i+1}をクリックで拡大`;
+      card.appendChild(cv);
+      const num=document.createElement('div');num.className='split-pc-num';num.textContent='P'+(i+1);
+      card.appendChild(num);
+      strip.appendChild(card);
+      if(i<n-1){
+        const sep=document.createElement('button');
+        sep.className='split-sep';sep.title='ここで分割';
+        sep.innerHTML='┊';sep.dataset.after=i;
+        sep.addEventListener('click',()=>{
+          if(S.split.cutPoints.has(i)){S.split.cutPoints.delete(i);sep.classList.remove('cut');sep.innerHTML='┊'}
+          else{S.split.cutPoints.add(i);sep.classList.add('cut');sep.innerHTML='✂'}
+          updateSplitGroupBar();
+        });
+        strip.appendChild(sep);
+      }
+    }
+  }catch(e){strip.innerHTML='<div class="pg-loading" style="color:var(--red)">読み込み失敗: '+e.message+'</div>'}
+}
+
+function updateSplitGroupBar(){
+  const file=S.split.file;if(!file)return;
+  const n=S.split._numPages||0;
+  const cuts=[...S.split.cutPoints].sort((a,b)=>a-b);
+  const el=document.getElementById('splitGroupCount');
+  el.textContent=cuts.length>0?`✂ ${cuts.length}箇所で分割 → ${cuts.length+1}グループ`:'分割点なし（全ページ結合）';
+  const bar=document.getElementById('splitGroupBar');
+  if(!bar)return;bar.innerHTML='';
+  let start=1;
+  [...cuts,n-1].forEach((cut,idx)=>{
+    const end=cut+1;
+    const pill=document.createElement('span');pill.className='sgb';
+    pill.textContent=start===end?`P${start}`:`P${start}–${end}`;
+    bar.appendChild(pill);
+    start=end+1;
+  });
+}
+
+function splitAllPages(){
+  if(!S.split.file)return;
+  const strip=document.getElementById('splitStrip');
+  strip.querySelectorAll('.split-sep').forEach(sep=>{
+    const i=parseInt(sep.dataset.after);
+    S.split.cutPoints.add(i);sep.classList.add('cut');sep.innerHTML='✂';
+  });
+  updateSplitGroupBar();
+}
+
+function clearSplitPoints(){
+  S.split.cutPoints=new Set();
+  document.getElementById('splitStrip').querySelectorAll('.split-sep').forEach(s=>{s.classList.remove('cut');s.innerHTML='┊'});
+  updateSplitGroupBar();
+  document.getElementById('splitRange').value='';
+}
+
+function parseSplitRange(){
+  const raw=document.getElementById('splitRange').value.trim();
+  if(!raw||!S.split.file)return;
+  const strip=document.getElementById('splitStrip');
+  S.split.cutPoints=new Set();
+  strip.querySelectorAll('.split-sep').forEach(s=>{s.classList.remove('cut');s.innerHTML='┊'});
+  // parse ranges and mark cut points
+  const n=strip.querySelectorAll('.split-pc').length;
+  const parts=raw.split(',').map(s=>s.trim());
+  let ends=[];
+  parts.forEach(part=>{
+    if(part.includes('-')){const[,b]=part.split('-').map(x=>parseInt(x));if(!isNaN(b))ends.push(b-1);}
+    else{const p=parseInt(part);if(!isNaN(p))ends.push(p-1);}
+  });
+  ends.slice(0,-1).forEach(e=>{
+    if(e>=0&&e<n-1){
+      S.split.cutPoints.add(e);
+      const sep=strip.querySelector(`.split-sep[data-after="${e}"]`);
+      if(sep){sep.classList.add('cut');sep.innerHTML='✂';}
+    }
+  });
+  updateSplitGroupBar();
+}
+
+// ════ COMPRESS METHOD ════
+let _compMethod='rebuild';
+function selectCompressMethod(m){
+  _compMethod=m;
+  document.getElementById('mc-rebuild').classList.toggle('active',m==='rebuild');
+  document.getElementById('mc-image').classList.toggle('active',m==='image');
+  document.getElementById('compImageOpts').style.display=m==='image'?'block':'none';
+}
+
+// ════ SPLIT (visual + text) ════
+async function doSplit(){
+  const file=S.split.file;if(!file)return;
+  const btn=document.getElementById('splitProcBtn');btn.disabled=true;
+  hideRes('split');setProg('split',5);
+  try{
+    const src=await PDFDocument.load(await file.arrayBuffer());
+    const n=src.getPageCount();
+    S.split._numPages=n;
+    let ranges=[];
+    const textRaw=document.getElementById('splitRange').value.trim();
+    if(S.split.cutPoints&&S.split.cutPoints.size>0){
+      const cuts=[...S.split.cutPoints].sort((a,b)=>a-b);
+      let start=0;
+      [...cuts,n-1].forEach(cut=>{
+        ranges.push(Array.from({length:cut-start+1},(_,k)=>start+k));
+        start=cut+1;
+      });
+    } else if(textRaw){
+      for(const part of textRaw.split(',').map(s=>s.trim())){
+        if(part.includes('-')){
+          const[a,b]=part.split('-').map(x=>parseInt(x)-1);
+          if(!isNaN(a)&&!isNaN(b)&&a>=0&&b<n&&a<=b)ranges.push(Array.from({length:b-a+1},(_,k)=>a+k));
+        }else{const p=parseInt(part)-1;if(!isNaN(p)&&p>=0&&p<n)ranges.push([p]);}
+      }
+    } else {
+      ranges=Array.from({length:n},(_,i)=>[i]);
+    }
+    if(ranges.length===0){setStat('split','⚠️ 分割点が設定されていません','err');btn.disabled=false;return}
+    const results=[];
+    for(let i=0;i<ranges.length;i++){
+      setProg('split',5+(i/ranges.length)*90);setStat('split',`分割中: ${i+1}/${ranges.length}`);
+      const nd=await PDFDocument.create();
+      const pgs=await nd.copyPages(src,ranges[i]);
+      pgs.forEach(p=>nd.addPage(p));
+      const out=await nd.save();
+      const r=ranges[i];
+      const name=r.length===1?`page_${r[0]+1}.pdf`:`pages_${r[0]+1}-${r[r.length-1]+1}.pdf`;
+      results.push({name,bytes:out});
+    }
+    setProg('split',100);setStat('split','✅ 分割が完了しました','ok');
+    R.split=results;
+    document.getElementById('splitResMsg').textContent=`${results.length}個のPDFに分割しました`;
+    const list=document.getElementById('splitRFL');list.innerHTML='';
+    results.forEach((r,i)=>{
+      const d=document.createElement('div');d.className='rfi';
+      d.innerHTML=`<span>📄 ${r.name}</span><button class="rdl" onclick="dlBytes(R.split[${i}].bytes,R.split[${i}].name)">DL</button>`;
+      list.appendChild(d);
+    });
+    document.getElementById('splitZip').onclick=async()=>{
+      const zip=new JSZip();results.forEach(r=>zip.file(r.name,r.bytes));
+      dlBytes(await zip.generateAsync({type:'uint8array'}),'split_pages.zip','application/zip');
+    };
+    showRes('split');
+  }catch(e){setStat('split','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+// ════ PAGE NUMBERS ════
+async function doPageNum(){
+  const file=S.pagenum.file;if(!file)return;
+  const btn=document.getElementById('pagenumProcBtn');btn.disabled=true;
+  hideRes('pagenum');setProg('pagenum',10);
+  try{
+    const pos=document.getElementById('pnPos').value;
+    const fmt=document.getElementById('pnFmt').value;
+    const start=parseInt(document.getElementById('pnStart').value)||1;
+    const size=parseInt(document.getElementById('pnSize').value);
+    const hex=document.getElementById('pnColor').value;
+    const cr=parseInt(hex.slice(1,3),16)/255;
+    const cg=parseInt(hex.slice(3,5),16)/255;
+    const cb=parseInt(hex.slice(5,7),16)/255;
+    const pdf=await PDFDocument.load(await file.arrayBuffer());
+    const font=await pdf.embedFont(StandardFonts.Helvetica);
+    const pages=pdf.getPages();
+    const n=pages.length;
+    const margin=20;
+    pages.forEach((pg,i)=>{
+      setProg('pagenum',10+(i/n)*82);
+      const{width,height}=pg.getSize();
+      const num=start+i;
+      let label='';
+      if(fmt==='num')label=String(num);
+      else if(fmt==='slash')label=`${num}/${start+n-1}`;
+      else if(fmt==='page')label=`Page ${num}`;
+      else label=`${num}ページ`;
+      const tw=font.widthOfTextAtSize(label,size);
+      let x,y;
+      if(pos==='bc'){x=(width-tw)/2;y=margin;}
+      else if(pos==='br'){x=width-tw-margin;y=margin;}
+      else if(pos==='bl'){x=margin;y=margin;}
+      else if(pos==='tc'){x=(width-tw)/2;y=height-margin-size;}
+      else if(pos==='tr'){x=width-tw-margin;y=height-margin-size;}
+      else{x=margin;y=height-margin-size;}
+      pg.drawText(label,{x,y,size,font,color:rgb(cr,cg,cb)});
+    });
+    const out=await pdf.save();
+    setProg('pagenum',100);setStat('pagenum','✅ ページ番号を追加しました','ok');
+    R.pagenum=out;
+    document.getElementById('pagenumResMsg').textContent=`全${n}ページにページ番号を追加しました`;
+    document.getElementById('pagenumDL').onclick=()=>dlBytes(out,file.name.replace('.pdf','')+'_numbered.pdf');
+    showRes('pagenum');
+  }catch(e){setStat('pagenum','❌ エラー: '+e.message,'err');console.error(e);}
+  btn.disabled=false;
+}
+
+// ════ NEW doCompress (with method) ════
+async function doCompress(){
+  const file=S.compress.file;if(!file)return;
+  const btn=document.getElementById('compressProcBtn');btn.disabled=true;
+  hideRes('compress');setProg('compress',3);
+  try{
+    if(_compMethod==='rebuild'){
+      setStat('compress','PDFを再構築中...');
+      const pdf=await PDFDocument.load(await file.arrayBuffer());
+      const out=await pdf.save({useObjectStreams:true,addDefaultPage:false});
+      setProg('compress',100);setStat('compress','✅ 再構築が完了しました','ok');
+      R.compress=out;
+      const orig=file.size,nw=out.length;
+      const pct=((1-nw/orig)*100).toFixed(1);
+      document.getElementById('compressResMsg').textContent=`${fmtB(orig)} → ${fmtB(nw)}（${pct>0?pct+'% 削減':'変化なし ※元のPDFは既に最適化済みです'}）`;
+    } else {
+      const quality=parseFloat(document.getElementById('compQ').value)/100;
+      const scale=parseFloat(document.getElementById('compScale').value);
+      const srcPdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+      const n=srcPdf.numPages;
+      const newPdf=await PDFDocument.create();
+      for(let i=1;i<=n;i++){
+        setProg('compress',3+((i-1)/n)*90);setStat('compress',`圧縮中: ${i}/${n} ページ`);
+        const pg=await srcPdf.getPage(i);const vp=pg.getViewport({scale});
+        const cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;
+        const ctx=cv.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,cv.width,cv.height);
+        await pg.render({canvasContext:ctx,viewport:vp}).promise;
+        const b64=cv.toDataURL('image/jpeg',quality).split(',')[1];
+        const imgBytes=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+        const img=await newPdf.embedJpg(imgBytes);
+        const np=newPdf.addPage([vp.width,vp.height]);
+        np.drawImage(img,{x:0,y:0,width:vp.width,height:vp.height});
+      }
+      const out=await newPdf.save();
+      const orig=file.size,nw=out.length;
+      const pct=((1-nw/orig)*100).toFixed(1);
+      setProg('compress',100);setStat('compress','✅ 圧縮が完了しました','ok');
+      R.compress=out;
+      document.getElementById('compressResMsg').textContent=`${fmtB(orig)} → ${fmtB(nw)}（${pct>0?pct+'% 削減':'変化なし'}）`;
+    }
+    document.getElementById('compressDL').onclick=()=>dlBytes(R.compress,file.name.replace('.pdf','')+'_compressed.pdf');
+    showRes('compress');
+  }catch(e){setStat('compress','❌ エラー: '+e.message,'err')}
+  btn.disabled=false;
+}
+
+</script>
+</body>
+</html>
