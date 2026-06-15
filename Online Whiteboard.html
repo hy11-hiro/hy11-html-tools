@@ -1200,27 +1200,33 @@ function onFileInput(inp){const c=bc();[...inp.files].forEach((f,i)=>loadImgFile
 function loadImgFile(file,bx,by){
   const r=new FileReader();
   r.onload=e=>{
+    const base64=e.target.result;
     const img=new Image();
     img.onload=()=>{
       let w=img.naturalWidth,h=img.naturalHeight;
       const mx=500,my=400;
       if(w>mx){h=h*mx/w;w=mx;}if(h>my){w=w*my/h;h=my;}
-      // 即座にローカルbase64で表示（体感ゼロ）
-      const imgEl=addImgEl(bx,by,e.target.result,w,h);
-      const d=S.elems.find(el=>el.type==='img'&&el.bx===bx&&el.by===by);
+      // 即座にローカルbase64で表示
+      addImgEl(bx,by,base64,w,h);
+      // addImgEl が追加した最後の img 要素を id で特定
+      const d=S.elems[S.elems.length-1];
+      const imgId=d&&d.type==='img'?d.id:null;
+      if(!imgId)return;
       // バックグラウンドでStorageにアップロードしてURLを差し替え
-      if(window._fbUploadImg && d){
-        window._fbUploadImg(file, e.target.result, (url)=>{
-          if(url!==e.target.result && d){
-            d.src=url;
-            const domEl=document.getElementById(d.id);
+      if(window._fbUploadImg){
+        window._fbUploadImg(file, base64, (url)=>{
+          // アップロード完了時点でデータを差し替え（消えないよう src を保持）
+          const dd=S.elems.find(el=>el.id===imgId);
+          if(dd){
+            dd.src=url;
+            const domEl=document.getElementById(imgId);
             if(domEl){const i=domEl.querySelector('img');if(i)i.src=url;}
-            saveHist();
           }
+          saveHist();
         });
       }
     };
-    img.src=e.target.result;
+    img.src=base64;
   };
   r.readAsDataURL(file);
 }
@@ -2237,6 +2243,8 @@ function _restoreSnap(snap){
     if(d.isBg){el.classList.add('is-bg');el.style.zIndex=1;el.style.setProperty('pointer-events','none','important');}
     if(d.locked)el.classList.add('locked');
   });
+  // zoom状態に合わせてフォントサイズを再補正
+  updElPos();
   renderPbar();
 }
 function undoAct(){if(S.hidx<=0)return;S.hidx--;_restoreSnap(S.hist[S.hidx]);}
@@ -2620,7 +2628,15 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape')closeCalDialog(); }
 
 
 // ─── TEMPLATE HELPERS ────────────────────────────────
-function bc(){return s2b(main.clientWidth/2,main.clientHeight/2);}
+function bc(){
+  // 既に要素がある場合は、右端に余白を空けて配置する
+  if(S.elems.length===0) return s2b(main.clientWidth/2, main.clientHeight/2);
+  const rightmost=Math.max(...S.elems.map(e=>(e.bx||0)+(e.bw||200)));
+  const topmost=Math.min(...S.elems.map(e=>(e.by||0)));
+  const bottommost=Math.max(...S.elems.map(e=>(e.by||0)+(e.bh||200)));
+  const centerY=(topmost+bottommost)/2;
+  return {x: rightmost+120, y: centerY};
+}
 // Shapes → all create DOM elements (moveable)
 function aR(x,y,w,h,col,fill,lw=1.5){return addShapeEl(x,y,w,h,'rect',col,lw,fill||'transparent');}
 function aRD(x,y,w,h,col,fill,lw=2){return addShapeEl(x,y,w,h,'rdrect',col,lw,fill||'transparent');}
@@ -4826,20 +4842,28 @@ if(typeof showToast==='undefined'){
 
   window._fbUploadImg=async(file,base64,cb)=>{
     try{
-      setStatus('⬆ 画像圧縮・アップロード中…','#ca8a04');
-      // Canvas で圧縮 → Blob に変換
+      // アップロード開始時間を記録してカウントアップ表示
+      const startTime=Date.now();
+      let timerInterval=setInterval(()=>{
+        const sec=((Date.now()-startTime)/1000).toFixed(1);
+        setStatus(`⬆ アップロード中… ${sec}秒経過`, '#ca8a04');
+      }, 200);
+
+      // Canvas で圧縮
       const blob=await compressImage(file,base64);
-      const uploadTarget=blob||file; // 圧縮失敗時は元ファイル
-      const origKB=Math.round((blob?blob.size:file.size)/1024);
+      const uploadTarget=blob||file;
       const path=`rooms/${roomId}/images/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
       const snap=await stgUpload(stgRef(stg,path),uploadTarget,{contentType:'image/jpeg'});
       const url=await stgGetUrl(snap.ref);
-      setStatus('☁ 同期済み','#16a34a');
-      console.log(`画像アップロード完了: ${origKB}KB → Storage`);
+
+      clearInterval(timerInterval);
+      const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+      setStatus(`☁ 画像同期完了（${elapsed}秒）`, '#16a34a');
+      setTimeout(()=>setStatus('☁ 同期済み','#16a34a'), 2500);
       cb(url);
     }catch(e){
       console.error('Storage upload error:',e);
-      setStatus('⚠ 画像: ローカルのみ','#ca8a04');
+      setStatus('⚠ 画像: ローカルのみ（Storage失敗）','#ca8a04');
       cb(base64);
     }
   };
@@ -4869,10 +4893,19 @@ if(typeof showToast==='undefined'){
     setStatus('⬇ 受信中…','#2563eb');
     isSyncing=true;
     try{
-      const s={
-        paths:data.paths||[],
-        elems:(data.elems||[]).filter(e=>!(e.type==='img'&&e._localOnly))
-      };
+      // ローカルでアップロード中の画像IDを記録（受信で上書きしない）
+      const localImgIds=new Set(
+        S.elems.filter(e=>e.type==='img'&&e.src&&e.src.startsWith('data:')).map(e=>e.id)
+      );
+      const incomingElems=(data.elems||[]).filter(e=>!(e.type==='img'&&e._localOnly));
+      // ローカル中の画像は受信データより自分のsrcを優先
+      incomingElems.forEach(e=>{
+        if(e.type==='img'&&localImgIds.has(e.id)){
+          const local=S.elems.find(l=>l.id===e.id);
+          if(local)e.src=local.src;
+        }
+      });
+      const s={paths:data.paths||[], elems:incomingElems};
       _restoreSnap(s);
       S.hist=S.hist.slice(0,S.hidx+1);
       S.hist.push({paths:JSON.parse(JSON.stringify(s.paths)),elems:JSON.parse(JSON.stringify(s.elems))});
