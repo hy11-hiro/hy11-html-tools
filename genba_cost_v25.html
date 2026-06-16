@@ -1691,7 +1691,18 @@
                     <!-- 出力ボタン -->
                     <div class="flex items-center justify-between pt-2 border-t border-slate-100">
                         <div id="merge-preview-count" class="text-sm text-slate-500"></div>
-                        <div class="flex gap-2">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- レイアウト切り替え -->
+                            <div class="flex items-center gap-1 bg-slate-100 rounded-lg p-1" id="merge-layout-group">
+                                <button data-layout="plain" onclick="window.setMergeLayout('plain')"
+                                    class="merge-layout-btn active text-xs font-bold px-3 py-1.5 rounded-md bg-white shadow text-slate-700 transition-all">
+                                    <i class="fa-solid fa-table mr-1"></i>データのみ
+                                </button>
+                                <button data-layout="colored" onclick="window.setMergeLayout('colored')"
+                                    class="merge-layout-btn text-xs font-bold px-3 py-1.5 rounded-md text-slate-500 transition-all">
+                                    <i class="fa-solid fa-palette mr-1"></i>色つき
+                                </button>
+                            </div>
                             <button onclick="window.previewMerge()" class="bg-slate-600 hover:bg-slate-700 text-white text-sm font-bold py-2 px-4 rounded-lg shadow transition-colors flex items-center gap-2">
                                 <i class="fa-solid fa-eye"></i> プレビュー（先頭5件）
                             </button>
@@ -6574,14 +6585,14 @@
             const pk  = String(s.siteCode||'').trim().toLowerCase();
             const sk  = String(s.subCode ||'').trim();
             const cur = salesMap.get(pk) || { sum_ex:0, sum_inc:0, count:0 };
-            cur.sum_ex  += s.amount    || 0;
+            cur.sum_ex  += s.amountExc || 0;
             cur.sum_inc += s.amountInc || 0;
             cur.count++;
             salesMap.set(pk, cur);
             // サブコード単位
             const subKey = pk + ':' + (sk || '__parent__');
             const curSub = salesSubMap.get(subKey) || { sum_ex:0, sum_inc:0, count:0 };
-            curSub.sum_ex  += s.amount    || 0;
+            curSub.sum_ex  += s.amountExc || 0;
             curSub.sum_inc += s.amountInc || 0;
             curSub.count++;
             salesSubMap.set(subKey, curSub);
@@ -6768,7 +6779,7 @@
             const key = c.dataset.key;
             const srcDef = MERGE_FIELDS[src];
             const field = srcDef?.fields.find(f => f.key === key);
-            return { key, label: field?.label || key };
+            return { key, src, label: field?.label || key };
         });
     };
 
@@ -6790,22 +6801,135 @@
         if (el) el.textContent = `対象: ${allRows.length.toLocaleString()} 行（プレビュー: 先頭5件）`;
     };
 
+    // レイアウト切り替え
+    let mergeLayout = 'plain';
+    window.setMergeLayout = function(layout) {
+        mergeLayout = layout;
+        document.querySelectorAll('.merge-layout-btn').forEach(btn => {
+            const isActive = btn.dataset.layout === layout;
+            btn.classList.toggle('active', isActive);
+            btn.classList.toggle('bg-white', isActive);
+            btn.classList.toggle('shadow', isActive);
+            btn.classList.toggle('text-slate-700', isActive);
+            btn.classList.toggle('text-slate-500', !isActive);
+        });
+    };
+
+    // データソース → ヘッダー色マップ
+    const SRC_COLORS = {
+        master:     { header: 'FF2563EB', headerFont: 'FFFFFFFF', even: 'FFDBEAFE', odd: 'FFEFF6FF' },
+        cost:       { header: 'FF7C3AED', headerFont: 'FFFFFFFF', even: 'FFEDE9FE', odd: 'FFF5F3FF' },
+        sales:      { header: 'FF059669', headerFont: 'FFFFFFFF', even: 'FFD1FAE5', odd: 'FFF0FDF4' },
+        purchase:   { header: 'FFD97706', headerFont: 'FFFFFFFF', even: 'FFFEF3C7', odd: 'FFFFFBEB' },
+        collection: { header: 'FFDC2626', headerFont: 'FFFFFFFF', even: 'FFFEE2E2', odd: 'FFFFF1F2' },
+    };
+
     window.exportMergeExcel = async function() {
         const subMode = document.querySelector('input[name="merge-subcode"]:checked')?.value || 'parent';
         const fields  = window.getSelectedMergeFields();
         if (fields.length === 0) { alert('列を1つ以上選択してください。'); return; }
         const rows = await window.buildMergeRows(subMode, 0);
         if (rows.length === 0) { alert('出力対象データがありません。'); return; }
-        const exportData = rows.map(r => {
-            const obj = {};
-            fields.forEach(f => { obj[f.label] = r[f.key] ?? ''; });
-            return obj;
-        });
-        const ws = XLSX.utils.json_to_sheet(exportData);
-        ws['!cols'] = fields.map(() => ({ wch: 16 }));
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'データ結合');
-        XLSX.writeFile(wb, `データ結合_${subMode}_${new Date().toISOString().slice(0,10)}.xlsx`);
+        const dateStr = new Date().toISOString().slice(0, 10);
+
+        if (mergeLayout === 'plain') {
+            // ── プレーン出力（従来通り）──
+            const exportData = rows.map(r => {
+                const obj = {};
+                fields.forEach(f => { obj[f.label] = r[f.key] ?? ''; });
+                return obj;
+            });
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            ws['!cols'] = fields.map(() => ({ wch: 16 }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'データ結合');
+            XLSX.writeFile(wb, `データ結合_${subMode}_${dateStr}.xlsx`);
+
+        } else {
+            // ── 色つきレイアウト（ExcelJS）──
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('データ結合');
+
+            // 列幅
+            ws.columns = fields.map(f => ({ header: f.label, key: f.key, width: 18 }));
+
+            // ヘッダー行スタイル（データソース別の色）
+            const headerRow = ws.getRow(1);
+            fields.forEach((f, i) => {
+                const src   = f.src || 'master';
+                const color = SRC_COLORS[src] || SRC_COLORS.master;
+                const cell  = headerRow.getCell(i + 1);
+                cell.value  = f.label;
+                cell.font   = { bold: true, color: { argb: color.headerFont }, size: 10 };
+                cell.fill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: color.header } };
+                cell.border = {
+                    top:    { style: 'thin', color: { argb: 'FF94A3B8' } },
+                    bottom: { style: 'medium', color: { argb: 'FF475569' } },
+                    left:   { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                    right:  { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                };
+                cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: false };
+            });
+            headerRow.height = 22;
+
+            // データ行
+            rows.forEach((r, rowIdx) => {
+                const exRow = ws.addRow([]);
+                exRow.height = 17;
+                fields.forEach((f, colIdx) => {
+                    const src    = f.src || 'master';
+                    const color  = SRC_COLORS[src] || SRC_COLORS.master;
+                    const isEven = rowIdx % 2 === 0;
+                    const cell   = exRow.getCell(colIdx + 1);
+                    let val      = r[f.key] ?? '';
+
+                    // 数値判定
+                    const isNumericField = ['cost_salesTotal','cost_costTotal','cost_profitTotal',
+                        'sales_count','sales_sumEx','sales_sumInc','purchase_count','purchase_sum',
+                        'coll_scheduled','coll_unRequested','coll_collected','coll_uncollected'].includes(f.key);
+                    const numVal = typeof val === 'number' ? val : (isNumericField ? parseFloat(String(val).replace(/,/g,'')) || 0 : null);
+
+                    if (numVal !== null && isNumericField) {
+                        cell.value  = numVal;
+                        cell.numFmt = '#,##0';
+                        // ＋はネイビー、－は赤
+                        const fontColor = numVal < 0 ? 'FFDC2626' : numVal > 0 ? 'FF1E3A5F' : 'FF64748B';
+                        cell.font   = { color: { argb: fontColor }, size: 10, bold: numVal < 0 };
+                    } else if (f.key === 'cost_marginRatio' && String(val).includes('%')) {
+                        // 粗利率: 色分け
+                        const pct = parseFloat(String(val).replace('%','')) || 0;
+                        cell.value  = val;
+                        const fontColor = pct < 0 ? 'FFDC2626' : pct >= 30 ? 'FF059669' : 'FF1E3A5F';
+                        cell.font   = { color: { argb: fontColor }, size: 10, bold: pct < 0 };
+                    } else {
+                        cell.value = val;
+                        cell.font  = { size: 10, color: { argb: 'FF1E293B' } };
+                    }
+
+                    // 縞模様背景
+                    cell.fill = { type: 'pattern', pattern: 'solid',
+                        fgColor: { argb: isEven ? color.even : color.odd } };
+                    cell.border = {
+                        bottom: { style: 'hair', color: { argb: 'FFE2E8F0' } },
+                        right:  { style: 'thin', color: { argb: 'FFCBD5E1' } },
+                    };
+                    cell.alignment = { vertical: 'middle' };
+                });
+            });
+
+            // 先頭行を固定
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+
+            // ダウンロード
+            const buf  = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `データ結合_色つき_${subMode}_${dateStr}.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
     };
 
     // 列チェック変更 → プレビュー件数更新
