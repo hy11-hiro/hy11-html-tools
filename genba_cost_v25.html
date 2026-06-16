@@ -1630,21 +1630,45 @@
                             </div>
                             <button onclick="document.getElementById('merge-end-date-from').value='';document.getElementById('merge-end-date-to').value='';window.updateMergePreviewCount();" class="text-xs text-slate-400 hover:text-red-500 underline">クリア</button>
                         </div>
-                        <div class="flex flex-wrap gap-3" id="merge-blankend-group">
-                            <label class="merge-radio-label-green border-green-600 bg-green-100 flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer">
-                                <input type="radio" name="merge-blank-end" value="include" checked class="text-green-600">
-                                <div>
-                                    <span class="font-medium text-slate-700 text-sm">空白（未完了）も含める</span>
-                                    <span class="text-xs text-slate-500 ml-1">完了日が未設定の現場も出力</span>
-                                </div>
-                            </label>
-                            <label class="merge-radio-label-green border-slate-200 bg-white flex items-center gap-2 px-4 py-2 rounded-lg border-2 cursor-pointer">
-                                <input type="radio" name="merge-blank-end" value="exclude" class="text-green-600">
-                                <div>
-                                    <span class="font-medium text-slate-700 text-sm">空白を除く</span>
-                                    <span class="text-xs text-slate-500 ml-1">完了日が入力済みの現場のみ</span>
-                                </div>
-                            </label>
+                        <!-- 完了日の基準 -->
+                        <div class="mb-3">
+                            <div class="text-xs font-bold text-slate-600 mb-2">期間判定の基準</div>
+                            <div class="flex flex-wrap gap-2" id="merge-endbase-group">
+                                <label class="merge-radio-label-green border-green-600 bg-green-100 flex items-start gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer">
+                                    <input type="radio" name="merge-end-base" value="parent" checked class="text-green-600 mt-0.5">
+                                    <div>
+                                        <div class="text-sm font-bold text-slate-700">親コード基準</div>
+                                        <div class="text-xs text-slate-500 mt-0.5">親コードの完了日で判定<br>枝コードは親に引きずられる</div>
+                                    </div>
+                                </label>
+                                <label class="merge-radio-label-green border-slate-200 bg-white flex items-start gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer">
+                                    <input type="radio" name="merge-end-base" value="each" class="text-green-600 mt-0.5">
+                                    <div>
+                                        <div class="text-sm font-bold text-slate-700">それぞれ基準</div>
+                                        <div class="text-xs text-slate-500 mt-0.5">親・枝それぞれの完了日で独立判定<br>枝コードの完了日が空白なら除外対象</div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        <!-- 空白の扱い -->
+                        <div>
+                            <div class="text-xs font-bold text-slate-600 mb-2">完了日が空白の行の扱い</div>
+                            <div class="flex flex-wrap gap-2" id="merge-blankend-group">
+                                <label class="merge-radio-label-green border-green-600 bg-green-100 flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer">
+                                    <input type="radio" name="merge-blank-end" value="include" checked class="text-green-600">
+                                    <div>
+                                        <span class="font-medium text-slate-700 text-sm">空白も含める</span>
+                                        <span class="text-xs text-slate-500 ml-1">未完了現場も出力</span>
+                                    </div>
+                                </label>
+                                <label class="merge-radio-label-green border-slate-200 bg-white flex items-center gap-2 px-3 py-2 rounded-lg border-2 cursor-pointer">
+                                    <input type="radio" name="merge-blank-end" value="exclude" class="text-green-600">
+                                    <div>
+                                        <span class="font-medium text-slate-700 text-sm">空白を除く</span>
+                                        <span class="text-xs text-slate-500 ml-1">完了日入力済みのみ</span>
+                                    </div>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -6354,10 +6378,10 @@
             label: '原価集計',
             color: 'purple',
             fields: [
-                { key: 'cost_salesTotal',  label: '売上累計(原価集計)' },
-                { key: 'cost_costTotal',   label: '原価累計' },
-                { key: 'cost_profitTotal', label: '粗利益' },
-                { key: 'cost_marginRatio', label: '粗利率(%)' },
+                { key: 'cost_salesTotal',  label: '売上累計(枝含む総計)' },
+                { key: 'cost_costTotal',   label: '原価累計(枝含む総計)' },
+                { key: 'cost_profitTotal', label: '粗利益(枝含む総計)' },
+                { key: 'cost_marginRatio', label: '粗利率(枝含む総計)' },
             ]
         },
         sales: {
@@ -6437,10 +6461,11 @@
                 }
             });
         }
-        // green系グループ（merge-blank-end）
-        const blankGroup = document.getElementById('merge-blankend-group');
-        if (blankGroup) {
-            blankGroup.querySelectorAll('label').forEach(label => {
+        // green系グループ（merge-blank-end, merge-end-base）
+        ['merge-blankend-group','merge-endbase-group'].forEach(gid => {
+            const grp = document.getElementById(gid);
+            if (!grp) return;
+            grp.querySelectorAll('label').forEach(label => {
                 const radio = label.querySelector('input[type=radio]');
                 if (!radio) return;
                 if (radio.checked) {
@@ -6451,7 +6476,7 @@
                     label.classList.add('border-slate-200','bg-white');
                 }
             });
-        }
+        });
     }
 
     window.initMergeBuilder = function() {
@@ -6504,15 +6529,18 @@
     window.buildMergeRows = async function(subMode, limit) {
         const noSubMode  = document.querySelector('input[name="merge-nosubcode"]:checked')?.value || 'parent_row';
         const baseMode   = document.querySelector('input[name="merge-base"]:checked')?.value || 'master';
-        const endDateFrom = document.getElementById('merge-end-date-from')?.value || '';
-        const endDateTo   = document.getElementById('merge-end-date-to')?.value   || '';
+        const endDateFrom  = document.getElementById('merge-end-date-from')?.value || '';
+        const endDateTo    = document.getElementById('merge-end-date-to')?.value   || '';
         const blankEndMode = document.querySelector('input[name="merge-blank-end"]:checked')?.value || 'include';
+        const endBaseMode  = document.querySelector('input[name="merge-end-base"]:checked')?.value  || 'parent';
 
-        // 完了日フィルター関数
-        const passEndDateFilter = (endDate) => {
-            const ed = String(endDate || '').replace(/\D/g, '');
+        // 完了日フィルター関数（生文字列を受け取る）
+        const passEndDateFilter = (endDateRaw, parentEndRaw) => {
+            // endBaseMode: parent=親コード基準, each=それぞれ基準
+            const targetRaw = endBaseMode === 'each' ? endDateRaw : (parentEndRaw || endDateRaw);
+            const ed = String(targetRaw || '').replace(/\D/g, '');
             const isEmpty = !ed || ed === '0' || ed === '00000000';
-            if (isEmpty) return blankEndMode === 'include'; // 空白の扱い
+            if (isEmpty) return blankEndMode === 'include';
             if (endDateFrom) {
                 const from = endDateFrom.replace(/-/g, '');
                 if (ed < from) return false;
@@ -6579,22 +6607,35 @@
 
         const fmtDate = v => { const s=String(v||'').replace(/\D/g,''); return s.length===8?s.slice(0,4)+'/'+s.slice(4,6)+'/'+s.slice(6,8):String(v||''); };
 
-        const buildRow = (m, sub, isParentRow) => {
+        const buildRow = (m, sub, isParentRow, mode) => {
             const code    = String(m.code||'').trim().toLowerCase();
             const subCode = sub ? String(sub.subCode||'').trim() : '';
             const cost    = costMap.get(code) || {};
-            // 枝番行は枝番単位の集計、親行は親コード単位の集計を使用
+
+            // 売上・仕入の集計方針:
+            // - 親コードのみモード（mode='parent'）: 親行は枝番含む全合算
+            // - 親＋枝コード両方 / 枝コードのみ（mode='all'/'sub_only'）: 各コード独立した金額
             const saleKey  = subCode ? code + ':' + subCode : code + ':__parent__';
             const purchKey = subCode ? code + ':' + subCode : code + ':__parent__';
-            const sale     = subCode ? (salesSubMap.get(saleKey)  || { sum_ex:0, sum_inc:0, count:0 })
-                                     : (salesMap.get(code)        || { sum_ex:0, sum_inc:0, count:0 });
-            const purch    = subCode ? (purchSubMap.get(purchKey) || { sum:0, count:0 })
-                                     : (purchMap.get(code)        || { sum:0, count:0 });
-            const colls   = collMap.get(code)  || [];
+            let sale, purch;
+            if (mode === 'parent') {
+                // 親コードのみ: 枝番含む全合算
+                sale  = salesMap.get(code) || { sum_ex:0, sum_inc:0, count:0 };
+                purch = purchMap.get(code) || { sum:0, count:0 };
+            } else {
+                // 親＋枝 or 枝のみ: 各コード独立
+                sale  = salesSubMap.get(saleKey)  || { sum_ex:0, sum_inc:0, count:0 };
+                purch = purchSubMap.get(purchKey) || { sum:0, count:0 };
+            }
 
-            const collMatch = subCode
-                ? colls.filter(c => String(c.subCode||'').trim() === subCode)
-                : colls;
+            const colls = collMap.get(code) || [];
+
+            // 回収も同様: 親コードのみは全合算、親＋枝は独立
+            const collMatch = (mode === 'parent')
+                ? colls  // 全合算
+                : subCode
+                    ? colls.filter(c => String(c.subCode||'').trim() === subCode)  // 枝番一致
+                    : colls.filter(c => { const s = String(c.subCode||'').trim(); return s === '' || s === '00'; }); // 親コード分のみ
             const collAgg = collMatch.reduce((a,c) => ({
                 scheduled:   a.scheduled   + (c.scheduledAmount   ||0),
                 unRequested: a.unRequested + (c.unRequestedAmount ||0),
@@ -6604,30 +6645,34 @@
 
             const isSub = !!sub;
             const getCost = (val) => {
-                if (!isSub) return val ?? '';
-                // 枝番行: 原価集計は「親行のみ表示」か「すべて空白」のみ（inherit廃止）
+                // 「すべて空白」: 親行・枝番行ともに空欄
                 if (noSubMode === 'blank') return '';
-                return isParentRow ? (val ?? '') : ''; // parent_row（デフォルト）
+                // 「親コード行にのみ表示」（デフォルト）: 親行のみ値を出す
+                if (isSub) return ''; // 枝番行は常に空欄
+                return val ?? '';     // 親行は値を出す
             };
 
             return {
                 code:         m.code,
                 subCode:      subCode,
                 kindLabel:    subCode ? `枝 ${subCode}` : '親',
-                name:         (sub?.name) || m.name        || '',
-                subName:      (sub?.subName) || m.subName  || '',
-                branch:       m.branch      || '',
-                manager:      m.manager     || '',
-                estimator:    m.estimator   || '',
-                designer:     m.designer    || '',
-                owner:        m.owner       || '',
-                customer:     m.customer    || '',
-                delivery:     m.delivery    || '',
-                startDate:    fmtDate(m.startDate),
-                endDate:      fmtDate(m.endDate),
-                salesClass1:  m.salesClass1 || '',
-                salesClass2:  m.salesClass2 || '',
-                initialSales: m.initialSales|| '',
+                // ★ 枝番行はすべて枝番自身のデータのみ使用（親コードからの引継ぎなし）
+                name:         sub ? (sub.name        || '') : (m.name        || ''),
+                subName:      sub ? (sub.subName      || '') : (m.subName     || ''),
+                branch:       sub ? (sub.branch       || '') : (m.branch      || ''),
+                manager:      sub ? (sub.manager      || '') : (m.manager     || ''),
+                estimator:    sub ? (sub.estimator    || '') : (m.estimator   || ''),
+                designer:     sub ? (sub.designer     || '') : (m.designer    || ''),
+                owner:        sub ? (sub.owner        || '') : (m.owner       || ''),
+                customer:     sub ? (sub.customer     || '') : (m.customer    || ''),
+                delivery:     sub ? (sub.delivery     || '') : (m.delivery    || ''),
+                startDate:    fmtDate(sub ? sub.startDate  : m.startDate),
+                endDate:      fmtDate(sub ? sub.endDate    : m.endDate),
+                _endDateRaw:  sub ? (sub.endDate || '') : (m.endDate || ''),
+                _parentEndRaw: m.endDate || '',
+                salesClass1:  sub ? (sub.salesClass1  || '') : (m.salesClass1 || ''),
+                salesClass2:  sub ? (sub.salesClass2  || '') : (m.salesClass2 || ''),
+                initialSales: sub ? (sub.initialSales || '') : (m.initialSales|| ''),
                 cost_salesTotal:  getCost(cost.salesTotal),
                 cost_costTotal:   getCost(cost.costTotal),
                 cost_profitTotal: getCost(cost.profitTotal),
@@ -6653,28 +6698,47 @@
                 if (limit && rows.length >= limit) break;
                 const code = String(c.code||'').trim().toLowerCase();
                 const m = masterMap.get(code) || { code: c.code, name: c.name || '' };
-                if (!passEndDateFilter(m.endDate)) continue;
                 if (subMode === 'parent') {
-                    rows.push(buildRow(m, null, true));
+                    if (!passEndDateFilter(m.endDate || '', m.endDate || '')) continue;
+                    rows.push(buildRow(m, null, true, subMode));
                 } else if (subMode === 'all') {
-                    rows.push(buildRow(m, null, true));
-                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
-                } else {
-                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
+                    // 親行: 親コード基準=親日付で判定, each=親自身の日付で判定
+                    if (!passEndDateFilter(m.endDate || '', m.endDate || '')) continue;
+                    rows.push(buildRow(m, null, true, subMode));
+                    (m.subCodes||[]).forEach(sub => {
+                        if (passEndDateFilter(sub.endDate || '', m.endDate || '')) {
+                            rows.push(buildRow(m, sub, false, subMode));
+                        }
+                    });
+                } else { // sub_only
+                    (m.subCodes||[]).forEach(sub => {
+                        if (passEndDateFilter(sub.endDate || '', m.endDate || '')) {
+                            rows.push(buildRow(m, sub, false, subMode));
+                        }
+                    });
                 }
             }
         } else {
             // 現場マスター基準: 全マスターを出力
             for (const m of masters) {
                 if (limit && rows.length >= limit) break;
-                if (!passEndDateFilter(m.endDate)) continue;
                 if (subMode === 'parent') {
-                    rows.push(buildRow(m, null, true));
+                    if (!passEndDateFilter(m.endDate || '', m.endDate || '')) continue;
+                    rows.push(buildRow(m, null, true, subMode));
                 } else if (subMode === 'all') {
-                    rows.push(buildRow(m, null, true));
-                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
-                } else {
-                    (m.subCodes||[]).forEach(sub => rows.push(buildRow(m, sub, false)));
+                    if (!passEndDateFilter(m.endDate || '', m.endDate || '')) continue;
+                    rows.push(buildRow(m, null, true, subMode));
+                    (m.subCodes||[]).forEach(sub => {
+                        if (passEndDateFilter(sub.endDate || '', m.endDate || '')) {
+                            rows.push(buildRow(m, sub, false, subMode));
+                        }
+                    });
+                } else { // sub_only
+                    (m.subCodes||[]).forEach(sub => {
+                        if (passEndDateFilter(sub.endDate || '', m.endDate || '')) {
+                            rows.push(buildRow(m, sub, false, subMode));
+                        }
+                    });
                 }
             }
         }
@@ -6738,7 +6802,7 @@
 
     // 列チェック変更 → プレビュー件数更新
     document.addEventListener('change', function(e) {
-        if (e.target.classList.contains('merge-col-chk') || e.target.name === 'merge-subcode' || e.target.name === 'merge-nosubcode' || e.target.name === 'merge-base' || e.target.name === 'merge-blank-end') {
+        if (e.target.classList.contains('merge-col-chk') || e.target.name === 'merge-subcode' || e.target.name === 'merge-nosubcode' || e.target.name === 'merge-base' || e.target.name === 'merge-blank-end' || e.target.name === 'merge-end-base') {
             updateMergeRadioStyles();
             window.updateMergePreviewCount?.();
         }
