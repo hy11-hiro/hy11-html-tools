@@ -5,20 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Drafting Canvas - 測量入力（修正完了版）</title>
     
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS（Play CDN: バージョン指定不可の仕様のため固定なし。影響は軽微） -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- React & ReactDOM (バージョン固定: 18.3.1) -->
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
     
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Babel for JSX（バージョン固定: 7.29.7 ※8.x系は破壊的変更あり、使用しない） -->
+    <script src="https://unpkg.com/@babel/standalone@7.29.7/babel.min.js"></script>
     
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Lucide Icons（バージョン固定: 1.20.0） -->
+    <script src="https://unpkg.com/lucide@1.20.0"></script>
     
-    <!-- jsPDF for PDF Export -->
+    <!-- jsPDF for PDF Export（既に固定済み: 2.5.1） -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <style>
@@ -74,7 +74,7 @@
         };
 
         const GRID_MODES = { ORTHO: 'ORTHO', ISO: 'ISO', PERSP_1: 'PERSP_1', PERSP_2: 'PERSP_2' };
-        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text', POLYGON: 'polygon', BLOCK_WALL: 'block_wall', SYMBOL: 'symbol', REG_POLY: 'reg_poly' };
+        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text', POLYGON: 'polygon', BLOCK_WALL: 'block_wall', SYMBOL: 'symbol', REG_POLY: 'reg_poly', CUBE: 'cube' };
 
         // 外構シンボル定義
         const GAIKO_SYMBOLS = {
@@ -196,7 +196,7 @@
             // Icon refresh effect
             useEffect(() => {
                 if (isOpen && window.lucide) {
-                    setTimeout(() => window.lucide.createIcons(), 50);
+                    setTimeout(() => { try { window.lucide.createIcons(); } catch(e) { console.warn('lucide createIcons failed', e); } }, 50);
                 }
             }, [isOpen, groups, activeGroupId, tab]);
 
@@ -436,7 +436,7 @@
                                             </table>
                                             <div className="p-4 bg-[#2d2d2d]">
                                                 <button onClick={addPoint} className="w-full py-3 border-2 border-dashed border-gray-600 text-gray-400 text-sm rounded-lg hover:text-white hover:border-gray-500 hover:bg-gray-800 transition-colors font-bold flex items-center justify-center gap-2">
-                                                    <i data-lucide="plus-circle" className="w-4 h-4"></i> 測点を追加
+                                                    <i data-lucide="circle-plus" className="w-4 h-4"></i> 測点を追加
                                                 </button>
                                             </div>
                                         </div>
@@ -592,6 +592,10 @@
             const viewRef = useRef({ scale: 1.0, offsetX: 0, offsetY: 0 }); 
             const isPanning = useRef(false);
             const isDraggingVP = useRef(null);
+            const selectedIds  = useRef(new Set());
+            const [selVersion, setSelVersion] = useState(0);   // 選択状態の再描画トリガー
+            const dragState    = useRef(null);   // { startWorld, origPositions }
+            const selBoxRef    = useRef(null);   // ラバーバンド選択の矩形
             const lastMouse = useRef({ x: 0, y: 0 });
             
             const [tempPoints, setTempPoints] = useState([]); 
@@ -1181,6 +1185,47 @@
                 ctx.fillText(sym.label,0,hh+1);
                 ctx.restore();
             };
+            // ── 透視図 立方体描画（1点透視）──
+            // front面の4頂点からVPへの相対位置を一様スケールしてback面を生成
+            // これによりback面が常に正しい矩形（平行四辺形ではなく相似形）になる
+            const createPerspCubeEntities = (frontCenter, size, vpPoint, color, lineWidth) => {
+                const half = size / 2;
+                // front面の4頂点（正方形）
+                const front = [
+                    { x: frontCenter.x - half, y: frontCenter.y - half },
+                    { x: frontCenter.x + half, y: frontCenter.y - half },
+                    { x: frontCenter.x + half, y: frontCenter.y + half },
+                    { x: frontCenter.x - half, y: frontCenter.y + half },
+                ];
+                // VPがfront面の中心と十分離れているか確認（奥行きスケール用）
+                const vpDistY = vpPoint.y - frontCenter.y;
+                if (Math.abs(vpDistY) < half * 1.2) {
+                    return { error: 'VPが立方体の範囲に近すぎます。VPを上下にずらしてください。' };
+                }
+                // back面のスケール係数（VPに近づくほど小さくなる）
+                const scale = 0.6;  // 奥行きの縮小率（固定値、見た目のバランス重視）
+                const back = front.map(p => ({
+                    x: vpPoint.x + scale * (p.x - vpPoint.x),
+                    y: vpPoint.y + scale * (p.y - vpPoint.y),
+                }));
+
+                const ents = [];
+                const addLine = (a, b) => ents.push({
+                    id: Date.now() + Math.random() * 9999,
+                    type: TOOLS.LINE, p1: { ...a }, p2: { ...b },
+                    color, lineWidth, layer: 'drawing'
+                });
+
+                // front面の4辺
+                for (let i = 0; i < 4; i++) addLine(front[i], front[(i + 1) % 4]);
+                // back面の4辺
+                for (let i = 0; i < 4; i++) addLine(back[i], back[(i + 1) % 4]);
+                // 奥行きの接続線（4本）
+                for (let i = 0; i < 4; i++) addLine(front[i], back[i]);
+
+                return { entities: ents };
+            };
+
             const fitViewToScreen = useCallback(() => {
 
                 const p = PAPERS[paper];
@@ -1199,7 +1244,7 @@
             }, [paper, size]);
 
             useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
+                if (window.lucide) { try { window.lucide.createIcons(); } catch(e) { console.warn('lucide createIcons failed', e); } }
                 const ro = new ResizeObserver(entries => {
                     for (let entry of entries) {
                         const { width, height } = entry.contentRect;
@@ -1211,6 +1256,19 @@
                     const tag = e.target.tagName;
                     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
                     if (e.key === 's' || e.key === 'S') setSnapEnabled(prev => !prev);
+                    // Delete / Backspace: 選択エンティティを削除
+                    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.current.size > 0) {
+                        const next = entities.filter(ent => !selectedIds.current.has(ent.id));
+                        setEntities(next); pushHistory(next);
+                        selectedIds.current = new Set();
+                        setSelVersion(v => v+1);
+                    }
+                    // Escape: 選択解除
+                    if (e.key === 'Escape') {
+                        selectedIds.current = new Set();
+                        setSelVersion(v => v+1);
+                        setTempPoints([]);
+                    }
                 };
                 window.addEventListener('keydown', handleKey);
                 return () => { ro.disconnect(); window.removeEventListener('keydown', handleKey); };
@@ -1829,6 +1887,22 @@
                     ctx.setLineDash([]);
                 }
 
+                // ── 立方体プレビュー ──
+                if (tool === TOOLS.CUBE) {
+                    const curr4 = snapPos.current || currentMousePos.current;
+                    if (curr4) {
+                        const sizeMM = cubeSize * (gridConfig.spacing || 10);
+                        const vpPoint = gridMode === GRID_MODES.PERSP_2 ? { x:(vp1.x+vp2.x)/2, y:(vp1.y+vp2.y)/2 } : vp1;
+                        const result = createPerspCubeEntities(curr4, sizeMM, vpPoint, '#9333ea', 0.3);
+                        if (!result.error) {
+                            ctx.save();
+                            ctx.strokeStyle = '#9333ea'; ctx.lineWidth = 0.4; ctx.setLineDash([2,1]);
+                            result.entities.forEach(le => { ctx.beginPath(); ctx.moveTo(le.p1.x,le.p1.y); ctx.lineTo(le.p2.x,le.p2.y); ctx.stroke(); });
+                            ctx.setLineDash([]); ctx.restore();
+                        }
+                    }
+                }
+
                 // ── 正多角形プレビュー ──
                 if (tool === TOOLS.REG_POLY && tempPoints.length === 1) {
                     const curr3 = snapPos.current || currentMousePos.current;
@@ -1884,6 +1958,50 @@
                     ctx.save(); ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 1/v.scale; ctx.beginPath(); ctx.arc(mPos.x, mPos.y, 5/v.scale, 0, Math.PI*2); ctx.stroke(); ctx.restore();
                 }
 
+                // ── 選択ハイライト ──
+                if (tool === TOOLS.SELECT && selectedIds.current.size > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = '#2299ff';
+                    ctx.lineWidth = 1.5 / v.scale;
+                    ctx.setLineDash([3/v.scale, 2/v.scale]);
+                    entities.forEach(ent => {
+                        if (!selectedIds.current.has(ent.id)) return;
+                        // バウンディングボックスを計算して枠を描く
+                        let xs = [], ys = [];
+                        if (ent.p1) { xs.push(ent.p1.x); ys.push(ent.p1.y); }
+                        if (ent.p2) { xs.push(ent.p2.x); ys.push(ent.p2.y); }
+                        if (ent.c)  { xs.push(ent.c.x-ent.r, ent.c.x+ent.r); ys.push(ent.c.y-ent.r, ent.c.y+ent.r); }
+                        if (ent.pts) ent.pts.forEach(p => { xs.push(p.x); ys.push(p.y); });
+                        if (xs.length === 0) return;
+                        const pad = 2 / v.scale;
+                        const bx = Math.min(...xs)-pad, by = Math.min(...ys)-pad;
+                        const bw = Math.max(...xs)-bx+pad*2, bh = Math.max(...ys)-by+pad*2;
+                        ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.stroke();
+                        // ハンドル（四隅）
+                        ctx.setLineDash([]);
+                        ctx.fillStyle = '#2299ff';
+                        [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]].forEach(([hx,hy]) => {
+                            ctx.beginPath(); ctx.rect(hx-3/v.scale, hy-3/v.scale, 6/v.scale, 6/v.scale); ctx.fill();
+                        });
+                        ctx.setLineDash([3/v.scale, 2/v.scale]);
+                    });
+                    ctx.setLineDash([]); ctx.restore();
+                }
+
+                // ── ラバーバンド選択 ──
+                if (tool === TOOLS.SELECT && selBoxRef.current) {
+                    const sb = selBoxRef.current;
+                    const bx = Math.min(sb.x1,sb.x2), by = Math.min(sb.y1,sb.y2);
+                    const bw = Math.abs(sb.x2-sb.x1), bh = Math.abs(sb.y2-sb.y1);
+                    ctx.save();
+                    ctx.strokeStyle = '#2299ff'; ctx.lineWidth = 0.5/v.scale;
+                    ctx.setLineDash([2/v.scale,2/v.scale]);
+                    ctx.strokeRect(bx,by,bw,bh);
+                    ctx.fillStyle = 'rgba(34,153,255,0.08)';
+                    ctx.fillRect(bx,by,bw,bh);
+                    ctx.setLineDash([]); ctx.restore();
+                }
+
                 ctx.restore(); ctx.restore();
 
                 if (gridConfig.visible) {
@@ -1916,7 +2034,7 @@
                         }
                     }
                 }
-            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility]);
+            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides]);
 
             useEffect(() => {
                 let id;
@@ -2018,6 +2136,23 @@
                     const pt = snapPos.current || wPos;
 
                     // ── 正多角形ツール ──
+                    // ── 立方体ツール（1点透視）──
+                    if (tool === TOOLS.CUBE) {
+                        // クリック位置をfront面の中心とする。サイズはサイドバーのcubeSize（グリッドセル単位）
+                        const sizeMM = cubeSize * (gridConfig.spacing || 10);  // グリッドセル数 → mm
+                        const vpPoint = gridMode === GRID_MODES.PERSP_2
+                            ? { x: (vp1.x + vp2.x) / 2, y: (vp1.y + vp2.y) / 2 }
+                            : vp1;
+                        const result = createPerspCubeEntities(pt, sizeMM, vpPoint, strokeColor, strokeWidth);
+                        if (result.error) {
+                            alert(result.error);
+                            return;
+                        }
+                        const next = [...entities, ...result.entities];
+                        setEntities(next); pushHistory(next);
+                        return;
+                    }
+
                     if (tool === TOOLS.REG_POLY) {
                         if (tempPoints.length === 0) {
                             setTempPoints([pt]);
@@ -2105,7 +2240,54 @@
                         return;
                     }
 
-                    if (tool === TOOLS.SELECT) { }
+                    if (tool === TOOLS.SELECT) {
+                        const hitRadius = 3 / viewRef.current.scale;
+                        let hitId = null;
+                        for (let i = entities.length - 1; i >= 0; i--) {
+                            const ent = entities[i];
+                            let hit = false;
+                            if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM || ent.isDim) {
+                                if (ent.p1 && ent.p2) {
+                                    const ddx=ent.p2.x-ent.p1.x, ddy=ent.p2.y-ent.p1.y;
+                                    const lenSq=ddx*ddx+ddy*ddy;
+                                    if (lenSq>0) { const t=Math.max(0,Math.min(1,((pt.x-ent.p1.x)*ddx+(pt.y-ent.p1.y)*ddy)/lenSq)); const nx2=ent.p1.x+t*ddx-pt.x,ny2=ent.p1.y+t*ddy-pt.y; hit=Math.sqrt(nx2*nx2+ny2*ny2)<hitRadius; }
+                                }
+                            } else if (ent.type === TOOLS.RECT) {
+                                const x1=Math.min(ent.p1.x,ent.p1.x+ent.w),x2=Math.max(ent.p1.x,ent.p1.x+ent.w);
+                                const y1=Math.min(ent.p1.y,ent.p1.y+ent.h),y2=Math.max(ent.p1.y,ent.p1.y+ent.h);
+                                hit=pt.x>=x1&&pt.x<=x2&&pt.y>=y1&&pt.y<=y2;
+                            } else if (ent.type === TOOLS.CIRCLE) {
+                                hit=Math.abs(Geo.dist(pt,ent.c)-ent.r)<hitRadius;
+                            } else if (ent.type === TOOLS.POLYGON || ent.type === 'fence_fill') {
+                                const pts3=ent.pts||[];
+                                let inside=false;
+                                for (let j=0,k=pts3.length-1;j<pts3.length;k=j++) {
+                                    if (((pts3[j].y>pt.y)!==(pts3[k].y>pt.y))&&pt.x<(pts3[k].x-pts3[j].x)*(pt.y-pts3[j].y)/(pts3[k].y-pts3[j].y)+pts3[j].x) inside=!inside;
+                                }
+                                hit=inside;
+                            } else if (ent.type === 'symbol') {
+                                const sym2=GAIKO_SYMBOLS[ent.symbolType]||{};
+                                const r3=sym2.r?sym2.r/drawingScale:Math.max((sym2.w||400),(sym2.h||400))/drawingScale/2;
+                                hit=Geo.dist(pt,ent.p1)<r3+hitRadius;
+                            } else if (ent.type === 'text_label') {
+                                hit=Geo.dist(pt,ent.p1)<hitRadius*4;
+                            }
+                            if (hit) { hitId=ent.id; break; }
+                        }
+                        if (hitId !== null) {
+                            if (e.shiftKey) { if(selectedIds.current.has(hitId))selectedIds.current.delete(hitId); else selectedIds.current.add(hitId); }
+                            else { if(!selectedIds.current.has(hitId)) selectedIds.current=new Set([hitId]); }
+                            // ドラッグ開始
+                            const origPositions={};
+                            entities.forEach(ent=>{ if(selectedIds.current.has(ent.id)) origPositions[ent.id]=JSON.parse(JSON.stringify(ent)); });
+                            dragState.current={ startWorld:{x:pt.x,y:pt.y}, origPositions };
+                        } else {
+                            if (!e.shiftKey) selectedIds.current=new Set();
+                            selBoxRef.current={ x1:pt.x, y1:pt.y, x2:pt.x, y2:pt.y };
+                        }
+                        setSelVersion(v=>v+1);
+                        return;
+                    }
                     else {
                         if (tempPoints.length === 0) { setTempPoints([pt]); }
                         else {
@@ -2134,6 +2316,35 @@
                 }
                 const wPos = getMouseWorldPos(e);
                 if (tool === TOOLS.ERASER && e.buttons === 1) eraseEntityAt(wPos);
+
+                // ── SELECT: エンティティドラッグ移動 ──
+                if (tool === TOOLS.SELECT && e.buttons === 1 && dragState.current) {
+                    const ds = dragState.current;
+                    const dx2 = wPos.x - ds.startWorld.x;
+                    const dy2 = wPos.y - ds.startWorld.y;
+                    setEntities(prev => prev.map(ent => {
+                        if (!selectedIds.current.has(ent.id)) return ent;
+                        const orig = ds.origPositions[ent.id];
+                        if (!orig) return ent;
+                        const moved = JSON.parse(JSON.stringify(orig));
+                        const mv = (p) => p ? { x: p.x+dx2, y: p.y+dy2 } : p;
+                        if (moved.p1) moved.p1 = mv(moved.p1);
+                        if (moved.p2) moved.p2 = mv(moved.p2);
+                        if (moved.c)  moved.c  = mv(moved.c);
+                        if (moved.pts) moved.pts = moved.pts.map(mv);
+                        return moved;
+                    }));
+                    setSelVersion(v=>v+1);
+                    return;
+                }
+
+                // ── SELECT: ラバーバンド更新 ──
+                if (tool === TOOLS.SELECT && e.buttons === 1 && selBoxRef.current) {
+                    selBoxRef.current.x2 = wPos.x;
+                    selBoxRef.current.y2 = wPos.y;
+                    setSelVersion(v=>v+1);
+                }
+
                 if (isDraggingVP.current) {
                     if (isDraggingVP.current === 'vp1') setVp1(wPos);
                     if (isDraggingVP.current === 'vp2') setVp2(wPos);
@@ -2143,7 +2354,36 @@
                 snapPos.current = calculateSnap(wPos, e.shiftKey);
             };
 
-            const handleMouseUp = () => { isPanning.current = false; isDraggingVP.current = null; if(tool===TOOLS.ERASER) setTempPoints([]); };
+            const handleMouseUp = () => {
+                isPanning.current = false;
+                isDraggingVP.current = null;
+                if (tool === TOOLS.ERASER) setTempPoints([]);
+
+                // SELECT: ドラッグ確定
+                if (tool === TOOLS.SELECT) {
+                    if (dragState.current) {
+                        pushHistory([...entities]);
+                        dragState.current = null;
+                    }
+                    // ラバーバンド選択確定
+                    if (selBoxRef.current) {
+                        const sb = selBoxRef.current;
+                        const x1=Math.min(sb.x1,sb.x2), x2=Math.max(sb.x1,sb.x2);
+                        const y1=Math.min(sb.y1,sb.y2), y2=Math.max(sb.y1,sb.y2);
+                        if (x2-x1 > 1 || y2-y1 > 1) {
+                            entities.forEach(ent => {
+                                let cx2=null,cy2=null;
+                                if (ent.p1) { cx2=ent.p1.x; cy2=ent.p1.y; }
+                                else if (ent.c) { cx2=ent.c.x; cy2=ent.c.y; }
+                                else if (ent.pts?.length) { cx2=ent.pts[0].x; cy2=ent.pts[0].y; }
+                                if (cx2!==null && cx2>=x1&&cx2<=x2&&cy2>=y1&&cy2<=y2) selectedIds.current.add(ent.id);
+                            });
+                        }
+                        selBoxRef.current = null;
+                        setSelVersion(v=>v+1);
+                    }
+                }
+            };
             const handleWheel = (e) => {
                 if (e.ctrlKey) return; e.preventDefault();
                 const v = viewRef.current; const factor = 1 + (e.deltaY > 0 ? -0.1 : 0.1);
@@ -2179,7 +2419,7 @@
                             className={`ml-2 border border-gray-600 p-1 rounded hover:bg-gray-700 ${gridConfig.visible ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'}`} 
                             title="グリッド表示切替"
                         >
-                            <i data-lucide="grid" className="w-5 h-5"></i>
+                            <i data-lucide="layout-grid" className="w-5 h-5"></i>
                         </button>
 
                         <div className="relative">
@@ -2202,7 +2442,7 @@
                             <i data-lucide="table" className="w-4 h-4 mr-1"></i> 測量入力
                         </button>
 
-                        <button onClick={fitViewToScreen} className="bg-gray-800 border border-gray-600 p-1 rounded hover:bg-gray-700 ml-2"><i data-lucide="home" className="w-5 h-5 text-gray-300"></i></button>
+                        <button onClick={fitViewToScreen} className="bg-gray-800 border border-gray-600 p-1 rounded hover:bg-gray-700 ml-2"><i data-lucide="house" className="w-5 h-5 text-gray-300"></i></button>
 
                         {/* スナップ ON/OFF トグル */}
                         <button
@@ -2225,7 +2465,7 @@
                     </div>
 
                     <div className="flex flex-1 overflow-hidden relative">
-                        <div className="w-14 bg-gray-900 flex flex-col items-center py-4 space-y-2 border-r border-gray-700 z-10 flex-shrink-0">
+                        <div className="w-14 bg-gray-900 flex flex-col items-center py-4 space-y-2 border-r border-gray-700 z-10 flex-shrink-0 overflow-y-auto" style={{scrollbarWidth: 'thin'}}>
                             {[ 
                                 {id:TOOLS.SELECT, i:'mouse-pointer-2', l:'選択'}, {id:TOOLS.LINE, i:'minus', l:'線分'}, {id:TOOLS.RECT, i:'square', l:'矩形'}, 
                                 {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
@@ -2234,6 +2474,21 @@
                                     <i data-lucide={t.i}></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">{t.l}</span>
                                 </button>
                             ))}
+                            {/* 立方体ツール（透視図モード時のみ表示） */}
+                            {gridMode.includes('PERSP') && (
+                                <button onClick={() => { setTool(TOOLS.CUBE); setTempPoints([]); }} className={`tool-btn group w-10 h-10 ${tool === TOOLS.CUBE ? 'active' : 'text-purple-400'}`}>
+                                    <i data-lucide="box"></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">立方体（クリックで配置）</span>
+                                </button>
+                            )}
+                            {tool === TOOLS.CUBE && (
+                                <div className="w-10 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-purple-300">{cubeSize}</span>
+                                    <input type="range" min="1" max="20" value={cubeSize}
+                                        onChange={e => setCubeSize(parseInt(e.target.value))}
+                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                    <span className="text-xs text-gray-500">マス</span>
+                                </div>
+                            )}
                             {/* 外構ツール区切り */}
                             <div className="w-8 border-t border-gray-600 my-1"></div>
                             {[
@@ -2288,9 +2543,9 @@
                                 onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onWheel={handleWheel} onContextMenu={(e) => e.preventDefault()}
                                 className="block absolute top-0 left-0" />
 
-                            {/* ── 外構設定パネル ── */}
+                            {/* ── 外構設定パネル（fixedで overflow-hidden の影響を回避） ── */}
                             {showGaikoPanel && (
-                                <div className="absolute top-4 right-4 panel w-72 z-40 text-sm select-none flex flex-col" style={{maxHeight: 'calc(100vh - 80px)'}}>
+                                <div className="fixed top-20 right-4 panel w-72 z-50 text-sm select-none flex flex-col" style={{maxHeight: 'calc(100vh - 100px)'}}>
                                     {/* ヘッダー（固定）*/}
                                     <div className="flex justify-between items-center mb-2 shrink-0">
                                         <span className="font-bold text-green-400 flex items-center gap-2"><i data-lucide="tree-pine" className="w-4 h-4"></i>外構ツール設定</span>
