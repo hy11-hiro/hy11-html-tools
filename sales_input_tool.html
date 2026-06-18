@@ -16,11 +16,18 @@
         .excel-grid input:focus { border: 2px solid #0d6efd; outline: none; z-index: 10; position: relative; }
         
         .excel-grid th { background-color: #f8f9fa; font-size: 0.8rem; text-align: center; vertical-align: middle; border: 1px solid #dee2e6; padding: 5px; }
-        .excel-grid td { padding: 0; border: 1px solid #dee2e6; }
+        .excel-grid td { padding: 0; border: 1px solid #dee2e6; position: relative; }
+        .genba-name-expand {
+            position: absolute !important; top: 0; left: 0; height: 100%; width: 492px !important;
+            z-index: 30; display: flex; align-items: center;
+            background-color: #f8d7da !important; color: #842029 !important; font-weight: bold;
+            border: 1px solid #dc3545 !important; box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+        }
         input[readonly] { background-color: #e9ecef; color: #495057; }
         
         .valid-input { background-color: #d4edda !important; border-color: #28a745 !important; }
         .invalid-input { background-color: #f8d7da !important; border-color: #dc3545 !important; }
+        .genba-name.invalid-input { color: #842029; font-weight: bold; }
         .manual-check-col { background-color: #fff3cd !important; }
 
         .completed-job { 
@@ -33,19 +40,22 @@
         #dropArea { border: 3px dashed #6c757d; border-radius: 10px; background-color: #f8f9fa; color: #6c757d; transition: all 0.3s; cursor: pointer; }
         #dropArea:hover, #dropArea.dragover { border-color: #0d6efd; background-color: #e9ecef; color: #0d6efd; }
         
-        .template-card {
-            cursor: pointer; transition: all 0.2s ease-in-out; border: 1px solid #dee2e6; background-color: #fff; position: relative; overflow: hidden;
-        }
-        .template-card:hover { transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important; border-color: #0d6efd; background-color: #f8f9fa; }
-        .template-card:active { transform: translateY(1px); box-shadow: 0 2px 5px rgba(0,0,0,0.1) !important; }
-        .template-label { font-weight: bold; font-size: 1.1rem; color: #0d6efd; }
-        .template-sub { font-size: 0.8rem; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .template-delete { position: absolute; top: 5px; right: 8px; color: #dc3545; font-size: 1.2rem; line-height: 1; opacity: 0.3; transition: opacity 0.2s; z-index: 10; }
-        .template-card:hover .template-delete { opacity: 1; }
-        .template-delete:hover { transform: scale(1.2); cursor: pointer; }
+        /* テンプレート: コンパクトなリスト行 */
+        .template-row { cursor: default; transition: background-color 0.15s; border-left: 3px solid transparent; }
+        .template-row .template-apply { cursor: pointer; }
+        .template-row .template-apply:hover .template-label { text-decoration: underline; }
+        .template-drag-handle { cursor: grab; color: #adb5bd; font-size: 1.1rem; user-select: none; touch-action: none; }
+        .template-drag-handle:active { cursor: grabbing; }
+        .template-row.dragging { opacity: 0.4; }
+        .template-row.drag-over { border-left-color: #0d6efd; background-color: #eaf3ff; }
+        .template-label { font-weight: bold; color: #0d6efd; }
+        .template-sub { font-size: 0.8rem; color: #6c757d; }
+
 
         .preview-table th, .preview-table td { font-size: 0.8em; white-space: nowrap; padding: 4px 8px; vertical-align: middle; }
-        .preview-container { overflow: auto; max-height: 60vh; border: 1px solid #dee2e6; }
+        .preview-container { overflow: auto; height: 100%; border: 1px solid #dee2e6; }
+        .preview-table thead th { position: sticky; top: 0; z-index: 6; }
+        .preview-table .col-highlight { background-color: #fff3cd !important; }
         /* 削除ボタン列 */
         .del-col { width: 50px; text-align: center; position: sticky; right: 0; background-color: #fff; border-left: 1px solid #dee2e6; z-index: 5; }
     </style>
@@ -54,7 +64,7 @@
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 41.2 (金額スピナー削除・出力ルール詳細)</small></h5>
+        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 41.15 (マスタ未登録メッセージを4列分に拡張表示)</small></h5>
         <div>
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#masterModal">⚙️ マスタ取込</button>
             <button class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="modal" data-bs-target="#templateModal">📑 テンプレート</button>
@@ -65,7 +75,10 @@
     <div class="card mb-3 border-primary" id="summaryCard" style="display:none;">
         <div class="card-header bg-primary text-white py-1 d-flex justify-content-between align-items-center">
             <span class="small"><i class="bi bi-calculator"></i> 転記済み合計確認</span>
-            <span class="badge bg-white text-primary rounded-pill" id="summaryCount">0件</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-white text-primary rounded-pill" id="summaryCount">0件</span>
+                <button class="btn btn-sm btn-light fw-bold py-0" onclick="showPreviewTable(); showPreviewModal();">📋 プレビュー・修正を開く</button>
+            </div>
         </div>
         <div class="card-body py-2 bg-white" id="summaryBody">
             <!-- JSで動的に追加されます -->
@@ -99,7 +112,7 @@
                     </div>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label mb-0">取引方法</label>
+                    <label class="form-label mb-0">伝票消費税計算区分 <small class="text-muted">(49列目)</small></label>
                     <select class="form-select form-select-sm" id="combo6">
                         <option value="">選択してください</option>
                         <option value="1:なし">1:なし</option>
@@ -111,7 +124,7 @@
             </div>
 
             <!-- 2段目: 得意先・担当者 -->
-            <div class="row g-2 align-items-end mb-2">
+            <div class="row g-2 align-items-end mb-1">
                 <div class="col-md-4">
                     <label class="form-label mb-0">得意先名</label>
                     <div class="input-group input-group-sm">
@@ -129,6 +142,17 @@
                         <input type="text" class="form-control" id="combo3" list="staffOptions" placeholder="コード または 氏名" oninput="validateStaff()">
                         <datalist id="staffOptions"></datalist>
                         <span class="input-group-text bg-white" id="staffStatus">❔</span>
+                    </div>
+                </div>
+            </div>
+            <!-- 得意先の端数処理区分バッジ -->
+            <div class="row g-2 mb-2">
+                <div class="col-md-6" id="custRoundInfo" style="display:none;">
+                    <div class="border rounded px-2 py-1 bg-light d-flex gap-3 align-items-center" style="font-size:0.78rem;">
+                        <span class="text-muted">得意先マスタ 端数処理：</span>
+                        <span>金額処理区分(DA列)：<strong id="badgeAmtRound" class="badge bg-secondary">-</strong></span>
+                        <span>消費税計算区分(DI列)：<strong id="badgeTaxRound" class="badge bg-primary">-</strong></span>
+                        <span class="text-muted" id="badgeTaxRoundLabel" style="font-size:0.75rem;"></span>
                     </div>
                 </div>
             </div>
@@ -197,7 +221,7 @@
                             <thead class="table-light"><tr><th>列番号</th><th>列名</th><th>計算方法・値</th></tr></thead>
                             <tbody>
                                 <tr><td>27列目 (AA)</td><td>金額</td><td>入力値そのまま（<strong>税込金額</strong>）</td></tr>
-                                <tr><td>31列目 (AE)</td><td>粗利</td><td><code>Math.round(金額 ÷ 1.1)</code>　→ 税抜金額として使用 ⚠️</td></tr>
+                                <tr><td>31列目 (AE)</td><td>粗利</td><td>得意先マスタ DI列（消費税計算区分）に従い端数処理<br><code>0:切り捨て(floor)</code> / <code>1:切り上げ(ceil)</code> / <code>2:四捨五入(round)</code><br>マスタ未設定の場合は四捨五入 ⚠️ 実態は税抜金額</td></tr>
                                 <tr><td>36列目 (AJ)</td><td>内消費税等</td><td><code>金額 − 粗利(税抜)</code>　→ 消費税額</td></tr>
                                 <tr><td>35列目 (AI)</td><td>消費税率</td><td>固定値 <code>"10"</code></td></tr>
                                 <tr><td>33列目 (AG)</td><td>課税区分</td><td>固定値 <code>"1"</code></td></tr>
@@ -208,7 +232,9 @@
                             </tbody>
                         </table>
                         <div class="alert alert-warning py-1 px-2 mb-3" style="font-size:0.75rem;">
-                            ⚠️ <strong>「粗利」列に税抜金額を格納しています。</strong>レイアウト変更で「粗利」の定義が変わった場合は上記計算ロジックの見直しが必要です。
+                            ⚠️ <strong>「粗利」列に税抜金額を格納しています。</strong>レイアウト変更で「粗利」の定義が変わった場合は上記計算ロジックの見直しが必要です。<br>
+                            📌 <strong>端数処理は得意先マスタ DI列（消費税計算区分・index 112）を参照。</strong>マスタ未読込または未設定の場合は四捨五入で動作します。DA列（金額処理区分・index 104）は表示のみ（現在は計算に使用していません）。<br>
+                            🔄 <strong>転記後の修正画面で「金額」セルを直接編集した場合も、得意先の端数処理ルールに従って「粗利」「内消費税等」を自動で再計算します。</strong>
                         </div>
 
                         <!-- 列レイアウト一覧 (出力値あり列のみ) -->
@@ -227,8 +253,8 @@
                                 <tr class="table-info"><td>7列目</td><td>得意先名１</td><td>得意先名（入力値）</td><td></td></tr>
                                 <tr class="table-info"><td>8列目</td><td>得意先名２</td><td>得意先マスタの3列目（v列）</td><td>マスタに登録がある場合のみ</td></tr>
                                 <tr class="table-info"><td>11列目</td><td>担当者コード</td><td>担当者コード（":"前の数値部分）</td><td></td></tr>
-                                <tr class="table-info"><td>14列目</td><td>請求区分</td><td>取引区分「2:売掛」→ <code>1</code>、それ以外→ <code>0</code></td><td></td></tr>
-                                <tr class="table-info"><td>15列目</td><td>売掛区分</td><td>取引区分「3:現金」→ <code>1</code>、それ以外→ <code>0</code></td><td></td></tr>
+                                <tr class="table-info"><td>14列目</td><td>請求区分</td><td>取引区分「2:売掛」→ <code>1（次回）</code>、それ以外→ <code>0（今回）</code></td><td>基本情報の取引区分から自動決定</td></tr>
+                                <tr class="table-info"><td>15列目</td><td>売掛区分</td><td>取引区分「3:現金」→ <code>1（現金）</code>、それ以外→ <code>0（売掛）</code></td><td>基本情報の取引区分から自動決定</td></tr>
                                 <tr><td>16列目</td><td>取引区分</td><td>固定 <code>"1"</code></td><td></td></tr>
                                 <tr><td>17列目</td><td>取引区分属性</td><td>固定 <code>"1"</code></td><td></td></tr>
                                 <tr class="table-info"><td>19列目</td><td>商品コード</td><td>商品マスタのコード</td><td></td></tr>
@@ -277,9 +303,15 @@
 
     <!-- 明細入力 (Excelコピペ対応) -->
     <div class="card">
-        <div class="card-header d-flex justify-content-between py-1 bg-warning bg-opacity-10">
+        <div class="card-header d-flex justify-content-between align-items-center py-1 bg-warning bg-opacity-10 flex-wrap gap-1">
             <span>明細入力 <span class="badge bg-warning text-dark ms-2">Excelコピペ & 矢印キー移動対応</span></span>
-            <span id="genbaStatus" class="master-status">現場マスタ: <span class="status-ng">未読込</span></span>
+            <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch mb-0" title="ONの場合、完了済み工番への転記を完全にブロックします。OFFの場合は確認メッセージのみ表示し、続行を選べます。">
+                    <input class="form-check-input" type="checkbox" id="blockCompletedJobToggle" checked>
+                    <label class="form-check-label small fw-bold text-danger" for="blockCompletedJobToggle">🚫 完了済み工番への転記をブロック</label>
+                </div>
+                <span id="genbaStatus" class="master-status">現場マスタ: <span class="status-ng">未読込</span></span>
+            </div>
         </div>
         <div class="card-body p-0">
             <div class="table-responsive" style="max-height: 50vh;">
@@ -292,7 +324,8 @@
                             <th style="width: 180px;" class="manual-check-col">手入力現場名<br>(確認用)</th>
                             <th style="width: 100px;">完了日</th>
                             <th style="width: 100px;">金額<br>(税込)</th>
-                            <th style="width: 180px;">名称 (自動)</th>
+                            <th style="width: 100px;">税抜金額<br><small class="fw-normal text-muted">31列目/粗利</small></th>
+                            <th style="width: 200px;">名称 (自動)</th>
                             <th style="width: 100px;">現場担当者 (自動)</th>
                             <th style="width: 130px;">施工主 (自動)</th>
                             <th style="width: 60px;">枝番有無</th>
@@ -311,26 +344,40 @@
 
 <!-- プレビューモーダル -->
 <div class="modal fade" id="previewModal" tabindex="-1">
-    <div class="modal-dialog modal-xl">
+    <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
-            <div class="modal-header bg-light">
+            <div class="modal-header bg-light py-2">
                 <h5 class="modal-title">転記結果プレビュー・修正</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <p class="small text-muted mb-0">💡 セルをクリックすると直接編集できます。編集後はそのままテキスト出力できます。</p>
+            <div class="modal-body d-flex flex-column py-2">
+                <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                    <p class="small text-muted mb-0">💡 セルをクリックすると直接編集できます。編集後はそのままテキスト出力できます。<br>🔄 「金額」(27列目)を編集すると、得意先の端数処理ルールに従って「粗利」(31列目)・「内消費税等」(36列目)を自動で再計算します。</p>
                     <button class="btn btn-sm btn-outline-danger" onclick="clearExportData()">全データクリア</button>
                 </div>
-                <div class="preview-container">
+                <div class="d-flex align-items-center gap-2 mb-2 flex-wrap p-2 bg-light rounded border">
+                    <span class="small fw-bold text-muted">表示列：</span>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-primary" id="btnColFilterUsed" onclick="setPreviewColFilter(false)">使用列のみ (46列)</button>
+                        <button type="button" class="btn btn-outline-primary" id="btnColFilterAll" onclick="setPreviewColFilter(true)">全136列</button>
+                    </div>
+                    <span class="vr"></span>
+                    <span class="small fw-bold text-muted">ジャンプ：</span>
+                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="jumpToPreviewCol(26)">💰 金額</button>
+                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="jumpToPreviewCol(30)">📊 粗利</button>
+                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="jumpToPreviewCol(35)">🧾 内消費税等</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="jumpToPreviewCol(0)">⬅ 先頭</button>
+                </div>
+                <div class="preview-container flex-grow-1">
                     <table class="table table-sm table-bordered preview-table table-hover" id="previewTable"></table>
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer py-2">
                 <button class="btn btn-success" onclick="exportTextFile()">📄 テキスト出力</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
             </div>
         </div>
+
     </div>
 </div>
 
@@ -377,8 +424,15 @@
                         </div>
                     </div>
                 </div>
-                <div id="templateList"></div>
-                <div class="text-center mt-4 border-top pt-3"><button class="btn btn-sm btn-outline-secondary" onclick="resetDefaultTemplates()">標準に戻す</button></div>
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div class="small text-muted">💡 ⠿をドラッグ、または▲▼ボタンで並び替えできます</div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="sortTemplatesByName(false)">🔤 あいうえお順</button>
+                        <button class="btn btn-outline-secondary" onclick="sortTemplatesByName(true)">🔤 逆順</button>
+                    </div>
+                </div>
+                <div id="templateList" class="list-group" style="max-height: 60vh; overflow-y: auto;"></div>
+                <div class="text-center mt-3 border-top pt-3"><button class="btn btn-sm btn-outline-secondary" onclick="resetDefaultTemplates()">標準に戻す</button></div>
             </div>
         </div>
     </div>
@@ -468,7 +522,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     validateProduct();
     setupDropArea();
     setupPasteHandler();
-    setupStaffFormatter(); 
+    setupStaffFormatter();
+    setupArrowNavigation();
 });
 
 function initGrid() {
@@ -526,7 +581,7 @@ function setupArrowNavigation() {
     const gridBody = document.getElementById('gridBody');
     gridBody.addEventListener('keydown', (e) => {
         if (e.target.tagName !== 'INPUT') return;
-        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+        if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) return;
 
         const currentInput = e.target;
         const currentRow = currentInput.closest('tr');
@@ -544,6 +599,7 @@ function setupArrowNavigation() {
         switch (e.key) {
             case 'ArrowUp': e.preventDefault(); nextRowIndex--; shouldMove = true; break;
             case 'ArrowDown': e.preventDefault(); nextRowIndex++; shouldMove = true; break;
+            case 'Enter': e.preventDefault(); nextRowIndex++; shouldMove = true; break;
             case 'ArrowLeft':
                 if (currentInput.classList.contains('amount-col') || currentInput.value === '' || (currentInput.selectionStart === 0 && currentInput.selectionEnd === 0)) {
                      e.preventDefault(); nextColIndex--; shouldMove = true;
@@ -557,6 +613,10 @@ function setupArrowNavigation() {
         }
 
         if (shouldMove) {
+            // Enterキーで最終行に達した場合は自動で新しい行を追加する(Excel貼り付け時と同様の挙動)
+            if (e.key === 'Enter' && nextRowIndex >= gridBody.children.length) {
+                addGridRow();
+            }
             if (nextRowIndex >= 0 && nextRowIndex < gridBody.children.length) {
                 const nextRow = gridBody.children[nextRowIndex];
                 const nextInputs = getFocusableInputs(nextRow);
@@ -674,18 +734,93 @@ function handlePaste(e) {
 function getTemplates() { const json = localStorage.getItem('USER_TEMPLATES'); return json ? JSON.parse(json) : defaultTemplates; }
 function renderTemplates() {
     const list = document.getElementById('templateList');
-    list.innerHTML = ""; list.className = "row g-3";
+    list.innerHTML = "";
+    list.className = "list-group";
     const templates = getTemplates();
     templates.forEach((t, idx) => {
-        const col = document.createElement('div'); col.className = 'col-6 col-md-4 col-lg-3';
-        const card = document.createElement('div'); card.className = 'card h-100 template-card shadow-sm text-center p-3 d-flex flex-column justify-content-center';
-        card.onclick = () => { applyTemplateData(t); };
-        const delBtn = document.createElement('span'); delBtn.className = 'template-delete'; delBtn.innerHTML = '×';
+        const item = document.createElement('div');
+        item.className = 'list-group-item d-flex align-items-center gap-2 py-1 template-row';
+        item.draggable = true;
+        item.dataset.idx = idx;
+
+        const handle = document.createElement('span');
+        handle.className = 'template-drag-handle';
+        handle.textContent = '⠿';
+        handle.title = 'ドラッグで並び替え';
+
+        const moveGroup = document.createElement('div');
+        moveGroup.className = 'btn-group btn-group-sm flex-shrink-0';
+        const upBtn = document.createElement('button');
+        upBtn.className = 'btn btn-outline-secondary py-0 px-1'; upBtn.textContent = '▲'; upBtn.title = '上へ移動';
+        upBtn.onclick = (e) => { e.stopPropagation(); moveTemplate(idx, -1); };
+        const downBtn = document.createElement('button');
+        downBtn.className = 'btn btn-outline-secondary py-0 px-1'; downBtn.textContent = '▼'; downBtn.title = '下へ移動';
+        downBtn.onclick = (e) => { e.stopPropagation(); moveTemplate(idx, 1); };
+        moveGroup.appendChild(upBtn); moveGroup.appendChild(downBtn);
+
+        const body = document.createElement('div');
+        body.className = 'flex-grow-1 text-start template-apply';
+        const labelSpan = document.createElement('span'); labelSpan.className = 'template-label'; labelSpan.textContent = t.label;
+        const custSpan = document.createElement('span'); custSpan.className = 'template-sub ms-2'; custSpan.textContent = t.cust || '(未設定)';
+        body.appendChild(labelSpan); body.appendChild(custSpan);
+        body.onclick = () => { applyTemplateData(t); };
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-sm btn-outline-danger py-0 px-2 flex-shrink-0';
+        delBtn.textContent = '×';
+        delBtn.title = '削除';
         delBtn.onclick = (e) => { e.stopPropagation(); deleteTemplate(idx); };
-        const label = document.createElement('div'); label.className = 'template-label mb-1'; label.innerText = t.label;
-        const sub = document.createElement('div'); sub.className = 'template-sub'; sub.innerText = t.cust || '(未設定)';
-        card.appendChild(delBtn); card.appendChild(label); card.appendChild(sub);
-        col.appendChild(card); list.appendChild(col);
+
+        item.appendChild(handle);
+        item.appendChild(moveGroup);
+        item.appendChild(body);
+        item.appendChild(delBtn);
+        list.appendChild(item);
+    });
+    setupTemplateDragSort();
+}
+// テンプレート名をあいうえお順(50音順)に並び替え
+function sortTemplatesByName(desc) {
+    const ts = getTemplates();
+    ts.sort((a, b) => desc ? b.label.localeCompare(a.label, 'ja') : a.label.localeCompare(b.label, 'ja'));
+    localStorage.setItem('USER_TEMPLATES', JSON.stringify(ts));
+    renderTemplates();
+}
+// 上下ボタンでテンプレートの並び順を入れ替え
+function moveTemplate(idx, dir) {
+    const ts = getTemplates();
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= ts.length) return;
+    [ts[idx], ts[newIdx]] = [ts[newIdx], ts[idx]];
+    localStorage.setItem('USER_TEMPLATES', JSON.stringify(ts));
+    renderTemplates();
+}
+// ドラッグ&ドロップでの並び替え
+function setupTemplateDragSort() {
+    const list = document.getElementById('templateList');
+    let dragSrcIdx = null;
+    Array.from(list.children).forEach(item => {
+        item.addEventListener('dragstart', () => {
+            dragSrcIdx = parseInt(item.dataset.idx);
+            item.classList.add('dragging');
+        });
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            list.querySelectorAll('.template-row').forEach(el => el.classList.remove('drag-over'));
+        });
+        item.addEventListener('dragover', (e) => { e.preventDefault(); item.classList.add('drag-over'); });
+        item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            item.classList.remove('drag-over');
+            const dropIdx = parseInt(item.dataset.idx);
+            if (dragSrcIdx === null || dragSrcIdx === dropIdx) return;
+            const ts = getTemplates();
+            const [moved] = ts.splice(dragSrcIdx, 1);
+            ts.splice(dropIdx, 0, moved);
+            localStorage.setItem('USER_TEMPLATES', JSON.stringify(ts));
+            renderTemplates();
+        });
     });
 }
 function downloadTemplateCSV() {
@@ -794,7 +929,7 @@ async function processGenbaFile(f) {
 }
 async function processCustFile(f) {
     const rows = parseTSV(await readFileText(f));
-    const data = rows.map(r => ({ c:r[0], n:r[1], v:r[2]||"" })).filter(d=>d.c);
+    const data = rows.map(r => ({ c:r[0], n:r[1], v:r[2]||"" , amtRound:(r[104]!==undefined && r[104]!=="")?r[104]:"2", taxRound:(r[112]!==undefined && r[112]!=="")?r[112]:"2" })).filter(d=>d.c);
     await idbSet('MST_CUST', data);
 }
 async function processProdFile(f) {
@@ -869,6 +1004,23 @@ function validateCustomer() {
     const found = M_CUST.find(m => m.n === val);
     document.getElementById('textBox3').value = found ? found.c : "";
     setStatus('combo2', 'custStatus', !!found);
+    const roundLabels = ["0:切り捨て","1:切り上げ","2:四捨五入"];
+    const infoDiv = document.getElementById('custRoundInfo');
+    if (found && (found.amtRound !== undefined || found.taxRound !== undefined)) {
+        const ar = found.amtRound ?? "2";
+        const tr = found.taxRound ?? "2";
+        const colorMap = ["danger","warning","success"];
+        document.getElementById('badgeAmtRound').textContent = roundLabels[ar] ?? ar;
+        document.getElementById('badgeAmtRound').className = `badge bg-${colorMap[ar] ?? "secondary"}`;
+        document.getElementById('badgeTaxRound').textContent = roundLabels[tr] ?? tr;
+        document.getElementById('badgeTaxRound').className = `badge bg-${colorMap[tr] ?? "secondary"}`;
+        document.getElementById('badgeTaxRoundLabel').textContent = `← 粗利(税抜)計算に使用`;
+        infoDiv.style.display = "";
+    } else {
+        infoDiv.style.display = "none";
+    }
+    // 得意先変更時、全行の税抜金額表示を更新
+    document.querySelectorAll('.amount-col').forEach(inp => inp.dispatchEvent(new Event('input')));
 }
 function validateStaff() {
     const val = document.getElementById('combo3').value;
@@ -895,6 +1047,12 @@ function normalizeJobCode(val) {
         .toLowerCase();
 }
 
+// 金額の正規化: 全角数字→半角 + 数字以外を除去（カンマ・文字・記号等を自動排除）
+function normalizeAmountStr(val) {
+    let s = val.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    return s.replace(/[^0-9]/g, '');
+}
+
 function addGridRow() {
     const tbody = document.getElementById('gridBody');
     const tr = document.createElement('tr');
@@ -905,6 +1063,7 @@ function addGridRow() {
         <td><input type="text" class="form-control form-control-sm manual-genba-name manual-check-col"></td>
         <td><input type="text" class="form-control form-control-sm date-col" placeholder="yyyymmdd" inputmode="numeric"></td>
         <td><input type="text" class="form-control form-control-sm amount-col" inputmode="numeric" pattern="[0-9]*"></td>
+        <td><input type="text" class="form-control form-control-sm tax-ex-col text-end text-muted" readonly tabindex="-1" placeholder="-" style="background:#f8f9fa;font-size:0.82rem;"></td>
         <td><input type="text" class="form-control form-control-sm genba-name" readonly tabindex="-1"></td>
         <td><input type="text" class="form-control form-control-sm genba-type" readonly tabindex="-1"></td>
         <td><input type="text" class="form-control form-control-sm h-col" readonly tabindex="-1"></td>
@@ -914,26 +1073,51 @@ function addGridRow() {
     tbody.appendChild(tr);
 
     const jobIn = tr.querySelector('.job-code'), subIn = tr.querySelector('.sub-code'), amtIn = tr.querySelector('.amount-col'), dateIn = tr.querySelector('.date-col');
+    const NOT_REGISTERED_MSG = "⚠️ 現場マスタ未登録です。マスターを更新してください";
+    const NOT_REGISTERED_TITLE = "現場マスターに登録されていない物件です。最新の現場マスターを「マスタ取込」から取り込んで更新してください。";
     const searchHandler = () => {
         const job = jobIn.value.trim(), sub = subIn.value.trim();
-        tr.querySelector('.genba-name').value = "";
+        const genbaNameIn = tr.querySelector('.genba-name');
+        genbaNameIn.value = "";
+        genbaNameIn.title = "";
+        genbaNameIn.classList.remove('invalid-input', 'genba-name-expand');
         tr.querySelector('.genba-type').value = "";
         tr.querySelector('.h-col').value = "";
         tr.querySelector('.i-col').value = "";
         jobIn.classList.remove('valid-input', 'invalid-input');
-        dateIn.classList.remove('completed-job'); 
+        jobIn.title = "";
+        dateIn.classList.remove('completed-job');
         dateIn.title = "";
-        
+        // 工番・サブの組み合わせが変わるたびに完了日欄を一旦クリアしてから反映し直す
+        // （親コードの完了日がサブコードに引き継がれてしまう/逆に残ってしまう誤表示を防ぐ）
+        dateIn.value = "";
+
         if(!job) return;
         let found = null;
         if (sub !== "") {
+            // サブコード指定時は「工番+サブ」の組み合わせ単位で完了日を判定（親コードの完了日は見ない）
             found = M_GENBA.find(m => m.c === job && m.s === sub);
-            if (!found) { jobIn.classList.add('invalid-input'); return; }
-            tr.querySelector('.genba-name').value = (found.sn && found.sn.trim()) ? found.sn : found.n;
+            if (!found) {
+                jobIn.classList.add('invalid-input');
+                jobIn.title = "現場マスタに登録されていない工番・サブの組み合わせです。マスターを更新してください。";
+                genbaNameIn.value = NOT_REGISTERED_MSG;
+                genbaNameIn.classList.add('invalid-input', 'genba-name-expand');
+                genbaNameIn.title = NOT_REGISTERED_TITLE;
+                return;
+            }
+            genbaNameIn.value = (found.sn && found.sn.trim()) ? found.sn : found.n;
         } else {
+            // サブコード未指定時は「工番」単体（親コード）の完了日を判定
             found = M_GENBA.find(m => m.c === job);
-            if (!found) { jobIn.classList.add('invalid-input'); return; }
-            tr.querySelector('.genba-name').value = found.n;
+            if (!found) {
+                jobIn.classList.add('invalid-input');
+                jobIn.title = "現場マスタに登録されていない工番です。マスターを更新してください。";
+                genbaNameIn.value = NOT_REGISTERED_MSG;
+                genbaNameIn.classList.add('invalid-input', 'genba-name-expand');
+                genbaNameIn.title = NOT_REGISTERED_TITLE;
+                return;
+            }
+            genbaNameIn.value = found.n;
         }
         jobIn.classList.add('valid-input');
         tr.querySelector('.genba-type').value = found.t; 
@@ -943,7 +1127,7 @@ function addGridRow() {
         if(compDate !== "" && compDate !== "0" && compDate !== "00000000") {
             dateIn.value = compDate;
             dateIn.classList.add('completed-job');
-            dateIn.title = "この工番は完了しています";
+            dateIn.title = sub !== "" ? `工番[${job}] サブ[${sub}] は完了しています` : `工番[${job}] (親コード) は完了しています`;
         }
         const hasSub = M_GENBA.some(m => m.c === job && m.s !== "");
         tr.querySelector('.i-col').value = hasSub ? "有" : "";
@@ -961,9 +1145,32 @@ function addGridRow() {
     
     dateIn.addEventListener('change', function() { this.value = normalizeDateStr(this.value); });
     amtIn.addEventListener('wheel', (e) => { e.preventDefault(); }, { passive: false });
+    amtIn.addEventListener('input', function() {
+        // 数字以外の文字（全角数字・カンマ・記号等）を自動除去
+        const pos = this.selectionStart;
+        const normalized = normalizeAmountStr(this.value);
+        if (normalized !== this.value) {
+            const diff = this.value.length - normalized.length;
+            this.value = normalized;
+            this.setSelectionRange(Math.max(0, pos - diff), Math.max(0, pos - diff));
+        }
+        const amt = parseInt(normalized) || 0;
+        const taxExIn = tr.querySelector('.tax-ex-col');
+        if (amt > 0) {
+            // 得意先マスタの消費税計算区分を参照（未選択時は四捨五入）
+            const custCode = document.getElementById('textBox3').value;
+            const custData = M_CUST.find(c => c.c === custCode);
+            const taxRoundType = parseInt(custData?.taxRound ?? "2");
+            const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
+            taxExIn.value = roundFn(amt / 1.1).toLocaleString();
+        } else {
+            taxExIn.value = "";
+        }
+    });
     amtIn.addEventListener('change', () => {
         let sum = 0; document.querySelectorAll('.amount-col').forEach(i => sum += (parseInt(i.value)||0));
         document.getElementById('textBox1').value = sum.toLocaleString();
+        amtIn.dispatchEvent(new Event('input')); // 税抜表示も更新
     });
 }
 
@@ -996,8 +1203,26 @@ function executeTransfer() {
     if(hasError) return;
     if(validRows.length === 0) { alert("転記する明細データがありません"); return; }
 
+    // 完了済み工番(.completed-job)が含まれる場合、トグルの設定に応じてブロック or 確認
+    const completedRows = validRows.filter(tr => tr.querySelector('.date-col').classList.contains('completed-job'));
+    if (completedRows.length > 0) {
+        const jobList = completedRows.map(tr => {
+            const j = tr.querySelector('.job-code').value;
+            const s = tr.querySelector('.sub-code').value;
+            return s ? `${j}-${s}` : j;
+        }).join('、');
+        const blockMode = document.getElementById('blockCompletedJobToggle').checked;
+        if (blockMode) {
+            alert(`工番「${jobList}」は完了済みのため、転記をブロックしました。\n\n許可する場合は「明細入力」欄の🚫トグルをOFFにしてください。`);
+            return;
+        } else {
+            if (!confirm(`工番「${jobList}」は完了済みです。\nこのまま転記してよろしいですか？`)) return;
+        }
+    }
+
     const custData = M_CUST.find(c => c.c === custCode);
     const hColVal = custData ? custData.v : "";
+    // 請求区分・売掛区分は取引区分から自動決定（2:売掛→請求区分=1、3:現金→売掛区分=1）
     let nVal = 0, oVal = 0;
     if (opt.value === "2") nVal = 1; else if (opt.value === "3") oVal = 1;
     let combo6Val = -1;
@@ -1006,12 +1231,16 @@ function executeTransfer() {
     let staffText = document.getElementById('combo3').value;
     let staffCode = (staffText.indexOf(":") > -1) ? staffText.split(":")[0].trim() : staffText;
 
+    // 消費税計算区分(得意先マスタDI列): 0=切り捨て 1=切り上げ 2=四捨五入 (未設定時は四捨五入)
+    const taxRoundType = parseInt(custData?.taxRound ?? "2");
+    const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
+
     validRows.forEach(tr => {
         const dateStr = tr.querySelector('.date-col').value; 
         const amount = parseInt(tr.querySelector('.amount-col').value);
         const job = tr.querySelector('.job-code').value;     
         const sub = tr.querySelector('.sub-code').value;     
-        const taxEx = Math.round(amount / 1.1);
+        const taxEx = roundFn(amount / 1.1);
         const tax = amount - taxEx;
 
         let row = new Array(136).fill(""); 
@@ -1039,15 +1268,45 @@ function showPreviewModal() {
     new bootstrap.Modal(document.getElementById('previewModal')).show();
 }
 
+// プレビューの列フィルタ状態 (false=使用列のみ表示 / true=全136列表示)
+let previewShowAllCols = false;
+function setPreviewColFilter(showAll) {
+    previewShowAllCols = showAll;
+    document.getElementById('btnColFilterUsed').classList.toggle('btn-primary', !showAll);
+    document.getElementById('btnColFilterUsed').classList.toggle('btn-outline-primary', showAll);
+    document.getElementById('btnColFilterAll').classList.toggle('btn-primary', showAll);
+    document.getElementById('btnColFilterAll').classList.toggle('btn-outline-primary', !showAll);
+    showPreviewTable();
+}
+// 指定した元列インデックス(0始まり)のセルが見えるよう横スクロール
+function jumpToPreviewCol(origIdx) {
+    // 全136列表示でない場合、対象列が「未使用」で非表示なら一時的に切り替える
+    if (!previewShowAllCols && LAYOUT_HEADER[origIdx] === "未使用") {
+        setPreviewColFilter(true);
+    }
+    const table = document.getElementById('previewTable');
+    const target = table.querySelector(`[data-col="${origIdx}"]`);
+    if (target) target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+}
+
 function showPreviewTable() {
     const table = document.getElementById('previewTable');
     table.innerHTML = "";
-    
+
+    // 表示する元列インデックスの一覧（使用列のみ表示 or 全136列）
+    const visibleIndices = previewShowAllCols
+        ? Array.from({length: 136}, (_, i) => i)
+        : LAYOUT_HEADER.map((h, i) => i).filter(i => LAYOUT_HEADER[i] !== "未使用");
+
     const thead = document.createElement('thead');
     const trH = document.createElement('tr');
-    LAYOUT_HEADER.forEach((h, i) => {
+    visibleIndices.forEach(i => {
+        const h = LAYOUT_HEADER[i];
         const th = document.createElement('th');
-        th.textContent = (h === "") ? `(${i+1})` : h; 
+        th.textContent = `${h}`;
+        th.title = `${i + 1}列目`;
+        th.dataset.col = i;
+        if (i === 26) th.classList.add('col-highlight');
         trH.appendChild(th);
     });
     const thDel = document.createElement('th');
@@ -1060,14 +1319,36 @@ function showPreviewTable() {
     const tbody = document.createElement('tbody');
     exportData.forEach((row, idx) => {
         const tr = document.createElement('tr');
-        row.forEach((cell, colIdx) => {
+        visibleIndices.forEach(colIdx => {
+            const cell = row[colIdx];
             const td = document.createElement('td');
             td.textContent = cell;
             td.contentEditable = true;
-            td.style.minWidth = '60px';
+            td.style.minWidth = '70px';
             td.style.whiteSpace = 'nowrap';
+            td.dataset.col = colIdx;
+            if (colIdx === 26) { td.classList.add('col-highlight'); td.title = "編集すると「粗利」「内消費税等」を自動で再計算します"; }
             td.addEventListener('blur', () => {
-                exportData[idx][colIdx] = td.textContent;
+                let val = td.textContent;
+                if (colIdx === 26) {
+                    // 金額列: 全角数字→半角、数字以外を除去
+                    val = normalizeAmountStr(val);
+                    td.textContent = val;
+                }
+                exportData[idx][colIdx] = val;
+
+                if (colIdx === 26) {
+                    // 金額が変更された場合、得意先マスタの端数処理ルールに従って粗利・内消費税等を再計算
+                    const amount = parseInt(val) || 0;
+                    const custCode = exportData[idx][5]; // 得意先コード
+                    const custData = M_CUST.find(c => c.c === custCode);
+                    const taxRoundType = parseInt(custData?.taxRound ?? "2");
+                    const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
+                    const taxEx = roundFn(amount / 1.1);
+                    exportData[idx][30] = String(taxEx);        // 粗利
+                    exportData[idx][35] = String(amount - taxEx); // 内消費税等
+                    showPreviewTable(); // 粗利・内消費税等セルの表示を更新するため再描画
+                }
                 updateSummary();
             });
             // 編集中に背景色を変える
