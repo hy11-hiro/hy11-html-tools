@@ -585,6 +585,13 @@
                 symbol: true,
                 area: true,       // 面積表示
             });
+            // ── ツールチップ（fixed位置・JS制御。overflow設定の影響を受けない） ──
+            const [tooltip, setTooltip] = useState(null); // { text, x, y }
+            const showTip = (e, text) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setTooltip({ text, x: r.right + 8, y: r.top + r.height / 2 });
+            };
+            const hideTip = () => setTooltip(null);
             const [showSurveyModal, setShowSurveyModal] = useState(false);
             const [snapEnabled, setSnapEnabled] = useState(true);
             const [cubeSize, setCubeSize] = useState(5);
@@ -1197,13 +1204,15 @@
                     { x: frontCenter.x + half, y: frontCenter.y + half },
                     { x: frontCenter.x - half, y: frontCenter.y + half },
                 ];
-                // VPがfront面の中心と十分離れているか確認（奥行きスケール用）
+                // VPがfront面の中心とほぼ同じ高さ（誤差±0.5mm未満）の場合のみ拒否
+                // それ以外はVPがどれだけ近くても自動的に描画可能（スケールを安全範囲にクランプ）
                 const vpDistY = vpPoint.y - frontCenter.y;
-                if (Math.abs(vpDistY) < half * 1.2) {
-                    return { error: 'VPが立方体の範囲に近すぎます。VPを上下にずらしてください。' };
+                if (Math.abs(vpDistY) < 0.5) {
+                    return { error: 'VPが立方体の中心と水平に重なっています。VPを上下にずらしてください。' };
                 }
-                // back面のスケール係数（VPに近づくほど小さくなる）
-                const scale = 0.6;  // 奥行きの縮小率（固定値、見た目のバランス重視）
+                // back面のスケール係数: VPが近いほど奥行きが浅くなる（極端に潰れないよう0.3〜0.75でクランプ）
+                const rawRatio = Math.abs(vpDistY) / (half * 3);
+                const scale = Math.max(0.3, Math.min(0.75, rawRatio));
                 const back = front.map(p => ({
                     x: vpPoint.x + scale * (p.x - vpPoint.x),
                     y: vpPoint.y + scale * (p.y - vpPoint.y),
@@ -1245,6 +1254,25 @@
 
             useEffect(() => {
                 if (window.lucide) { try { window.lucide.createIcons(); } catch(e) { console.warn('lucide createIcons failed', e); } }
+
+                // ── 動的に追加される data-lucide 要素を自動検知してSVG化 ──
+                // (条件付きレンダリングで新規追加されるアイコンが空のまま残るバグの対策)
+                const iconObserver = new MutationObserver((mutations) => {
+                    let hasNewIcon = false;
+                    for (const m of mutations) {
+                        m.addedNodes.forEach(node => {
+                            if (node.nodeType !== 1) return;
+                            // 未変換の <i data-lucide> のみ検知（変換後のSVGはdata-lucideを保持するため除外しないと無限ループになる）
+                            if (node.tagName === 'I' && node.hasAttribute?.('data-lucide')) hasNewIcon = true;
+                            else if (node.querySelector?.('i[data-lucide]')) hasNewIcon = true;
+                        });
+                    }
+                    if (hasNewIcon && window.lucide) {
+                        try { window.lucide.createIcons(); } catch(e) { /* ignore */ }
+                    }
+                });
+                iconObserver.observe(document.body, { childList: true, subtree: true });
+
                 const ro = new ResizeObserver(entries => {
                     for (let entry of entries) {
                         const { width, height } = entry.contentRect;
@@ -1271,7 +1299,7 @@
                     }
                 };
                 window.addEventListener('keydown', handleKey);
-                return () => { ro.disconnect(); window.removeEventListener('keydown', handleKey); };
+                return () => { ro.disconnect(); iconObserver.disconnect(); window.removeEventListener('keydown', handleKey); };
             }, []);
 
             useEffect(() => {
@@ -1891,6 +1919,24 @@
                 if (tool === TOOLS.CUBE) {
                     const curr4 = snapPos.current || currentMousePos.current;
                     if (curr4) {
+                        // VP補助線（位置決めしやすくするため、VP1/VP2から現在位置への破線）
+                        ctx.save();
+                        ctx.strokeStyle = 'rgba(147,51,234,0.5)';
+                        ctx.lineWidth = 0.25;
+                        ctx.setLineDash([1.5, 1.5]);
+                        ctx.beginPath(); ctx.moveTo(vp1.x, vp1.y); ctx.lineTo(curr4.x, curr4.y); ctx.stroke();
+                        if (gridMode === GRID_MODES.PERSP_2) {
+                            ctx.beginPath(); ctx.moveTo(vp2.x, vp2.y); ctx.lineTo(curr4.x, curr4.y); ctx.stroke();
+                        }
+                        ctx.setLineDash([]);
+                        // VPからの垂直距離を表示（位置決めの参考値）
+                        ctx.fillStyle = '#9333ea';
+                        ctx.font = '2.2px sans-serif';
+                        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+                        const vpDistDisp = Math.abs(curr4.y - vp1.y) * drawingScale;
+                        ctx.fillText(`VP距離: ${(vpDistDisp/1000).toFixed(2)}m`, curr4.x + 3, curr4.y - 3);
+                        ctx.restore();
+
                         const sizeMM = cubeSize * (gridConfig.spacing || 10);
                         const vpPoint = gridMode === GRID_MODES.PERSP_2 ? { x:(vp1.x+vp2.x)/2, y:(vp1.y+vp2.y)/2 } : vp1;
                         const result = createPerspCubeEntities(curr4, sizeMM, vpPoint, '#9333ea', 0.3);
@@ -1899,6 +1945,16 @@
                             ctx.strokeStyle = '#9333ea'; ctx.lineWidth = 0.4; ctx.setLineDash([2,1]);
                             result.entities.forEach(le => { ctx.beginPath(); ctx.moveTo(le.p1.x,le.p1.y); ctx.lineTo(le.p2.x,le.p2.y); ctx.stroke(); });
                             ctx.setLineDash([]); ctx.restore();
+                        } else {
+                            // エラー時は赤い×印で警告表示（位置を直感的に伝える）
+                            ctx.save();
+                            ctx.strokeStyle = '#ff3333'; ctx.lineWidth = 0.5;
+                            const xs = 3;
+                            ctx.beginPath();
+                            ctx.moveTo(curr4.x-xs,curr4.y-xs); ctx.lineTo(curr4.x+xs,curr4.y+xs);
+                            ctx.moveTo(curr4.x+xs,curr4.y-xs); ctx.lineTo(curr4.x-xs,curr4.y+xs);
+                            ctx.stroke();
+                            ctx.restore();
                         }
                     }
                 }
@@ -2465,19 +2521,19 @@
                     </div>
 
                     <div className="flex flex-1 overflow-hidden relative">
-                        <div className="w-14 bg-gray-900 flex flex-col items-center py-4 space-y-2 border-r border-gray-700 z-10 flex-shrink-0 overflow-y-auto" style={{scrollbarWidth: 'thin'}}>
+                        <div className="w-14 bg-gray-900 flex flex-col items-center py-3 space-y-1.5 border-r border-gray-700 z-10 flex-shrink-0 overflow-y-auto overflow-x-visible" style={{scrollbarWidth: 'thin'}}>
                             {[ 
                                 {id:TOOLS.SELECT, i:'mouse-pointer-2', l:'選択'}, {id:TOOLS.LINE, i:'minus', l:'線分'}, {id:TOOLS.RECT, i:'square', l:'矩形'}, 
                                 {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
                             ].map(t => (
-                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} className={`tool-btn group w-10 h-10 ${tool === t.id ? 'active' : 'text-gray-400'}`}>
-                                    <i data-lucide={t.i}></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">{t.l}</span>
+                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} onMouseEnter={(e) => showTip(e, t.l)} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${tool === t.id ? 'active' : 'text-gray-400'}`}>
+                                    <i data-lucide={t.i}></i>
                                 </button>
                             ))}
                             {/* 立方体ツール（透視図モード時のみ表示） */}
                             {gridMode.includes('PERSP') && (
-                                <button onClick={() => { setTool(TOOLS.CUBE); setTempPoints([]); }} className={`tool-btn group w-10 h-10 ${tool === TOOLS.CUBE ? 'active' : 'text-purple-400'}`}>
-                                    <i data-lucide="box"></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">立方体（クリックで配置）</span>
+                                <button onClick={() => { setTool(TOOLS.CUBE); setTempPoints([]); }} onMouseEnter={(e) => showTip(e, '立方体（クリックで配置）')} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${tool === TOOLS.CUBE ? 'active' : 'text-purple-400'}`}>
+                                    <i data-lucide="box"></i>
                                 </button>
                             )}
                             {tool === TOOLS.CUBE && (
@@ -2497,12 +2553,12 @@
                                 {id:TOOLS.BLOCK_WALL, i:'layout-template', l:'ブロック壁'},
                                 {id:TOOLS.SYMBOL,     i:'trees',           l:'外構シンボル'},
                             ].map(t => (
-                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} className={`tool-btn group w-10 h-10 ${tool === t.id ? 'bg-green-700 text-white' : 'text-green-400'}`}>
-                                    <i data-lucide={t.i}></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">{t.l}</span>
+                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} onMouseEnter={(e) => showTip(e, t.l)} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${tool === t.id ? 'bg-green-700 text-white' : 'text-green-400'}`}>
+                                    <i data-lucide={t.i}></i>
                                 </button>
                             ))}
-                            <button onClick={() => setShowGaikoPanel(p => !p)} className={`tool-btn group w-10 h-10 ${showGaikoPanel ? 'bg-green-800 text-white' : 'text-green-400'}`} title="外構設定">
-                                <i data-lucide="settings-2"></i><span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">外構設定</span>
+                            <button onClick={() => setShowGaikoPanel(p => !p)} onMouseEnter={(e) => showTip(e, '外構設定')} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${showGaikoPanel ? 'bg-green-800 text-white' : 'text-green-400'}`}>
+                                <i data-lucide="settings-2"></i>
                             </button>
                             {/* 正多角形: 辺数選択 */}
                             {tool === TOOLS.REG_POLY && (
@@ -2526,18 +2582,23 @@
                             ].map(lv => (
                                 <button key={lv.key}
                                     onClick={() => setLayerVisibility(prev => ({...prev, [lv.key]: !prev[lv.key]}))}
-                                    title={`${lv.label} ${layerVisibility[lv.key] ? 'ON（クリックで非表示）' : 'OFF（クリックで表示）'}`}
-                                    className={`tool-btn group w-10 h-10 relative ${layerVisibility[lv.key] ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    onMouseEnter={(e) => showTip(e, `${lv.label}: ${layerVisibility[lv.key] ? '表示中（クリックで非表示）' : '非表示（クリックで表示）'}`)}
+                                    onMouseLeave={hideTip}
+                                    className={`tool-btn w-10 h-10 relative ${layerVisibility[lv.key] ? 'text-gray-300' : 'text-gray-700'}`}>
                                     <i data-lucide={lv.icon}></i>
                                     {!layerVisibility[lv.key] && (
                                         <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
                                     )}
-                                    <span className="absolute left-full ml-3 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-lg">
-                                        {lv.label}: {layerVisibility[lv.key] ? '表示' : '非表示'}
-                                    </span>
                                 </button>
                             ))}
                         </div>
+                        {/* ── 共有ツールチップ（fixed配置・overflowの影響を受けない） ── */}
+                        {tooltip && (
+                            <div className="fixed px-2 py-1 bg-black text-white text-xs rounded pointer-events-none whitespace-nowrap shadow-lg"
+                                style={{ left: tooltip.x, top: tooltip.y, transform: 'translateY(-50%)', zIndex: 9999 }}>
+                                {tooltip.text}
+                            </div>
+                        )}
                         <div ref={containerRef} className="flex-1 relative overflow-hidden bg-[#2d2d2d] flex justify-center items-center">
                             <canvas ref={canvasRef} width={size.width} height={size.height} style={{ width: '100%', height: '100%' }}
                                 onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onWheel={handleWheel} onContextMenu={(e) => e.preventDefault()}
