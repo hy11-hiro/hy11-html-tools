@@ -1502,20 +1502,34 @@
                 const scaleX = canvas.width  / (p.width  * MM_TO_PX2);
                 const scaleY = canvas.height / (p.height * MM_TO_PX2);
                 const fitScale = Math.min(scaleX, scaleY) * 0.98;
-                viewRef.current = {
-                    scale: fitScale,
-                    offsetX: (canvas.width  - p.width  * MM_TO_PX2 * fitScale) / 2,
-                    offsetY: (canvas.height - p.height * MM_TO_PX2 * fitScale) / 2,
-                };
 
-                // 再描画をトリガー（forceUpdate）
+                // 用紙のピクセル寸法と画面上の位置（切り出し範囲）
+                const paperPxW = p.width  * MM_TO_PX2 * fitScale;
+                const paperPxH = p.height * MM_TO_PX2 * fitScale;
+                const offsetX = (canvas.width  - paperPxW) / 2;
+                const offsetY = (canvas.height - paperPxH) / 2;
+
+                viewRef.current = { scale: fitScale, offsetX, offsetY };
                 setForceUpdate(n => n + 1);
 
                 // 次フレームでキャプチャ
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
                         try {
-                            const imgData = canvas.toDataURL('image/png', 1.0);
+                            // ── 用紙部分のみを正確に切り出す（伸縮させない） ──
+                            // 全体をそのまま用紙サイズに引き伸ばすと、周囲の余白が
+                            // 一緒に拡大されグリッド・線が間延びして見える原因になっていた
+                            const cropCanvas = document.createElement('canvas');
+                            cropCanvas.width = Math.round(paperPxW);
+                            cropCanvas.height = Math.round(paperPxH);
+                            const cropCtx = cropCanvas.getContext('2d');
+                            cropCtx.drawImage(
+                                canvas,
+                                offsetX, offsetY, paperPxW, paperPxH,   // 元画像から用紙部分のみ切り出し
+                                0, 0, cropCanvas.width, cropCanvas.height // そのままのサイズで貼り付け（拡大縮小なし）
+                            );
+
+                            const imgData = cropCanvas.toDataURL('image/png', 1.0);
                             const doc = new jsPDF({
                                 orientation: p.width > p.height ? 'l' : 'p',
                                 unit: 'mm',
@@ -1544,8 +1558,10 @@
                 const showSub = gridConfig.showSubGrid;
                 const subDiv = Math.max(2, gridConfig.subDivisions || 5);
                 const subStep = step / subDiv;
-                const majorLW = Math.max(0.5 / view.scale, 0.1);
-                const minorLW = Math.max(0.2 / view.scale, 0.05);
+                // 固定の実寸太さ（mm）。ズーム倍率や PDF出力時の一時スケールに依存させない。
+                // これにより画面表示とPDF出力で常に同じ太さになる。
+                const majorLW = 0.15;
+                const minorLW = 0.08;
 
                 const buildPath = (stepSize, isMajorOnly) => {
                     ctx.beginPath();
