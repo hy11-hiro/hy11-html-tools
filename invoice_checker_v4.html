@@ -227,7 +227,19 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
   <!-- STEP 1: 職人選択 -->
   <div id="sp1" class="sp on">
     <div class="card">
-      <div class="ch"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人を選択</div>
+      <div class="ch"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人を選択
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <button class="btn gray sm" onclick="exportSessJSON()" title="現在の入力データをJSONで保存">
+            <i class="fa-solid fa-download"></i> データ保存
+          </button>
+          <label style="cursor:pointer;">
+            <span class="btn gray sm" style="pointer-events:none;">
+              <i class="fa-solid fa-upload"></i> 読み込む
+            </span>
+            <input type="file" accept=".json" style="display:none;" onchange="importSessJSON(this)">
+          </label>
+        </div>
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;">
         <input class="fi" id="s1-q" placeholder="名前で絞り込み..." oninput="renderCGrid()" style="max-width:180px;">
         <select class="fi" id="s1-t" onchange="renderCGrid()" style="max-width:110px;">
@@ -251,7 +263,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
           <div class="fg" style="margin-bottom:0">
             <label class="fl">何月分の請求書か</label>
             <div style="display:flex;align-items:center;gap:4px;">
-              <input class="fi" id="inv-y" type="number" min="2020" max="2099" placeholder="年" style="width:72px;font-size:15px;font-weight:700;">
+              <input class="fi" id="inv-y" type="number" min="2020" max="2099" placeholder="年" style="width:100px;font-size:15px;font-weight:700;">
               <span>年</span>
               <input class="fi" id="inv-m" type="number" min="1" max="12" placeholder="月" style="width:58px;font-size:15px;font-weight:700;">
               <span>月分</span>
@@ -260,13 +272,16 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
         </div>
         <div class="ch" style="font-size:12px;margin-bottom:6px;"><i class="fa-solid fa-list-ul" style="color:#6366f1"></i>現場一覧
           <span style="font-size:12px;font-weight:400;color:#64748b;background:#f8fafc;padding:3px 8px;border-radius:4px;">工番を入力→自動補完　Enterで次の工番欄へ</span>
+          <span id="head-hint" style="font-size:11px;color:#94a3b8;margin-left:4px;display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-circle-info" style="color:#3b82f6;"></i> 金額欄は請求書記載の金額を入力（内訳計算と自動比較されます）<button onclick="closeGuide('head-hint')" style="background:none;border:none;cursor:pointer;color:#cbd5e1;font-size:14px;line-height:1;padding:0 2px;" title="閉じる">×</button></span>
         </div>
         <div style="display:grid;grid-template-columns:100px minmax(180px,2fr) minmax(120px,1fr) minmax(90px,1fr) 100px 28px;gap:6px;padding:0 2px;margin-bottom:6px;">
           <span style="font-size:13px;color:#64748b;font-weight:700;">工番</span>
           <span style="font-size:12px;color:#94a3b8;font-weight:700;">現場名（自動）</span>
           <span style="font-size:12px;color:#94a3b8;font-weight:700;">元請先（自動）</span>
           <span style="font-size:12px;color:#94a3b8;font-weight:700;">担当者（自動）</span>
-          <span style="font-size:12px;color:#94a3b8;font-weight:700;">金額</span>
+          <span style="font-size:12px;color:#94a3b8;font-weight:700;">金額
+            <span style="display:block;font-size:10px;font-weight:400;color:#94a3b8;line-height:1.3;margin-top:1px;">請求書記載の金額を入力→内訳計算と自動比較</span>
+          </span>
           <span></span>
         </div>
         <div id="head-rows"></div>
@@ -317,11 +332,20 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
           <select class="fi" id="sup-year" style="width:90px;" onchange="renderDeduri()"></select>
           <select class="fi" id="sup-month" style="width:70px;" onchange="renderDeduri()"></select>
           <span style="font-size:11px;color:#64748b;">2現場＝各0.5人工　/　1現場＝1人工</span>
-          <button id="btn-skip-amt" onclick="toggleSkipAmt()"
-            style="font-size:12px;padding:5px 10px;border-radius:6px;border:2px solid #e2e8f0;background:#fff;cursor:pointer;font-weight:700;white-space:nowrap;"
-            title="ONにすると工番①→工番②→次の日へ（記載金額をスキップ）">
-            金額スキップ：<span id="skip-amt-lbl">OFF</span>
-          </button>
+          <div style="position:relative;display:inline-block;">
+            <button id="btn-skip-amt" onclick="toggleSkipAmt()"
+              style="font-size:12px;padding:5px 10px;border-radius:6px;border:2px solid #e2e8f0;background:#fff;cursor:pointer;font-weight:700;white-space:nowrap;"
+              title="ONにすると工番①→工番②→出面→次の日へ（出面入力をスキップして高速入力）">
+              出面スキップ：<span id="skip-amt-lbl">OFF</span>
+            </button>
+            <div style="position:absolute;top:calc(100% + 4px);left:0;z-index:99;background:#1e293b;color:#fff;font-size:11px;border-radius:6px;padding:8px 10px;width:240px;line-height:1.7;display:none;" id="skip-amt-tooltip">
+              <b>出面スキップとは？</b><br>
+              ONにすると Enterキーで<br>
+              　工番①→工番②→<b>次の日の工番①</b><br>
+              と移動します（出面欄をとばす）。<br>
+              工番だけ先に入力したいときに便利です。
+            </div>
+          </div>
           <button class="btn red sm" onclick="clearAllDeduriRows()" title="この月の全工番・出面をクリア" style="margin-left:auto;"><i class="fa-solid fa-trash-can"></i> 一括削除</button>
           <button class="btn gray sm" onclick="manualSaveSess()"><i class="fa-solid fa-floppy-disk"></i> 保存</button>
         </div>
@@ -476,6 +500,93 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
 
       <!-- 突合テーブル：内訳から自動生成 + 追加行 -->
       <div style="overflow-x:auto;">
+
+        <!-- 使い方説明 -->
+        <div id="jguide-wrap" style="margin-bottom:12px;border:1px solid #dbeafe;border-radius:8px;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#eff6ff;cursor:pointer;" onclick="toggleGuide('jguide')">
+            <span style="font-size:13px;font-weight:700;color:#1e40af;"><i class="fa-solid fa-circle-question"></i> 実績図 数量突合とは？</span>
+            <button onclick="event.stopPropagation();closeGuide('jguide')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;" title="閉じる">×</button>
+          </div>
+          <div id="jguide-body"><div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0 0 8px 8px;font-size:12px;color:#334155;line-height:1.9;">
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+
+              <div>
+                <div style="font-weight:700;color:#1e40af;margin-bottom:6px;"><i class="fa-solid fa-bullseye"></i> この画面でやること</div>
+                <div style="background:#fff;border-radius:6px;padding:10px 12px;border:1px solid #dbeafe;">
+                  請求書に書いてある数量（内訳数量）と、<br>
+                  現場の実績図から拾った数量（実績入力）を<br>
+                  <b>品目ごとに並べて差異がないか確認する</b>画面です。<br><br>
+                  例えば「残土処理 18h」と請求されているのに<br>
+                  実績図では15hしかない、といった差異を検出します。
+                </div>
+              </div>
+
+              <div>
+                <div style="font-weight:700;color:#1e40af;margin-bottom:6px;"><i class="fa-solid fa-list-ol"></i> 操作の流れ</div>
+                <div style="background:#fff;border-radius:6px;padding:10px 12px;border:1px solid #dbeafe;">
+                  <div style="display:flex;flex-direction:column;gap:5px;">
+                    <div><span style="background:#1e40af;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px;">1</span>現場を選択（上のプルダウン）</div>
+                    <div><span style="background:#1e40af;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px;">2</span>内訳チェックで入力した品目が自動で並ぶ</div>
+                    <div><span style="background:#1e40af;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px;">3</span>実績入力欄に実際の数量を入力</div>
+                    <div><span style="background:#1e40af;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px;">4</span>「突合実行」ボタンで差異を確認</div>
+                    <div><span style="background:#059669;color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;margin-right:6px;">5</span>全品目±0なら次の工番へ</div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-weight:700;color:#1e40af;margin-bottom:6px;"><i class="fa-solid fa-keyboard"></i> 入力のコツ</div>
+                <div style="background:#fff;border-radius:6px;padding:10px 12px;border:1px solid #dbeafe;">
+                  <table style="font-size:11px;width:100%;border-collapse:collapse;">
+                    <tr><td style="padding:2px 6px;"><kbd style="background:#e2e8f0;padding:1px 5px;border-radius:3px;">Enter</kbd></td><td style="padding:2px 6px;">同じ品目の次の入力欄へ（実績を複数回に分けて入力できる）<br><span style="color:#7c3aed;font-size:10px;">→ 入力するたびに自動で合算され「実績合計」欄に反映されます</span></td></tr>
+                    <tr style="background:#f8fafc;"><td style="padding:2px 6px;"><kbd style="background:#e2e8f0;padding:1px 5px;border-radius:3px;">Tab</kbd></td><td style="padding:2px 6px;">次の品目行へ移動</td></tr>
+                    <tr><td style="padding:2px 6px;"><kbd style="background:#e2e8f0;padding:1px 5px;border-radius:3px;">Esc</kbd></td><td style="padding:2px 6px;">入力をクリア</td></tr>
+                    <tr style="background:#f8fafc;"><td style="padding:2px 6px;"><span style="color:#7c3aed;font-weight:700;">＋品目追加</span></td><td style="padding:2px 6px;">内訳チェックにない品目を手動で追加できる</td></tr>
+                  </table>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-weight:700;color:#1e40af;margin-bottom:6px;"><i class="fa-solid fa-traffic-light"></i> 差異の見方</div>
+                <div style="background:#fff;border-radius:6px;padding:10px 12px;border:1px solid #dbeafe;">
+                  <div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="background:#dcfce7;color:#059669;font-weight:700;padding:2px 10px;border-radius:4px;">±0</span>
+                      <span>内訳と実績が一致。問題なし ✅</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="background:#fee2e2;color:#dc2626;font-weight:700;padding:2px 10px;border-radius:4px;">−3</span>
+                      <span>実績が内訳より少ない（過請求の可能性）</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="background:#dbeafe;color:#1e40af;font-weight:700;padding:2px 10px;border-radius:4px;">+2</span>
+                      <span>実績が内訳より多い（請求漏れの可能性）</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="background:#f1f5f9;color:#64748b;font-weight:700;padding:2px 10px;border-radius:4px;">—</span>
+                      <span>実績未入力（後で確認が必要）</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <div style="margin-top:12px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:8px 12px;font-size:11px;color:#4c1d95;">
+              🔢 <b>実績入力欄は1品目につき最大20欄まで追加できます。</b>
+              たとえば残土を「午前10h・午後8h」と2回に分けて入力すると、<b>自動で合算（18h）</b>されて内訳数量と比較されます。
+              10×10のように細かく分けて入力しても合計値で突合できます。
+            </div>
+
+            <div style="margin-top:12px;background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;font-size:11px;color:#92400e;">
+              💡 <b>品目は内訳チェック（ステップ③）で入力した造成・外構の項目から自動で読み込まれます。</b>
+              内訳を先に入力しておくと、ここでの作業がぐっと楽になります。
+            </div>
+
+          </div>
+        </div></div><!-- /jguide-body /jguide-wrap -->
+
         <div style="font-size:13px;color:#64748b;margin-bottom:8px;background:#eff6ff;padding:8px 12px;border-radius:6px;">
           <i class="fa-solid fa-circle-info" style="color:#3b82f6;"></i>
           数量入力中は <b>Enter</b> で次の入力欄へ（同じ品目内）。<b>Tab</b> で次の品目行へ移動します。
@@ -486,7 +597,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
               <th style="text-align:left;width:70px;">区分</th>
               <th style="text-align:left;min-width:180px;">品目</th>
               <th style="width:90px;text-align:right;">内訳数量</th>
-              <th style="color:#7c3aed;">実績入力（Enterで追加・最大20）</th>
+              <th style="color:#7c3aed;">実績入力（Enterで欄を追加・最大20欄・自動合算）</th>
               <th style="width:90px;text-align:right;color:#1e40af;">実績合計</th>
               <th style="width:70px;text-align:right;">差異</th>
               <th style="width:28px;"></th>
@@ -570,7 +681,11 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
           <input type="number" class="fi-n" id="kentaikyo" placeholder="0" oninput="recalc()" style="width:100px;">
         </div>
         <!-- 支払 -->
-        <div style="background:#1e293b;border-radius:7px;padding:12px 14px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 12px;margin-top:6px;font-size:11px;color:#64748b;line-height:1.9;display:flex;justify-content:space-between;align-items:flex-start;" id="pay-formula">
+          <div><b style="color:#334155;">計算式：</b><br>（工事計 + 消費税）− 控除合計 + 加算合計 − 建退共 ＝ 支払金額</div>
+          <button onclick="closeGuide('pay-formula')" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;flex-shrink:0;margin-left:8px;" title="閉じる">×</button>
+        </div>
+        <div style="background:#1e293b;border-radius:7px;padding:12px 14px;margin-top:6px;display:flex;justify-content:space-between;align-items:center;">
           <span style="color:#94a3b8;font-weight:700;">支払金額</span>
           <span style="color:#fff;font-size:18px;font-weight:900;font-family:'Courier New',monospace;" id="c-pay">¥0</span>
         </div>
@@ -589,7 +704,9 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
         </div>
         <div class="fg">
           <label class="fl">チェック担当者</label>
-          <input class="fi" id="approver" placeholder="担当者名">
+          <input class="fi" id="approver" placeholder="担当者名"
+            onchange="localStorage.setItem('hy3_approver',this.value)"
+            value="">
         </div>
         <div class="fg">
           <label class="fl">備考・メモ</label>
@@ -631,6 +748,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
       <div style="margin-left:auto;display:flex;gap:6px;">
         <input class="fi" placeholder="絞り込み..." style="width:160px;" oninput="renderLogs(this.value)">
         <button class="btn gray sm" onclick="exportLogs()"><i class="fa-solid fa-download"></i> CSV</button>
+        <button class="btn gray sm" onclick="exportLogsExcel()" style="color:#217346;border-color:#217346;"><i class="fa-solid fa-file-excel"></i> Excel</button>
         <button class="btn red sm" onclick="if(confirm('全削除？'))clearLogs()"><i class="fa-solid fa-trash"></i></button>
       </div>
     </div>
@@ -810,31 +928,166 @@ body{font-family:'Noto Sans JP',sans-serif;background:#e8edf2;color:#1a2535;font
     </div>
 
     <!-- ファイル種別の説明 -->
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:20px;">
-      <div class="card" style="margin-bottom:0;border:1px solid #dbeafe;">
-        <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人マスター</div>
-        <div style="font-size:12px;color:#475569;line-height:1.8;">
-          ファイル名に「職人」を含む CSV / Excel<br>
-          列：職人名, 区分, 拠点, インボイス, 労災, 健保, 駐車, 道具, 電話, 車両, 車番, 他控除, メモ
-        </div>
+    <div style="margin-top:24px;">
+
+      <!-- タブ -->
+      <div style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:16px;">
+        <button onclick="switchImportTab('simple')" id="imp-tab-simple"
+          style="padding:8px 18px;font-size:13px;font-weight:700;border:none;border-bottom:3px solid #7c3aed;margin-bottom:-2px;background:none;color:#7c3aed;cursor:pointer;">
+          📋 かんたん説明
+        </button>
+        <button onclick="switchImportTab('detail')" id="imp-tab-detail"
+          style="padding:8px 18px;font-size:13px;font-weight:700;border:none;background:none;color:#94a3b8;cursor:pointer;">
+          🔧 技術詳細（列マッピング）
+        </button>
       </div>
-      <div class="card" style="margin-bottom:0;border:1px solid #d1fae5;">
-        <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-building" style="color:#3b82f6"></i>現場マスター</div>
-        <div style="font-size:12px;color:#475569;line-height:1.8;">
-          ファイル名に「現場」または拡張子 .txt<br>
-          エンコード：UTF-16LE（システムからのエクスポート形式）
+
+      <!-- かんたん説明タブ -->
+      <div id="imp-pane-simple">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">
+
+          <!-- 職人マスター -->
+          <div style="border:1px solid #fde68a;border-radius:10px;padding:16px;background:#fffbeb;">
+            <div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px;">
+              <i class="fa-solid fa-hard-hat" style="color:#f59e0b;"></i> 職人マスター
+            </div>
+            <div style="font-size:12px;color:#78350f;line-height:1.9;">
+              <b>どんなファイル？</b><br>
+              　職人の名前・区分・控除額などをまとめた表<br><br>
+              <b>ファイル名のルール</b><br>
+              　「職人」という文字を含む .csv または .xlsx<br><br>
+              <b>取込むと何が変わる？</b><br>
+              　✅ ①担当選択に職人が表示される<br>
+              　✅ ⑤金額確認の控除が自動で入る<br>
+              　✅ サポートの日給が出面計算に使われる<br><br>
+              <b>必須の列</b><br>
+              　「職人名」（これがないと取込めません）<br><br>
+              <b>注意</b><br>
+              　⚠ 同じ名前の職人は上書きされます
+            </div>
+          </div>
+
+          <!-- 現場マスター -->
+          <div style="border:1px solid #a7f3d0;border-radius:10px;padding:16px;background:#f0fdf4;">
+            <div style="font-size:14px;font-weight:700;color:#065f46;margin-bottom:8px;">
+              <i class="fa-solid fa-building" style="color:#3b82f6;"></i> 現場マスター
+            </div>
+            <div style="font-size:12px;color:#064e3b;line-height:1.9;">
+              <b>どんなファイル？</b><br>
+              　工番・現場名・得意先をまとめた一覧<br><br>
+              <b>ファイル名のルール</b><br>
+              　「現場」を含む .txt / .csv / .xlsx<br>
+              　（.txt はシステム出力そのままでOK）<br><br>
+              <b>取込むと何が変わる？</b><br>
+              　✅ ②ヘッド入力で工番を打つと自動補完<br>
+              　✅ 出面入力でも現場名が自動表示<br><br>
+              <b>必須の列</b><br>
+              　「工番」と「現場名」
+            </div>
+          </div>
+
+          <!-- 車両管理 -->
+          <div style="border:1px solid #ddd6fe;border-radius:10px;padding:16px;background:#faf5ff;">
+            <div style="font-size:14px;font-weight:700;color:#4c1d95;margin-bottom:8px;">
+              <i class="fa-solid fa-car" style="color:#7c3aed;"></i> 車両管理
+            </div>
+            <div style="font-size:12px;color:#3b0764;line-height:1.9;">
+              <b>どんなファイル？</b><br>
+              　リース車両の費用・期限をまとめた表<br><br>
+              <b>ファイル名のルール</b><br>
+              　「車両」または「リース」を含む .csv / .xlsx<br><br>
+              <b>取込むと何が変わる？</b><br>
+              　✅ 車両管理画面に登録される<br>
+              　✅ 月額が職人マスターの「車両費」に自動反映<br>
+              　✅ 期限切れは自動でアラート表示<br><br>
+              <b>必須の列</b><br>
+              　「職人名」（職人マスターと名前で紐づけ）<br><br>
+              <b>注意</b><br>
+              　⚠ 月額は職人マスターの車両費を上書き
+            </div>
+          </div>
+
         </div>
-      </div>
-      <div class="card" style="margin-bottom:0;border:1px solid #ede9fe;">
-        <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-car" style="color:#7c3aed"></i>車両管理</div>
-        <div style="font-size:12px;color:#475569;line-height:1.8;">
-          ファイル名に「車両」または「リース」を含む CSV / Excel<br>
-          列：職人名, 管理番号, 車種, リース業者, 月額, 固定費…
+      </div><!-- /imp-pane-simple -->
+
+      <!-- 技術詳細タブ -->
+      <div id="imp-pane-detail" style="display:none;">
+
+        <!-- 職人マスター詳細 -->
+        <div class="card" style="margin-bottom:12px;border:1px solid #fde68a;">
+          <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-hard-hat" style="color:#f59e0b"></i>職人マスター 列マッピング</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="background:#fef9c3;">
+              <th style="padding:5px 8px;text-align:left;border:1px solid #fde68a;">Excelの列名（例）</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #fde68a;">フィールド</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #fde68a;">使用される場所</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #fde68a;">備考</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">職人名 / 氏名 / 名前</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">name</td><td style="padding:4px 8px;border:1px solid #fde68a;">担当選択・全画面</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">必須・照合キー</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">区分 / 種別</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">category</td><td style="padding:4px 8px;border:1px solid #fde68a;">担当選択フィルター</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">職人／社員／外注／サポート</td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">拠点 / 支店</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">branch</td><td style="padding:4px 8px;border:1px solid #fde68a;">担当選択フィルター</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;"></td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">インボイス番号</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">invoice</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認・バッジ表示</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">T+13桁</td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">労災 / 労災組合費</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">rosai</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認 控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">月額（円）</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">健保 / 健康保険</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">kenko</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認 控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">月額（円）</td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">駐車 / 駐車代</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">parking</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認 控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">月額（円）</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">道具 / 道具代</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">tools</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認 控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">月額（円）</td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">電話 / 電話代</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">phone</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認 控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">月額（円）</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">車両 / 車両費</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">vehicle</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認 控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">月額（円）</td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">他控除 / その他控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">otherDeduct</td><td style="padding:4px 8px;border:1px solid #fde68a;">金額確認 控除</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">月額（円）</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">日給</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">dailyRate</td><td style="padding:4px 8px;border:1px solid #fde68a;">サポート出面計算</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;">サポート区分のみ</td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #fde68a;font-family:monospace;">メモ / 備考</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#7c3aed;font-weight:700;">memo</td><td style="padding:4px 8px;border:1px solid #fde68a;">職人マスター詳細</td><td style="padding:4px 8px;border:1px solid #fde68a;color:#64748b;"></td></tr>
+            </tbody>
+          </table>
         </div>
-      </div>
+
+        <!-- 現場マスター詳細 -->
+        <div class="card" style="margin-bottom:12px;border:1px solid #a7f3d0;">
+          <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-building" style="color:#3b82f6"></i>現場マスター 列マッピング</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="background:#d1fae5;">
+              <th style="padding:5px 8px;text-align:left;border:1px solid #a7f3d0;">Excelの列名（例）</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #a7f3d0;">フィールド</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #a7f3d0;">使用される場所</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #a7f3d0;">備考</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="padding:4px 8px;border:1px solid #a7f3d0;font-family:monospace;">工番 / コード</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#059669;font-weight:700;">code</td><td style="padding:4px 8px;border:1px solid #a7f3d0;">工番入力自動補完</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#64748b;">j0000形式推奨</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #a7f3d0;font-family:monospace;">現場名 / 名称</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#059669;font-weight:700;">name</td><td style="padding:4px 8px;border:1px solid #a7f3d0;">ヘッド・出面・サマリー</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#64748b;"></td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #a7f3d0;font-family:monospace;">得意先 / 取引先</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#059669;font-weight:700;">client</td><td style="padding:4px 8px;border:1px solid #a7f3d0;">ヘッド・出面現場表示</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#64748b;"></td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #a7f3d0;font-family:monospace;">ランク</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#059669;font-weight:700;">rank</td><td style="padding:4px 8px;border:1px solid #a7f3d0;">外構A/B/C単価選択</td><td style="padding:4px 8px;border:1px solid #a7f3d0;color:#64748b;">a／b／c</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:8px;font-size:11px;color:#065f46;background:#d1fae5;padding:6px 10px;border-radius:6px;">
+            📄 .txt形式はUTF-16LE（システムエクスポート形式）で自動判別
+          </div>
+        </div>
+
+        <!-- 車両管理詳細 -->
+        <div class="card" style="margin-bottom:0;border:1px solid #ddd6fe;">
+          <div class="ch" style="font-size:13px;margin-bottom:8px;"><i class="fa-solid fa-car" style="color:#7c3aed"></i>車両管理 列マッピング</div>
+          <table style="width:100%;font-size:12px;border-collapse:collapse;">
+            <thead><tr style="background:#ede9fe;">
+              <th style="padding:5px 8px;text-align:left;border:1px solid #ddd6fe;">Excelの列名（例）</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #ddd6fe;">フィールド</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #ddd6fe;">使用される場所</th>
+              <th style="padding:5px 8px;text-align:left;border:1px solid #ddd6fe;">備考</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="padding:4px 8px;border:1px solid #ddd6fe;font-family:monospace;">職人名</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#7c3aed;font-weight:700;">craftsmanName</td><td style="padding:4px 8px;border:1px solid #ddd6fe;">職人マスターとの紐づけ</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#64748b;">名前一致で自動紐づけ</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #ddd6fe;font-family:monospace;">管理番号</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#7c3aed;font-weight:700;">vehicleNo</td><td style="padding:4px 8px;border:1px solid #ddd6fe;">車両管理画面</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#64748b;"></td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #ddd6fe;font-family:monospace;">車種</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#7c3aed;font-weight:700;">carType</td><td style="padding:4px 8px;border:1px solid #ddd6fe;">車両管理画面</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#64748b;"></td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #ddd6fe;font-family:monospace;">リース業者</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#7c3aed;font-weight:700;">leaseCo</td><td style="padding:4px 8px;border:1px solid #ddd6fe;">車両管理画面</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#64748b;"></td></tr>
+              <tr><td style="padding:4px 8px;border:1px solid #ddd6fe;font-family:monospace;">月額 / リース料</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#7c3aed;font-weight:700;">monthly</td><td style="padding:4px 8px;border:1px solid #ddd6fe;">職人マスター 車両費に反映</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#64748b;">円・上書き</td></tr>
+              <tr style="background:#fafafa;"><td style="padding:4px 8px;border:1px solid #ddd6fe;font-family:monospace;">満了日 / 期限</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#7c3aed;font-weight:700;">expiry</td><td style="padding:4px 8px;border:1px solid #ddd6fe;">期限管理アラート</td><td style="padding:4px 8px;border:1px solid #ddd6fe;color:#64748b;">YYYY/MM/DD</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div><!-- /imp-pane-detail -->
     </div>
-  </div>
-</div>
+
+    </div>
 
 
 <!-- ══ Modal: PI View ══ -->
@@ -1176,8 +1429,9 @@ let logs = lsLoad(LS.LOGS);
 const SESS_KEY='hy3_sess_v5';
 function autoSaveSess(){
   try{
-    localStorage.setItem(SESS_KEY, JSON.stringify(sess));
     const now=new Date();
+    localStorage.setItem(SESS_KEY, JSON.stringify(sess));
+    localStorage.setItem(SESS_KEY+'_savedAt', now.toISOString());
     const lbl=document.getElementById('save-lbl');
     if(lbl) lbl.textContent=`自動保存 ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
   }catch(e){}
@@ -1259,7 +1513,13 @@ function goStep(n){
   if(n===2) initS2();
   if(n===3){ if(isSupport()) initS3Sup(); else initS3(); }
   if(n===4){ if(isSupport()) initS4Sup(); else initS4(); }
-  if(n===5){ if(isSupport()) recalcSup(); else { initDRows(); recalc(); } renderS5CmInfo(); }
+  if(n===5){
+    if(isSupport()) recalcSup(); else { initDRows(); recalc(); }
+    renderS5CmInfo();
+    // 担当者名をlocalStorageから復元
+    const apEl=document.getElementById('approver');
+    if(apEl&&!apEl.value) apEl.value=localStorage.getItem('hy3_approver')||'';
+  }
 }
 // 金額確認から特定工番の内訳へ戻る
 function goStep3Site(code){
@@ -1307,7 +1567,7 @@ function resetSess(){
 // ══════════════════════════════════════
 function exportSessJSON(){
   const c=craftsmen.find(x=>x.id===sess.cid);
-  const name=c?.name||'unknown';
+  const name=c?.name||sess.cid||'draft';
   const y=sess.deduriYear||new Date().getFullYear();
   const m=String(sess.deduriMonth||new Date().getMonth()+1).padStart(2,'0');
   const filename=`請求チェック_${name}_${y}${m}.json`;
@@ -1358,6 +1618,13 @@ let sess={
 // STEP 1
 // ══════════════════════════════════════
 function renderCGrid(){
+  // フィルター状態をlocalStorageから復元
+  const savedCat=localStorage.getItem('hy3_cm_filter_cat')||'';
+  const savedBranch=localStorage.getItem('hy3_cm_filter_branch')||'';
+  const catEl=document.getElementById('cg-filter-cat');
+  const brEl=document.getElementById('cg-filter-branch');
+  if(catEl&&catEl.value===''&&savedCat) catEl.value=savedCat;
+  if(brEl&&brEl.value===''&&savedBranch) brEl.value=savedBranch;
   const q=(document.getElementById('s1-q')?.value||'').toLowerCase();
   const t=document.getElementById('s1-t')?.value||'';
   const g=document.getElementById('cgrid'); if(!g) return;
@@ -1738,9 +2005,9 @@ const GAIKO_DEF=[
   ]},
   {sec:"ポスト・機能門柱・宅配BOX",items:[
     {n:"ポスト 埋め込み・壁付け",u:"個",a:1580,b:1650,c:1800},
-    {n:"機能門柱 1本足",u:"基",a:3410,b:3580,c:3910},
-    {n:"機能門柱 2本足",u:"基",a:5360,b:5610,c:6120},
-    {n:"機能門柱 3本足",u:"基",a:7000,b:7700,c:8400},
+    {n:"機能門柱 1本足",u:"基",a:3410,b:3580,c:3910,takuhai:true},
+    {n:"機能門柱 2本足",u:"基",a:5360,b:5610,c:6120,takuhai:true},
+    {n:"機能門柱 3本足",u:"基",a:7000,b:7700,c:8400,takuhai:true},
     {n:"宅配BOX 壁掛け/埋込/据置",u:"基",a:3470,b:3630,c:3960},
     {n:"宅配BOX ポール建て",u:"基",a:4380,b:4590,c:5000}
   ]},
@@ -2109,6 +2376,17 @@ function ensureGx(code){
   }
 }
 function gxRow(code,si,xi){ return sess.dData[code]?.gx?.[si]?.[xi]; }
+
+// 宅配BOX付きON/OFF（機能門柱専用）
+function setTakuhai(code,defIdx,checked){
+  const d=sess.dData[code]; if(!d) return;
+  const r=d.g[defIdx]; if(!r) return;
+  r.takuhai=checked;
+  autoSaveSess();
+  const c=document.getElementById('d-site')?.value;
+  if(c) renderGTbl(c);
+  updateGrand(code);
+}
 function resolveGRow(code,key){
   const d=sess.dData[code]; if(!d) return null;
   const p=String(key).split(':');
@@ -2136,12 +2414,27 @@ function renderGTbl(code){
       const defItem=allItems[defIdx];
       const name=r.n||defItem.n;
       const unit=r.u||defItem.u;
-      const pa=r.a||0, pb=r.b||0, pc=r.c||0;
+      const hasTakuhai=defItem.takuhai||false;
+      const takuhaiOn=r.takuhai||false;
+      const takuhaiAdd=hasTakuhai&&takuhaiOn?3000:0;
+      const pa=(r.a||0)+takuhaiAdd, pb=(r.b||0)+takuhaiAdd, pc=(r.c||0)+takuhaiAdd;
       const ap=rank==='a'?pa:rank==='b'?pb:pc;
       const qty=Number(r.qty)||0;
       const amt=qty*ap;
       const sn=name.replace(/'/g,"\\'");
       const key=`d:${defIdx}`;
+      const takuhaiHtml=hasTakuhai?`
+        <tr style="background:#fdf4ff;">
+          <td colspan="9" style="padding:2px 8px 4px 20px;">
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#7c3aed;cursor:pointer;">
+              <input type="checkbox" ${takuhaiOn?'checked':''} onchange="setTakuhai('${code}',${defIdx},this.checked)"
+                style="width:14px;height:14px;accent-color:#7c3aed;">
+              <span>宅配BOX付き</span>
+              <span style="font-family:'Courier New',monospace;font-weight:700;color:#7c3aed;">+¥3,000</span>
+              ${takuhaiOn?`<span style="background:#f5f3ff;border:1px solid #a78bfa;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:700;color:#6d28d9;">適用中</span>`:''}
+            </label>
+          </td>
+        </tr>`:'';
       rowsHtml+=`<tr>
         <td class="s-col-name" title="${name}"><span class="editable" style="font-size:12px;" ondblclick="nameEditG('${code}',${defIdx},this)">${name}</span></td>
         <td class="s-col-qty"><input type="number" class="fi-n g-qty-inp" value="${qty||''}" min="0" placeholder="0"
@@ -2157,7 +2450,7 @@ function renderGTbl(code){
           <button class="ins-btn" onclick="insertGRow('${code}',${si})" title="このセクションに行を追加">＋</button>
           <button class="clr-btn" onclick="clearRowQtyGK('${code}','${key}')" title="数量クリア">0</button>
         </td>
-      </tr>`;
+      </tr>${takuhaiHtml}`;
       defIdx++;
     });
     // このセクションの追加行 (gx[si]) — セクションテーブル下に表示
@@ -2753,7 +3046,10 @@ function recalc(){
     if(d){
       const s=d.s.reduce((acc,r)=>acc+(Number(r.qty)||0)*(r.p||0),0);
       const sxTotal=(d.sx||[]).flat().reduce((acc,r)=>acc+(Number(r.qty)||0)*(r.p||0),0);
-      const g=d.g.reduce((acc,r)=>acc+(Number(r.qty)||0)*(rank==='a'?r.a:rank==='b'?r.b:r.c||r.p||0),0);
+      const g=d.g.reduce((acc,r,idx)=>{
+        const takuhaiAdd=(r.takuhai&&GAIKO_DEF.flatMap(s=>s.items)[idx]?.takuhai)?3000:0;
+        return acc+(Number(r.qty)||0)*(rank==='a'?(r.a||0)+takuhaiAdd:rank==='b'?(r.b||0)+takuhaiAdd:(r.c||r.p||0)+takuhaiAdd);
+      },0);
       const hr=sess.headRows.find(h=>h.code===row.code);
       const siteOwner=hr?.owner||'';
       const rkObj=siteOwner?ranks.find(r=>siteOwner.includes(r.owner)):null;
@@ -3488,6 +3784,120 @@ function restoreFromLog(id){
 function clearLogs(){ logs=[]; lsSave(LS.LOGS,logs); renderLogs(); }
 function exportLogs(){ dlCSV('日時,職人名,月分,現場,支払金額,担当者,メモ\n'+logs.map(l=>[l.ts,l.craftsmanName,l.period,l.sites,l.payment,l.approver,l.memo].map(v=>`"${v||''}"`).join(',')).join('\n'),'チェック履歴.csv'); }
 
+function exportLogsExcel(){
+  if(!logs.length){ alert('履歴がありません'); return; }
+  const wb = XLSX.utils.book_new();
+
+  // ── シート1：履歴一覧 ──
+  const sh1Head = ['日時','職人名','月分','現場','支払金額（数値）','支払金額','担当者','メモ'];
+  const sh1Rows = logs.map(l=>[
+    new Date(l.ts).toLocaleString('ja-JP'),
+    l.craftsmanName||'',
+    l.period||'',
+    l.sites||'',
+    parseAmt(l.payment)||0,
+    l.payment||'',
+    l.approver||'',
+    l.memo||''
+  ]);
+  const ws1 = XLSX.utils.aoa_to_sheet([sh1Head, ...sh1Rows]);
+  // 列幅設定
+  ws1['!cols']=[{wch:20},{wch:14},{wch:10},{wch:40},{wch:14},{wch:14},{wch:12},{wch:24}];
+  // 支払金額列（E列）に数値書式
+  sh1Rows.forEach((_,i)=>{
+    const addr=XLSX.utils.encode_cell({r:i+1,c:4});
+    if(ws1[addr]) ws1[addr].z='#,##0';
+  });
+  XLSX.utils.book_append_sheet(wb, ws1, '履歴一覧');
+
+  // ── シート2：職人別月次集計 ──
+  // 職人×月で集計
+  const byName={};
+  logs.forEach(l=>{
+    const name=l.craftsmanName||'不明';
+    const period=l.period||'—';
+    const amt=parseAmt(l.payment)||0;
+    if(!byName[name]) byName[name]={};
+    if(!byName[name][period]) byName[name][period]={count:0,total:0,sites:[]};
+    byName[name][period].count++;
+    byName[name][period].total+=amt;
+    byName[name][period].sites.push(l.sites||'');
+  });
+  // 月一覧（ソート）
+  const allPeriods=[...new Set(logs.map(l=>l.period||'—'))].sort();
+  const sh2Head=['職人名', ...allPeriods, '合計'];
+  const sh2Rows=Object.entries(byName).map(([name,periods])=>{
+    const row=[name];
+    let total=0;
+    allPeriods.forEach(p=>{
+      const v=periods[p]?.total||0;
+      row.push(v); total+=v;
+    });
+    row.push(total);
+    return row;
+  });
+  // 合計行
+  const sumRow=['合計'];
+  allPeriods.forEach((_,ci)=>{
+    sumRow.push(sh2Rows.reduce((s,r)=>s+(r[ci+1]||0),0));
+  });
+  sumRow.push(sh2Rows.reduce((s,r)=>s+(r[r.length-1]||0),0));
+
+  const ws2=XLSX.utils.aoa_to_sheet([sh2Head,...sh2Rows,sumRow]);
+  ws2['!cols']=[{wch:16},...allPeriods.map(()=>({wch:12})),{wch:12}];
+  // 数値書式（B列以降）
+  [...sh2Rows,sumRow].forEach((row,ri)=>{
+    row.forEach((_,ci)=>{
+      if(ci===0) return;
+      const addr=XLSX.utils.encode_cell({r:ri+1,c:ci});
+      if(ws2[addr]&&typeof ws2[addr].v==='number') ws2[addr].z='#,##0';
+    });
+  });
+  XLSX.utils.book_append_sheet(wb, ws2, '職人別月次集計');
+
+  // ── シート3：現場別集計（sessSnapshotがある履歴のみ） ──
+  const snapLogs=logs.filter(l=>l.sessSnapshot);
+  if(snapLogs.length){
+    const sh3Head=['職人名','月分','工番','現場名','人工','計算金額','ヘッド金額','差異'];
+    const sh3Rows=[];
+    snapLogs.forEach(l=>{
+      const sess=l.sessSnapshot;
+      const c=craftsmen.find(x=>x.id===sess?.cid);
+      const dr=c?.dailyRate||0;
+      const ded=sess?.deduri||[];
+      const head=sess?.headRows||[];
+      // ninkuMapを計算
+      const ninkuMap={};
+      ded.forEach(r=>{
+        const s2=[r.site1,r.site2].filter(Boolean);
+        const frac=r.dayFrac||0;
+        const np=s2.length>0?roundJ((frac>0?frac:1)/s2.length):0;
+        s2.forEach(code=>{ ninkuMap[code]=(ninkuMap[code]||0)+np; });
+      });
+      head.filter(r=>r.code).forEach(row=>{
+        const ninku=ninkuMap[row.code]||0;
+        const calc=roundJ(ninku*dr);
+        const headAmt=Number(row.amount)||0;
+        sh3Rows.push([l.craftsmanName,l.period,row.code,row.name,ninku,calc,headAmt,roundJ(headAmt-calc)]);
+      });
+    });
+    if(sh3Rows.length){
+      const ws3=XLSX.utils.aoa_to_sheet([sh3Head,...sh3Rows]);
+      ws3['!cols']=[{wch:14},{wch:10},{wch:8},{wch:30},{wch:7},{wch:12},{wch:12},{wch:10}];
+      sh3Rows.forEach((_,ri)=>{
+        [5,6,7].forEach(ci=>{
+          const addr=XLSX.utils.encode_cell({r:ri+1,c:ci});
+          if(ws3[addr]) ws3[addr].z='#,##0';
+        });
+      });
+      XLSX.utils.book_append_sheet(wb, ws3, '現場別人工明細');
+    }
+  }
+
+  const today=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  XLSX.writeFile(wb, `チェック履歴_${today}.xlsx`);
+}
+
 // ══════════════════════════════════════
 // UTILS
 // ══════════════════════════════════════
@@ -3555,7 +3965,7 @@ function renderDeduri(){
     const s2=sess.headRows.find(h=>h.code&&r.site2&&h.code===r.site2);
     const c=craftsmen.find(x=>x.id===sess.cid);
     const dr=c?.dailyRate||0;
-    const hasData=r.site1||r.site2||r.dayFrac;
+    const hasData=!!(r.site1||r.site2||r.dayFrac);
 
     // 割当：出面÷現場数（出面1日×1現場=1、出面1日×2現場=各0.5、出面0.5日×1現場=0.5）
     const s2cnt=[r.site1,r.site2].filter(Boolean).length;
@@ -3637,30 +4047,7 @@ function clearDeduriRow(day){
   if(!r) return;
   r.site1=''; r.site2=''; r.dayFrac=null; r.claimedAmount=0; r.dump=false;
   autoSaveSess();
-  // その行を再描画
-  const tr=document.querySelector(`#deduri-body tr[data-day="${day}"]`);
-  if(tr){
-    const c=craftsmen.find(x=>x.id===sess.cid);
-    const dr=c?.dailyRate||0;
-    const dow=new Date(y,m-1,day).getDay();
-    const isSun=dow===0,isSat=dow===6;
-    tr.style.background=isSun?'#fff1f2':isSat?'#eff6ff':'';
-    // 現場名セルをクリア
-    tr.cells[2].querySelector('input').value='';
-    tr.cells[3].innerHTML='';
-    tr.cells[4].querySelector('input').value='';
-    tr.cells[5].innerHTML='';
-    // 割当セル
-    tr.cells[6].textContent='—'; tr.cells[6].style.color='#d1d5db';
-    // 出面セル
-    tr.cells[8].querySelector('select').value='';
-    const sub=tr.cells[8].querySelector('div');
-    if(sub) sub.remove();
-    // 削除ボタンセル
-    tr.cells[9].innerHTML='';
-  }
-  renderDeduriTotals();
-  renderSupSiteSummary();
+  renderDeduri();
 }
 
 function clearAllDeduriRows(){
@@ -3758,10 +4145,22 @@ function lookupDeduriSite(inp, day, field){
   }
   renderDeduriTotals();
   renderSupSiteSummary();
+  // ×ボタンを動的に表示/非表示
+  const delCell=tr.cells[9];
+  if(delCell){
+    if(r.site1||r.site2||r.dayFrac){
+      if(!delCell.querySelector('button')){
+        delCell.innerHTML=`<button onclick="clearDeduriRow(${day})" title="この日の工番・出面をクリア"
+          style="font-size:12px;color:#dc2626;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1;"
+          onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">×</button>`;
+      }
+    } else {
+      delCell.innerHTML='';
+    }
+  }
 }
 
 function setDeduriNum(day, field, val){
-  const y=sess.deduriYear, m=sess.deduriMonth;
   const r=sess.deduri.find(x=>x.year===y&&x.month===m&&x.day===day);
   if(!r) return;
   r[field]=Number(val)||0;
@@ -3813,6 +4212,19 @@ function setDeduriDayFrac(day, val){
   }
   renderDeduriTotals();
   renderSupSiteSummary();
+  // ×ボタン表示更新
+  const delCell2=tr?.cells[9];
+  if(delCell2){
+    const r3=sess.deduri.find(x=>x.year===sess.deduriYear&&x.month===sess.deduriMonth&&x.day===day);
+    if(r3&&(r3.site1||r3.site2||r3.dayFrac)){
+      if(!delCell2.querySelector('button'))
+        delCell2.innerHTML=`<button onclick="clearDeduriRow(${day})" title="この日の工番・出面をクリア"
+          style="font-size:12px;color:#dc2626;background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;line-height:1;"
+          onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='none'">×</button>`;
+    } else {
+      delCell2.innerHTML='';
+    }
+  }
 }
 
 function renderDeduriTotals(){
@@ -3834,6 +4246,20 @@ function renderDeduriTotals(){
 
 // ━━ キーボードナビゲーション ━━
 let skipAmtMode=false;
+// スキップツールチップ
+document.addEventListener('mouseover', e=>{
+  if(e.target.closest('#btn-skip-amt')){
+    const tip=document.getElementById('skip-amt-tooltip');
+    if(tip) tip.style.display='block';
+  }
+});
+document.addEventListener('mouseout', e=>{
+  if(e.target.closest('#btn-skip-amt')){
+    const tip=document.getElementById('skip-amt-tooltip');
+    if(tip) tip.style.display='none';
+  }
+});
+
 function toggleSkipAmt(){
   skipAmtMode=!skipAmtMode;
   const lbl=document.getElementById('skip-amt-lbl');
@@ -4171,13 +4597,22 @@ document.addEventListener('DOMContentLoaded',()=>{
   renderCGrid();
   initSiteCount();
   initBranchPills();
+  restoreGuides();
   // 前回の作業が残っている場合は復元バナーを表示
   if(restored){
     const banner=document.createElement('div');
     banner.id='restore-banner';
     banner.style.cssText='background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;';
+    const savedAt=localStorage.getItem(SESS_KEY+'_savedAt');
+    const savedAtStr=savedAt?(() => {
+      const d=new Date(savedAt);
+      return `${d.getFullYear()}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    })():'';
     banner.innerHTML=`<i class="fa-solid fa-clock-rotate-left" style="color:#1e40af;"></i>
-      <span>前回の作業データを復元しました（<b>${craftsmen.find(x=>x.id===sess.cid)?.name||''}</b>）</span>
+      <div>
+        <div>前回の作業データを復元しました（<b>${craftsmen.find(x=>x.id===sess.cid)?.name||''}</b>）</div>
+        ${savedAtStr?`<div style="font-size:11px;color:#64748b;margin-top:2px;"><i class="fa-solid fa-clock"></i> 最終保存：${savedAtStr}</div>`:''}
+      </div>
       <button class="btn blue sm" onclick="continueRestored()"><i class="fa-solid fa-play"></i> 作業を続ける</button>
       <button class="btn gray sm" onclick="clearRestored()">破棄して新規</button>`;
     const grid=document.getElementById('cgrid');
@@ -4640,6 +5075,85 @@ function updateVCmInfo(name){
 // ══════════════════════════════════════
 // BULK IMPORT
 // ══════════════════════════════════════
+// ── テンプレート出力 ──
+function downloadCMTemplate(){
+  const headers=['職人名','区分','拠点','インボイス番号','労災組合費','健康保険料','駐車場代','道具代','電話代','車両費','その他控除','日給','メモ'];
+  const example=[
+    ['山田太郎','職人','東京','T1234567890123',3000,2500,5000,1000,0,0,0,0,''],
+    ['佐藤花子','サポート','埼玉','',0,0,0,0,0,0,0,14000,'日給サポート'],
+    ['鈴木一郎','外注','千葉','T9876543210123',5000,0,3000,0,500,0,0,0,''],
+  ];
+  const notes=[
+    ['--- 記入ルール ---','','','','','','','','','','','',''],
+    ['区分','職人／社員／外注／サポート のいずれかを記入','','','','','','','','','','',''],
+    ['インボイス番号','T で始まる14桁。なければ空欄でOK','','','','','','','','','','',''],
+    ['控除金額','月額（円）を数字のみで記入。不要な項目は0または空欄','','','','','','','','','','',''],
+    ['日給','サポート区分のみ記入。それ以外は空欄でOK','','','','','','','','','','',''],
+  ];
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([headers,...example,[''],['--- 記入ルール（削除してから取込んでください）---'],...notes]);
+  ws['!cols']=[{wch:14},{wch:8},{wch:8},{wch:18},{wch:10},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:10},{wch:8},{wch:20}];
+  // ヘッダー行を黄色に
+  headers.forEach((_,i)=>{
+    const addr=XLSX.utils.encode_cell({r:0,c:i});
+    if(!ws[addr]) ws[addr]={v:headers[i],t:'s'};
+  });
+  XLSX.utils.book_append_sheet(wb,ws,'職人マスター');
+  XLSX.writeFile(wb,'職人マスター_テンプレート.xlsx');
+}
+
+function downloadVehicleTemplate(){
+  const headers=['職人名','管理番号','車種','ナンバー','リース業者','月額','固定費','リース開始日','満了日（リース）','車検満了日','保険満了日','メモ'];
+  const example=[
+    ['山田太郎','V001','ハイエース','品川 123 あ 4567','〇〇リース株式会社',35000,0,'2024/04/01','2027/03/31','2026/08/31','2026/10/15',''],
+    ['佐藤花子','V002','プロボックス','練馬 456 い 8901','△△自動車',28000,5000,'2023/07/01','2026/06/30','2026/12/01','2027/01/20',''],
+  ];
+  const notes=[
+    ['--- 記入ルール ---','','','','','','','','','','',''],
+    ['職人名','職人マスターに登録されている名前と完全一致で記入（紐づけキー）','','','','','','','','','',''],
+    ['月額','数字のみ（例：35000）。取込後に職人マスターの車両費に自動反映','','','','','','','','','',''],
+    ['日付','年/月/日の形式で記入（例：2026/12/31）','','','','','','','','','',''],
+  ];
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([headers,...example,[''],['--- 記入ルール（削除してから取込んでください）---'],...notes]);
+  ws['!cols']=[{wch:14},{wch:8},{wch:12},{wch:16},{wch:18},{wch:8},{wch:8},{wch:12},{wch:14},{wch:12},{wch:12},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws,'車両管理');
+  XLSX.writeFile(wb,'車両管理_テンプレート.xlsx');
+}
+
+// ── 説明ブロック 開閉管理 ──
+function closeGuide(id){
+  const el=document.getElementById(id);
+  if(el){ el.style.display='none'; localStorage.setItem('hy3_guide_'+id,'closed'); }
+}
+function toggleGuide(id){
+  const body=document.getElementById(id+'-body');
+  if(!body) return;
+  const isOpen=body.style.display!=='none';
+  body.style.display=isOpen?'none':'';
+  localStorage.setItem('hy3_guide_'+id, isOpen?'closed':'open');
+}
+function restoreGuides(){
+  ['jguide','pay-formula','head-hint'].forEach(id=>{
+    const saved=localStorage.getItem('hy3_guide_'+id);
+    if(saved==='closed'){
+      const el=document.getElementById(id);
+      const body=document.getElementById(id+'-body');
+      if(el) el.style.display='none';
+      if(body) body.style.display='none';
+    }
+  });
+}
+
+function switchImportTab(tab){
+  document.getElementById('imp-pane-simple').style.display=tab==='simple'?'':'none';
+  document.getElementById('imp-pane-detail').style.display=tab==='detail'?'':'none';
+  const ts=document.getElementById('imp-tab-simple');
+  const td=document.getElementById('imp-tab-detail');
+  if(ts){ ts.style.color=tab==='simple'?'#7c3aed':'#94a3b8'; ts.style.borderBottom=tab==='simple'?'3px solid #7c3aed':'none'; }
+  if(td){ td.style.color=tab==='detail'?'#7c3aed':'#94a3b8'; td.style.borderBottom=tab==='detail'?'3px solid #7c3aed':'none'; }
+}
+
 function handleBulkDrop(e){
   e.preventDefault();
   const dz=document.getElementById('bulk-dropzone');
