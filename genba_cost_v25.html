@@ -173,7 +173,7 @@
                                 <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
                                 <input type="text" id="browse-keyword-input" placeholder="現場名・施工主名・得意先名・担当者名など..." 
                                     class="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-                                    oninput="window.applyBrowseFilter()">
+                                    oninput="window.applyBrowseFilterDebounced()">
                             </div>
                             <button onclick="window.applyBrowseFilter()" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 transition-colors">
                                 <i class="fa-solid fa-search"></i> 検索
@@ -278,7 +278,7 @@
                                 <span class="text-xs font-bold text-slate-500 whitespace-nowrap">キーワード:</span>
                                 <input type="text" id="uncoll-keyword-input" placeholder="現場名・施工主・工番など..."
                                     class="flex-1 min-w-[180px] pl-3 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-                                    oninput="window.applyBrowseFilter(); window.renderCollAnomalyTable();">
+                                    oninput="window.applyBrowseFilterDebounced(); window.renderCollAnomalyTable();">
                             </div>
                         </div>
                         <!-- 差異詳細テーブル -->
@@ -1013,6 +1013,17 @@
                                 <i class="fa-solid fa-chart-line mr-1.5 text-xs"></i>月次推移
                             </button>
                         </div>
+                        <!-- セパレーター -->
+                        <div class="flex items-center px-2 pt-2">
+                            <div class="w-px h-6 bg-slate-200"></div>
+                        </div>
+                        <!-- 経営報告タブ群 -->
+                        <div class="flex shrink-0 pt-2 gap-1">
+                            <button onclick="window.switchRankingTab('board-meeting')" id="tab-board-meeting" data-tab-color="violet"
+                                class="ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-violet-400 bg-white whitespace-nowrap hover:text-violet-600 transition-all">
+                                <i class="fa-solid fa-people-group mr-1.5 text-xs"></i>支店長会議資料
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <!-- 1. Owner Ranking -->
@@ -1200,7 +1211,7 @@
                             <div class="flex items-center gap-3">
                                 <i class="fa-solid fa-users-viewfinder text-emerald-600"></i>
                                 <span class="font-bold text-slate-700">月別・拠点内ランキング</span>
-                                <span class="text-xs text-slate-400">明細データ / 発生日基準 / 税抜</span>
+                                <span class="text-xs text-slate-400">明細データ（売上明細＋仕入明細） / 発生日基準 / 税抜・原価</span>
                                 <span class="text-xs text-emerald-600 font-mono" id="mm-date-range"></span>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
@@ -1242,7 +1253,7 @@
                             <div class="flex items-center gap-3">
                                 <i class="fa-solid fa-chart-line text-emerald-600"></i>
                                 <span class="font-bold text-slate-700">月次 売上・原価推移</span>
-                                <span class="text-xs text-slate-400">明細データ / 発生日基準 / 税抜</span>
+                                <span class="text-xs text-slate-400">明細データ（売上明細＋仕入明細） / 発生日基準 / 税抜・原価</span>
                                 <span class="text-xs text-emerald-600 font-mono" id="month-date-range"></span>
                             </div>
                             <div class="flex flex-wrap items-center gap-2">
@@ -1373,6 +1384,291 @@
                                 </thead>
                                 <tbody id="ranking-body-worst" class="bg-white divide-y divide-slate-100"></tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. 支店長会議資料 -->
+                <div id="ranking-board-meeting" class="ranking-tab-content hidden space-y-4">
+
+                    <!-- 共通コントロールバー -->
+                    <div class="glass-panel rounded-xl px-5 py-4 flex flex-wrap items-center gap-4 border-t-4 border-violet-500">
+                        <div class="flex items-center gap-3">
+                            <i class="fa-solid fa-people-group text-violet-500"></i>
+                            <span class="font-bold text-slate-700">支店長会議資料</span>
+                            <span class="text-xs text-slate-400" id="bm-data-basis-label">明細データ（amountExc）/ 発生日基準 / 税抜</span>
+                        </div>
+
+                        <!-- 集計基準：明細データ（発生日） / 原価集計（完了日） -->
+                        <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-bold">
+                            <button onclick="window.bmSetDataBasis('detail')" id="bm-data-basis-detail"
+                                class="px-3 py-1.5 bg-violet-700 text-white transition-colors whitespace-nowrap">明細データ（発生日）</button>
+                            <button onclick="window.bmSetDataBasis('cost')" id="bm-data-basis-cost"
+                                class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">原価集計（完了日）</button>
+                        </div>
+                        <span id="bm-data-basis-debug" class="text-[10px] text-slate-400 whitespace-nowrap"></span>
+
+                        <!-- 工事全体 / 拠点別 -->
+                        <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-bold">
+                            <button onclick="window.bmSetView('overall')" id="bm-view-overall"
+                                class="px-3 py-1.5 bg-violet-700 text-white transition-colors whitespace-nowrap">
+                                <i class="fa-solid fa-building mr-1 text-xs"></i>工事全体
+                            </button>
+                            <button onclick="window.bmSetView('branch')" id="bm-view-branch"
+                                class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">
+                                <i class="fa-solid fa-map-location-dot mr-1 text-xs"></i>拠点別
+                            </button>
+                        </div>
+
+                        <!-- 期 / 年 -->
+                        <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-bold">
+                            <button onclick="window.bmSetBasis('fiscal')" id="bm-basis-fiscal"
+                                class="px-3 py-1.5 bg-slate-700 text-white transition-colors whitespace-nowrap">期（事業年度）</button>
+                            <button onclick="window.bmSetBasis('calendar')" id="bm-basis-calendar"
+                                class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">年（カレンダー年）</button>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <label class="text-xs text-slate-500 font-bold" id="bm-period-label">対象期:</label>
+                            <select id="bm-period-select" onchange="window.bmOnPeriodChange()"
+                                class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"></select>
+                        </div>
+
+                        <!-- 拠点セレクター（拠点別モードのみ） -->
+                        <div id="bm-branch-selector-area" class="hidden flex items-center gap-2">
+                            <label class="text-xs text-slate-500 font-bold">拠点:</label>
+                            <select id="bm-branch-select" onchange="window.bmOnBranchChange()"
+                                class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"></select>
+                        </div>
+
+                        <button id="bm-export-branch-btn" onclick="window.exportBoardMeetingBranchExcel()"
+                            class="hidden bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow transition-colors whitespace-nowrap">
+                            <i class="fa-solid fa-file-excel"></i> Excel出力（この拠点のみ）
+                        </button>
+                        <button onclick="window.exportBoardMeetingExcel()"
+                            class="ml-auto bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow transition-colors whitespace-nowrap">
+                            <i class="fa-solid fa-file-excel"></i> Excel出力（全拠点）
+                        </button>
+                    </div>
+
+                    <!-- 取り扱い説明（折りたたみ） -->
+                    <div class="glass-panel rounded-xl overflow-hidden">
+                        <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('i.fa-chevron-down').classList.toggle('rotate-180')"
+                            class="w-full flex items-center justify-between px-5 py-3 bg-blue-50 hover:bg-blue-100 transition-colors text-left border-b border-blue-100">
+                            <span class="font-bold text-slate-700"><i class="fa-solid fa-circle-info text-blue-500 mr-2"></i>支店長会議資料の取り扱い説明（データ基準・使い方）</span>
+                            <i class="fa-solid fa-chevron-down text-blue-400 transition-transform duration-200"></i>
+                        </button>
+                        <div class="hidden p-5 space-y-4 text-sm text-slate-600">
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-database text-blue-500 mr-1"></i>集計データの基準</p>
+                                <ul class="list-disc list-inside space-y-1 ml-1">
+                                    <li>ツールバーの<strong>「明細データ（発生日）」／「原価集計（完了日）」</strong>ボタンで、集計の基準データを切り替えられます。</li>
+                                    <li><strong>明細データ（発生日）</strong>：「売上明細データ」（取込んだ売上明細CSV/Excelの行データ）の<strong>「発生日」列</strong>を基準に月へ振り分けます。金額は税抜金額（amountExc列）です。工事が長期にわたる場合、各月の売上明細行ごとに分散して計上されます。</li>
+                                    <li><strong>原価集計（完了日）</strong>：「原価集計データ」（原価集計表CSV）の<strong>売上累計（salesTotal）</strong>を、現場マスターの<strong>完了日（endDate）</strong>がある月に工番単位でまとめて計上します。長期工事の場合、完了した月にまとめて売上が立つため、明細データ基準とは月別の見え方が変わります。</li>
+                                    <li>拠点・元請先（施工主）は、いずれの基準でも工番（siteCode）を現場マスターと突き合わせて判定しています。現場マスターに工番が無い場合は「不明」として集計されます。</li>
+                                    <li>ツールバーの基準表示ラベルは、現在どちらの基準で集計しているかを示しています。</li>
+                                    <li>ボタンの右側に表示される「［確認用］明細データ：◯/◯件・全期間合計◯百万円　原価集計：◯/◯件・全期間合計◯百万円」は、両基準が別データとして読み込まれていることを確認するための件数・合計です。<strong>もし2つの合計が常に完全一致する場合は、取り込んだ売上明細データと原価集計データが（工番ごとに）1対1の関係になっている可能性があります</strong>（バグではなく、データの実態として一致しているケースです）。件数や合計が大きく異なるのに表の数字が変わらない場合はお知らせください。</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-calendar-days text-blue-500 mr-1"></i>「期」と「年」の切替</p>
+                                <ul class="list-disc list-inside space-y-1 ml-1">
+                                    <li>「期（事業年度）」は9月始まり〜翌年8月終わりの会社の事業年度（第◯期）で集計します。</li>
+                                    <li>「年（カレンダー年）」は1月〜12月のカレンダー年で集計します。</li>
+                                    <li>各表・グラフの右上または見出し横に、現在表示している「期」または「年」が表示されます。</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-coins text-indigo-500 mr-1"></i>予算・累計目標の使い方</p>
+                                <ol class="list-decimal list-inside space-y-1 ml-1">
+                                    <li>下の「予算設定」パネルを開き、「予算雛形」ボタンで現在選択中の期・拠点用のExcelをダウンロードします。</li>
+                                    <li>Excelの「年間目標(億円)」「前期実績(億円)」、および「○月(百万円)」の月別予算欄を入力します。月別予算は拠点ごとに入力できます。</li>
+                                    <li>入力したExcelを「予算取込」で読み込みます。読み込み後は画面の表に反映されるので、内容を確認のうえ「保存」を押してください（保存するまでは確定されません）。</li>
+                                    <li>「拠点別 実績・目標一覧」の<strong>「累計目標」</strong>は、月別予算のうち実績がある月（経過月）までの合計から自動算出されます（月別予算が未入力の場合は年間目標を経過月数で按分した値を使用）。</li>
+                                    <li><strong>「年間目標」「年間進捗率」</strong>は、月別予算とは別に入力した「年間目標(億円)」の値とその達成率を表示しています。</li>
+                                </ol>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-clock-rotate-left text-slate-500 mr-1"></i>前年度実績（全社合計）について</p>
+                                <ul class="list-disc list-inside space-y-1 ml-1">
+                                    <li>前年度（1期前）の売上明細データを月別に集計したものです。前年度分の売上明細データが取り込まれていれば自動で表示されます。</li>
+                                    <li>「累計実績」列は、今年度の実績がある月数（経過月数）に合わせて前年度の同月数分を累計した値です。年間を通した前年実績は「年間実績」列に表示しています。</li>
+                                    <li>「対前年増減額」は、今年度実績がある月のみ（今年度同月－前年度同月）で算出しています。今年度の実績がまだ無い月は空欄になります。</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-users text-slate-500 mr-1"></i>拠点別ビューの前年比較について</p>
+                                <ul class="list-disc list-inside space-y-1 ml-1">
+                                    <li>「区分別」表の<strong>「対前年増減額」</strong>行は、今年度実績がある月のみ（今年度同月－前年度同月）を算出しています。今年度の実績がまだ無い月は空欄になります。</li>
+                                    <li>「元請先別 月次売上明細」の<strong>「前年同期実績」</strong>列は、今年度の実績がある月数（経過月数）に合わせて、前年度の同じ月数分（同じ月の並び）を元請先ごとに累計した値です。</li>
+                                    <li><strong>「前年比」</strong>列は、今年度合計－前年同期実績で算出しています（プラスは赤字、マイナスは青字で▲表記）。</li>
+                                    <li>列見出しの<strong>「前年同期実績(経過◯ヶ月)」の「◯ヶ月」は固定値ではなく、今年度の実績が記録されている月数に応じて自動で変わります</strong>（例：4月・5月の実績しかなければ「経過2ヶ月」、9月まで実績があれば「経過6ヶ月」のように表示が変わります）。</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-file-excel text-green-600 mr-1"></i>「Excel出力（全拠点）」について</p>
+                                <ul class="list-disc list-inside space-y-1 ml-1">
+                                    <li>「工事全体」シートには、工事全体グラフの画像と、拠点別 実績・目標一覧と同じ内容を出力します。月別実績は数値（手入力・修正可）ですが、<strong>累計実績・差額・進捗率・年間進捗率・総計・対前期増減は数式（SUM/IF関数）</strong>で入っているため、月別の数値を直すと自動で再計算されます。</li>
+                                    <li>拠点別シートにも、元請先別の合計・累計実績に数式が入っています。</li>
+                                    <li>グラフ画像は出力時点の「工事全体」グラフの見た目をそのまま画像化したものです（Excel上でグラフ自体を編集することはできません。再集計したグラフが欲しい場合は再度出力してください）。</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-file-excel text-blue-600 mr-1"></i>「Excel出力（この拠点のみ）」について</p>
+                                <ul class="list-disc list-inside space-y-1 ml-1">
+                                    <li>拠点別ビューを表示しているときだけ出てくるボタンです。「Excel出力（全拠点）」と違い、<strong>現在選択中の1拠点だけ</strong>を、画面の拠点別ビューと同じレイアウト（拠点別グラフ画像／区分別表／元請先別 月次売上明細＋前年比較）で1シートに出力します。</li>
+                                    <li>累計実績・対前年増減額・元請先別の合計・前年比は数式で入っているため、月別の数値を直すと自動で再計算されます。</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 予算設定（折りたたみ・工事全体／拠点別どちらからでも操作可） -->
+                    <div class="glass-panel rounded-xl overflow-hidden">
+                        <button onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('i.fa-chevron-down').classList.toggle('rotate-180')"
+                            class="w-full flex items-center justify-between px-5 py-3 bg-indigo-50 hover:bg-indigo-100 transition-colors text-left border-b border-indigo-100">
+                            <span class="font-bold text-slate-700"><i class="fa-solid fa-coins text-indigo-500 mr-2"></i>予算設定（期・年別 / 拠点別）｜Excelで予算・累計目標を取込</span>
+                            <i class="fa-solid fa-chevron-down text-indigo-400 transition-transform duration-200"></i>
+                        </button>
+                        <div class="hidden p-5 space-y-5">
+                            <div class="flex flex-wrap items-center gap-3">
+                                <span class="text-xs text-slate-500 font-bold">対象: <span id="bm-budget-target-label" class="text-indigo-600"></span></span>
+                                <button onclick="window.bmDownloadBudgetTemplate()"
+                                    class="bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow transition-colors">
+                                    <i class="fa-solid fa-file-arrow-down"></i> 予算雛形
+                                </button>
+                                <label class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow transition-colors cursor-pointer">
+                                    <i class="fa-solid fa-file-arrow-up"></i> 予算取込
+                                    <input type="file" id="bm-budget-import-input" accept=".xlsx,.xls" class="hidden" onchange="window.bmImportBudgetFile(event)">
+                                </label>
+                                <button onclick="window.bmSaveBudget()"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow transition-colors">
+                                    <i class="fa-solid fa-floppy-disk"></i> 保存
+                                </button>
+                                <span id="bm-budget-save-status" class="text-xs text-emerald-600 font-bold"></span>
+                            </div>
+
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 mb-1.5">期ごとの年間目標・前期実績（億円単位）</p>
+                                <div class="overflow-x-auto">
+                                    <table class="text-sm border-collapse" id="bm-budget-annual-table"></table>
+                                </div>
+                            </div>
+
+                            <div>
+                                <p class="text-xs font-bold text-slate-500 mb-1.5">拠点×月別予算（百万円単位）</p>
+                                <div class="overflow-x-auto">
+                                    <table class="text-sm border-collapse" id="bm-budget-monthly-table"></table>
+                                </div>
+                            </div>
+                            <p class="text-xs text-slate-400">※ 月別予算は百万円単位、年間目標・前期実績は億円単位で入力してください。「全社合計」行は工事全体タブの予算ラインと年間目標に使用されます。入力後は必ず「保存」を押してください。<br>※「累計目標」は月別予算の経過月分の合計から算出されます（月別予算が未入力の場合は年間目標を経過月数で按分した値を使用）。Excelで月別予算を取り込めば自動的に反映されます。</p>
+                            <p class="text-xs text-slate-400 mt-1">※「予算雛形」をダウンロード → Excelで「年間目標(億円)」「前期実績(億円)」「○月(百万円)」の各列を入力 → 「予算取込」で読み込むと、予算と累計目標がまとめて反映されます。</p>
+                        </div>
+                    </div>
+
+                    <!-- ══ 工事全体 ビュー ══ -->
+                    <div id="bm-overall-view" class="space-y-4">
+                        <div class="glass-panel rounded-xl overflow-hidden">
+                            <div class="bg-violet-50 px-5 py-3 border-b border-violet-200 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <i class="fa-solid fa-chart-column text-violet-600"></i>
+                                    <span class="font-bold text-slate-700">工事全体　月別売上推移（直近3年比較）</span>
+                                </div>
+                                <span id="bm-overall-period-label" class="text-xs text-violet-600 font-bold"></span>
+                            </div>
+                            <div class="p-5">
+                                <div class="h-80"><canvas id="chart-bm-overall"></canvas></div>
+                            </div>
+                        </div>
+
+                        <!-- 拠点別数値表 -->
+                        <div class="glass-panel rounded-xl overflow-hidden">
+                            <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center gap-3">
+                                <i class="fa-solid fa-table text-slate-500"></i>
+                                <span class="font-bold text-slate-700">拠点別　実績・目標一覧</span>
+                                <span id="bm-overall-table-period-label" class="text-xs text-violet-600 font-bold"></span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left text-slate-600 border-collapse border border-slate-200">
+                                    <thead class="text-xs text-slate-700 uppercase bg-slate-100" id="bm-overall-table-head"></thead>
+                                    <tbody id="bm-overall-table-body" class="bg-white"></tbody>
+                                    <tfoot id="bm-overall-table-foot" class="bg-violet-50 font-bold"></tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 前期比較行 -->
+                        <div class="glass-panel rounded-xl overflow-hidden border-l-4 border-amber-400">
+                            <div class="bg-amber-50 px-5 py-3 flex flex-wrap items-center gap-6" id="bm-overall-yoy-row"></div>
+                        </div>
+
+                        <!-- 前年度実績（全社合計） -->
+                        <div id="bm-overall-prioryear-wrap" class="glass-panel rounded-xl overflow-hidden hidden">
+                            <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center gap-3">
+                                <i class="fa-solid fa-clock-rotate-left text-slate-500"></i>
+                                <span class="font-bold text-slate-700">前年度実績（全社合計）</span>
+                                <span id="bm-overall-prioryear-period-label" class="text-xs text-slate-500 font-bold"></span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left text-slate-600 border-collapse border border-slate-200">
+                                    <thead class="text-xs text-slate-700 uppercase bg-slate-100" id="bm-overall-prioryear-head"></thead>
+                                    <tbody id="bm-overall-prioryear-body" class="bg-white"></tbody>
+                                    <tfoot id="bm-overall-prioryear-foot" class="bg-slate-100 font-bold"></tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ══ 拠点別 ビュー ══ -->
+                    <div id="bm-branch-view" class="hidden space-y-4">
+
+                        <div class="glass-panel rounded-xl overflow-hidden">
+                            <div class="bg-violet-50 px-5 py-3 border-b border-violet-200 flex flex-wrap items-center justify-between gap-3">
+                                <div class="flex items-center gap-3">
+                                    <i class="fa-solid fa-map-location-dot text-violet-600"></i>
+                                    <span class="font-bold text-slate-700" id="bm-branch-title">拠点別　月別売上推移</span>
+                                </div>
+                                <!-- 吹き出し -->
+                                <div class="relative bg-white border-2 border-violet-300 rounded-xl px-4 py-2 shadow-sm text-xs">
+                                    <div class="flex gap-4">
+                                        <div class="text-center">
+                                            <div class="text-slate-400 font-bold">今年度目標</div>
+                                            <div class="text-base font-black text-violet-700" id="bm-bubble-target">-</div>
+                                        </div>
+                                        <div class="w-px bg-slate-200"></div>
+                                        <div class="text-center">
+                                            <div class="text-slate-400 font-bold">前年度実績</div>
+                                            <div class="text-base font-black text-slate-600" id="bm-bubble-prev">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="absolute -bottom-2 right-6 w-3 h-3 bg-white border-r-2 border-b-2 border-violet-300 rotate-45"></div>
+                                </div>
+                            </div>
+                            <div class="p-5">
+                                <div class="h-80"><canvas id="chart-bm-branch"></canvas></div>
+                            </div>
+                            <!-- 月別集計4行 -->
+                            <div class="overflow-x-auto border-t border-slate-200">
+                                <table class="w-full text-sm text-left text-slate-600 border-collapse border border-slate-200">
+                                    <thead class="text-xs text-slate-700 uppercase bg-slate-100" id="bm-branch-summary-head"></thead>
+                                    <tbody id="bm-branch-summary-body" class="bg-white"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- 元請先×月明細表 -->
+                        <div class="glass-panel rounded-xl overflow-hidden">
+                            <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center gap-3">
+                                <i class="fa-solid fa-handshake text-slate-500"></i>
+                                <span class="font-bold text-slate-700">元請先別　月次売上明細</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left text-slate-600 border-collapse border border-slate-200">
+                                    <thead class="text-xs text-slate-700 uppercase bg-slate-100" id="bm-owner-table-head"></thead>
+                                    <tbody id="bm-owner-table-body" class="bg-white"></tbody>
+                                    <tfoot id="bm-owner-table-foot" class="bg-slate-100 font-bold"></tfoot>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4090,11 +4386,13 @@
         blue:    'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-blue-600    text-blue-700    bg-blue-50   whitespace-nowrap transition-all shadow-sm',
         red:     'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-red-500     text-red-600     bg-red-50    whitespace-nowrap transition-all shadow-sm',
         emerald: 'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-emerald-600 text-emerald-700 bg-emerald-50 whitespace-nowrap transition-all shadow-sm',
+        violet:  'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-violet-600  text-violet-700  bg-violet-50 whitespace-nowrap transition-all shadow-sm',
     };
     const RANKING_TAB_INACTIVE = {
         blue:    'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-slate-400   bg-white whitespace-nowrap hover:text-slate-600   hover:bg-slate-50  transition-all',
         red:     'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-red-300     bg-white whitespace-nowrap hover:text-red-500     hover:bg-red-50    transition-all',
         emerald: 'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-emerald-400 bg-white whitespace-nowrap hover:text-emerald-600 hover:bg-emerald-50 transition-all',
+        violet:  'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-violet-400  bg-white whitespace-nowrap hover:text-violet-600  hover:bg-violet-50  transition-all',
     };
 
     window.switchRankingTab = async function(tab) {
@@ -4123,6 +4421,7 @@
             if (tab === 'monthly-manager') await window.renderMonthlyManagerRanking();
             if (tab === 'month')           await window.initMonthlyRanking();
             if (tab === 'worst')           await window.initWorstRanking();
+            if (tab === 'board-meeting')   await window.initBoardMeeting();
         } catch (e) { console.error('タブ切替エラー:', e); alert('タブ切替エラー: ' + e.message); }
     }
 
@@ -4467,8 +4766,9 @@
 
         // ⑤ 選択肢を毎回リセット
         const months = new Set(); const branches = new Set();
-        allSales.forEach(s => { const ym = (s.date||'').substring(0,6); if(ym) months.add(ym); const br = masterMap.get(s.siteCode)?.branch; if(br) branches.add(br); });
-        allPurchases.forEach(p => { const ym = (p.date||'').substring(0,6); if(ym) months.add(ym); const br = masterMap.get(p.siteCode)?.branch; if(br) branches.add(br); });
+        const salesYmsAll = new Set(); const purchaseYmsAll = new Set();
+        allSales.forEach(s => { const ym = (s.date||'').substring(0,6); if(ym) { months.add(ym); salesYmsAll.add(ym); } const br = masterMap.get(s.siteCode)?.branch; if(br) branches.add(br); });
+        allPurchases.forEach(p => { const ym = (p.date||'').substring(0,6); if(ym) { months.add(ym); purchaseYmsAll.add(ym); } const br = masterMap.get(p.siteCode)?.branch; if(br) branches.add(br); });
 
         const prevMonth  = monthSelect  ? monthSelect.value  : '';
         const prevBranch = branchSelect ? branchSelect.value : 'ALL';
@@ -4521,14 +4821,17 @@
         window._lastMonthlyManagerData   = list;
         window._lastMonthlyManagerDetail = detailMap;
 
-        // 実データの発生日範囲を表示
-        const allYms = [...months].sort();
+        // 実データの発生日範囲を表示（売上明細・仕入明細・合算をそれぞれ表示）
         const rangeEl = document.getElementById('mm-date-range');
         if (rangeEl) {
-            if (allYms.length >= 2) {
-                rangeEl.textContent = `（${allYms[0].slice(0,4)}/${allYms[0].slice(4,6)} 〜 ${allYms[allYms.length-1].slice(0,4)}/${allYms[allYms.length-1].slice(4,6)}）`;
-            } else if (allYms.length === 1) {
-                rangeEl.textContent = `（${allYms[0].slice(0,4)}/${allYms[0].slice(4,6)}）`;
+            const fmtRange = (keysSet) => {
+                const keys = Array.from(keysSet).sort();
+                if (keys.length >= 2) return `${keys[0].slice(0,4)}/${keys[0].slice(4,6)}〜${keys[keys.length-1].slice(0,4)}/${keys[keys.length-1].slice(4,6)}`;
+                if (keys.length === 1) return `${keys[0].slice(0,4)}/${keys[0].slice(4,6)}`;
+                return 'なし';
+            };
+            if (months.size) {
+                rangeEl.textContent = `（売上明細:${fmtRange(salesYmsAll)}　仕入明細:${fmtRange(purchaseYmsAll)}　合算:${fmtRange(months)}）`;
             } else {
                 rangeEl.textContent = '';
             }
@@ -4592,6 +4895,14 @@
                 return true;
             };
 
+            // 売上明細・仕入明細それぞれの実際の日付範囲（表示用）。
+            // 「集計期間（完了日）」フィルターの影響を受けないよう、フィルター適用前の全データから算出する
+            // （月別・拠点内ランキングと同じ考え方）
+            const salesYmsAllRaw = new Set();
+            const purchaseYmsAllRaw = new Set();
+            sales.forEach(s => { const ym = (s.date||'').substring(0,6); if (ym) salesYmsAllRaw.add(ym); });
+            purchases.forEach(p => { const ym = (p.date||'').substring(0,6); if (ym) purchaseYmsAllRaw.add(ym); });
+
             sales.forEach(s => {
                 const m = masterMap.get(s.siteCode) || {};
                 if (targetB !== 'ALL' && m.branch !== targetB) return;
@@ -4616,14 +4927,19 @@
             // キャッシュ保存（Sheet4クロス集計で完了日フィルター適用するためmasterMapも保持）
             window._monthlyExportCache = { stats, filteredSales, filteredPurchases, targetB, targetYm, masterMap, rankFilterSnap: { ...rankingFilter } };
 
-            // 実データの発生日範囲を表示
-            const ymKeys = Object.keys(stats).sort();
+            // 実データの発生日範囲を表示（売上明細・仕入明細・両者の合算をそれぞれ表示し、
+            // どちらのデータの範囲なのか分かるようにする。集計期間フィルターには影響されない）
             const rangeEl2 = document.getElementById('month-date-range');
             if (rangeEl2) {
-                if (ymKeys.length >= 2) {
-                    rangeEl2.textContent = `（${ymKeys[0].slice(0,4)}/${ymKeys[0].slice(4,6)} 〜 ${ymKeys[ymKeys.length-1].slice(0,4)}/${ymKeys[ymKeys.length-1].slice(4,6)}）`;
-                } else if (ymKeys.length === 1) {
-                    rangeEl2.textContent = `（${ymKeys[0].slice(0,4)}/${ymKeys[0].slice(4,6)}）`;
+                const fmtRange = (keysSet) => {
+                    const keys = Array.from(keysSet).sort();
+                    if (keys.length >= 2) return `${keys[0].slice(0,4)}/${keys[0].slice(4,6)}〜${keys[keys.length-1].slice(0,4)}/${keys[keys.length-1].slice(4,6)}`;
+                    if (keys.length === 1) return `${keys[0].slice(0,4)}/${keys[0].slice(4,6)}`;
+                    return 'なし';
+                };
+                const combinedYms = new Set([...salesYmsAllRaw, ...purchaseYmsAllRaw]);
+                if (combinedYms.size) {
+                    rangeEl2.textContent = `（売上明細:${fmtRange(salesYmsAllRaw)}　仕入明細:${fmtRange(purchaseYmsAllRaw)}　合算:${fmtRange(combinedYms)}）`;
                 } else {
                     rangeEl2.textContent = '';
                 }
@@ -5102,6 +5418,1247 @@
             alert('出力中にエラーが発生しました。\n' + e.message);
         }
     }
+
+    // ══════════════════════════════════════════════════════════════
+    // ── 支店長会議資料 (Board Meeting Report) ──
+    // 売上明細（sales.amountExc / 発生日基準）を 拠点×月 で集計し、
+    // 「期」（事業年度）または「年」（カレンダー年）の基準で
+    // 直近3年の月次推移・予算比較・元請先別明細を表示する。
+    // ══════════════════════════════════════════════════════════════
+    let bm = {
+        basis: 'fiscal',          // 'fiscal'（期） | 'calendar'（年）
+        dataBasis: 'detail',       // 'detail'（明細データ・発生日基準） | 'cost'（原価集計・完了日基準）
+        view: 'overall',          // 'overall'（工事全体） | 'branch'（拠点別）
+        periodKey: null,          // 期番号 or カレンダー年（数値）
+        periodKeyFiscal: null,
+        periodKeyCalendar: null,
+        branch: '',
+        data: null,               // { byBranchMonth, byOwnerMonth, branches }
+        dataByBasis: null,         // { detail: {...}, cost: {...} }
+        budget: { perKey: {} },
+        chartOverall: null,
+        chartBranch: null,
+    };
+
+    // ── 期(事業年度)定義 ──
+    // 42期以前　　　：9月始まり（9/1〜翌8/31, 12ヶ月）／42期 = R5.9〜R6.8
+    // 43期　　　　　：R6.9.1〜R7.3.31（7ヶ月の端数期。9月始まり方式の最終回）
+    // 44期以降　　　：4月始まり（4/1〜翌3/31, 12ヶ月）／44期 = R7.4〜R8.3、45期 = R8.4〜R9.3
+    function bmFiscalDef(no) {
+        if (no === 43) return { no, startYM: '2024-09', endYM: '2025-03', stub: true };
+        if (no >= 44) { const y = 2025 + (no - 44); return { no, startYM: `${y}-04`, endYM: `${y + 1}-03`, stub: false }; }
+        const y = 2023 - (42 - no);
+        return { no, startYM: `${y}-09`, endYM: `${y + 1}-08`, stub: false };
+    }
+    function bmMonthsBetween(startYM, endYM) {
+        const months = [];
+        let [y, m] = startYM.split('-').map(Number);
+        const [ey, em] = endYM.split('-').map(Number);
+        let guard = 0;
+        while ((y < ey || (y === ey && m <= em)) && guard < 36) {
+            months.push(`${y}-${String(m).padStart(2, '0')}`);
+            m++; if (m > 12) { m = 1; y++; }
+            guard++;
+        }
+        return months;
+    }
+    function bmReiwa(ym) { const [y, m] = ym.split('-').map(Number); return `R${y - 2018}.${m}`; }
+    function bmFiscalMonths(no) { const d = bmFiscalDef(no); return bmMonthsBetween(d.startYM, d.endYM); }
+    function bmFiscalLabel(no) { const d = bmFiscalDef(no); return `${no}期（${bmReiwa(d.startYM)}〜${bmReiwa(d.endYM)}）${d.stub ? '※端数期' : ''}`; }
+    function bmCalendarMonths(year) { return Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, '0')}`); }
+    function bmCalendarLabel(year) { return `R${year - 2018}年（${year}年）`; }
+    function bmCurrentFiscalNo(d = new Date()) {
+        const y = d.getFullYear(), m = d.getMonth() + 1;
+        const cur = y * 12 + m;
+        for (let no = 20; no <= 80; no++) {
+            const def = bmFiscalDef(no);
+            const [sy, sm] = def.startYM.split('-').map(Number);
+            const [ey, em] = def.endYM.split('-').map(Number);
+            if (cur >= sy * 12 + sm && cur <= ey * 12 + em) return no;
+        }
+        return 45;
+    }
+    function bmPeriodMonths(basis, key) { return basis === 'fiscal' ? bmFiscalMonths(key) : bmCalendarMonths(key); }
+    function bmPeriodLabel(basis, key) { return basis === 'fiscal' ? bmFiscalLabel(key) : bmCalendarLabel(key); }
+    function bmBasisKey(basis, key) { return basis === 'fiscal' ? `fiscal-${key}` : `year-${key}`; }
+
+    // ── データ集計 ──
+    async function bmLoadData() {
+        // ── 高速化：データ件数（count）だけを先に確認し、前回読み込み時と変わっていなければ
+        //    重い toArray()＋月別集計の再計算をスキップしてキャッシュ済みのデータを再利用する。
+        //    タブを切り替えるたびに3万件超の全件読み込み・再集計をしていたのが遅さの主因のため。
+        const [salesCount, masterCount, costCount] = await Promise.all([
+            db.sales.count(), db.masters.count(), db.costs.count()
+        ]);
+        if (bm.dataByBasis && bm._lastCounts &&
+            bm._lastCounts.sales === salesCount && bm._lastCounts.masters === masterCount && bm._lastCounts.costs === costCount) {
+            bm.data = bm.dataByBasis[bm.dataBasis || 'detail'];
+            return;
+        }
+        bm._lastCounts = { sales: salesCount, masters: masterCount, costs: costCount };
+
+        const allSales = await db.sales.toArray();
+        const allMasters = await db.masters.toArray();
+        const allCosts = await db.costs.toArray();
+        const masterMap = new Map(); allMasters.forEach(m => masterMap.set(m.code, m));
+
+        // ── 基準①：明細データ（売上明細 amountExc）／発生日基準 ──
+        const byBranchMonthDetail = {};
+        const byOwnerMonthDetail = {};
+        const branchSetDetail = new Set();
+        allSales.forEach(s => {
+            const dateStr = s.date || '';
+            if (dateStr.length < 6) return;
+            const ym = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}`;
+            const m = masterMap.get(s.siteCode);
+            const branch = (m && m.branch) ? m.branch : '不明';
+            const owner = (m && m.owner) ? m.owner : '不明';
+            const amt = s.amountExc || 0;
+            branchSetDetail.add(branch);
+            if (!byBranchMonthDetail[branch]) byBranchMonthDetail[branch] = {};
+            byBranchMonthDetail[branch][ym] = (byBranchMonthDetail[branch][ym] || 0) + amt;
+            if (!byBranchMonthDetail.__ALL__) byBranchMonthDetail.__ALL__ = {};
+            byBranchMonthDetail.__ALL__[ym] = (byBranchMonthDetail.__ALL__[ym] || 0) + amt;
+            if (!byOwnerMonthDetail[branch]) byOwnerMonthDetail[branch] = {};
+            if (!byOwnerMonthDetail[branch][owner]) byOwnerMonthDetail[branch][owner] = {};
+            byOwnerMonthDetail[branch][owner][ym] = (byOwnerMonthDetail[branch][owner][ym] || 0) + amt;
+        });
+
+        // ── 基準②：原価集計（db.costs の salesTotal）／完了日基準 ──
+        // 工番ごとの売上累計（salesTotal）を、現場マスターの完了日（endDate）の月にまとめて計上する。
+        const byBranchMonthCost = {};
+        const byOwnerMonthCost = {};
+        const branchSetCost = new Set();
+        allCosts.forEach(c => {
+            const m = masterMap.get(c.code);
+            const endDate = m ? m.endDate : '';
+            const ts = window.parseDateValue ? window.parseDateValue(endDate) : null;
+            if (!ts) return; // 完了日が無い工番は対象外
+            const d = new Date(ts);
+            const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const branch = (m && m.branch) ? m.branch : '不明';
+            const owner = (m && m.owner) ? m.owner : '不明';
+            const amt = c.salesTotal || 0;
+            if (!amt) return;
+            branchSetCost.add(branch);
+            if (!byBranchMonthCost[branch]) byBranchMonthCost[branch] = {};
+            byBranchMonthCost[branch][ym] = (byBranchMonthCost[branch][ym] || 0) + amt;
+            if (!byBranchMonthCost.__ALL__) byBranchMonthCost.__ALL__ = {};
+            byBranchMonthCost.__ALL__[ym] = (byBranchMonthCost.__ALL__[ym] || 0) + amt;
+            if (!byOwnerMonthCost[branch]) byOwnerMonthCost[branch] = {};
+            if (!byOwnerMonthCost[branch][owner]) byOwnerMonthCost[branch][owner] = {};
+            byOwnerMonthCost[branch][owner][ym] = (byOwnerMonthCost[branch][owner][ym] || 0) + amt;
+        });
+
+        bm.dataByBasis = {
+            detail: { byBranchMonth: byBranchMonthDetail, byOwnerMonth: byOwnerMonthDetail, branches: Array.from(branchSetDetail).sort((a, b) => a.localeCompare(b, 'ja')) },
+            cost: { byBranchMonth: byBranchMonthCost, byOwnerMonth: byOwnerMonthCost, branches: Array.from(branchSetCost).sort((a, b) => a.localeCompare(b, 'ja')) },
+        };
+        // 両基準が確実に別データであることを検証できるよう、件数を保持しておく（デバッグ表示用）
+        bm.debugCounts = {
+            detailRows: allSales.length,
+            detailUsed: allSales.filter(s => (s.date || '').length >= 6).length,
+            costRows: allCosts.length,
+            costUsed: allCosts.filter(c => { const m = masterMap.get(c.code); return m && window.parseDateValue && window.parseDateValue(m.endDate) && c.salesTotal; }).length,
+            detailTotal: Object.values(byBranchMonthDetail.__ALL__ || {}).reduce((a, v) => a + v, 0),
+            costTotal: Object.values(byBranchMonthCost.__ALL__ || {}).reduce((a, v) => a + v, 0),
+        };
+        console.log('[支店長会議資料] 集計基準デバッグ:', bm.debugCounts);
+        bm.data = bm.dataByBasis[bm.dataBasis || 'detail'];
+    }
+    function bmSumMonths(branchMonthMap, branch, months) {
+        const row = (branchMonthMap || {})[branch] || {};
+        return months.map(ym => row[ym] || 0);
+    }
+    function bmCumulative(arr) { let acc = 0; return arr.map(v => (acc += (v || 0))); }
+    // 支店長会議資料専用：百万円単位フォーマッタ（円→百万円、整数・桁区切り）
+    function bmFmtM(n) { if (n === null || n === undefined) return '-'; return Math.round(n / 1e6).toLocaleString('ja-JP'); }
+
+    // ── 予算設定の保存・読込（db.meta に1レコードで保存） ──
+    async function bmLoadBudget() {
+        const rec = await db.meta.get('bmBudgetConfig');
+        bm.budget = (rec && rec.value) ? rec.value : { perKey: {} };
+        if (!bm.budget.perKey) bm.budget.perKey = {};
+    }
+    async function bmSaveBudgetToDB() { await db.meta.put({ key: 'bmBudgetConfig', value: bm.budget }); }
+    function bmGetBudgetEntry(basis, key, branch) {
+        const k = `${bmBasisKey(basis, key)}|${branch}`;
+        const e = bm.budget.perKey[k];
+        return e || { annualTarget: 0, prevActual: 0, monthly: {} };
+    }
+    function bmSetBudgetEntry(basis, key, branch, entry) {
+        const k = `${bmBasisKey(basis, key)}|${branch}`;
+        bm.budget.perKey[k] = entry;
+    }
+
+    function bmRebuildBranchSelect() {
+        const branchSel = document.getElementById('bm-branch-select');
+        if (!branchSel) return;
+        const prev = bm.branch || branchSel.value;
+        branchSel.innerHTML = '';
+        bm.data.branches.forEach(b => branchSel.add(new Option(b, b)));
+        if (prev && bm.data.branches.includes(prev)) branchSel.value = prev;
+        else if (bm.data.branches.length) branchSel.value = bm.data.branches[0];
+        bm.branch = branchSel.value || (bm.data.branches[0] || '');
+    }
+
+    // ── 初期化（タブ切替時に呼ばれる） ──
+    window.initBoardMeeting = async function() {
+        try {
+            await bmLoadBudget();
+            await bmLoadData();
+
+            bmRebuildBranchSelect();
+
+            bmRebuildPeriodSelect();
+            bmApplyViewButtons();
+            bmApplyBasisButtons();
+            bmApplyDataBasisButtons();
+            window.bmRenderCurrentView();
+        } catch (e) { console.error('支店長会議資料 初期化エラー:', e); alert('支店長会議資料の初期化に失敗しました: ' + e.message); }
+    }
+
+    function bmRebuildPeriodSelect() {
+        const sel = document.getElementById('bm-period-select');
+        const labelEl = document.getElementById('bm-period-label');
+        if (!sel) return;
+        sel.innerHTML = '';
+        if (bm.basis === 'fiscal') {
+            const cur = bmCurrentFiscalNo();
+            if (bm.periodKeyFiscal == null) bm.periodKeyFiscal = cur;
+            for (let no = cur + 1; no >= Math.max(20, cur - 6); no--) sel.add(new Option(bmFiscalLabel(no), String(no)));
+            sel.value = String(bm.periodKeyFiscal);
+            bm.periodKey = bm.periodKeyFiscal;
+            if (labelEl) labelEl.textContent = '対象期:';
+        } else {
+            const curY = new Date().getFullYear();
+            if (bm.periodKeyCalendar == null) bm.periodKeyCalendar = curY;
+            for (let y = curY + 1; y >= curY - 6; y--) sel.add(new Option(bmCalendarLabel(y), String(y)));
+            sel.value = String(bm.periodKeyCalendar);
+            bm.periodKey = bm.periodKeyCalendar;
+            if (labelEl) labelEl.textContent = '対象年度:';
+        }
+    }
+
+    window.bmOnPeriodChange = function() {
+        const sel = document.getElementById('bm-period-select');
+        const v = Number(sel.value);
+        bm.periodKey = v;
+        if (bm.basis === 'fiscal') bm.periodKeyFiscal = v; else bm.periodKeyCalendar = v;
+        window.bmRenderCurrentView();
+    }
+    window.bmOnBranchChange = function() {
+        const sel = document.getElementById('bm-branch-select');
+        bm.branch = sel.value;
+        window.bmRenderCurrentView();
+    }
+    window.bmSetView = function(view) {
+        bm.view = view;
+        bmApplyViewButtons();
+        document.getElementById('bm-overall-view').classList.toggle('hidden', view !== 'overall');
+        document.getElementById('bm-branch-view').classList.toggle('hidden', view !== 'branch');
+        document.getElementById('bm-branch-selector-area').classList.toggle('hidden', view !== 'branch');
+        const exportBranchBtn = document.getElementById('bm-export-branch-btn');
+        if (exportBranchBtn) exportBranchBtn.classList.toggle('hidden', view !== 'branch');
+        window.bmRenderCurrentView();
+    }
+    window.bmSetBasis = function(basis) {
+        bm.basis = basis;
+        bmApplyBasisButtons();
+        bmRebuildPeriodSelect();
+        window.bmRenderCurrentView();
+    }
+    window.bmSetDataBasis = function(dataBasis) {
+        if (!bm.dataByBasis) return;
+        bm.dataBasis = dataBasis;
+        bm.data = bm.dataByBasis[dataBasis];
+        bmApplyDataBasisButtons();
+        // 拠点別ビューで選択中の拠点が新しい基準に無い場合は先頭の拠点に切り替える
+        if (bm.branch && bm.data.branches.indexOf(bm.branch) === -1) {
+            bm.branch = bm.data.branches[0] || '';
+            bmRebuildBranchSelect();
+        }
+        window.bmRenderCurrentView();
+    }
+    function bmApplyDataBasisButtons() {
+        const act = 'px-3 py-1.5 bg-violet-700 text-white transition-colors whitespace-nowrap';
+        const ina = 'px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap';
+        const d = document.getElementById('bm-data-basis-detail'), c = document.getElementById('bm-data-basis-cost');
+        if (d) d.className = bm.dataBasis === 'detail' ? act : ina;
+        if (c) c.className = bm.dataBasis === 'cost' ? act : ina;
+        bmUpdateDataBasisLabel();
+        bmUpdateDataBasisDebug();
+    }
+    // 明細データ／原価集計が確実に別データとして読み込まれていることを画面上で確認できるようにする
+    function bmUpdateDataBasisDebug() {
+        const el = document.getElementById('bm-data-basis-debug');
+        if (!el || !bm.debugCounts) return;
+        const dc = bm.debugCounts;
+        el.textContent = `［確認用］明細データ:${dc.detailUsed}/${dc.detailRows}件・全期間合計${bmFmtM(dc.detailTotal)}百万円　原価集計:${dc.costUsed}/${dc.costRows}件・全期間合計${bmFmtM(dc.costTotal)}百万円`;
+    }
+    // 集計基準ラベルに、現在選択中の期・年に対応する出力期間（yyyy/mm〜yyyy/mm）を付記する
+    function bmUpdateDataBasisLabel() {
+        const label = document.getElementById('bm-data-basis-label');
+        if (!label) return;
+        const baseLabel = bm.dataBasis === 'cost' ? '原価集計（salesTotal）/ 完了日基準 / 税抜' : '明細データ（amountExc）/ 発生日基準 / 税抜';
+        // この基準（明細データ／原価集計）自体に1件もデータが無い場合は「データなし」と表示する
+        const totalRowsForBasis = bm.dataBasis === 'cost' ? (bm.debugCounts && bm.debugCounts.costUsed) : (bm.debugCounts && bm.debugCounts.detailUsed);
+        if (!totalRowsForBasis) {
+            label.textContent = `${baseLabel}（データなし）`;
+            return;
+        }
+        // 「月次推移」と同じ考え方：選択中の期間に絞らず、取り込まれている全データの実際の日付範囲を表示する
+        if (bm.data) {
+            const totalsAll = bm.data.byBranchMonth.__ALL__ || {};
+            const ymKeys = Object.keys(totalsAll).filter(ym => totalsAll[ym]).sort();
+            if (ymKeys.length) {
+                const first = ymKeys[0].replace('-', '/');
+                const last = ymKeys[ymKeys.length - 1].replace('-', '/');
+                label.textContent = `${baseLabel}（${first} 〜 ${last}）`;
+                return;
+            }
+        }
+        label.textContent = baseLabel;
+    }
+    function bmApplyViewButtons() {
+        const act = 'px-3 py-1.5 bg-violet-700 text-white transition-colors whitespace-nowrap';
+        const ina = 'px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap';
+        const o = document.getElementById('bm-view-overall'), b = document.getElementById('bm-view-branch');
+        if (o) o.className = bm.view === 'overall' ? act : ina;
+        if (b) b.className = bm.view === 'branch' ? act : ina;
+    }
+    function bmApplyBasisButtons() {
+        const act = 'px-3 py-1.5 bg-slate-700 text-white transition-colors whitespace-nowrap';
+        const ina = 'px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap';
+        const f = document.getElementById('bm-basis-fiscal'), c = document.getElementById('bm-basis-calendar');
+        if (f) f.className = bm.basis === 'fiscal' ? act : ina;
+        if (c) c.className = bm.basis === 'calendar' ? act : ina;
+    }
+    window.bmRenderCurrentView = function() {
+        if (!bm.data) return;
+        bmUpdateDataBasisLabel();
+        if (bm.view === 'overall') bmRenderOverall(); else bmRenderBranch();
+    }
+
+    // ── 工事全体ビュー ──
+    function bmRenderOverall() {
+        const basis = bm.basis, key = bm.periodKey;
+        let keys = [key - 2, key - 1, key]; // 古い→新しい
+
+        // 43期のような「端数期（7ヶ月）」が比較対象の最古キーに来る場合、
+        // 端数期だけでは1年分（4〜3月）をカバーできないため、その直前の期も追加して
+        // 1ヶ月ごとに必ず「3年分」の比較ができるようにする（例：42,43,44,45の4系列）
+        if (basis === 'fiscal') {
+            const oldestDef = bmFiscalDef(keys[0]);
+            if (oldestDef.stub) keys = [keys[0] - 1, ...keys];
+        }
+
+        const monthsArr = keys.map(k => bmPeriodMonths(basis, k));
+        const primaryMonths = monthsArr[monthsArr.length - 1]; // 常に最新キー
+        const maxLen = Math.max(...monthsArr.map(m => m.length));
+
+        // x軸のラベルは「実際の月」で生成する（期間の長さが違っても月がズレないようにする）
+        const startMonthNum = primaryMonths.length ? Number(primaryMonths[0].split('-')[1]) : 1;
+        const labelMonthNums = Array.from({ length: maxLen }, (_, i) => ((startMonthNum - 1 + i) % 12) + 1);
+        const xLabels = labelMonthNums.map(mn => `${mn}月`);
+
+        const labelsForKeys = keys.map(k => bmPeriodLabel(basis, k));
+        const colorPalette = ['#94a3b8', '#cbd5e1', '#93c5fd', '#3b82f6'];
+        const colors = colorPalette.slice(colorPalette.length - keys.length);
+        const addedExtraOldest = keys.length === 4;
+        const stubMonthNums = addedExtraOldest ? new Set(monthsArr[1].map(ym => Number(ym.split('-')[1]))) : null;
+        // 各期間のデータは「月（1〜12）」を基準にx軸へ割り当てる（期の開始月が異なる端数期があっても月がズレない）
+        const seriesByKey = keys.map((k, idx) => {
+            const months = monthsArr[idx];
+            const vals = bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
+            const valByMonthNum = {};
+            months.forEach((ym, j) => { valByMonthNum[Number(ym.split('-')[1])] = vals[j]; });
+            // 追加した「端数期の直前の期」は、端数期がカバーする月と重複しないよう、その月分を除外する
+            if (addedExtraOldest && idx === 0) {
+                stubMonthNums.forEach(mn => { delete valByMonthNum[mn]; });
+            }
+            return labelMonthNums.map(mn => (valByMonthNum[mn] !== undefined ? valByMonthNum[mn] : null));
+        });
+
+        const budgetAll = bmGetBudgetEntry(basis, key, 'ALL');
+        const budgetLine = primaryMonths.map(ym => budgetAll.monthly[ym] || null);
+        while (budgetLine.length < maxLen) budgetLine.push(null);
+
+        // 当期（最新キー）の累計実績ライン：実績が記録されている最終月までのみ表示する
+        const curRawVals = seriesByKey[seriesByKey.length - 1];
+        let lastActualIdx = -1;
+        curRawVals.forEach((v, i) => { if (v) lastActualIdx = i; });
+        const cumLineAll = bmCumulative(curRawVals).map((v, i) => (i <= lastActualIdx ? v : null));
+        while (cumLineAll.length < maxLen) cumLineAll.push(null);
+
+        try {
+            bm.chartOverall = window.destroyChart(bm.chartOverall);
+            const ctx = document.getElementById('chart-bm-overall');
+            if (ctx) {
+                bm.chartOverall = new Chart(ctx, {
+                    data: {
+                        labels: xLabels,
+                        datasets: [
+                            ...seriesByKey.map((vals, i) => ({ type: 'bar', label: labelsForKeys[i], data: vals, backgroundColor: colors[i], yAxisID: 'y', order: 2 })),
+                            { type: 'line', label: '予算', data: budgetLine, borderColor: '#dc2626', backgroundColor: '#dc2626', borderDash: [6, 3], pointRadius: 3, fill: false, tension: 0, yAxisID: 'y', order: 1 },
+                            { type: 'line', label: '累計実績', data: cumLineAll, borderColor: '#10b981', backgroundColor: '#10b981', pointRadius: 2, borderWidth: 2.5, fill: false, tension: 0, spanGaps: false, yAxisID: 'y1', order: 0 }
+                        ]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        scales: {
+                            y: { position: 'left', ticks: { callback: (v) => (v / 1e6).toLocaleString() + '百万' } },
+                            y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: (v) => (v / 1e6).toLocaleString() + '百万' } }
+                        }
+                    }
+                });
+            }
+
+            const periodLabelEl = document.getElementById('bm-overall-period-label');
+            if (periodLabelEl) periodLabelEl.textContent = labelsForKeys.join(' / ');
+        } catch (eChart) {
+            console.error('[支店長会議資料] グラフ描画エラー:', eChart);
+        }
+
+        // 表の更新はグラフ描画でエラーが起きても必ず実行する（片方の失敗で他方が更新されなくなることを防ぐ）
+        try { bmRenderOverallTable(basis, key, primaryMonths, xLabels); } catch (e1) { console.error('[支店長会議資料] 拠点別一覧テーブル描画エラー:', e1); }
+        try { bmRenderOverallYoY(basis, key); } catch (e2) { console.error('[支店長会議資料] 前期比較描画エラー:', e2); }
+        try { bmRenderOverallPriorYearTable(basis, key); } catch (e3) { console.error('[支店長会議資料] 前年度実績描画エラー:', e3); }
+    }
+
+    function bmRenderOverallTable(basis, key, months, xLabels) {
+        const branches = bm.data.branches;
+        const thead = document.getElementById('bm-overall-table-head');
+        const tbody = document.getElementById('bm-overall-table-body');
+        const tfoot = document.getElementById('bm-overall-table-foot');
+        if (!thead || !tbody || !tfoot) return;
+
+        const periodLabelEl2 = document.getElementById('bm-overall-table-period-label');
+        if (periodLabelEl2) periodLabelEl2.textContent = `（${bmPeriodLabel(basis, key)}）`;
+
+        thead.innerHTML = `<tr>
+            <th class="px-3 py-2 border border-slate-200 sticky left-0 bg-slate-100">拠点</th>
+            ${xLabels.map(l => `<th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap">${l}</th>`).join('')}
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-violet-100">累計実績</th>
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-violet-100">累計目標</th>
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-violet-100">差額</th>
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-violet-100">進捗率</th>
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-indigo-100">年間目標</th>
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-indigo-100">年間進捗率</th>
+        </tr>
+        <tr><th colspan="${xLabels.length + 7}" class="px-3 py-1 text-right text-[10px] text-slate-400 font-normal bg-slate-50 border border-slate-200">（単位：百万円）</th></tr>`;
+
+        // 実績が記録されている月（＝経過月）までを「累計目標」の対象とする
+        const totalsAll = bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
+        let lastIdxAll = -1;
+        totalsAll.forEach((v, i) => { if (v) lastIdxAll = i; });
+        const elapsedMonths = months.slice(0, lastIdxAll + 1);
+
+        let rowsHtml = '';
+        const totalMonthly = new Array(months.length).fill(0);
+        let totalTarget = 0, totalCum = 0, totalAnnual = 0;
+
+        branches.forEach(branch => {
+            const vals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+            const cum = vals.reduce((a, v) => a + v, 0);
+            const entry = bmGetBudgetEntry(basis, key, branch);
+            const monthlySumElapsed = elapsedMonths.reduce((s, ym) => s + (entry.monthly[ym] || 0), 0);
+            const hasMonthlyBudget = elapsedMonths.some(ym => entry.monthly[ym]);
+            // 月別予算が入力されていればその累計、なければ年間目標を経過月数で按分
+            const target = hasMonthlyBudget
+                ? monthlySumElapsed
+                : (entry.annualTarget && months.length ? Math.round(entry.annualTarget * elapsedMonths.length / months.length) : 0);
+            const annualTarget = entry.annualTarget || 0;
+            const diff = cum - target;
+            const rate = target ? (cum / target * 100) : null;
+            const annualRate = annualTarget ? (cum / annualTarget * 100) : null;
+            vals.forEach((v, i) => totalMonthly[i] += v);
+            totalCum += cum; totalTarget += target; totalAnnual += annualTarget;
+            rowsHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">${branch}</td>
+                ${vals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${v ? bmFmtM(v) : '-'}</td>`).join('')}
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${bmFmtM(cum)}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono">${target ? bmFmtM(target) : '-'}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono ${diff < 0 ? 'text-blue-600' : 'text-red-600'}">${target ? (diff > 0 ? '▲ ' : '') + bmFmtM(Math.abs(diff)) : '-'}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-bold ${rate !== null && rate < 100 ? 'text-amber-600' : 'text-emerald-600'}">${rate !== null ? rate.toFixed(1) + '%' : '-'}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono text-indigo-700">${annualTarget ? bmFmtM(annualTarget) : '-'}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right text-indigo-700">${annualRate !== null ? annualRate.toFixed(1) + '%' : '-'}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = rowsHtml || `<tr><td colspan="${months.length + 7}" class="px-3 py-4 text-center text-slate-400">データがありません</td></tr>`;
+
+        const totDiff = totalCum - totalTarget;
+        const totRate = totalTarget ? (totalCum / totalTarget * 100) : null;
+        const totAnnualRate = totalAnnual ? (totalCum / totalAnnual * 100) : null;
+        tfoot.innerHTML = `<tr>
+            <td class="px-3 py-2 border border-slate-200 sticky left-0 bg-violet-50">総計</td>
+            ${totalMonthly.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(v)}</td>`).join('')}
+            <td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(totalCum)}</td>
+            <td class="px-3 py-2 border border-slate-200 text-right font-mono">${totalTarget ? bmFmtM(totalTarget) : '-'}</td>
+            <td class="px-3 py-2 border border-slate-200 text-right font-mono ${totDiff < 0 ? 'text-blue-700' : 'text-red-700'}">${totalTarget ? (totDiff > 0 ? '▲ ' : '') + bmFmtM(Math.abs(totDiff)) : '-'}</td>
+            <td class="px-3 py-2 border border-slate-200 text-right">${totRate !== null ? totRate.toFixed(1) + '%' : '-'}</td>
+            <td class="px-3 py-2 border border-slate-200 text-right font-mono text-indigo-800">${totalAnnual ? bmFmtM(totalAnnual) : '-'}</td>
+            <td class="px-3 py-2 border border-slate-200 text-right text-indigo-800">${totAnnualRate !== null ? totAnnualRate.toFixed(1) + '%' : '-'}</td>
+        </tr>`;
+    }
+
+    // ── 前年度実績テーブル（拠点別・工事全体ビュー） ──
+    function bmRenderOverallPriorYearTable(basis, key) {
+        const wrap = document.getElementById('bm-overall-prioryear-wrap');
+        const thead = document.getElementById('bm-overall-prioryear-head');
+        const tbody = document.getElementById('bm-overall-prioryear-body');
+        const tfoot = document.getElementById('bm-overall-prioryear-foot');
+        if (!wrap || !thead || !tbody || !tfoot) return;
+
+        const priorKey = key - 1;
+        const priorMonths = bmPeriodMonths(basis, priorKey);
+        const curMonths = bmPeriodMonths(basis, key);
+
+        const priorLabelEl = document.getElementById('bm-overall-prioryear-period-label');
+        if (priorLabelEl) priorLabelEl.textContent = `（${bmPeriodLabel(basis, priorKey)}）`;
+
+        // 全社合計（前年度・月別）
+        const priorVals = bmSumMonths(bm.data.byBranchMonth, '__ALL__', priorMonths);
+        const priorCumTotal = priorVals.reduce((a, v) => a + v, 0);
+        const noData = priorCumTotal === 0;
+
+        // 今年度（同月）の全社合計：未到来月は null として扱う
+        const curValsRaw = bmSumMonths(bm.data.byBranchMonth, '__ALL__', curMonths);
+        let lastActualIdx = -1;
+        curValsRaw.forEach((v, i) => { if (v) lastActualIdx = i; });
+
+        // 累計実績列：前年度は経過月（今年度実績がある月数）までの累計
+        const elapsedCount = lastActualIdx + 1;
+        const priorCumElapsed = priorVals.slice(0, elapsedCount).reduce((a, v) => a + v, 0);
+        const priorFullYearTotal = priorVals.reduce((a, v) => a + v, 0);
+
+        thead.innerHTML = `<tr>
+            <th class="px-3 py-2 border border-slate-200 sticky left-0 bg-slate-100">　</th>
+            ${priorMonths.map(ym => `<th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap">${Number(ym.split('-')[1])}月</th>`).join('')}
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-slate-200">累計実績<br>(経過${elapsedCount}ヶ月)</th>
+            <th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap bg-slate-200">年間実績</th>
+        </tr>
+        <tr><th colspan="${priorMonths.length + 3}" class="px-3 py-1 text-right text-[10px] text-slate-400 font-normal bg-slate-50 border border-slate-200">${bmPeriodLabel(basis, priorKey)}　（単位：百万円）</th></tr>`;
+
+        const diffVals = priorMonths.map((ym, i) => (i <= lastActualIdx ? (curValsRaw[i] || 0) - (priorVals[i] || 0) : null));
+        const diffCum = diffVals.slice(0, elapsedCount).some(v => v === null) ? null : diffVals.slice(0, elapsedCount).reduce((a, v) => a + (v || 0), 0);
+
+        tbody.innerHTML = `
+            <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">②全社合計</td>
+                ${priorVals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${v ? bmFmtM(v) : '-'}</td>`).join('')}
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${bmFmtM(priorCumElapsed)}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${bmFmtM(priorFullYearTotal)}</td>
+            </tr>
+            <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">①-② 対前年増減額</td>
+                ${diffVals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono ${v !== null && v < 0 ? 'text-blue-600' : 'text-red-600'}">${v === null ? '' : (v >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(v))}</td>`).join('')}
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold ${diffCum !== null && diffCum < 0 ? 'text-blue-700' : 'text-red-700'}">${diffCum === null ? '-' : (diffCum >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(diffCum))}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right">　</td>
+            </tr>`;
+        tfoot.innerHTML = '';
+        wrap.classList.toggle('hidden', noData);
+    }
+
+    function bmRenderOverallYoY(basis, key) {
+        const el = document.getElementById('bm-overall-yoy-row');
+        if (!el) return;
+        const curMonths = bmPeriodMonths(basis, key);
+        const curTotal = bmSumMonths(bm.data.byBranchMonth, '__ALL__', curMonths).reduce((a, v) => a + v, 0);
+
+        const priorKey = key - 1;
+        const priorMonths = bmPeriodMonths(basis, priorKey);
+        let priorTotal = bmSumMonths(bm.data.byBranchMonth, '__ALL__', priorMonths).reduce((a, v) => a + v, 0);
+        let priorSource = '実績データ';
+        if (!priorTotal) {
+            const manual = bmGetBudgetEntry(basis, priorKey, 'ALL').prevActual;
+            if (manual) { priorTotal = manual; priorSource = '予算設定の入力値'; }
+        }
+        const diff = curTotal - priorTotal;
+        const pct = priorTotal ? (diff / priorTotal * 100) : null;
+
+        el.innerHTML = `
+            <div class="flex items-center gap-2 text-xs text-amber-700 font-bold"><i class="fa-solid fa-scale-balanced"></i>前期比較（全社合計・単位：百万円）</div>
+            <div class="text-sm"><span class="text-slate-500">${bmPeriodLabel(basis, key)} 実績：</span><span class="font-black text-slate-800">${bmFmtM(curTotal)}</span></div>
+            <div class="text-sm"><span class="text-slate-500">${bmPeriodLabel(basis, priorKey)} 実績（${priorSource}）：</span><span class="font-black text-slate-600">${bmFmtM(priorTotal)}</span></div>
+            <div class="text-sm"><span class="text-slate-500">対前期増減：</span><span class="font-black ${diff < 0 ? 'text-red-600' : 'text-blue-600'}">${diff >= 0 ? '+' : ''}${bmFmtM(diff)}${pct !== null ? `（${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%）` : ''}</span></div>
+        `;
+    }
+
+    // ── 拠点別ビュー ──
+    function bmRenderBranch() {
+        const basis = bm.basis, key = bm.periodKey;
+        const branch = bm.branch || (bm.data.branches[0] || '');
+        if (!branch) return;
+        const titleEl = document.getElementById('bm-branch-title');
+        if (titleEl) titleEl.textContent = `${branch}　月別売上推移`;
+
+        const curMonths = bmPeriodMonths(basis, key);
+        const priorMonths = bmPeriodMonths(basis, key - 1);
+
+        const curValsRaw = bmSumMonths(bm.data.byBranchMonth, branch, curMonths);
+        const priorValsRaw = bmSumMonths(bm.data.byBranchMonth, branch, priorMonths);
+        const maxLen = Math.max(curValsRaw.length, priorValsRaw.length);
+        const pad = (arr) => { const a = arr.slice(0, maxLen); while (a.length < maxLen) a.push(null); return a; };
+        const curVals = pad(curValsRaw);
+        const priorVals = pad(priorValsRaw);
+
+        const budgetEntry = bmGetBudgetEntry(basis, key, branch);
+        const budgetLine = pad(curMonths.map(ym => budgetEntry.monthly[ym] || null));
+        let lastActualIdxB = -1;
+        curValsRaw.forEach((v, i) => { if (v) lastActualIdxB = i; });
+        const cumLine = pad(bmCumulative(curValsRaw).map((v, i) => (i <= lastActualIdxB ? v : null)));
+
+        let xLabels = (curMonths.length ? curMonths : priorMonths).map(ym => `${Number(ym.split('-')[1])}月`);
+        while (xLabels.length < maxLen) xLabels.push(`${xLabels.length + 1}ヶ月目`);
+
+        try {
+            bm.chartBranch = window.destroyChart(bm.chartBranch);
+            const ctx = document.getElementById('chart-bm-branch');
+            if (ctx) {
+                bm.chartBranch = new Chart(ctx, {
+                    data: {
+                        labels: xLabels,
+                        datasets: [
+                            { type: 'bar', label: `前年度実績（${bmPeriodLabel(basis, key - 1)}）`, data: priorVals, backgroundColor: '#cbd5e1', yAxisID: 'y', order: 2 },
+                            { type: 'bar', label: `今年度実績（${bmPeriodLabel(basis, key)}）`, data: curVals, backgroundColor: '#3b82f6', yAxisID: 'y', order: 2 },
+                            { type: 'line', label: '予算', data: budgetLine, borderColor: '#dc2626', backgroundColor: '#dc2626', borderDash: [6, 3], pointRadius: 3, fill: false, yAxisID: 'y', order: 1 },
+                            { type: 'line', label: '累計実績', data: cumLine, borderColor: '#10b981', backgroundColor: '#10b981', pointRadius: 2, fill: false, spanGaps: false, yAxisID: 'y1', order: 0 },
+                        ]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom' } },
+                        scales: {
+                            y: { position: 'left', ticks: { callback: (v) => (v / 1e6).toLocaleString() + '百万' } },
+                            y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: (v) => (v / 1e6).toLocaleString() + '百万' } }
+                        }
+                    }
+                });
+            }
+
+            const bubbleTarget = document.getElementById('bm-bubble-target');
+            if (bubbleTarget) bubbleTarget.textContent = budgetEntry.annualTarget ? (budgetEntry.annualTarget / 1e8).toFixed(2) + '億円' : '-';
+            const priorTotalActual = priorValsRaw.reduce((a, v) => a + v, 0);
+            const priorManual = bmGetBudgetEntry(basis, key - 1, branch).prevActual;
+            const priorDisplay = priorTotalActual || priorManual || 0;
+            const bubblePrev = document.getElementById('bm-bubble-prev');
+            if (bubblePrev) bubblePrev.textContent = priorDisplay ? (priorDisplay / 1e8).toFixed(2) + '億円' : '-';
+        } catch (eChart) {
+            console.error('[支店長会議資料] 拠点別グラフ描画エラー:', eChart);
+        }
+
+        // 表の更新はグラフ描画でエラーが起きても必ず実行する
+        try { bmRenderBranchSummaryTable(xLabels, priorVals, curVals, budgetLine, cumLine, lastActualIdxB); } catch (e1) { console.error('[支店長会議資料] 区分別テーブル描画エラー:', e1); }
+        try { bmRenderOwnerTable(branch, curMonths, priorMonths, xLabels, lastActualIdxB); } catch (e2) { console.error('[支店長会議資料] 元請先別テーブル描画エラー:', e2); }
+        try { bmRenderBudgetPanel(); } catch (e3) { console.error('[支店長会議資料] 予算パネル描画エラー:', e3); }
+    }
+
+    function bmRenderBranchSummaryTable(xLabels, priorVals, curVals, budgetLine, cumLine, lastActualIdx) {
+        const thead = document.getElementById('bm-branch-summary-head');
+        const tbody = document.getElementById('bm-branch-summary-body');
+        if (!thead || !tbody) return;
+        thead.innerHTML = `<tr><th class="px-3 py-2 border border-slate-200 sticky left-0 bg-slate-100">区分（単位：百万円）</th>${xLabels.map(l => `<th class="px-3 py-2 border border-slate-200 text-right">${l}</th>`).join('')}</tr>`;
+        const diffVals = curVals.map((v, i) => (i <= lastActualIdx ? (v || 0) - (priorVals[i] || 0) : null));
+        const rows = [
+            { label: '今年度実績', vals: curVals, cls: 'text-blue-700 font-bold' },
+            { label: '予算', vals: budgetLine, cls: 'text-red-600' },
+            { label: '累計実績', vals: cumLine, cls: 'text-emerald-700 font-bold' },
+            { label: '前年度実績', vals: priorVals, cls: 'text-slate-500' },
+        ];
+        let rowsHtml = rows.map(r => `<tr class="border-b border-slate-100">
+            <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">${r.label}</td>
+            ${r.vals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono ${r.cls}">${(v !== null && v !== undefined) ? bmFmtM(v) : '-'}</td>`).join('')}
+        </tr>`).join('');
+        rowsHtml += `<tr class="border-b border-slate-100 bg-amber-50">
+            <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-amber-50">対前年増減額</td>
+            ${diffVals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono ${v !== null && v < 0 ? 'text-blue-600' : 'text-red-600'}">${v === null ? '' : (v >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(v))}</td>`).join('')}
+        </tr>`;
+        tbody.innerHTML = rowsHtml;
+    }
+
+    function bmRenderOwnerTable(branch, months, priorMonths, xLabels, lastActualIdx) {
+        const thead = document.getElementById('bm-owner-table-head');
+        const tbody = document.getElementById('bm-owner-table-body');
+        const tfoot = document.getElementById('bm-owner-table-foot');
+        if (!thead || !tbody || !tfoot) return;
+        const ownerMap = (bm.data.byOwnerMonth[branch]) || {};
+        const elapsedCount = (lastActualIdx != null ? lastActualIdx : months.length - 1) + 1;
+        const owners = Object.keys(ownerMap).sort((a, b) => {
+            const sa = months.reduce((s, ym) => s + (ownerMap[a][ym] || 0), 0);
+            const sb = months.reduce((s, ym) => s + (ownerMap[b][ym] || 0), 0);
+            return sb - sa;
+        });
+        thead.innerHTML = `<tr>
+            <th class="px-3 py-2 border border-slate-200 sticky left-0 bg-slate-100">元請先（施工主）（単位：百万円）</th>
+            ${xLabels.map(l => `<th class="px-3 py-2 border border-slate-200 text-right">${l}</th>`).join('')}
+            <th class="px-3 py-2 border border-slate-200 text-right bg-violet-100">合計</th>
+            <th class="px-3 py-2 border border-slate-200 text-right bg-slate-200 whitespace-nowrap">前年同期実績<br>(経過${elapsedCount}ヶ月)</th>
+            <th class="px-3 py-2 border border-slate-200 text-right bg-amber-100">前年比</th>
+        </tr>`;
+        const totalsByMonth = new Array(months.length).fill(0);
+        let grandTotal = 0, grandPriorTotal = 0;
+        tbody.innerHTML = owners.map(owner => {
+            const vals = months.map(ym => ownerMap[owner][ym] || 0);
+            vals.forEach((v, i) => totalsByMonth[i] += v);
+            const rowTotal = vals.reduce((a, v) => a + v, 0);
+            const priorElapsedTotal = priorMonths.slice(0, elapsedCount).reduce((s, ym) => s + (ownerMap[owner][ym] || 0), 0);
+            const diff = rowTotal - priorElapsedTotal;
+            grandTotal += rowTotal; grandPriorTotal += priorElapsedTotal;
+            return `<tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="px-3 py-2 border border-slate-200 sticky left-0 bg-white">${owner}</td>
+                ${vals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${v ? bmFmtM(v) : '-'}</td>`).join('')}
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${bmFmtM(rowTotal)}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono text-slate-500">${priorElapsedTotal ? bmFmtM(priorElapsedTotal) : '-'}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono ${diff < 0 ? 'text-blue-600' : 'text-red-600'}">${(priorElapsedTotal || rowTotal) ? (diff >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(diff)) : '-'}</td>
+            </tr>`;
+        }).join('') || `<tr><td class="px-3 py-2 border border-slate-200 text-slate-400" colspan="${months.length + 4}">データがありません</td></tr>`;
+        const grandDiff = grandTotal - grandPriorTotal;
+        tfoot.innerHTML = `<tr>
+            <td class="px-3 py-2 border border-slate-200">合計</td>
+            ${totalsByMonth.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(v)}</td>`).join('')}
+            <td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(grandTotal)}</td>
+            <td class="px-3 py-2 border border-slate-200 text-right font-mono">${grandPriorTotal ? bmFmtM(grandPriorTotal) : '-'}</td>
+            <td class="px-3 py-2 border border-slate-200 text-right font-mono ${grandDiff < 0 ? 'text-blue-700' : 'text-red-700'}">${(grandPriorTotal || grandTotal) ? (grandDiff >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(grandDiff)) : '-'}</td>
+        </tr>`;
+    }
+
+    // ── 予算設定パネル ──
+    function bmRenderBudgetPanel() {
+        const basis = bm.basis, key = bm.periodKey;
+        const label = document.getElementById('bm-budget-target-label');
+        if (label) label.textContent = bmPeriodLabel(basis, key);
+
+        const months = bmPeriodMonths(basis, key);
+        const branchRows = ['ALL', ...bm.data.branches];
+        const branchRowLabel = (b) => b === 'ALL' ? '全社合計' : b;
+
+        const annualTbl = document.getElementById('bm-budget-annual-table');
+        if (annualTbl) {
+            annualTbl.innerHTML = `
+                <thead><tr class="bg-slate-100">
+                    <th class="px-3 py-2 border border-slate-200">拠点</th>
+                    <th class="px-3 py-2 border border-slate-200">年間目標（億円）</th>
+                    <th class="px-3 py-2 border border-slate-200">前期実績（億円）</th>
+                </tr></thead>
+                <tbody>
+                ${branchRows.map(b => {
+                    const e = bmGetBudgetEntry(basis, key, b);
+                    return `<tr>
+                        <td class="px-3 py-2 border border-slate-200 font-bold ${b === 'ALL' ? 'bg-violet-50' : ''}">${branchRowLabel(b)}</td>
+                        <td class="px-1 py-1 border border-slate-200"><input type="number" step="0.01" class="bm-input-target w-28 text-right border border-slate-300 rounded px-2 py-1" data-branch="${b}" value="${e.annualTarget ? (e.annualTarget / 1e8) : ''}"></td>
+                        <td class="px-1 py-1 border border-slate-200"><input type="number" step="0.01" class="bm-input-prev w-28 text-right border border-slate-300 rounded px-2 py-1" data-branch="${b}" value="${e.prevActual ? (e.prevActual / 1e8) : ''}"></td>
+                    </tr>`;
+                }).join('')}
+                </tbody>
+            `;
+        }
+
+        const monthlyTbl = document.getElementById('bm-budget-monthly-table');
+        if (monthlyTbl) {
+            monthlyTbl.innerHTML = `
+                <thead><tr class="bg-slate-100">
+                    <th class="px-3 py-2 border border-slate-200 sticky left-0 bg-slate-100">拠点</th>
+                    ${months.map(ym => `<th class="px-2 py-2 border border-slate-200 whitespace-nowrap">${Number(ym.split('-')[1])}月</th>`).join('')}
+                </tr></thead>
+                <tbody>
+                ${branchRows.map(b => {
+                    const e = bmGetBudgetEntry(basis, key, b);
+                    return `<tr>
+                        <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white ${b === 'ALL' ? 'bg-violet-50' : ''}">${branchRowLabel(b)}</td>
+                        ${months.map(ym => `<td class="px-1 py-1 border border-slate-200"><input type="number" step="0.1" class="bm-input-monthly w-20 text-right border border-slate-300 rounded px-1 py-1" data-branch="${b}" data-ym="${ym}" value="${e.monthly[ym] ? (e.monthly[ym] / 1e6) : ''}"></td>`).join('')}
+                    </tr>`;
+                }).join('')}
+                </tbody>
+            `;
+        }
+    }
+
+    window.bmSaveBudget = async function() {
+        try {
+            const basis = bm.basis, key = bm.periodKey;
+            const dataByBranch = {};
+            const ensure = (b) => { if (!dataByBranch[b]) dataByBranch[b] = { annualTarget: 0, prevActual: 0, monthly: {} }; return dataByBranch[b]; };
+            document.querySelectorAll('.bm-input-target').forEach(inp => { ensure(inp.dataset.branch).annualTarget = inp.value !== '' ? Math.round(parseFloat(inp.value) * 1e8) : 0; });
+            document.querySelectorAll('.bm-input-prev').forEach(inp => { ensure(inp.dataset.branch).prevActual = inp.value !== '' ? Math.round(parseFloat(inp.value) * 1e8) : 0; });
+            document.querySelectorAll('.bm-input-monthly').forEach(inp => {
+                const entry = ensure(inp.dataset.branch);
+                const v = inp.value !== '' ? Math.round(parseFloat(inp.value) * 1e6) : 0;
+                if (v) entry.monthly[inp.dataset.ym] = v;
+            });
+            Object.keys(dataByBranch).forEach(b => bmSetBudgetEntry(basis, key, b, dataByBranch[b]));
+            await bmSaveBudgetToDB();
+            const status = document.getElementById('bm-budget-save-status');
+            if (status) { status.textContent = '保存しました ✓'; setTimeout(() => { status.textContent = ''; }, 3000); }
+            window.bmRenderCurrentView();
+        } catch (e) { console.error('予算保存エラー:', e); alert('予算の保存に失敗しました: ' + e.message); }
+    }
+
+    // ── 予算雛形ダウンロード ──
+    window.bmDownloadBudgetTemplate = async function() {
+        try {
+            const basis = bm.basis, key = bm.periodKey;
+            const months = bmPeriodMonths(basis, key);
+            const branchRows = ['ALL', ...bm.data.branches];
+            const wb2 = new ExcelJS.Workbook();
+            const ws = wb2.addWorksheet('予算入力');
+            const monthHeaders = months.map(ym => `${Number(ym.split('-')[1])}月`);
+            const header = ['拠点', '年間目標(億円)', '前期実績(億円)', ...monthHeaders.map(h => h + '(百万円)')];
+            const hdrRow = ws.addRow(header);
+            hdrRow.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6D28D9' } }; c.alignment = { horizontal: 'center' }; });
+            ws.getColumn(1).width = 18;
+            for (let i = 2; i <= header.length; i++) ws.getColumn(i).width = 14;
+            branchRows.forEach(b => {
+                const e = bmGetBudgetEntry(basis, key, b);
+                ws.addRow([
+                    b === 'ALL' ? '全社合計' : b,
+                    e.annualTarget ? e.annualTarget / 1e8 : '',
+                    e.prevActual ? e.prevActual / 1e8 : '',
+                    ...months.map(ym => e.monthly[ym] ? e.monthly[ym] / 1e6 : '')
+                ]);
+            });
+            const metaWs = wb2.addWorksheet('_meta');
+            metaWs.state = 'hidden';
+            metaWs.addRow(['basis', basis]); metaWs.addRow(['key', key]); metaWs.addRow(['months', months.join(',')]);
+
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const buf = await wb2.xlsx.writeBuffer();
+            saveAs(new Blob([buf]), `予算雛形_${bmPeriodLabel(basis, key).replace(/[／/\\]/g, '-')}_${dateStr}.xlsx`);
+        } catch (e) { console.error('予算雛形出力エラー:', e); alert('雛形の出力に失敗しました: ' + e.message); }
+    }
+
+    // ── 予算取込（Excelアップロード） ──
+    window.bmImportBudgetFile = async function(ev) {
+        const file = ev.target.files[0];
+        if (!file) return;
+        try {
+            const buf = await file.arrayBuffer();
+            const wbIn = XLSX.read(buf, { type: 'array' });
+            const wsName = wbIn.SheetNames.includes('予算入力') ? '予算入力' : wbIn.SheetNames[0];
+            const ws = wbIn.Sheets[wsName];
+            const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            if (!rows.length) { alert('データが見つかりません'); return; }
+            const header = rows[0];
+            const monthCols = [];
+            header.forEach((h, idx) => {
+                const m = String(h).match(/^(\d{1,2})月/);
+                if (m) monthCols.push({ idx, month: parseInt(m[1]) });
+            });
+            const basis = bm.basis, key = bm.periodKey;
+            const months = bmPeriodMonths(basis, key);
+            const monthNoToYm = {};
+            months.forEach(ym => { monthNoToYm[Number(ym.split('-')[1])] = ym; });
+
+            let imported = 0;
+            for (let r = 1; r < rows.length; r++) {
+                const row = rows[r];
+                if (!row[0]) continue;
+                let branchName = String(row[0]).trim();
+                if (branchName === '全社合計') branchName = 'ALL';
+                const annualTarget = parseFloat(row[1]) ? Math.round(parseFloat(row[1]) * 1e8) : 0;
+                const prevActual = parseFloat(row[2]) ? Math.round(parseFloat(row[2]) * 1e8) : 0;
+                const monthly = {};
+                monthCols.forEach(mc => {
+                    const ym = monthNoToYm[mc.month];
+                    if (!ym) return;
+                    const v = parseFloat(row[mc.idx]);
+                    if (v) monthly[ym] = Math.round(v * 1e6);
+                });
+                bmSetBudgetEntry(basis, key, branchName, { annualTarget, prevActual, monthly });
+                imported++;
+            }
+            await bmSaveBudgetToDB();
+            alert(`予算データを取り込みました（${imported}行）`);
+            window.bmRenderCurrentView();
+        } catch (e) {
+            console.error('予算取込エラー:', e);
+            alert('取込中にエラーが発生しました：' + e.message);
+        } finally {
+            ev.target.value = '';
+        }
+    }
+
+    // ── Excel出力（Sheet1: 工事全体 / Sheet2〜: 拠点別） ──
+    function bmColLetter(n) {
+        let s = '';
+        while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+        return s;
+    }
+
+    window.exportBoardMeetingExcel = async function() {
+        if (!bm.data) { alert('データを読み込み中です。少し待ってから再実行してください。'); return; }
+        try {
+            const basis = bm.basis, key = bm.periodKey;
+            const months = bmPeriodMonths(basis, key);
+            const monthHeaders = months.map(ym => `${Number(ym.split('-')[1])}月`);
+            const branches = bm.data.branches;
+            const wb2 = new ExcelJS.Workbook();
+            wb2.creator = 'G-Ledger';
+            const numFmt = '#,##0';
+            // 差額・増減額セル用：プラスは赤字「+◯」、マイナスは青字「▲ ◯」で色分け表示する
+            const diffNumFmt = '[Red]+#,##0;[Blue]▲ #,##0;0';
+            const hdrFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+            const hdrStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: hdrFill('FF6D28D9'), alignment: { horizontal: 'center' } };
+            const nMonths = months.length;
+
+            // 拠点別ビューを見ている状態でも工事全体グラフを画像として取得できるよう、
+            // 必要であれば一時的に工事全体ビューを表示してグラフを描画し直す
+            const overallViewEl = document.getElementById('bm-overall-view');
+            const branchViewEl = document.getElementById('bm-branch-view');
+            const wasOverallHidden = overallViewEl && overallViewEl.classList.contains('hidden');
+            if (wasOverallHidden) {
+                overallViewEl.classList.remove('hidden');
+                if (branchViewEl) branchViewEl.classList.add('hidden');
+                bmRenderOverall(basis, key);
+                await new Promise(res => setTimeout(res, 120)); // チャート描画待ち
+            }
+
+            // ── Sheet1: 工事全体 ──
+            const ws1 = wb2.addWorksheet('工事全体');
+            ws1.getColumn(1).width = 16;
+            const basisLabelForExcel = bm.dataBasis === 'cost' ? '原価集計（salesTotal）/ 完了日基準 / 税抜' : '明細データ（amountExc）/ 発生日基準 / 税抜';
+            ws1.addRow([`工事全体　月別売上推移（直近3年比較）　／　拠点別 実績・目標一覧（単位：百万円）　［${basisLabelForExcel}］`]).getCell(1).font = { bold: true, size: 12 };
+
+            // グラフ画像を埋め込み（表の上に確保した空行の上へ配置）
+            const chartImgRowStart = ws1.rowCount; // 0-indexed row to place image (直下)
+            const chartCanvas = document.getElementById('chart-bm-overall');
+            let reserveRows = 0;
+            if (chartCanvas && bm.chartOverall && chartCanvas.width > 0 && chartCanvas.height > 0) {
+                try {
+                    const imgData = chartCanvas.toDataURL('image/png');
+                    const imageId = wb2.addImage({ base64: imgData, extension: 'png' });
+                    ws1.addImage(imageId, { tl: { col: 0, row: chartImgRowStart }, ext: { width: 920, height: 320 } });
+                    reserveRows = 17; // 320px ÷ 約19px/行
+                } catch (imgErr) {
+                    console.warn('グラフ画像の埋め込みに失敗しました:', imgErr);
+                }
+            } else {
+                console.warn('グラフキャンバスが描画されていないため、画像を埋め込めませんでした。');
+            }
+            for (let i = 0; i < reserveRows; i++) ws1.addRow([]);
+
+            // 表示状態を元に戻す
+            if (wasOverallHidden) {
+                overallViewEl.classList.add('hidden');
+                if (branchViewEl) branchViewEl.classList.remove('hidden');
+            }
+
+            const header1 = ['拠点', ...monthHeaders, '累計実績', '累計目標', '差額', '進捗率(%)', '年間目標', '年間進捗率(%)'];
+            ws1.addRow(header1).eachCell(c => c.style = hdrStyle);
+
+            const firstMonthCol = 2;
+            const lastMonthCol = 1 + nMonths;
+            const cumCol = lastMonthCol + 1;
+            const targetCol = cumCol + 1;
+            const diffCol = targetCol + 1;
+            const rateCol = diffCol + 1;
+            const annualCol = rateCol + 1;
+            const annualRateCol = annualCol + 1;
+
+            // 経過月（実績がある月）の特定
+            const totalsAllRaw = bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
+            let lastIdxAllX = -1;
+            totalsAllRaw.forEach((v, i) => { if (v) lastIdxAllX = i; });
+            const elapsedMonthsX = months.slice(0, lastIdxAllX + 1);
+
+            const branchRowNums = [];
+            branches.forEach(branch => {
+                const vals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+                const entry = bmGetBudgetEntry(basis, key, branch);
+                const monthlySumElapsed = elapsedMonthsX.reduce((s, ym) => s + (entry.monthly[ym] || 0), 0);
+                const hasMonthlyBudget = elapsedMonthsX.some(ym => entry.monthly[ym]);
+                const target = hasMonthlyBudget ? monthlySumElapsed : (entry.annualTarget && months.length ? Math.round(entry.annualTarget * elapsedMonthsX.length / months.length) : 0);
+                const annualTarget = entry.annualTarget || 0;
+                const valsM = vals.map(v => v / 1e6);
+                const row = ws1.addRow([branch, ...valsM, null, target ? target / 1e6 : null, null, null, annualTarget ? annualTarget / 1e6 : null, null]);
+                const r = row.number;
+                branchRowNums.push(r);
+                // 累計実績＝月別の合計（関数）
+                row.getCell(cumCol).value = { formula: `SUM(${bmColLetter(firstMonthCol)}${r}:${bmColLetter(lastMonthCol)}${r})` };
+                // 差額＝累計実績－累計目標（関数）
+                row.getCell(diffCol).value = { formula: `IF(${bmColLetter(targetCol)}${r}="","",${bmColLetter(cumCol)}${r}-${bmColLetter(targetCol)}${r})` };
+                // 進捗率＝累計実績／累計目標（関数）
+                row.getCell(rateCol).value = { formula: `IF(OR(${bmColLetter(targetCol)}${r}="",${bmColLetter(targetCol)}${r}=0),"",${bmColLetter(cumCol)}${r}/${bmColLetter(targetCol)}${r}*100)` };
+                // 年間進捗率＝累計実績／年間目標（関数）
+                row.getCell(annualRateCol).value = { formula: `IF(OR(${bmColLetter(annualCol)}${r}="",${bmColLetter(annualCol)}${r}=0),"",${bmColLetter(cumCol)}${r}/${bmColLetter(annualCol)}${r}*100)` };
+                row.eachCell((c, i) => {
+                    if (i > 1) {
+                        c.numFmt = (i === rateCol || i === annualRateCol) ? '0.0"%"' : (i === diffCol ? diffNumFmt : numFmt);
+                        c.alignment = { horizontal: 'right' };
+                    }
+                });
+            });
+
+            const totRow = ws1.addRow(['総計']);
+            const tr = totRow.number;
+            const firstBranchRow = branchRowNums[0], lastBranchRow = branchRowNums[branchRowNums.length - 1];
+            for (let c = firstMonthCol; c <= lastMonthCol; c++) {
+                totRow.getCell(c).value = { formula: `SUM(${bmColLetter(c)}${firstBranchRow}:${bmColLetter(c)}${lastBranchRow})` };
+            }
+            totRow.getCell(cumCol).value = { formula: `SUM(${bmColLetter(cumCol)}${firstBranchRow}:${bmColLetter(cumCol)}${lastBranchRow})` };
+            totRow.getCell(targetCol).value = { formula: `SUM(${bmColLetter(targetCol)}${firstBranchRow}:${bmColLetter(targetCol)}${lastBranchRow})` };
+            totRow.getCell(diffCol).value = { formula: `${bmColLetter(cumCol)}${tr}-${bmColLetter(targetCol)}${tr}` };
+            totRow.getCell(rateCol).value = { formula: `IF(${bmColLetter(targetCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(targetCol)}${tr}*100)` };
+            totRow.getCell(annualCol).value = { formula: `SUM(${bmColLetter(annualCol)}${firstBranchRow}:${bmColLetter(annualCol)}${lastBranchRow})` };
+            totRow.getCell(annualRateCol).value = { formula: `IF(${bmColLetter(annualCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(annualCol)}${tr}*100)` };
+            totRow.eachCell((c, i) => { c.font = { bold: true }; c.fill = hdrFill('FFEDE9FE'); if (i > 1) { c.numFmt = (i === rateCol || i === annualRateCol) ? '0.0"%"' : numFmt; c.alignment = { horizontal: 'right' }; } });
+
+            const priorKey = key - 1;
+            const priorMonths = bmPeriodMonths(basis, priorKey);
+            let priorTotal = bmSumMonths(bm.data.byBranchMonth, '__ALL__', priorMonths).reduce((a, v) => a + v, 0);
+            if (!priorTotal) priorTotal = bmGetBudgetEntry(basis, priorKey, 'ALL').prevActual || 0;
+            ws1.addRow([]);
+            const cmpTitleRow = ws1.addRow(['前期比較（全社合計・単位：百万円）']);
+            cmpTitleRow.getCell(1).font = { bold: true, size: 11 };
+            ws1.mergeCells(`A${cmpTitleRow.number}:D${cmpTitleRow.number}`);
+
+            const curActualRow = ws1.addRow([`${bmPeriodLabel(basis, key)} 実績`]);
+            ws1.mergeCells(`A${curActualRow.number}:D${curActualRow.number}`);
+            curActualRow.getCell(5).value = { formula: `${bmColLetter(cumCol)}${tr}` };
+            curActualRow.getCell(5).numFmt = numFmt;
+            curActualRow.getCell(5).alignment = { horizontal: 'right' };
+
+            const priorActualRow = ws1.addRow([`${bmPeriodLabel(basis, priorKey)} 実績`]);
+            ws1.mergeCells(`A${priorActualRow.number}:D${priorActualRow.number}`);
+            priorActualRow.getCell(5).value = priorTotal / 1e6;
+            priorActualRow.getCell(5).numFmt = numFmt;
+            priorActualRow.getCell(5).alignment = { horizontal: 'right' };
+
+            const diffActualRow = ws1.addRow(['対前期増減']);
+            ws1.mergeCells(`A${diffActualRow.number}:D${diffActualRow.number}`);
+            diffActualRow.getCell(1).font = { bold: true };
+            diffActualRow.getCell(5).value = { formula: `E${curActualRow.number}-E${priorActualRow.number}` };
+            diffActualRow.getCell(5).numFmt = diffNumFmt;
+            diffActualRow.getCell(5).font = { bold: true };
+            diffActualRow.getCell(5).alignment = { horizontal: 'right' };
+
+            ws1.addRow([]);
+            ws1.addRow(['※ 背景が紫色・グレーになっているセル（総計行・累計実績・差額・進捗率・年間進捗率・対前期増減）には数式が入っているため、月別実績の数値を修正すると自動で再計算されます。それ以外の白いセルは自由に手入力・修正できます。']).getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
+
+            // ── Sheet2〜: 拠点別 ──
+            branches.forEach(branch => {
+                const safeName = branch.replace(/[\\/*?:[\]]/g, '_').substring(0, 31) || 'branch';
+                const ws = wb2.addWorksheet(safeName);
+                ws.getColumn(1).width = 20;
+                ws.addRow([`${branch}　拠点別資料（単位：百万円）`]).getCell(1).font = { bold: true, size: 12 };
+                const ownerMap = bm.data.byOwnerMonth[branch] || {};
+                const owners = Object.keys(ownerMap).sort((a, b) => {
+                    const sa = months.reduce((s, ym) => s + (ownerMap[a][ym] || 0), 0);
+                    const sb = months.reduce((s, ym) => s + (ownerMap[b][ym] || 0), 0);
+                    return sb - sa;
+                });
+                const hdr = ws.addRow(['元請先', ...monthHeaders, '合計']);
+                hdr.eachCell(c => c.style = hdrStyle);
+                const ownerLastCol = 1 + nMonths + 1; // 合計列
+                const ownerRowNums = [];
+                owners.forEach(owner => {
+                    const vals = months.map(ym => ownerMap[owner][ym] || 0);
+                    const row = ws.addRow([owner, ...vals.map(v => v / 1e6), null]);
+                    const r = row.number;
+                    ownerRowNums.push(r);
+                    row.getCell(ownerLastCol).value = { formula: `SUM(${bmColLetter(2)}${r}:${bmColLetter(1 + nMonths)}${r})` };
+                    row.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+                });
+                if (owners.length) {
+                    const ownerTotRow = ws.addRow(['合計']);
+                    const otr = ownerTotRow.number;
+                    const fOR = ownerRowNums[0], lOR = ownerRowNums[ownerRowNums.length - 1];
+                    for (let c = 2; c <= ownerLastCol; c++) {
+                        ownerTotRow.getCell(c).value = { formula: `SUM(${bmColLetter(c)}${fOR}:${bmColLetter(c)}${lOR})` };
+                    }
+                    ownerTotRow.eachCell((c, i) => { c.font = { bold: true }; c.fill = hdrFill('FFF1F5F9'); if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+                }
+
+                ws.addRow([]);
+                const curVals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+                const priorValsB = bmSumMonths(bm.data.byBranchMonth, branch, priorMonths);
+                const budgetEntryB = bmGetBudgetEntry(basis, key, branch);
+                const budgetValsB = months.map(ym => budgetEntryB.monthly[ym] || 0);
+                [
+                    ['今年度実績', curVals, false],
+                    ['予算', budgetValsB, false],
+                    ['累計実績', null, true],
+                    ['前年度実績', priorValsB, false],
+                ].forEach(([label, vals, isCum]) => {
+                    if (isCum) {
+                        const row = ws.addRow([label]);
+                        const r = row.number;
+                        for (let i = 0; i < nMonths; i++) {
+                            const col = 2 + i;
+                            row.getCell(col).value = { formula: `SUM(${bmColLetter(2)}${r - 2}:${bmColLetter(col)}${r - 2})` };
+                        }
+                        row.getCell(1).font = { bold: true };
+                        row.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+                    } else {
+                        const row = ws.addRow([label, ...vals.map(v => v / 1e6)]);
+                        row.getCell(1).font = { bold: true };
+                        row.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+                    }
+                });
+            });
+
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const buf = await wb2.xlsx.writeBuffer();
+            saveAs(new Blob([buf]), `支店長会議資料_${bmPeriodLabel(basis, key).replace(/[／/\\]/g, '-')}_${dateStr}.xlsx`);
+        } catch (e) {
+            console.error('支店長会議資料Excel出力エラー:', e);
+            alert('出力中にエラーが発生しました。\n' + e.message);
+        }
+    }
+    // ── 拠点別ビュー専用Excel出力（現在選択中の1拠点のみ・拠点別レイアウト） ──
+    window.exportBoardMeetingBranchExcel = async function() {
+        if (!bm.data) { alert('データを読み込み中です。少し待ってから再実行してください。'); return; }
+        const branch = bm.branch || (bm.data.branches[0] || '');
+        if (!branch) { alert('対象の拠点が選択されていません。'); return; }
+        try {
+            const basis = bm.basis, key = bm.periodKey;
+            const months = bmPeriodMonths(basis, key);
+            const priorMonths = bmPeriodMonths(basis, key - 1);
+            const monthHeaders = months.map(ym => `${Number(ym.split('-')[1])}月`);
+            const nMonths = months.length;
+            const numFmt = '#,##0';
+            // 差額・増減額セル用：プラスは赤字「+◯」、マイナスは青字「▲ ◯」で色分け表示する
+            const diffNumFmt = '[Red]+#,##0;[Blue]▲ #,##0;0';
+            const hdrFill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+            const hdrStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: hdrFill('FF2563EB'), alignment: { horizontal: 'center' } };
+            const basisLabelForExcel = bm.dataBasis === 'cost' ? '原価集計（salesTotal）/ 完了日基準 / 税抜' : '明細データ（amountExc）/ 発生日基準 / 税抜';
+
+            const wb2 = new ExcelJS.Workbook();
+            wb2.creator = 'G-Ledger';
+            const safeName = branch.replace(/[\\/*?:[\]]/g, '_').substring(0, 31) || 'branch';
+            const ws = wb2.addWorksheet(safeName);
+            ws.getColumn(1).width = 20;
+            ws.addRow([`${branch}　拠点別資料（単位：百万円）　［${basisLabelForExcel}］　${bmPeriodLabel(basis, key)}`]).getCell(1).font = { bold: true, size: 12 };
+
+            // 拠点別グラフ画像（拠点別ビューを表示してから取得することで、別ビューを見ていても確実に画像化する）
+            const branchViewEl = document.getElementById('bm-branch-view');
+            const overallViewEl = document.getElementById('bm-overall-view');
+            const wasBranchHidden = branchViewEl && branchViewEl.classList.contains('hidden');
+            if (wasBranchHidden) {
+                branchViewEl.classList.remove('hidden');
+                if (overallViewEl) overallViewEl.classList.add('hidden');
+                bmRenderBranch();
+                await new Promise(res => setTimeout(res, 120));
+            }
+            const chartImgRowStart = ws.rowCount;
+            const chartCanvas = document.getElementById('chart-bm-branch');
+            let reserveRows = 0;
+            if (chartCanvas && bm.chartBranch && chartCanvas.width > 0 && chartCanvas.height > 0) {
+                try {
+                    const imgData = chartCanvas.toDataURL('image/png');
+                    const imageId = wb2.addImage({ base64: imgData, extension: 'png' });
+                    ws.addImage(imageId, { tl: { col: 0, row: chartImgRowStart }, ext: { width: 820, height: 300 } });
+                    reserveRows = 16;
+                } catch (imgErr) {
+                    console.warn('拠点別グラフ画像の埋め込みに失敗しました:', imgErr);
+                }
+            }
+            for (let i = 0; i < reserveRows; i++) ws.addRow([]);
+            if (wasBranchHidden) {
+                branchViewEl.classList.add('hidden');
+                if (overallViewEl) overallViewEl.classList.remove('hidden');
+            }
+
+            // ── 区分別（今年度実績／予算／累計実績／前年度実績／対前年増減額） ──
+            ws.addRow([]);
+            ws.addRow(['区分別（単位：百万円）']).getCell(1).font = { bold: true, size: 11 };
+            const summaryHdr = ws.addRow(['区分', ...monthHeaders]);
+            summaryHdr.eachCell(c => c.style = hdrStyle);
+
+            const curVals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+            const priorVals = bmSumMonths(bm.data.byBranchMonth, branch, priorMonths);
+            const budgetEntry = bmGetBudgetEntry(basis, key, branch);
+            const budgetVals = months.map(ym => budgetEntry.monthly[ym] || 0);
+            let lastActualIdx = -1;
+            curVals.forEach((v, i) => { if (v) lastActualIdx = i; });
+
+            const curRow = ws.addRow(['今年度実績', ...curVals.map(v => v / 1e6)]);
+            curRow.getCell(1).font = { bold: true };
+            const curR = curRow.number;
+
+            const budgetRow = ws.addRow(['予算', ...budgetVals.map(v => v / 1e6)]);
+            budgetRow.getCell(1).font = { bold: true };
+
+            const cumRow = ws.addRow(['累計実績']);
+            const cumR = cumRow.number;
+            for (let i = 0; i < nMonths; i++) {
+                const col = 2 + i;
+                cumRow.getCell(col).value = { formula: `SUM(${bmColLetter(2)}${curR}:${bmColLetter(col)}${curR})` };
+            }
+            cumRow.getCell(1).font = { bold: true };
+
+            const priorRow = ws.addRow(['前年度実績', ...priorVals.map(v => v / 1e6)]);
+            priorRow.getCell(1).font = { bold: true };
+            const priorR = priorRow.number;
+
+            const diffRow = ws.addRow(['対前年増減額']);
+            const diffR = diffRow.number;
+            for (let i = 0; i < nMonths; i++) {
+                const col = 2 + i;
+                if (i <= lastActualIdx) diffRow.getCell(col).value = { formula: `${bmColLetter(col)}${curR}-${bmColLetter(col)}${priorR}` };
+            }
+            diffRow.getCell(1).font = { bold: true };
+            diffRow.getCell(1).fill = hdrFill('FFFEF3C7');
+
+            [curRow, budgetRow, cumRow, priorRow].forEach(row => {
+                row.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+            });
+            diffRow.eachCell((c, i) => { if (i > 1) { c.numFmt = diffNumFmt; c.alignment = { horizontal: 'right' }; } });
+
+            // ── 元請先別 月次売上明細（前年比較付き） ──
+            ws.addRow([]);
+            ws.addRow(['元請先別 月次売上明細（単位：百万円）']).getCell(1).font = { bold: true, size: 11 };
+            const ownerHdr = ws.addRow(['元請先', ...monthHeaders, '合計', '前年同期実績', '前年比']);
+            ownerHdr.eachCell(c => c.style = hdrStyle);
+            const ownerMap = bm.data.byOwnerMonth[branch] || {};
+            const elapsedCount = lastActualIdx + 1;
+            const owners = Object.keys(ownerMap).sort((a, b) => {
+                const sa = months.reduce((s, ym) => s + (ownerMap[a][ym] || 0), 0);
+                const sb = months.reduce((s, ym) => s + (ownerMap[b][ym] || 0), 0);
+                return sb - sa;
+            });
+            const ownerLastCol = 1 + nMonths + 1; // 合計列
+            const ownerPriorCol = ownerLastCol + 1;
+            const ownerDiffCol = ownerLastCol + 2;
+            const ownerRowNums = [];
+            owners.forEach(owner => {
+                const vals = months.map(ym => ownerMap[owner][ym] || 0);
+                const priorElapsedTotal = priorMonths.slice(0, elapsedCount).reduce((s, ym) => s + (ownerMap[owner][ym] || 0), 0);
+                const row = ws.addRow([owner, ...vals.map(v => v / 1e6), null, priorElapsedTotal / 1e6, null]);
+                const r = row.number;
+                ownerRowNums.push(r);
+                row.getCell(ownerLastCol).value = { formula: `SUM(${bmColLetter(2)}${r}:${bmColLetter(1 + nMonths)}${r})` };
+                row.getCell(ownerDiffCol).value = { formula: `${bmColLetter(ownerLastCol)}${r}-${bmColLetter(ownerPriorCol)}${r}` };
+                row.eachCell((c, i) => { if (i > 1) { c.numFmt = (i === ownerDiffCol) ? diffNumFmt : numFmt; c.alignment = { horizontal: 'right' }; } });
+            });
+            if (owners.length) {
+                const totRow = ws.addRow(['合計']);
+                const tr = totRow.number;
+                const fOR = ownerRowNums[0], lOR = ownerRowNums[ownerRowNums.length - 1];
+                for (let c = 2; c <= ownerDiffCol; c++) {
+                    if (c === ownerDiffCol) totRow.getCell(c).value = { formula: `${bmColLetter(ownerLastCol)}${tr}-${bmColLetter(ownerPriorCol)}${tr}` };
+                    else totRow.getCell(c).value = { formula: `SUM(${bmColLetter(c)}${fOR}:${bmColLetter(c)}${lOR})` };
+                }
+                totRow.eachCell((c, i) => { c.font = { bold: true }; c.fill = hdrFill('FFF1F5F9'); if (i > 1) { c.numFmt = (i === ownerDiffCol) ? diffNumFmt : numFmt; c.alignment = { horizontal: 'right' }; } });
+            } else {
+                ws.addRow(['データがありません']);
+            }
+
+            ws.addRow([]);
+            ws.addRow([`※ 背景がグレー・黄色になっているセル（合計行・累計実績・対前年増減額・前年比）には数式が入っているため、月別実績の数値を修正すると自動で再計算されます。経過月数（${elapsedCount}ヶ月）は今年度の実績がある月数に応じて変わります。`]).getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
+
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const buf = await wb2.xlsx.writeBuffer();
+            saveAs(new Blob([buf]), `支店長会議資料_${branch}_${bmPeriodLabel(basis, key).replace(/[／/\\]/g, '-')}_${dateStr}.xlsx`);
+        } catch (e) {
+            console.error('拠点別Excel出力エラー:', e);
+            alert('出力中にエラーが発生しました。\n' + e.message);
+        }
+    }
+    // ══════════════════════════════════════════════════════════════
+    // ── END 支店長会議資料 ──
+    // ══════════════════════════════════════════════════════════════
 
     window.setWorstType = function(type) {
         currentWorstType = type;
@@ -5681,39 +7238,59 @@
     }
 
     window.initBrowsePage = async function() {
+        // ── 高速化①：件数チェックでキャッシュ再利用 ──────────────────────────────
+        // タブを切り替えるたびに4テーブル合計13万件を全件読み込んでいたのが遅さの主因。
+        // 各テーブルの件数が前回と同じなら再集計をスキップし、フィルターだけ再適用する。
+        const [cCount, mCount, colCount, sCount] = await Promise.all([
+            db.costs.count(), db.masters.count(), db.collections.count(), db.sales.count()
+        ]);
+        if (window._browseRawData && window._browseCounts &&
+            window._browseCounts.costs === cCount && window._browseCounts.masters === mCount &&
+            window._browseCounts.collections === colCount && window._browseCounts.sales === sCount) {
+            window.resetBrowseSelections();
+            window.buildBrowseButtons();
+            const badge = document.getElementById('browse-count-badge');
+            if (badge) badge.textContent = browseAllData.length + ' 件';
+            browseFiltered = [...browseAllData];
+            window.applyBrowseFilter();
+            return;
+        }
+        window._browseCounts = { costs: cCount, masters: mCount, collections: colCount, sales: sCount };
+
         const costs = await db.costs.toArray();
         const masters = await db.masters.toArray();
         const collections = await db.collections.toArray();
+        const allSales = await db.sales.toArray();
 
         // 税込売上合計をサイトコード別に集計（売上明細の amountInc を使用）
         const salesTaxIncMap = new Map();
-        const allSales = await db.sales.toArray();
+        // ── 高速化②：差異計算を O(n²)→O(n) に改善 ──────────────────────────────
+        // 旧実装は「回収一覧×売上明細」で全件走査していたため、47600×32709≒15億回の比較が発生。
+        // 工番+枝番をキーにした Map を先に作り、O(1)で参照できるようにする。
+        const salesByCodeSub = new Map(); // key: `code::sub`(小文字), value: sum amountInc
+        const salesByCodeOnly = new Map(); // key: code(小文字, 枝番なし行のみ), value: sum amountInc
         allSales.forEach(s => {
-            // ★ 修正: コード比較を小文字統一（回収データと大文字小文字を合わせる）
-            const key = String(s.siteCode||'').trim().toLowerCase();
-            salesTaxIncMap.set(key, (salesTaxIncMap.get(key) || 0) + (s.amountInc || 0));
+            const code = String(s.siteCode||'').trim().toLowerCase();
+            const sub  = String(s.subCode||'').trim();
+            salesTaxIncMap.set(code, (salesTaxIncMap.get(code) || 0) + (s.amountInc || 0));
+            const csKey = `${code}::${sub}`;
+            salesByCodeSub.set(csKey, (salesByCodeSub.get(csKey) || 0) + (s.amountInc || 0));
+            if (!sub || sub === '00') {
+                salesByCodeOnly.set(code, (salesByCodeOnly.get(code) || 0) + (s.amountInc || 0));
+            }
         });
-        // コード単体ごとの差異計算（回収一覧レコード × 対応する売上税込）
+
         const anomalyCodes   = new Set();
-        const anomalyDetails = []; // 差異詳細リスト（テーブル表示用）
+        const anomalyDetails = [];
         for (const col of collections) {
             const mainCode = String(col.code||'').trim().toLowerCase();
             const sub      = String(col.subCode||'').trim();
-            // ★ 修正: sub="00" は枝番なし（親コード）として扱う
             const subNorm  = (sub === '00' || sub === '') ? '' : sub;
-            // 対応する売上明細を抽出（枝番ありは枝番一致、なしは親行のみ）
-            // ★ 修正: siteCode を小文字で比較（売上データの大文字小文字揺れを吸収）
-            const matchSales = allSales.filter(s => {
-                const sc = String(s.siteCode||'').trim().toLowerCase();
-                const ss = String(s.subCode||'').trim();
-                if (sc !== mainCode) return false;
-                return subNorm ? ss === subNorm : (ss === '' || ss === '00');
-            });
-            const salesTaxInc = matchSales.reduce((sum, s) => sum + (s.amountInc || 0), 0);
-            // 全額未請求判定: 回収済額=0 かつ 内未請求分=回収予定額 → 未請求中のため差異なし
+            // O(1)でMap参照（旧: filter()で全件走査）
+            const salesTaxInc = subNorm
+                ? (salesByCodeSub.get(`${mainCode}::${subNorm}`) || 0)
+                : (salesByCodeOnly.get(mainCode) || 0);
             const isFullyUnrequested = col.collectedAmount === 0 && Math.abs(col.unRequestedAmount - col.scheduledAmount) <= 1;
-            // 差異判定: 売上（税込）と回収済額が異なる場合に異常値とする（全額未請求中は除外）
-            // ※ salesTaxInc > 0 の条件で赤伝（マイナス売上）は自然に除外される
             const diff = salesTaxInc - col.collectedAmount;
             const isAnomaly = !isFullyUnrequested && salesTaxInc > 0 && Math.abs(diff) > 1;
             if (isAnomaly) anomalyCodes.add(mainCode);
@@ -6054,6 +7631,14 @@
         }
         return null;
     }
+
+    // ── 高速化③：キーワード入力のデバウンス ──────────────────────────────────
+    // キーを押すたびに4万8千件のフィルターが走っていたため、150ms待って最後の入力だけ処理する。
+    let _browseFilterTimer = null;
+    window.applyBrowseFilterDebounced = function() {
+        clearTimeout(_browseFilterTimer);
+        _browseFilterTimer = setTimeout(() => window.applyBrowseFilter(), 150);
+    };
 
     window.applyBrowseFilter = function() {
         browseCurrentPage = 1;
