@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v68</title>
+    <title>G-Ledger | 現場原価管理台帳システム v77</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v68</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v77</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -161,6 +161,9 @@
                         <button onclick="window.setBrowseTab('estimator')" id="btab-estimator" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-compass-drafting mr-1"></i> 積算
                         </button>
+                        <button onclick="window.setBrowseTab('margin')" id="btab-margin" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-solid fa-percent mr-1"></i> 粗利率
+                        </button>
                         <button onclick="window.setBrowseTab('uncollected')" id="btab-uncollected" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-circle-exclamation mr-1 text-orange-500"></i> 未回収
                         </button>
@@ -238,6 +241,32 @@
                             <button onclick="window.clearBrowseSelection('estimator')" class="text-xs text-slate-400 hover:text-slate-600 underline">全選択解除</button>
                         </div>
                         <div id="browse-estimator-buttons" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- 粗利率絞り込みパネル -->
+                    <div id="browse-panel-margin" class="browse-filter-panel hidden">
+                        <div class="flex flex-wrap items-center gap-3 mb-3">
+                            <span class="text-sm font-bold text-slate-600">粗利率が</span>
+                            <select id="browse-margin-op" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                                <option value="lte">以下</option>
+                                <option value="gte">以上</option>
+                            </select>
+                            <input type="number" id="browse-margin-value" placeholder="例：30" step="0.1"
+                                class="w-28 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                                oninput="window.applyBrowseFilterDebounced()">
+                            <span class="text-sm text-slate-500">%</span>
+                            <button onclick="window.clearBrowseMargin()" class="text-xs text-slate-400 hover:text-slate-600 underline ml-2">クリア</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="text-xs text-slate-400 self-center mr-1">クイック選択:</span>
+                            <button onclick="window.setMarginPreset('lte', 0)" class="text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg font-bold transition-colors">赤字（0%未満）</button>
+                            <button onclick="window.setMarginPreset('lte', 10)" class="text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-lg font-bold transition-colors">10%以下</button>
+                            <button onclick="window.setMarginPreset('lte', 20)" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-lg font-bold transition-colors">20%以下</button>
+                            <button onclick="window.setMarginPreset('lte', 30)" class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-lg font-bold transition-colors">30%以下</button>
+                            <button onclick="window.setMarginPreset('gte', 50)" class="text-xs bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-3 py-1.5 rounded-lg font-bold transition-colors">50%以上</button>
+                            <button onclick="window.setMarginPreset('gte', 80)" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-lg font-bold transition-colors">80%以上</button>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2">※ 粗利率が算出できない現場（原価データが無い等）は対象外になります。</p>
                     </div>
 
                     <!-- 未回収フィルターパネル -->
@@ -1432,6 +1461,19 @@
                             <label class="text-xs text-slate-500 font-bold" id="bm-period-label">対象期:</label>
                             <select id="bm-period-select" onchange="window.bmOnPeriodChange()"
                                 class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"></select>
+                        </div>
+
+                        <!-- 期間絞り込み（開始月〜終了月） -->
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <i class="fa-solid fa-calendar-days text-slate-400 text-xs"></i>
+                            <label class="text-xs text-slate-500 font-bold">期間絞込:</label>
+                            <select id="bm-filter-start" onchange="window.bmOnPeriodFilterChange()"
+                                class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none"></select>
+                            <span class="text-xs text-slate-400">〜</span>
+                            <select id="bm-filter-end" onchange="window.bmOnPeriodFilterChange()"
+                                class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none"></select>
+                            <button onclick="window.bmResetPeriodFilter()"
+                                class="text-xs text-slate-400 hover:text-slate-600 px-1">✕全期間</button>
                         </div>
 
                         <!-- 拠点セレクター（拠点別モードのみ） -->
@@ -5478,6 +5520,18 @@
         }
         return 45;
     }
+    // 実際の年月（"YYYY-MM"）から、それが属する期番号を逆引きする（予算の期⇔年 相互反映に使用）
+    function bmFiscalNoForYm(ym) {
+        const [y, m] = ym.split('-').map(Number);
+        const cur = y * 12 + m;
+        for (let no = 20; no <= 80; no++) {
+            const def = bmFiscalDef(no);
+            const [sy, sm] = def.startYM.split('-').map(Number);
+            const [ey, em] = def.endYM.split('-').map(Number);
+            if (cur >= sy * 12 + sm && cur <= ey * 12 + em) return no;
+        }
+        return null;
+    }
     function bmPeriodMonths(basis, key) { return basis === 'fiscal' ? bmFiscalMonths(key) : bmCalendarMonths(key); }
     function bmPeriodLabel(basis, key) { return basis === 'fiscal' ? bmFiscalLabel(key) : bmCalendarLabel(key); }
     function bmBasisKey(basis, key) { return basis === 'fiscal' ? `fiscal-${key}` : `year-${key}`; }
@@ -5618,6 +5672,71 @@
         } catch (e) { console.error('支店長会議資料 初期化エラー:', e); alert('支店長会議資料の初期化に失敗しました: ' + e.message); }
     }
 
+    function bmRebuildPeriodFilter(forceFullRange) {
+        const months = bmPeriodMonths(bm.basis, bm.periodKey);
+        const startSel = document.getElementById('bm-filter-start');
+        const endSel = document.getElementById('bm-filter-end');
+        if (!startSel || !endSel) return;
+        const prevStart = startSel.value;
+        const prevEnd = endSel.value;
+        startSel.innerHTML = '';
+        endSel.innerHTML = '';
+        months.forEach(ym => {
+            const label = `${Number(ym.split('-')[1])}月`;
+            startSel.add(new Option(label, ym));
+            endSel.add(new Option(label, ym));
+        });
+        // 前回の選択値を維持（期間が変わった場合はリセット）
+        // ただし forceFullRange 指定時（期⇔年の切替時など、期間の基準そのものが変わる場合）は
+        // 「4月」のような月文字列がたまたま新しい期間にも存在するケースで誤って絞り込みが
+        // 引き継がれてしまうのを防ぐため、常に全期間にリセットする
+        if (forceFullRange) {
+            startSel.value = months[0];
+            endSel.value = months[months.length - 1];
+        } else {
+            startSel.value = months.includes(prevStart) ? prevStart : months[0];
+            endSel.value = months.includes(prevEnd) ? prevEnd : months[months.length - 1];
+        }
+    }
+    window.bmOnPeriodFilterChange = function() {
+        const startSel = document.getElementById('bm-filter-start');
+        const endSel = document.getElementById('bm-filter-end');
+        if (!startSel || !endSel) return;
+        // 開始 > 終了になった場合は終了を開始に合わせる
+        if (startSel.value > endSel.value) endSel.value = startSel.value;
+        window.bmRenderCurrentView();
+    };
+    window.bmResetPeriodFilter = function() {
+        const months = bmPeriodMonths(bm.basis, bm.periodKey);
+        const startSel = document.getElementById('bm-filter-start');
+        const endSel = document.getElementById('bm-filter-end');
+        if (startSel) startSel.value = months[0];
+        if (endSel) endSel.value = months[months.length - 1];
+        window.bmRenderCurrentView();
+    };
+    // 現在の絞込後の月リストを返す（全関数がここを参照する）
+    // 期間絞込：常に全月リストを返す（列は省略しない）
+    // 絞込範囲外の月はnullにする処理はbmSumMonthsFilteredで行う
+    function bmGetFilteredMonths() {
+        return bmPeriodMonths(bm.basis, bm.periodKey);
+    }
+    function bmGetFilterRange() {
+        const months = bmPeriodMonths(bm.basis, bm.periodKey);
+        const startSel = document.getElementById('bm-filter-start');
+        const endSel = document.getElementById('bm-filter-end');
+        const start = (startSel && startSel.value) || months[0];
+        const end = (endSel && endSel.value) || months[months.length - 1];
+        return { start, end };
+    }
+    // フィルター範囲外の月はnullとして返す（グラフ・表で「-」表示、累計計算からも除外）
+    function bmSumMonthsFiltered(branchMonthMap, branch, months) {
+        const { start, end } = bmGetFilterRange();
+        return bmSumMonths(branchMonthMap, branch, months).map((v, i) => {
+            const ym = months[i];
+            return (ym >= start && ym <= end) ? v : null;
+        });
+    }
+
     function bmRebuildPeriodSelect() {
         const sel = document.getElementById('bm-period-select');
         const labelEl = document.getElementById('bm-period-label');
@@ -5638,6 +5757,7 @@
             bm.periodKey = bm.periodKeyCalendar;
             if (labelEl) labelEl.textContent = '対象年度:';
         }
+        bmRebuildPeriodFilter(true);
     }
 
     window.bmOnPeriodChange = function() {
@@ -5645,6 +5765,8 @@
         const v = Number(sel.value);
         bm.periodKey = v;
         if (bm.basis === 'fiscal') bm.periodKeyFiscal = v; else bm.periodKeyCalendar = v;
+        // 期／年の対象が変わったので、期間絞込の選択肢（月リスト）も対象期間に合わせて作り直す
+        bmRebuildPeriodFilter();
         window.bmRenderCurrentView();
     }
     window.bmOnBranchChange = function() {
@@ -5753,8 +5875,9 @@
             if (oldestDef.stub) keys = [keys[0] - 1, ...keys];
         }
 
-        const monthsArr = keys.map(k => bmPeriodMonths(basis, k));
-        const primaryMonths = monthsArr[monthsArr.length - 1]; // 常に最新キー
+        // primaryMonths は期間絞込フィルターを反映する（過去2期はフィルターなし・全月表示）
+        const primaryMonths = bmGetFilteredMonths();
+        const monthsArr = [...keys.slice(0, -1).map(k => bmPeriodMonths(basis, k)), primaryMonths];
         const maxLen = Math.max(...monthsArr.map(m => m.length));
 
         // x軸のラベルは「実際の月」で生成する（期間の長さが違っても月がズレないようにする）
@@ -5770,7 +5893,11 @@
         // 各期間のデータは「月（1〜12）」を基準にx軸へ割り当てる（期の開始月が異なる端数期があっても月がズレない）
         const seriesByKey = keys.map((k, idx) => {
             const months = monthsArr[idx];
-            const vals = bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
+            const isCurrentKey = idx === keys.length - 1;
+            // 当期のみ絞込フィルターを適用。過去期はフィルターなし（比較用に全月表示）
+            const vals = isCurrentKey
+                ? bmSumMonthsFiltered(bm.data.byBranchMonth, '__ALL__', months)
+                : bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
             const valByMonthNum = {};
             months.forEach((ym, j) => { valByMonthNum[Number(ym.split('-')[1])] = vals[j]; });
             // 追加した「端数期の直前の期」は、端数期がカバーする月と重複しないよう、その月分を除外する
@@ -5791,6 +5918,10 @@
         const cumLineAll = bmCumulative(curRawVals).map((v, i) => (i <= lastActualIdx ? v : null));
         while (cumLineAll.length < maxLen) cumLineAll.push(null);
 
+        // 年（カレンダー）表示の場合は「期」の目標・累計進捗の概念が無いため、
+        // グラフは3年分の月別実績バーのみとし、目標ライン・累計実績ラインは表示しない
+        const isCalendar = basis === 'calendar';
+
         try {
             bm.chartOverall = window.destroyChart(bm.chartOverall);
             const ctx = document.getElementById('chart-bm-overall');
@@ -5800,14 +5931,18 @@
                         labels: xLabels,
                         datasets: [
                             ...seriesByKey.map((vals, i) => ({ type: 'bar', label: labelsForKeys[i], data: vals, backgroundColor: colors[i], yAxisID: 'y', order: 2 })),
-                            { type: 'line', label: '予算', data: budgetLine, borderColor: '#dc2626', backgroundColor: '#dc2626', borderDash: [6, 3], pointRadius: 3, fill: false, tension: 0, yAxisID: 'y', order: 1 },
-                            { type: 'line', label: '累計実績', data: cumLineAll, borderColor: '#10b981', backgroundColor: '#10b981', pointRadius: 2, borderWidth: 2.5, fill: false, tension: 0, spanGaps: false, yAxisID: 'y1', order: 0 }
+                            ...(isCalendar ? [] : [
+                                { type: 'line', label: '目標', data: budgetLine, borderColor: '#dc2626', backgroundColor: '#dc2626', borderDash: [6, 3], pointRadius: 3, fill: false, tension: 0, yAxisID: 'y', order: 1 },
+                                { type: 'line', label: '累計実績', data: cumLineAll, borderColor: '#10b981', backgroundColor: '#10b981', pointRadius: 2, borderWidth: 2.5, fill: false, tension: 0, spanGaps: false, yAxisID: 'y1', order: 0 }
+                            ])
                         ]
                     },
                     options: {
                         maintainAspectRatio: false,
                         plugins: { legend: { position: 'bottom' } },
-                        scales: {
+                        scales: isCalendar ? {
+                            y: { position: 'left', ticks: { callback: (v) => (v / 1e6).toLocaleString() + '百万' } }
+                        } : {
                             y: { position: 'left', ticks: { callback: (v) => (v / 1e6).toLocaleString() + '百万' } },
                             y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { callback: (v) => (v / 1e6).toLocaleString() + '百万' } }
                         }
@@ -5822,9 +5957,18 @@
         }
 
         // 表の更新はグラフ描画でエラーが起きても必ず実行する（片方の失敗で他方が更新されなくなることを防ぐ）
-        try { bmRenderOverallTable(basis, key, primaryMonths, xLabels); } catch (e1) { console.error('[支店長会議資料] 拠点別一覧テーブル描画エラー:', e1); }
+        // テーブル用のラベルはprimaryMonths（絞込後）から独立して生成する
+        // グラフ用xLabelsは過去期も含む全月分（maxLen）で作られており、テーブルに使うと列数がズレる
+        const tableXLabels = primaryMonths.map(ym => `${Number(ym.split('-')[1])}月`);
+        if (isCalendar) {
+            // 年（カレンダー）表示：期の目標・累計進捗の概念が無いため、実績3年間の比較テーブルにする
+            try { bmRenderOverallTableCalendar(key, primaryMonths, tableXLabels, keys, labelsForKeys); } catch (e1) { console.error('[支店長会議資料] 拠点別一覧テーブル描画エラー:', e1); }
+        } else {
+            try { bmRenderOverallTable(basis, key, primaryMonths, tableXLabels); } catch (e1) { console.error('[支店長会議資料] 拠点別一覧テーブル描画エラー:', e1); }
+        }
         try { bmRenderOverallYoY(basis, key); } catch (e2) { console.error('[支店長会議資料] 前期比較描画エラー:', e2); }
         try { bmRenderOverallPriorYearTable(basis, key); } catch (e3) { console.error('[支店長会議資料] 前年度実績描画エラー:', e3); }
+        try { bmRenderBudgetPanel(); } catch (e4) { console.error('[支店長会議資料] 予算パネル描画エラー(全体):', e4); }
     }
 
     function bmRenderOverallTable(basis, key, months, xLabels) {
@@ -5849,23 +5993,25 @@
         </tr>
         <tr><th colspan="${xLabels.length + 7}" class="px-3 py-1 text-right text-[10px] text-slate-400 font-normal bg-slate-50 border border-slate-200">（単位：百万円）</th></tr>`;
 
-        // 実績が記録されている月（＝経過月）までを「累計目標」の対象とする
+        // 実績が記録されている月（＝経過月）かつフィルター範囲内を「累計目標」の対象とする
+        const { start: fStart, end: fEnd } = bmGetFilterRange();
         const totalsAll = bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
         let lastIdxAll = -1;
-        totalsAll.forEach((v, i) => { if (v) lastIdxAll = i; });
-        const elapsedMonths = months.slice(0, lastIdxAll + 1);
+        totalsAll.forEach((v, i) => { if (v && months[i] >= fStart && months[i] <= fEnd) lastIdxAll = i; });
+        const elapsedMonths = months.slice(0, lastIdxAll + 1).filter(ym => ym >= fStart && ym <= fEnd);
 
         let rowsHtml = '';
-        const totalMonthly = new Array(months.length).fill(0);
+        const totalMonthly = new Array(months.length).fill(null);
         let totalTarget = 0, totalCum = 0, totalAnnual = 0;
 
         branches.forEach(branch => {
-            const vals = bmSumMonths(bm.data.byBranchMonth, branch, months);
-            const cum = vals.reduce((a, v) => a + v, 0);
+            const allVals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+            // フィルター範囲外はnull（表示は灰色「-」）、範囲内は実数
+            const vals = allVals.map((v, i) => months[i] >= fStart && months[i] <= fEnd ? v : null);
+            const cum = vals.reduce((a, v) => a + (v || 0), 0);
             const entry = bmGetBudgetEntry(basis, key, branch);
             const monthlySumElapsed = elapsedMonths.reduce((s, ym) => s + (entry.monthly[ym] || 0), 0);
             const hasMonthlyBudget = elapsedMonths.some(ym => entry.monthly[ym]);
-            // 月別予算が入力されていればその累計、なければ年間目標を経過月数で按分
             const target = hasMonthlyBudget
                 ? monthlySumElapsed
                 : (entry.annualTarget && months.length ? Math.round(entry.annualTarget * elapsedMonths.length / months.length) : 0);
@@ -5873,11 +6019,19 @@
             const diff = cum - target;
             const rate = target ? (cum / target * 100) : null;
             const annualRate = annualTarget ? (cum / annualTarget * 100) : null;
-            vals.forEach((v, i) => totalMonthly[i] += v);
+            vals.forEach((v, i) => { if (v !== null) totalMonthly[i] = (totalMonthly[i] || 0) + v; });
             totalCum += cum; totalTarget += target; totalAnnual += annualTarget;
             rowsHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100">
                 <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">${branch}</td>
-                ${vals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${v ? bmFmtM(v) : '-'}</td>`).join('')}
+                ${vals.map((v, i) => {
+                    const inRange = months[i] >= fStart && months[i] <= fEnd;
+                    // まだ実績が記録されていない月（経過月より先）は "0" ではなく "-" にして、
+                    // 「本当に実績0円だった月」と区別できるようにする
+                    const isFuture = i > lastIdxAll;
+                    const shaded = !inRange || isFuture;
+                    const text = (!inRange || isFuture) ? '-' : (v ? bmFmtM(v) : '0');
+                    return `<td class="px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ''}">${text}</td>`;
+                }).join('')}
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${bmFmtM(cum)}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono">${target ? bmFmtM(target) : '-'}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono ${diff < 0 ? 'text-blue-600' : 'text-red-600'}">${target ? (diff > 0 ? '▲ ' : '') + bmFmtM(Math.abs(diff)) : '-'}</td>
@@ -5893,13 +6047,94 @@
         const totAnnualRate = totalAnnual ? (totalCum / totalAnnual * 100) : null;
         tfoot.innerHTML = `<tr>
             <td class="px-3 py-2 border border-slate-200 sticky left-0 bg-violet-50">総計</td>
-            ${totalMonthly.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(v)}</td>`).join('')}
+            ${totalMonthly.map((v, i) => {
+                const inRange = months[i] >= fStart && months[i] <= fEnd;
+                const isFuture = i > lastIdxAll;
+                const shaded = !inRange || isFuture;
+                return `<td class="px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ''}">${shaded ? '-' : bmFmtM(v)}</td>`;
+            }).join('')}
             <td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(totalCum)}</td>
             <td class="px-3 py-2 border border-slate-200 text-right font-mono">${totalTarget ? bmFmtM(totalTarget) : '-'}</td>
             <td class="px-3 py-2 border border-slate-200 text-right font-mono ${totDiff < 0 ? 'text-blue-700' : 'text-red-700'}">${totalTarget ? (totDiff > 0 ? '▲ ' : '') + bmFmtM(Math.abs(totDiff)) : '-'}</td>
             <td class="px-3 py-2 border border-slate-200 text-right">${totRate !== null ? totRate.toFixed(1) + '%' : '-'}</td>
             <td class="px-3 py-2 border border-slate-200 text-right font-mono text-indigo-800">${totalAnnual ? bmFmtM(totalAnnual) : '-'}</td>
             <td class="px-3 py-2 border border-slate-200 text-right text-indigo-800">${totAnnualRate !== null ? totAnnualRate.toFixed(1) + '%' : '-'}</td>
+        </tr>`;
+    }
+
+    // ── 拠点別 実績一覧（年／カレンダー表示用）：期の目標・累計進捗の概念が無いため、
+    //    累計実績・累計目標・差額・進捗率・年間目標・年間進捗率は表示せず、実績3年間の比較のみとする ──
+    function bmRenderOverallTableCalendar(key, months, xLabels, keys, labelsForKeys) {
+        const branches = bm.data.branches;
+        const thead = document.getElementById('bm-overall-table-head');
+        const tbody = document.getElementById('bm-overall-table-body');
+        const tfoot = document.getElementById('bm-overall-table-foot');
+        if (!thead || !tbody || !tfoot) return;
+
+        const periodLabelEl2 = document.getElementById('bm-overall-table-period-label');
+        if (periodLabelEl2) periodLabelEl2.textContent = `（${bmPeriodLabel('calendar', key)}）`;
+
+        const { start: fStart, end: fEnd } = bmGetFilterRange();
+        const yearMonthsList = keys.map(k => bmPeriodMonths('calendar', k));
+        const totalColCount = 1 + xLabels.length + keys.length;
+
+        // 実績が記録されている月（＝経過月）かつフィルター範囲内までを「実績あり」として扱う
+        // （経過月より先はまだ実績が記録されていない月なので "-" にして、本当に0円だった月と区別する）
+        const totalsAllRaw = bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
+        let lastIdxAll = -1;
+        totalsAllRaw.forEach((v, i) => { if (v && months[i] >= fStart && months[i] <= fEnd) lastIdxAll = i; });
+
+        thead.innerHTML = `<tr>
+            <th class="px-3 py-2 border border-slate-200 sticky left-0 bg-slate-100">拠点</th>
+            ${xLabels.map(l => `<th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap">${l}</th>`).join('')}
+            ${labelsForKeys.map((lbl, i) => `<th class="px-3 py-2 border border-slate-200 text-right whitespace-nowrap ${i === labelsForKeys.length - 1 ? 'bg-violet-100' : 'bg-slate-100'}">${lbl}計</th>`).join('')}
+        </tr>
+        <tr><th colspan="${totalColCount}" class="px-3 py-1 text-right text-[10px] text-slate-400 font-normal bg-slate-50 border border-slate-200">（単位：百万円）</th></tr>`;
+
+        let rowsHtml = '';
+        const totalMonthly = new Array(months.length).fill(null);
+        const totalByYear = new Array(keys.length).fill(0);
+
+        branches.forEach(branch => {
+            const allVals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+            // フィルター範囲外はnull（表示は灰色「-」）、範囲内は実数（当年の月別実績のみ絞込を反映）
+            const vals = allVals.map((v, i) => months[i] >= fStart && months[i] <= fEnd ? v : null);
+            vals.forEach((v, i) => { if (v !== null) totalMonthly[i] = (totalMonthly[i] || 0) + v; });
+
+            // 各年の年間計（当年のみ期間絞込フィルターを反映、過去2年は全月で計算）
+            const yearTotals = keys.map((k, i) => {
+                const isCurrentKey = i === keys.length - 1;
+                const ymonths = yearMonthsList[i];
+                const yvals = bmSumMonths(bm.data.byBranchMonth, branch, ymonths);
+                const yvalsForTotal = isCurrentKey ? yvals.map((v, j) => (ymonths[j] >= fStart && ymonths[j] <= fEnd) ? v : 0) : yvals;
+                const total = yvalsForTotal.reduce((a, v) => a + (v || 0), 0);
+                totalByYear[i] += total;
+                return total;
+            });
+
+            rowsHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">${branch}</td>
+                ${vals.map((v, i) => {
+                    const inRange = months[i] >= fStart && months[i] <= fEnd;
+                    const isFuture = i > lastIdxAll;
+                    const shaded = !inRange || isFuture;
+                    const text = shaded ? '-' : (v ? bmFmtM(v) : '0');
+                    return `<td class="px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ''}">${text}</td>`;
+                }).join('')}
+                ${yearTotals.map((t, i) => `<td class="px-3 py-2 border border-slate-200 text-right font-mono${i === yearTotals.length - 1 ? ' font-bold' : ''}">${t ? bmFmtM(t) : '-'}</td>`).join('')}
+            </tr>`;
+        });
+        tbody.innerHTML = rowsHtml || `<tr><td colspan="${totalColCount}" class="px-3 py-4 text-center text-slate-400">データがありません</td></tr>`;
+
+        tfoot.innerHTML = `<tr>
+            <td class="px-3 py-2 border border-slate-200 sticky left-0 bg-violet-50">総計</td>
+            ${totalMonthly.map((v, i) => {
+                const inRange = months[i] >= fStart && months[i] <= fEnd;
+                const isFuture = i > lastIdxAll;
+                const shaded = !inRange || isFuture;
+                return `<td class="px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ''}">${shaded ? '-' : bmFmtM(v)}</td>`;
+            }).join('')}
+            ${totalByYear.map(t => `<td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${t ? bmFmtM(t) : '-'}</td>`).join('')}
         </tr>`;
     }
 
@@ -5923,14 +6158,19 @@
         const priorCumTotal = priorVals.reduce((a, v) => a + v, 0);
         const noData = priorCumTotal === 0;
 
-        // 今年度（同月）の全社合計：未到来月は null として扱う
+        // 今年度（同月）の全社合計：期間絞込フィルターの範囲外の月はnull（対象外）として扱う
+        // ＝上部の「拠点別 実績・目標一覧」テーブルと同じ絞込ルールに合わせる
+        const { start: fStart, end: fEnd } = bmGetFilterRange();
+        const inFilter = (ym) => ym >= fStart && ym <= fEnd;
         const curValsRaw = bmSumMonths(bm.data.byBranchMonth, '__ALL__', curMonths);
+        const curVals = curValsRaw.map((v, i) => inFilter(curMonths[i]) ? v : null);
         let lastActualIdx = -1;
-        curValsRaw.forEach((v, i) => { if (v) lastActualIdx = i; });
+        curVals.forEach((v, i) => { if (v) lastActualIdx = i; });
 
-        // 累計実績列：前年度は経過月（今年度実績がある月数）までの累計
-        const elapsedCount = lastActualIdx + 1;
-        const priorCumElapsed = priorVals.slice(0, elapsedCount).reduce((a, v) => a + v, 0);
+        // 対象月＝絞込範囲内 かつ 経過月（今年度実績がある最終月まで）
+        const activeMask = curMonths.map((ym, i) => inFilter(ym) && i <= lastActualIdx);
+        const elapsedCount = activeMask.filter(Boolean).length;
+        const priorCumElapsed = priorVals.reduce((a, v, i) => a + (activeMask[i] ? v : 0), 0);
         const priorFullYearTotal = priorVals.reduce((a, v) => a + v, 0);
 
         thead.innerHTML = `<tr>
@@ -5941,10 +6181,17 @@
         </tr>
         <tr><th colspan="${priorMonths.length + 3}" class="px-3 py-1 text-right text-[10px] text-slate-400 font-normal bg-slate-50 border border-slate-200">${bmPeriodLabel(basis, priorKey)}　（単位：百万円）</th></tr>`;
 
-        const diffVals = priorMonths.map((ym, i) => (i <= lastActualIdx ? (curValsRaw[i] || 0) - (priorVals[i] || 0) : null));
-        const diffCum = diffVals.slice(0, elapsedCount).some(v => v === null) ? null : diffVals.slice(0, elapsedCount).reduce((a, v) => a + (v || 0), 0);
+        const diffVals = priorMonths.map((ym, i) => (activeMask[i] ? (curValsRaw[i] || 0) - (priorVals[i] || 0) : null));
+        const diffCum = diffVals.reduce((a, v) => a + (v || 0), 0);
+        const curCumElapsed = curValsRaw.reduce((a, v, i) => a + (activeMask[i] ? (v || 0) : 0), 0);
 
         tbody.innerHTML = `
+            <tr class="hover:bg-slate-50 border-b border-slate-100">
+                <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">①今年度実績</td>
+                ${curValsRaw.map((v, i) => `<td class="px-3 py-2 border border-slate-200 text-right font-mono${activeMask[i] ? '' : ' text-slate-300'}">${activeMask[i] ? (v ? bmFmtM(v) : '0') : '-'}</td>`).join('')}
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${elapsedCount > 0 ? bmFmtM(curCumElapsed) : '-'}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right">　</td>
+            </tr>
             <tr class="hover:bg-slate-50 border-b border-slate-100">
                 <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">②全社合計</td>
                 ${priorVals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${v ? bmFmtM(v) : '-'}</td>`).join('')}
@@ -5954,7 +6201,7 @@
             <tr class="hover:bg-slate-50 border-b border-slate-100">
                 <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">①-② 対前年増減額</td>
                 ${diffVals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono ${v !== null && v < 0 ? 'text-blue-600' : 'text-red-600'}">${v === null ? '' : (v >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(v))}</td>`).join('')}
-                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold ${diffCum !== null && diffCum < 0 ? 'text-blue-700' : 'text-red-700'}">${diffCum === null ? '-' : (diffCum >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(diffCum))}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold ${elapsedCount > 0 && diffCum < 0 ? 'text-blue-700' : 'text-red-700'}">${elapsedCount > 0 ? (diffCum >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(diffCum)) : '-'}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right">　</td>
             </tr>`;
         tfoot.innerHTML = '';
@@ -5994,10 +6241,11 @@
         const titleEl = document.getElementById('bm-branch-title');
         if (titleEl) titleEl.textContent = `${branch}　月別売上推移`;
 
-        const curMonths = bmPeriodMonths(basis, key);
+        const curMonths = bmGetFilteredMonths();  // 全月返す（フィルターはbmSumMonthsFilteredで適用）
         const priorMonths = bmPeriodMonths(basis, key - 1);
-
-        const curValsRaw = bmSumMonths(bm.data.byBranchMonth, branch, curMonths);
+        const { start: fStart, end: fEnd } = bmGetFilterRange();
+        const curValsRaw = bmSumMonths(bm.data.byBranchMonth, branch, curMonths).map((v, i) =>
+            curMonths[i] >= fStart && curMonths[i] <= fEnd ? v : null);
         const priorValsRaw = bmSumMonths(bm.data.byBranchMonth, branch, priorMonths);
         const maxLen = Math.max(curValsRaw.length, priorValsRaw.length);
         const pad = (arr) => { const a = arr.slice(0, maxLen); while (a.length < maxLen) a.push(null); return a; };
@@ -6023,7 +6271,7 @@
                         datasets: [
                             { type: 'bar', label: `前年度実績（${bmPeriodLabel(basis, key - 1)}）`, data: priorVals, backgroundColor: '#cbd5e1', yAxisID: 'y', order: 2 },
                             { type: 'bar', label: `今年度実績（${bmPeriodLabel(basis, key)}）`, data: curVals, backgroundColor: '#3b82f6', yAxisID: 'y', order: 2 },
-                            { type: 'line', label: '予算', data: budgetLine, borderColor: '#dc2626', backgroundColor: '#dc2626', borderDash: [6, 3], pointRadius: 3, fill: false, yAxisID: 'y', order: 1 },
+                            { type: 'line', label: '目標', data: budgetLine, borderColor: '#dc2626', backgroundColor: '#dc2626', borderDash: [6, 3], pointRadius: 3, fill: false, yAxisID: 'y', order: 1 },
                             { type: 'line', label: '累計実績', data: cumLine, borderColor: '#10b981', backgroundColor: '#10b981', pointRadius: 2, fill: false, spanGaps: false, yAxisID: 'y1', order: 0 },
                         ]
                     },
@@ -6063,13 +6311,13 @@
         const diffVals = curVals.map((v, i) => (i <= lastActualIdx ? (v || 0) - (priorVals[i] || 0) : null));
         const rows = [
             { label: '今年度実績', vals: curVals, cls: 'text-blue-700 font-bold' },
-            { label: '予算', vals: budgetLine, cls: 'text-red-600' },
+            { label: '目標', vals: budgetLine, cls: 'text-red-600' },
             { label: '累計実績', vals: cumLine, cls: 'text-emerald-700 font-bold' },
             { label: '前年度実績', vals: priorVals, cls: 'text-slate-500' },
         ];
         let rowsHtml = rows.map(r => `<tr class="border-b border-slate-100">
             <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">${r.label}</td>
-            ${r.vals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono ${r.cls}">${(v !== null && v !== undefined) ? bmFmtM(v) : '-'}</td>`).join('')}
+            ${r.vals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono ${v !== null && v !== undefined ? r.cls : 'text-slate-300'}">${(v !== null && v !== undefined) ? bmFmtM(v) : '-'}</td>`).join('')}
         </tr>`).join('');
         rowsHtml += `<tr class="border-b border-slate-100 bg-amber-50">
             <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-amber-50">対前年増減額</td>
@@ -6097,18 +6345,20 @@
             <th class="px-3 py-2 border border-slate-200 text-right bg-slate-200 whitespace-nowrap">前年同期実績<br>(経過${elapsedCount}ヶ月)</th>
             <th class="px-3 py-2 border border-slate-200 text-right bg-amber-100">前年比</th>
         </tr>`;
-        const totalsByMonth = new Array(months.length).fill(0);
+        const totalsByMonth = new Array(months.length).fill(null);
         let grandTotal = 0, grandPriorTotal = 0;
+        const { start: fStartO, end: fEndO } = bmGetFilterRange();
         tbody.innerHTML = owners.map(owner => {
-            const vals = months.map(ym => ownerMap[owner][ym] || 0);
-            vals.forEach((v, i) => totalsByMonth[i] += v);
-            const rowTotal = vals.reduce((a, v) => a + v, 0);
+            const allVals = months.map(ym => ownerMap[owner][ym] || 0);
+            const vals = allVals.map((v, i) => months[i] >= fStartO && months[i] <= fEndO ? v : null);
+            vals.forEach((v, i) => { if (v !== null) totalsByMonth[i] = (totalsByMonth[i] || 0) + v; });
+            const rowTotal = vals.reduce((a, v) => a + (v || 0), 0);
             const priorElapsedTotal = priorMonths.slice(0, elapsedCount).reduce((s, ym) => s + (ownerMap[owner][ym] || 0), 0);
             const diff = rowTotal - priorElapsedTotal;
             grandTotal += rowTotal; grandPriorTotal += priorElapsedTotal;
             return `<tr class="hover:bg-slate-50 border-b border-slate-100">
                 <td class="px-3 py-2 border border-slate-200 sticky left-0 bg-white">${owner}</td>
-                ${vals.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${v ? bmFmtM(v) : '-'}</td>`).join('')}
+                ${vals.map((v, i) => `<td class="px-3 py-2 border border-slate-200 text-right font-mono${v === null ? ' text-slate-300' : ''}">${v !== null ? (v ? bmFmtM(v) : '0') : '-'}</td>`).join('')}
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${bmFmtM(rowTotal)}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono text-slate-500">${priorElapsedTotal ? bmFmtM(priorElapsedTotal) : '-'}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono ${diff < 0 ? 'text-blue-600' : 'text-red-600'}">${(priorElapsedTotal || rowTotal) ? (diff >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(diff)) : '-'}</td>
@@ -6117,7 +6367,7 @@
         const grandDiff = grandTotal - grandPriorTotal;
         tfoot.innerHTML = `<tr>
             <td class="px-3 py-2 border border-slate-200">合計</td>
-            ${totalsByMonth.map(v => `<td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(v)}</td>`).join('')}
+            ${totalsByMonth.map((v, i) => `<td class="px-3 py-2 border border-slate-200 text-right font-mono${v === null ? ' text-slate-300' : ''}">${v !== null ? bmFmtM(v) : '-'}</td>`).join('')}
             <td class="px-3 py-2 border border-slate-200 text-right font-mono">${bmFmtM(grandTotal)}</td>
             <td class="px-3 py-2 border border-slate-200 text-right font-mono">${grandPriorTotal ? bmFmtM(grandPriorTotal) : '-'}</td>
             <td class="px-3 py-2 border border-slate-200 text-right font-mono ${grandDiff < 0 ? 'text-blue-700' : 'text-red-700'}">${(grandPriorTotal || grandTotal) ? (grandDiff >= 0 ? '+' : '▲ ') + bmFmtM(Math.abs(grandDiff)) : '-'}</td>
@@ -6131,6 +6381,7 @@
         if (label) label.textContent = bmPeriodLabel(basis, key);
 
         const months = bmPeriodMonths(basis, key);
+        const nMonths = months.length;
         const branchRows = ['ALL', ...bm.data.branches];
         const branchRowLabel = (b) => b === 'ALL' ? '全社合計' : b;
 
@@ -6141,14 +6392,21 @@
                     <th class="px-3 py-2 border border-slate-200">拠点</th>
                     <th class="px-3 py-2 border border-slate-200">年間目標（億円）</th>
                     <th class="px-3 py-2 border border-slate-200">前期実績（億円）</th>
+                    <th class="px-3 py-2 border border-slate-200 text-xs">月別自動入力</th>
                 </tr></thead>
                 <tbody>
                 ${branchRows.map(b => {
                     const e = bmGetBudgetEntry(basis, key, b);
                     return `<tr>
                         <td class="px-3 py-2 border border-slate-200 font-bold ${b === 'ALL' ? 'bg-violet-50' : ''}">${branchRowLabel(b)}</td>
-                        <td class="px-1 py-1 border border-slate-200"><input type="number" step="0.01" class="bm-input-target w-28 text-right border border-slate-300 rounded px-2 py-1" data-branch="${b}" value="${e.annualTarget ? (e.annualTarget / 1e8) : ''}"></td>
+                        <td class="px-1 py-1 border border-slate-200">
+                            <input type="number" step="0.01" class="bm-input-target w-28 text-right border border-slate-300 rounded px-2 py-1" data-branch="${b}" value="${e.annualTarget ? (e.annualTarget / 1e8) : ''}">
+                        </td>
                         <td class="px-1 py-1 border border-slate-200"><input type="number" step="0.01" class="bm-input-prev w-28 text-right border border-slate-300 rounded px-2 py-1" data-branch="${b}" value="${e.prevActual ? (e.prevActual / 1e8) : ''}"></td>
+                        <td class="px-2 py-1 border border-slate-200 text-center">
+                            <button onclick="window.bmAutoFillMonthly('${b}')" class="text-xs bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold px-2 py-1 rounded" title="年間目標÷${nMonths}ヶ月で月別に自動入力します（空欄の月のみ。手動で変更済みの月は上書きされません）">÷${nMonths}</button>
+                            <button onclick="window.bmAutoFillMonthly('${b}', true)" class="text-xs bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold px-2 py-1 rounded ml-1" title="月別をすべて上書きします">全上書き</button>
+                        </td>
                     </tr>`;
                 }).join('')}
                 </tbody>
@@ -6174,6 +6432,22 @@
             `;
         }
     }
+
+    // ── 年間目標 ÷ 月数 で月別欄を自動入力 ──
+    window.bmAutoFillMonthly = function(branch, overwrite = false) {
+        const targetInput = document.querySelector(`.bm-input-target[data-branch="${branch}"]`);
+        if (!targetInput || targetInput.value === '') { alert('先に年間目標（億円）を入力してください。'); return; }
+        const annualOku = parseFloat(targetInput.value);
+        if (!annualOku || isNaN(annualOku)) { alert('年間目標（億円）の値が正しくありません。'); return; }
+        const monthlyMen = annualOku * 100 / (bmPeriodMonths(bm.basis, bm.periodKey).length);
+        const monthlyM = Math.round(monthlyMen * 10) / 10; // 小数1位に丸め
+        let filled = 0;
+        document.querySelectorAll(`.bm-input-monthly[data-branch="${branch}"]`).forEach(inp => {
+            if (overwrite || inp.value === '') { inp.value = monthlyM; filled++; }
+        });
+        const status = document.getElementById('bm-budget-save-status');
+        if (status) { status.textContent = `${filled}ヶ月分を自動入力しました（${monthlyM}百万円/月）　※「保存」を押すと確定されます`; setTimeout(() => { status.textContent = ''; }, 5000); }
+    };
 
     window.bmSaveBudget = async function() {
         try {
@@ -6245,32 +6519,103 @@
                 const m = String(h).match(/^(\d{1,2})月/);
                 if (m) monthCols.push({ idx, month: parseInt(m[1]) });
             });
-            const basis = bm.basis, key = bm.periodKey;
-            const months = bmPeriodMonths(basis, key);
+
+            // 雛形に埋め込まれた _meta シート（basis / key / 実際の年月一覧）を読み取り、
+            // 列の「◯月」がどの実年月（YYYY-MM）を指すかを正しく特定する
+            // （現在の画面の期／年ではなく、雛形が作られたときの期／年を基準にする）
+            let srcBasis = bm.basis, srcKey = bm.periodKey, metaMonths = null;
+            if (wbIn.SheetNames.includes('_meta')) {
+                try {
+                    const metaRows = XLSX.utils.sheet_to_json(wbIn.Sheets['_meta'], { header: 1, defval: '' });
+                    const metaMap = {};
+                    metaRows.forEach(r => { if (r[0]) metaMap[r[0]] = r[1]; });
+                    if (metaMap.basis === 'fiscal' || metaMap.basis === 'calendar') srcBasis = metaMap.basis;
+                    if (metaMap.key !== undefined && metaMap.key !== '') srcKey = Number(metaMap.key);
+                    if (metaMap.months) metaMonths = String(metaMap.months).split(',').filter(Boolean);
+                } catch (eMeta) { console.warn('_meta 読み取り失敗（現在の画面の期／年を基準に取り込みます）:', eMeta); }
+            }
+            const months = bmPeriodMonths(srcBasis, srcKey);
+            const nMonths = months.length;
+            // monthCols は左から右の並び順で拾っているので、_meta の months 配列（同じ並び順で書き出し済み）と
+            // 位置で対応付ける。_meta が無い／件数が合わない場合のみ、月番号からの推定にフォールバックする。
             const monthNoToYm = {};
             months.forEach(ym => { monthNoToYm[Number(ym.split('-')[1])] = ym; });
+            const colYm = monthCols.map((mc, i) => {
+                if (metaMonths && metaMonths[i]) return metaMonths[i];
+                return monthNoToYm[mc.month];
+            });
 
-            let imported = 0;
+            // 実データの拠点名リスト（正規化して照合）
+            const normalize = s => String(s || '').trim().replace(/\s+/g, '').toLowerCase();
+            const branchNormMap = new Map();
+            (bm.data ? bm.data.branches : []).forEach(b => branchNormMap.set(normalize(b), b));
+            branchNormMap.set('all', 'ALL');
+            branchNormMap.set('全社合計', 'ALL');
+
+            const otherBasis = srcBasis === 'fiscal' ? 'calendar' : 'fiscal';
+            let imported = 0, skipped = 0;
+            const warnings = [];
             for (let r = 1; r < rows.length; r++) {
                 const row = rows[r];
                 if (!row[0]) continue;
-                let branchName = String(row[0]).trim();
-                if (branchName === '全社合計') branchName = 'ALL';
-                const annualTarget = parseFloat(row[1]) ? Math.round(parseFloat(row[1]) * 1e8) : 0;
-                const prevActual = parseFloat(row[2]) ? Math.round(parseFloat(row[2]) * 1e8) : 0;
+                const rawName = String(row[0]).trim();
+                const normName = normalize(rawName);
+                // 雛形の拠点名をそのまま使う（ALLと全社合計は変換、それ以外は正規化照合を試みる）
+                let branchName = branchNormMap.get(normName) || branchNormMap.get(rawName);
+                if (!branchName) {
+                    // 部分一致で拠点名を推測
+                    for (const [norm, actual] of branchNormMap) {
+                        if (norm.includes(normName) || normName.includes(norm)) { branchName = actual; break; }
+                    }
+                }
+                if (!branchName) {
+                    // マスターに存在しない拠点でも予算は保存する（新規拠点対応）
+                    branchName = rawName;
+                    warnings.push(rawName);
+                }
+                const annualTargetOku = parseFloat(row[1]);
+                const annualTarget = annualTargetOku && !isNaN(annualTargetOku) ? Math.round(annualTargetOku * 1e8) : 0;
+                const prevActual = parseFloat(row[2]) && !isNaN(parseFloat(row[2])) ? Math.round(parseFloat(row[2]) * 1e8) : 0;
                 const monthly = {};
-                monthCols.forEach(mc => {
-                    const ym = monthNoToYm[mc.month];
+                monthCols.forEach((mc, i) => {
+                    const ym = colYm[i];
                     if (!ym) return;
                     const v = parseFloat(row[mc.idx]);
-                    if (v) monthly[ym] = Math.round(v * 1e6);
+                    if (v && !isNaN(v)) { monthly[ym] = Math.round(v * 1e6); }
                 });
-                bmSetBudgetEntry(basis, key, branchName, { annualTarget, prevActual, monthly });
+                // 月別が空欄かつ年間目標がある場合は ÷ 月数で自動按分して保存する
+                if (annualTarget > 0 && Object.keys(monthly).length === 0 && nMonths > 0) {
+                    const perMonth = Math.round(annualTarget / nMonths);
+                    months.forEach(ym => { monthly[ym] = perMonth; });
+                }
+                // 取込元の基準（期／年）に保存
+                bmSetBudgetEntry(srcBasis, srcKey, branchName, { annualTarget, prevActual, monthly });
+
+                // 月別予算は実際の年月に基づき、もう一方の基準（期⇔年）にも自動で反映する
+                // （年間目標・前期実績は期／年で対象月がズレるため反映しない。既存の月別予算はそのまま残し、
+                //  今回取り込んだ月だけを上書きする）
+                const otherKeyMonthly = {}; // otherKey -> { ym: value, ... }
+                Object.keys(monthly).forEach(ym => {
+                    const otherKey = otherBasis === 'calendar' ? Number(ym.split('-')[0]) : bmFiscalNoForYm(ym);
+                    if (otherKey === null || otherKey === undefined) return;
+                    if (!otherKeyMonthly[otherKey]) otherKeyMonthly[otherKey] = {};
+                    otherKeyMonthly[otherKey][ym] = monthly[ym];
+                });
+                Object.keys(otherKeyMonthly).forEach(k => {
+                    const kNum = Number(k);
+                    const existing = bmGetBudgetEntry(otherBasis, kNum, branchName);
+                    const mergedMonthly = { ...existing.monthly, ...otherKeyMonthly[k] };
+                    bmSetBudgetEntry(otherBasis, kNum, branchName, { annualTarget: existing.annualTarget, prevActual: existing.prevActual, monthly: mergedMonthly });
+                });
+
                 imported++;
             }
             await bmSaveBudgetToDB();
-            alert(`予算データを取り込みました（${imported}行）`);
-            window.bmRenderCurrentView();
+            let msg = `予算データを取り込みました（${imported}行）\n※月別予算は「期」「年（カレンダー）」の両方に自動反映されます（年間目標・前期実績は取込元の基準のみに反映されます）。`;
+            if (warnings.length) msg += `\n※以下の拠点名は現場マスターに存在しませんが、そのまま保存しました：\n${warnings.join('、')}`;
+            alert(msg);
+            bmRenderBudgetPanel();   // パネルに反映
+            window.bmRenderCurrentView(); // グラフ・表に反映
         } catch (e) {
             console.error('予算取込エラー:', e);
             alert('取込中にエラーが発生しました：' + e.message);
@@ -6285,12 +6630,25 @@
         while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
         return s;
     }
+    // グラフ画像を配置する範囲のセルを白背景で塗りつぶす（グラフの下に罫線や既定の背景色が透けて見えないようにする）
+    function bmFillChartArea(ws, startRowNumber, numRows, numCols) {
+        const whiteFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+        for (let r = 0; r < numRows; r++) {
+            const row = ws.getRow(startRowNumber + r);
+            for (let c = 1; c <= numCols; c++) {
+                row.getCell(c).fill = whiteFill;
+            }
+            row.commit && row.commit();
+        }
+    }
 
     window.exportBoardMeetingExcel = async function() {
         if (!bm.data) { alert('データを読み込み中です。少し待ってから再実行してください。'); return; }
         try {
             const basis = bm.basis, key = bm.periodKey;
             const months = bmPeriodMonths(basis, key);
+            const { start: fStart, end: fEnd } = bmGetFilterRange();
+            const inFilter = (ym) => ym >= fStart && ym <= fEnd;
             const monthHeaders = months.map(ym => `${Number(ym.split('-')[1])}月`);
             const branches = bm.data.branches;
             const wb2 = new ExcelJS.Workbook();
@@ -6337,6 +6695,7 @@
                 console.warn('グラフキャンバスが描画されていないため、画像を埋め込めませんでした。');
             }
             for (let i = 0; i < reserveRows; i++) ws1.addRow([]);
+            if (reserveRows > 0) bmFillChartArea(ws1, chartImgRowStart + 1, reserveRows, 20);
 
             // 表示状態を元に戻す
             if (wasOverallHidden) {
@@ -6359,18 +6718,20 @@
             // 経過月（実績がある月）の特定
             const totalsAllRaw = bmSumMonths(bm.data.byBranchMonth, '__ALL__', months);
             let lastIdxAllX = -1;
-            totalsAllRaw.forEach((v, i) => { if (v) lastIdxAllX = i; });
-            const elapsedMonthsX = months.slice(0, lastIdxAllX + 1);
+            totalsAllRaw.forEach((v, i) => { if (v && inFilter(months[i])) lastIdxAllX = i; });
+            const elapsedMonthsX = months.slice(0, lastIdxAllX + 1).filter(ym => inFilter(ym));
 
             const branchRowNums = [];
             branches.forEach(branch => {
-                const vals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+                const valsRaw = bmSumMonths(bm.data.byBranchMonth, branch, months);
+                // 期間絞込フィルターの範囲外の月はnull（空欄）にする（画面表示と同じ扱い）
+                const vals = valsRaw.map((v, i) => inFilter(months[i]) ? v : null);
                 const entry = bmGetBudgetEntry(basis, key, branch);
                 const monthlySumElapsed = elapsedMonthsX.reduce((s, ym) => s + (entry.monthly[ym] || 0), 0);
                 const hasMonthlyBudget = elapsedMonthsX.some(ym => entry.monthly[ym]);
                 const target = hasMonthlyBudget ? monthlySumElapsed : (entry.annualTarget && months.length ? Math.round(entry.annualTarget * elapsedMonthsX.length / months.length) : 0);
                 const annualTarget = entry.annualTarget || 0;
-                const valsM = vals.map(v => v / 1e6);
+                const valsM = vals.map(v => v === null ? null : v / 1e6);
                 const row = ws1.addRow([branch, ...valsM, null, target ? target / 1e6 : null, null, null, annualTarget ? annualTarget / 1e6 : null, null]);
                 const r = row.number;
                 branchRowNums.push(r);
@@ -6402,7 +6763,7 @@
             totRow.getCell(rateCol).value = { formula: `IF(${bmColLetter(targetCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(targetCol)}${tr}*100)` };
             totRow.getCell(annualCol).value = { formula: `SUM(${bmColLetter(annualCol)}${firstBranchRow}:${bmColLetter(annualCol)}${lastBranchRow})` };
             totRow.getCell(annualRateCol).value = { formula: `IF(${bmColLetter(annualCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(annualCol)}${tr}*100)` };
-            totRow.eachCell((c, i) => { c.font = { bold: true }; c.fill = hdrFill('FFEDE9FE'); if (i > 1) { c.numFmt = (i === rateCol || i === annualRateCol) ? '0.0"%"' : numFmt; c.alignment = { horizontal: 'right' }; } });
+            totRow.eachCell((c, i) => { c.font = { bold: true }; c.fill = hdrFill('FFEDE9FE'); if (i > 1) { c.numFmt = (i === rateCol || i === annualRateCol) ? '0.0"%"' : (i === diffCol ? diffNumFmt : numFmt); c.alignment = { horizontal: 'right' }; } });
 
             const priorKey = key - 1;
             const priorMonths = bmPeriodMonths(basis, priorKey);
@@ -6435,68 +6796,136 @@
 
             ws1.addRow([]);
             ws1.addRow(['※ 背景が紫色・グレーになっているセル（総計行・累計実績・差額・進捗率・年間進捗率・対前期増減）には数式が入っているため、月別実績の数値を修正すると自動で再計算されます。それ以外の白いセルは自由に手入力・修正できます。']).getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
+            ws1.addRow(['※ 金額は百万円単位で四捨五入して表示しているため、月別実績を単純に合計した数値と「累計実績」の数値が一致しないことがあります（例：4月10、5月14と表示されていても、累計実績は13のように異なる数値になる場合があります）。']).getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
 
-            // ── Sheet2〜: 拠点別 ──
-            branches.forEach(branch => {
+            // ── Sheet2〜: 拠点別（グラフ画像＋区分別表＋元請先別明細） ──
+            // 拠点ごとにチャートを描画・キャプチャするため、拠点別ビューに一時切替して順次処理する
+            const overallViewEl2 = document.getElementById('bm-overall-view');
+            const branchViewEl2 = document.getElementById('bm-branch-view');
+            const branchSelEl = document.getElementById('bm-branch-select');
+            const wasOverall2 = overallViewEl2 && !overallViewEl2.classList.contains('hidden');
+            if (wasOverall2) { overallViewEl2.classList.add('hidden'); branchViewEl2 && branchViewEl2.classList.remove('hidden'); }
+
+            for (const branch of branches) {
                 const safeName = branch.replace(/[\\/*?:[\]]/g, '_').substring(0, 31) || 'branch';
                 const ws = wb2.addWorksheet(safeName);
                 ws.getColumn(1).width = 20;
-                ws.addRow([`${branch}　拠点別資料（単位：百万円）`]).getCell(1).font = { bold: true, size: 12 };
+                ws.addRow([`${branch}　拠点別資料（単位：百万円）　${bmPeriodLabel(basis, key)}`]).getCell(1).font = { bold: true, size: 12 };
+
+                // 拠点チャートを描画してキャプチャ
+                bm.branch = branch;
+                if (branchSelEl) { branchSelEl.value = branch; }
+                bmRenderBranch();
+                await new Promise(res => setTimeout(res, 120));
+                const branchCanvas = document.getElementById('chart-bm-branch');
+                const chartImgRow = ws.rowCount;
+                if (branchCanvas && bm.chartBranch && branchCanvas.width > 0 && branchCanvas.height > 0) {
+                    try {
+                        const imgData = branchCanvas.toDataURL('image/png');
+                        const imageId = wb2.addImage({ base64: imgData, extension: 'png' });
+                        ws.addImage(imageId, { tl: { col: 0, row: chartImgRow }, ext: { width: 820, height: 280 } });
+                        for (let i = 0; i < 15; i++) ws.addRow([]);
+                        bmFillChartArea(ws, chartImgRow + 1, 15, 20);
+                    } catch (imgErr) { console.warn(`${branch} チャートキャプチャ失敗:`, imgErr); }
+                }
+
+                // 区分別（今年度実績／目標／累計実績／前年度実績／対前年増減額）
+                const secHdr1 = ws.addRow(['区分別（単位：百万円）']);
+                secHdr1.getCell(1).font = { bold: true, size: 11 };
+                ws.mergeCells(`A${secHdr1.number}:${bmColLetter(nMonths + 2)}${secHdr1.number}`);
+                const summaryHdr = ws.addRow(['区分', ...monthHeaders]);
+                summaryHdr.eachCell(c => c.style = hdrStyle);
+
+                const curValsRaw = bmSumMonths(bm.data.byBranchMonth, branch, months);
+                // 期間絞込フィルターの範囲外の月はnull（空欄）にする（画面表示と同じ扱い）
+                const curVals = curValsRaw.map((v, i) => inFilter(months[i]) ? v : null);
+                const priorValsB = bmSumMonths(bm.data.byBranchMonth, branch, priorMonths);
+                const budgetEntryB = bmGetBudgetEntry(basis, key, branch);
+                const budgetValsB = months.map(ym => budgetEntryB.monthly[ym] || 0);
+                let lastActualIdxSheet = -1;
+                curVals.forEach((v, i) => { if (v) lastActualIdxSheet = i; });
+
+                const curRow = ws.addRow(['今年度実績', ...curVals.map(v => v === null ? null : v / 1e6)]);
+                curRow.getCell(1).font = { bold: true };
+                const curR = curRow.number;
+                curRow.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+
+                const tgtRow = ws.addRow(['目標', ...budgetValsB.map(v => v / 1e6)]);
+                tgtRow.getCell(1).font = { bold: true };
+                tgtRow.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+
+                const cumRow = ws.addRow(['累計実績']);
+                const cumR = cumRow.number;
+                for (let i = 0; i < nMonths; i++) {
+                    const col = 2 + i;
+                    cumRow.getCell(col).value = { formula: `SUM(${bmColLetter(2)}${curR}:${bmColLetter(col)}${curR})` };
+                }
+                cumRow.getCell(1).font = { bold: true };
+                cumRow.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+
+                const priorRow = ws.addRow(['前年度実績', ...priorValsB.map(v => v / 1e6)]);
+                priorRow.getCell(1).font = { bold: true };
+                const priorR = priorRow.number;
+                priorRow.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+
+                const diffRow = ws.addRow(['対前年増減額']);
+                diffRow.getCell(1).font = { bold: true };
+                diffRow.getCell(1).fill = hdrFill('FFFEF3C7');
+                for (let i = 0; i < nMonths; i++) {
+                    const col = 2 + i;
+                    if (i <= lastActualIdxSheet) {
+                        diffRow.getCell(col).value = { formula: `${bmColLetter(col)}${curR}-${bmColLetter(col)}${priorR}` };
+                        diffRow.getCell(col).numFmt = diffNumFmt;
+                    }
+                    diffRow.getCell(col).alignment = { horizontal: 'right' };
+                }
+
+                // 元請先別 月次売上明細
+                ws.addRow([]);
+                const secHdr2 = ws.addRow(['元請先別 月次売上明細（単位：百万円）']);
+                secHdr2.getCell(1).font = { bold: true, size: 11 };
+                ws.mergeCells(`A${secHdr2.number}:${bmColLetter(nMonths + 4)}${secHdr2.number}`);
+                const ownerHdr = ws.addRow(['元請先（施工主）', ...monthHeaders, '合計', '前年同期実績', '前年比']);
+                ownerHdr.eachCell(c => c.style = hdrStyle);
+
                 const ownerMap = bm.data.byOwnerMonth[branch] || {};
+                const elapsedCount = lastActualIdxSheet + 1;
                 const owners = Object.keys(ownerMap).sort((a, b) => {
                     const sa = months.reduce((s, ym) => s + (ownerMap[a][ym] || 0), 0);
                     const sb = months.reduce((s, ym) => s + (ownerMap[b][ym] || 0), 0);
                     return sb - sa;
                 });
-                const hdr = ws.addRow(['元請先', ...monthHeaders, '合計']);
-                hdr.eachCell(c => c.style = hdrStyle);
-                const ownerLastCol = 1 + nMonths + 1; // 合計列
+                const ownerLastCol = 1 + nMonths + 1;
+                const ownerPriorCol = ownerLastCol + 1;
+                const ownerDiffCol = ownerLastCol + 2;
                 const ownerRowNums = [];
                 owners.forEach(owner => {
-                    const vals = months.map(ym => ownerMap[owner][ym] || 0);
-                    const row = ws.addRow([owner, ...vals.map(v => v / 1e6), null]);
+                    const valsRaw = months.map(ym => ownerMap[owner][ym] || 0);
+                    const vals = valsRaw.map((v, i) => inFilter(months[i]) ? v : null);
+                    const priorElapsed = priorMonths.slice(0, elapsedCount).reduce((s, ym) => s + (ownerMap[owner][ym] || 0), 0);
+                    const row = ws.addRow([owner, ...vals.map(v => v === null ? null : v / 1e6), null, priorElapsed / 1e6, null]);
                     const r = row.number;
                     ownerRowNums.push(r);
                     row.getCell(ownerLastCol).value = { formula: `SUM(${bmColLetter(2)}${r}:${bmColLetter(1 + nMonths)}${r})` };
-                    row.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+                    row.getCell(ownerDiffCol).value = { formula: `${bmColLetter(ownerLastCol)}${r}-${bmColLetter(ownerPriorCol)}${r}` };
+                    row.eachCell((c, i) => { if (i > 1) { c.numFmt = i === ownerDiffCol ? diffNumFmt : numFmt; c.alignment = { horizontal: 'right' }; } });
                 });
-                if (owners.length) {
-                    const ownerTotRow = ws.addRow(['合計']);
-                    const otr = ownerTotRow.number;
+                if (ownerRowNums.length) {
+                    const totRow = ws.addRow(['合計']);
+                    const tr = totRow.number;
                     const fOR = ownerRowNums[0], lOR = ownerRowNums[ownerRowNums.length - 1];
-                    for (let c = 2; c <= ownerLastCol; c++) {
-                        ownerTotRow.getCell(c).value = { formula: `SUM(${bmColLetter(c)}${fOR}:${bmColLetter(c)}${lOR})` };
+                    for (let c = 2; c <= ownerDiffCol; c++) {
+                        if (c === ownerDiffCol) totRow.getCell(c).value = { formula: `${bmColLetter(ownerLastCol)}${tr}-${bmColLetter(ownerPriorCol)}${tr}` };
+                        else totRow.getCell(c).value = { formula: `SUM(${bmColLetter(c)}${fOR}:${bmColLetter(c)}${lOR})` };
+                        totRow.getCell(c).numFmt = c === ownerDiffCol ? diffNumFmt : numFmt;
+                        totRow.getCell(c).alignment = { horizontal: 'right' };
                     }
-                    ownerTotRow.eachCell((c, i) => { c.font = { bold: true }; c.fill = hdrFill('FFF1F5F9'); if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
+                    totRow.eachCell((c) => { c.font = { bold: true }; c.fill = hdrFill('FFF1F5F9'); });
                 }
+            }
 
-                ws.addRow([]);
-                const curVals = bmSumMonths(bm.data.byBranchMonth, branch, months);
-                const priorValsB = bmSumMonths(bm.data.byBranchMonth, branch, priorMonths);
-                const budgetEntryB = bmGetBudgetEntry(basis, key, branch);
-                const budgetValsB = months.map(ym => budgetEntryB.monthly[ym] || 0);
-                [
-                    ['今年度実績', curVals, false],
-                    ['予算', budgetValsB, false],
-                    ['累計実績', null, true],
-                    ['前年度実績', priorValsB, false],
-                ].forEach(([label, vals, isCum]) => {
-                    if (isCum) {
-                        const row = ws.addRow([label]);
-                        const r = row.number;
-                        for (let i = 0; i < nMonths; i++) {
-                            const col = 2 + i;
-                            row.getCell(col).value = { formula: `SUM(${bmColLetter(2)}${r - 2}:${bmColLetter(col)}${r - 2})` };
-                        }
-                        row.getCell(1).font = { bold: true };
-                        row.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
-                    } else {
-                        const row = ws.addRow([label, ...vals.map(v => v / 1e6)]);
-                        row.getCell(1).font = { bold: true };
-                        row.eachCell((c, i) => { if (i > 1) { c.numFmt = numFmt; c.alignment = { horizontal: 'right' }; } });
-                    }
-                });
-            });
+            // ビューを元に戻す
+            if (wasOverall2) { overallViewEl2 && overallViewEl2.classList.remove('hidden'); branchViewEl2 && branchViewEl2.classList.add('hidden'); }
 
             const dateStr = new Date().toISOString().slice(0, 10);
             const buf = await wb2.xlsx.writeBuffer();
@@ -6515,6 +6944,8 @@
             const basis = bm.basis, key = bm.periodKey;
             const months = bmPeriodMonths(basis, key);
             const priorMonths = bmPeriodMonths(basis, key - 1);
+            const { start: fStart, end: fEnd } = bmGetFilterRange();
+            const inFilter = (ym) => ym >= fStart && ym <= fEnd;
             const monthHeaders = months.map(ym => `${Number(ym.split('-')[1])}月`);
             const nMonths = months.length;
             const numFmt = '#,##0';
@@ -6555,6 +6986,7 @@
                 }
             }
             for (let i = 0; i < reserveRows; i++) ws.addRow([]);
+            if (reserveRows > 0) bmFillChartArea(ws, chartImgRowStart + 1, reserveRows, 20);
             if (wasBranchHidden) {
                 branchViewEl.classList.add('hidden');
                 if (overallViewEl) overallViewEl.classList.remove('hidden');
@@ -6566,14 +6998,16 @@
             const summaryHdr = ws.addRow(['区分', ...monthHeaders]);
             summaryHdr.eachCell(c => c.style = hdrStyle);
 
-            const curVals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+            const curValsRaw = bmSumMonths(bm.data.byBranchMonth, branch, months);
+            // 期間絞込フィルターの範囲外の月はnull（空欄）にする（画面表示と同じ扱い）
+            const curVals = curValsRaw.map((v, i) => inFilter(months[i]) ? v : null);
             const priorVals = bmSumMonths(bm.data.byBranchMonth, branch, priorMonths);
             const budgetEntry = bmGetBudgetEntry(basis, key, branch);
             const budgetVals = months.map(ym => budgetEntry.monthly[ym] || 0);
             let lastActualIdx = -1;
             curVals.forEach((v, i) => { if (v) lastActualIdx = i; });
 
-            const curRow = ws.addRow(['今年度実績', ...curVals.map(v => v / 1e6)]);
+            const curRow = ws.addRow(['今年度実績', ...curVals.map(v => v === null ? null : v / 1e6)]);
             curRow.getCell(1).font = { bold: true };
             const curR = curRow.number;
 
@@ -6623,9 +7057,10 @@
             const ownerDiffCol = ownerLastCol + 2;
             const ownerRowNums = [];
             owners.forEach(owner => {
-                const vals = months.map(ym => ownerMap[owner][ym] || 0);
+                const valsRaw = months.map(ym => ownerMap[owner][ym] || 0);
+                const vals = valsRaw.map((v, i) => inFilter(months[i]) ? v : null);
                 const priorElapsedTotal = priorMonths.slice(0, elapsedCount).reduce((s, ym) => s + (ownerMap[owner][ym] || 0), 0);
-                const row = ws.addRow([owner, ...vals.map(v => v / 1e6), null, priorElapsedTotal / 1e6, null]);
+                const row = ws.addRow([owner, ...vals.map(v => v === null ? null : v / 1e6), null, priorElapsedTotal / 1e6, null]);
                 const r = row.number;
                 ownerRowNums.push(r);
                 row.getCell(ownerLastCol).value = { formula: `SUM(${bmColLetter(2)}${r}:${bmColLetter(1 + nMonths)}${r})` };
@@ -6647,6 +7082,7 @@
 
             ws.addRow([]);
             ws.addRow([`※ 背景がグレー・黄色になっているセル（合計行・累計実績・対前年増減額・前年比）には数式が入っているため、月別実績の数値を修正すると自動で再計算されます。経過月数（${elapsedCount}ヶ月）は今年度の実績がある月数に応じて変わります。`]).getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
+            ws.addRow(['※ 金額は百万円単位で四捨五入して表示しているため、月別実績を単純に合計した数値と「累計実績」の数値が一致しないことがあります（例：4月10、5月14と表示されていても、累計実績は13のように異なる数値になる場合があります）。']).getCell(1).font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
 
             const dateStr = new Date().toISOString().slice(0, 10);
             const buf = await wb2.xlsx.writeBuffer();
@@ -7623,6 +8059,22 @@
         window.applyBrowseFilter();
     }
 
+    window.setMarginPreset = function(op, val) {
+        const opEl = document.getElementById('browse-margin-op');
+        const valEl = document.getElementById('browse-margin-value');
+        if (opEl) opEl.value = op;
+        if (valEl) valEl.value = val;
+        window.applyBrowseFilter();
+    }
+
+    window.clearBrowseMargin = function() {
+        const opEl = document.getElementById('browse-margin-op');
+        const valEl = document.getElementById('browse-margin-value');
+        if (opEl) opEl.value = 'lte';
+        if (valEl) valEl.value = '';
+        window.applyBrowseFilter();
+    }
+
     window.parseDateStr8 = function(str) {
         if (!str) return null;
         const s = String(str).trim().replace(/\D/g,'');
@@ -7651,6 +8103,10 @@
         const chkUncollected  = document.getElementById('browse-chk-uncollected-only')?.checked;
         const chkCollAnomaly  = document.getElementById('browse-chk-coll-anomaly')?.checked;
         const sortVal = document.getElementById('browse-sort')?.value || 'code_asc';
+        // 粗利率フィルター
+        const marginOp = (document.getElementById('browse-margin-op') || {}).value || 'lte';
+        const marginValRaw = (document.getElementById('browse-margin-value') || {}).value;
+        const marginVal = marginValRaw !== '' && marginValRaw !== undefined && marginValRaw !== null ? parseFloat(marginValRaw) : null;
         // 未回収タブ専用フィルター
         const uncollKeyword = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
 
@@ -7668,6 +8124,12 @@
             if (browseSelectedCustomers.size > 0 && !browseSelectedCustomers.has(d.customer)) return false;
             // 拠点フィルター
             if (browseSelectedBranches.size > 0 && !browseSelectedBranches.has(d.branch)) return false;
+            // 粗利率フィルター（粗利率が算出できない現場は対象外）
+            if (marginVal !== null && !isNaN(marginVal)) {
+                if (d.margin === null || d.margin === undefined) return false;
+                if (marginOp === 'lte' && !(d.margin <= marginVal)) return false;
+                if (marginOp === 'gte' && !(d.margin >= marginVal)) return false;
+            }
             // 着手日フィルター
             if (dateStart || dateEnd) {
                 const dt = window.parseDateStr8(d.startDate);
@@ -7935,8 +8397,9 @@
             btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
             btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
         });
-        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-customer-filter'];
+        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-customer-filter','browse-margin-value'];
         ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+        const marginOpEl = document.getElementById('browse-margin-op'); if (marginOpEl) marginOpEl.value = 'lte';
         window.filterCustomerButtons();
         ['browse-chk-subcodes','browse-chk-cost-and-no-end','browse-chk-no-end'].forEach(id => {
             const el = document.getElementById(id); if(el) el.checked = false;
