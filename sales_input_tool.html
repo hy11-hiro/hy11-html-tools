@@ -64,7 +64,7 @@
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 41.15 (マスタ未登録メッセージを4列分に拡張表示)</small></h5>
+        <h5 class="mb-0">工事原価・売上入力ツール <small class="text-muted" style="font-size:0.6em;">Ver 41.17 (古いマスタキャッシュでも端数処理を既定値表示・要再取込警告)</small></h5>
         <div>
             <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#masterModal">⚙️ マスタ取込</button>
             <button class="btn btn-sm btn-outline-primary ms-1" data-bs-toggle="modal" data-bs-target="#templateModal">📑 テンプレート</button>
@@ -851,7 +851,14 @@ async function importTemplateCSV() {
 function applyTemplateData(t) {
     document.getElementById('opt1').checked = true;
     if(t.transType) { const val = t.transType.substring(0,1); const r = document.querySelector(`input[name="transType"][value="${val}"]`); if(r) r.checked = true; }
-    document.getElementById('combo2').value = t.cust || "";
+    // 得意先コードが保存されている場合は、現在の得意先マスタからコードで再検索し
+    // 最新の名称表記に置き換える（マスタ更新による表記揺れで一致しなくなるのを防ぐ）
+    let custVal = t.cust || "";
+    if (t.custCode) {
+        const foundByCode = M_CUST.find(m => m.c === t.custCode);
+        if (foundByCode) custVal = foundByCode.n;
+    }
+    document.getElementById('combo2').value = custVal;
     document.getElementById('combo5').value = t.prod || "売上";
     document.getElementById('combo6').value = t.method || "0:自動";
     let st = t.staff || "";
@@ -869,7 +876,9 @@ function saveCurrentAsTemplate() {
     const label = prompt("テンプレート名:", "新規"); if (!label) return;
     const newTemp = {
         label: label,
-        cust: document.getElementById('combo2').value, prod: document.getElementById('combo5').value,
+        cust: document.getElementById('combo2').value,
+        custCode: document.getElementById('textBox3').value, // 得意先コードも保存（名称の表記揺れに強くするため）
+        prod: document.getElementById('combo5').value,
         staff: document.getElementById('combo3').value, method: document.getElementById('combo6').value,
         transType: document.querySelector('input[name="transType"]:checked')?.value || "1"
     };
@@ -929,7 +938,12 @@ async function processGenbaFile(f) {
 }
 async function processCustFile(f) {
     const rows = parseTSV(await readFileText(f));
-    const data = rows.map(r => ({ c:r[0], n:r[1], v:r[2]||"" , amtRound:(r[104]!==undefined && r[104]!=="")?r[104]:"2", taxRound:(r[112]!==undefined && r[112]!=="")?r[112]:"2" })).filter(d=>d.c);
+    const data = rows.map(r => ({
+        c:r[0], n:r[1], v:r[2]||"",
+        amtRound:(r[104]!==undefined && r[104]!=="")?r[104]:"2",
+        taxRound:(r[112]!==undefined && r[112]!=="")?r[112]:"2",
+        _taxRoundIsDefault: (r[112]===undefined || r[112]==="") // マスタ未取込相当(DI列が無い)の場合のフラグ
+    })).filter(d=>d.c);
     await idbSet('MST_CUST', data);
 }
 async function processProdFile(f) {
@@ -964,6 +978,17 @@ async function loadMastersFromStorage() {
     M_GENBA = await ld('MST_GENBA', 'st_genba', null, null);
     document.getElementById('genbaStatus').innerHTML = `現場マスタ: ` + (M_GENBA.length ? `<span class="status-ok">OK (${M_GENBA.length})</span>` : `<span class="status-ng">未読込</span>`);
     M_CUST  = await ld('MST_CUST',  'st_cust',  'custOptions',  m => m.n);
+    // 過去バージョンで取り込んだ古いキャッシュには amtRound/taxRound が存在しない場合があるため、
+    // 読込時に補完する（バッジが消えてしまうのを防ぐ。正確な値にするにはマスタの再取込が必要）
+    M_CUST = M_CUST.map(m => {
+        const taxRoundMissing = (m.taxRound === undefined || m.taxRound === "");
+        return {
+            ...m,
+            amtRound: (m.amtRound !== undefined && m.amtRound !== "") ? m.amtRound : "2",
+            taxRound: (m.taxRound !== undefined && m.taxRound !== "") ? m.taxRound : "2",
+            _taxRoundIsDefault: taxRoundMissing // マスタ未取込による既定値かどうかのフラグ
+        };
+    });
     M_PROD  = await ld('MST_PROD',  'st_prod',  'prodOptions',  m => m.n);
     M_STAFF = await ld('MST_STAFF', 'st_staff', 'staffOptions', m => `${m.c} : ${m.n}`);
     const t = localStorage.getItem('USER_TEMPLATES');
@@ -1001,7 +1026,12 @@ function setStatus(iid, sid, ok) {
 }
 function validateCustomer() {
     const val = document.getElementById('combo2').value;
-    const found = M_CUST.find(m => m.n === val);
+    let found = M_CUST.find(m => m.n === val);
+    if (!found) {
+        // 完全一致しない場合、前後の空白差を無視した比較でも探す（表記揺れ対策）
+        const trimmedVal = val.trim();
+        found = M_CUST.find(m => m.n.trim() === trimmedVal);
+    }
     document.getElementById('textBox3').value = found ? found.c : "";
     setStatus('combo2', 'custStatus', !!found);
     const roundLabels = ["0:切り捨て","1:切り上げ","2:四捨五入"];
@@ -1014,7 +1044,9 @@ function validateCustomer() {
         document.getElementById('badgeAmtRound').className = `badge bg-${colorMap[ar] ?? "secondary"}`;
         document.getElementById('badgeTaxRound').textContent = roundLabels[tr] ?? tr;
         document.getElementById('badgeTaxRound').className = `badge bg-${colorMap[tr] ?? "secondary"}`;
-        document.getElementById('badgeTaxRoundLabel').textContent = `← 粗利(税抜)計算に使用`;
+        document.getElementById('badgeTaxRoundLabel').textContent = found._taxRoundIsDefault
+            ? `← 粗利(税抜)計算に使用　⚠️マスタにDI列が無いため既定値(四捨五入)を使用中`
+            : `← 粗利(税抜)計算に使用`;
         infoDiv.style.display = "";
     } else {
         infoDiv.style.display = "none";
@@ -1047,10 +1079,14 @@ function normalizeJobCode(val) {
         .toLowerCase();
 }
 
-// 金額の正規化: 全角数字→半角 + 数字以外を除去（カンマ・文字・記号等を自動排除）
+// 金額の正規化: 全角数字→半角 + 数字以外を除去（カンマ・文字・記号等を自動排除、先頭のマイナスは維持）
 function normalizeAmountStr(val) {
     let s = val.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    return s.replace(/[^0-9]/g, '');
+    s = s.replace(/[－ー―]/g, '-'); // 全角マイナス類も半角に統一
+    const isNeg = s.trim().startsWith('-');
+    const digits = s.replace(/[^0-9]/g, '');
+    if (!isNeg) return digits;
+    return '-' + digits; // 数字未入力でも「-」だけの状態を保持（続けて数字を打てるように）
 }
 
 function addGridRow() {
@@ -1156,7 +1192,7 @@ function addGridRow() {
         }
         const amt = parseInt(normalized) || 0;
         const taxExIn = tr.querySelector('.tax-ex-col');
-        if (amt > 0) {
+        if (amt !== 0) {
             // 得意先マスタの消費税計算区分を参照（未選択時は四捨五入）
             const custCode = document.getElementById('textBox3').value;
             const custData = M_CUST.find(c => c.c === custCode);
