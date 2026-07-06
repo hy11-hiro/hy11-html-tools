@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v77</title>
+    <title>G-Ledger | 現場原価管理台帳システム v79</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v77</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v79</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -155,6 +155,9 @@
                         <button onclick="window.setBrowseTab('date')" id="btab-date" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-regular fa-calendar mr-1"></i> 着手日
                         </button>
+                        <button onclick="window.setBrowseTab('enddate')" id="btab-enddate" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-regular fa-calendar-check mr-1"></i> 完工日
+                        </button>
                         <button onclick="window.setBrowseTab('branch')" id="btab-branch" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-location-dot mr-1"></i> 拠点
                         </button>
@@ -224,6 +227,24 @@
                             </div>
                         </div>
                         <p class="text-xs text-slate-400 mt-2">※ 現場マスターの着手日を基準に絞り込みます。</p>
+                    </div>
+
+                    <!-- 完工日絞り込みパネル -->
+                    <div id="browse-panel-enddate" class="browse-filter-panel hidden">
+                        <div class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-bold text-slate-600">完工日:</span>
+                                <input type="date" id="browse-enddate-start" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                                <span class="text-slate-400">～</span>
+                                <input type="date" id="browse-enddate-end" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="window.setEndDatePreset('thisYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">今年</button>
+                                <button onclick="window.setEndDatePreset('lastYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">昨年</button>
+                                <button onclick="window.setEndDatePreset('last3')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">直近3年</button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2">※ 現場マスターの完工日（完了日）を基準に絞り込みます。完工日が未入力の現場は対象外になります。</p>
                     </div>
 
                     <!-- 拠点選択パネル -->
@@ -488,6 +509,16 @@
                                         <button onclick="window.switchViewMode('card')" id="btn-view-card" class="px-3 py-1 rounded text-xs font-bold bg-white text-indigo-800 shadow-sm transition-all"><i class="fa-solid fa-grip mr-1"></i>カード</button>
                                         <button onclick="window.switchViewMode('table')" id="btn-view-table" class="px-3 py-1 rounded text-xs font-bold text-indigo-600 hover:bg-indigo-100 hover:text-indigo-800 transition-all"><i class="fa-solid fa-table-list mr-1"></i>表形式</button>
                                     </div>
+                                    <div class="relative">
+                                        <button onclick="window.toggleMultiFieldsPanel()" id="btn-multi-fields-toggle" class="px-3 py-1.5 rounded-md text-xs font-bold text-indigo-600 bg-white border border-indigo-200 hover:bg-indigo-50 transition-all flex items-center gap-1">
+                                            <i class="fa-solid fa-gear"></i> 表示項目
+                                        </button>
+                                        <div id="multi-fields-panel" class="hidden absolute z-20 top-full left-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-3 w-56">
+                                            <div class="text-xs font-bold text-slate-500 mb-2">カード・表に表示する項目</div>
+                                            <div id="multi-fields-checklist" class="space-y-1"></div>
+                                            <p class="text-[10px] text-slate-400 mt-2">※工番・現場名は常に表示されます</p>
+                                        </div>
+                                    </div>
                                     <div class="text-xs text-indigo-400">
                                         <i class="fa-solid fa-circle-info mr-1"></i>入力された全ての現場を表示します
                                     </div>
@@ -500,6 +531,7 @@
                                 </button>
                             </div>
                         </div>
+
 
                         <div id="multi-result-container" class="hidden">
                             <div id="multi-content-area"></div>
@@ -2214,6 +2246,20 @@
     let currentSiteData = null; 
     let multiCompareData = [];
     let currentViewMode = 'card';
+    // ── 複数現場 簡易比較・一覧：表示項目カスタマイズ ──
+    const MULTI_COMPARE_FIELDS = [
+        { key: 'manager',     label: '担当者' },
+        { key: 'owner',       label: '施工主' },
+        { key: 'branch',      label: '拠点' },
+        { key: 'endDate',     label: '完工日' },
+        { key: 'sales',       label: '売上(税抜)' },
+        { key: 'cost',        label: '原価' },
+        { key: 'profit',      label: '粗利益' },
+        { key: 'margin',      label: '粗利率' },
+        { key: 'uncollected', label: '回収残' },
+        { key: 'subCodes',    label: '関連サブコード' },
+    ];
+    let multiCompareVisibleFields = new Set(['manager', 'owner', 'branch', 'endDate', 'sales', 'cost', 'profit', 'margin', 'subCodes']);
     let chartBranchSales = null, chartBranchProfit = null, chartMonthly = null, chartCostTrend = null, chartTrend = null, chartComposition = null;
     let cachedMasters = [];
     let cachedVendors = [];
@@ -8059,6 +8105,20 @@
         window.applyBrowseFilter();
     }
 
+    window.setEndDatePreset = function(preset) {
+        const now = new Date();
+        const y = now.getFullYear();
+        let start, end;
+        if (preset === 'thisYear') { start = `${y}-01-01`; end = `${y}-12-31`; }
+        else if (preset === 'lastYear') { start = `${y-1}-01-01`; end = `${y-1}-12-31`; }
+        else if (preset === 'last3') { start = `${y-2}-01-01`; end = `${y}-12-31`; }
+        const s = document.getElementById('browse-enddate-start');
+        const e = document.getElementById('browse-enddate-end');
+        if (s) s.value = start;
+        if (e) e.value = end;
+        window.applyBrowseFilter();
+    }
+
     window.setMarginPreset = function(op, val) {
         const opEl = document.getElementById('browse-margin-op');
         const valEl = document.getElementById('browse-margin-value');
@@ -8097,6 +8157,8 @@
         const keyword = window.normalizeStr((document.getElementById('browse-keyword-input') || {}).value || '');
         const dateStart = (document.getElementById('browse-date-start') || {}).value || '';
         const dateEnd = (document.getElementById('browse-date-end') || {}).value || '';
+        const endDateStart = (document.getElementById('browse-enddate-start') || {}).value || '';
+        const endDateEnd = (document.getElementById('browse-enddate-end') || {}).value || '';
         const chkSub         = document.getElementById('browse-chk-subcodes')?.checked;
         const chkCostNoEnd   = document.getElementById('browse-chk-cost-and-no-end')?.checked;
         const chkNoEnd       = document.getElementById('browse-chk-no-end')?.checked;
@@ -8136,6 +8198,13 @@
                 if (!dt) return false;
                 if (dateStart && dt < new Date(dateStart)) return false;
                 if (dateEnd && dt > new Date(dateEnd)) return false;
+            }
+            // 完工日フィルター
+            if (endDateStart || endDateEnd) {
+                const edt = window.parseDateStr8(d.endDate);
+                if (!edt) return false;
+                if (endDateStart && edt < new Date(endDateStart)) return false;
+                if (endDateEnd && edt > new Date(endDateEnd)) return false;
             }
             // 追加フィルター
             if (chkSub && d.subCodeCount === 0) return false;
@@ -8397,7 +8466,7 @@
             btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
             btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
         });
-        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-customer-filter','browse-margin-value'];
+        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-enddate-start','browse-enddate-end','browse-customer-filter','browse-margin-value'];
         ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
         const marginOpEl = document.getElementById('browse-margin-op'); if (marginOpEl) marginOpEl.value = 'lte';
         window.filterCustomerButtons();
@@ -9383,6 +9452,57 @@ window.exportCostCheck = async function() {
 }
 
     // --- Multi-Site Comparison Logic ---
+    // ── 複数現場比較：表示項目設定の読込／保存 ──
+    let _multiFieldsLoaded = false;
+    async function ensureMultiCompareFieldsLoaded() {
+        if (_multiFieldsLoaded) return;
+        _multiFieldsLoaded = true;
+        try {
+            const saved = await db.meta.get('multiCompareFields');
+            if (saved && Array.isArray(saved.value)) {
+                multiCompareVisibleFields = new Set(saved.value);
+            }
+        } catch (e) { console.warn('表示項目設定の読込に失敗しました:', e); }
+    }
+    async function saveMultiCompareFieldsPref() {
+        try { await db.meta.put({ key: 'multiCompareFields', value: Array.from(multiCompareVisibleFields) }); } catch (e) { console.warn('表示項目設定の保存に失敗しました:', e); }
+    }
+
+    window.toggleMultiFieldsPanel = async function() {
+        const panel = document.getElementById('multi-fields-panel');
+        if (!panel) return;
+        if (!panel.classList.contains('hidden')) { panel.classList.add('hidden'); return; }
+        await ensureMultiCompareFieldsLoaded();
+        const list = document.getElementById('multi-fields-checklist');
+        if (list) {
+            list.innerHTML = MULTI_COMPARE_FIELDS.map(f => `
+                <label class="flex items-center gap-2 text-xs text-slate-600 hover:bg-slate-50 rounded px-1 py-0.5 cursor-pointer">
+                    <input type="checkbox" ${multiCompareVisibleFields.has(f.key) ? 'checked' : ''} onchange="window.toggleMultiField('${f.key}')">
+                    ${f.label}
+                </label>`).join('');
+        }
+        panel.classList.remove('hidden');
+    }
+
+    window.toggleMultiField = function(key) {
+        if (multiCompareVisibleFields.has(key)) multiCompareVisibleFields.delete(key);
+        else multiCompareVisibleFields.add(key);
+        saveMultiCompareFieldsPref();
+        if (multiCompareData.length > 0) window.renderMultiCompare();
+    }
+
+    // 工番クリック → 現場検索（単一検索）ページへジャンプ
+    window.jumpToSiteSearch = async function(code) {
+        const input = document.getElementById('search-input');
+        if (!input) return;
+        input.value = code;
+        await window.searchSite();
+        setTimeout(() => {
+            const result = document.getElementById('search-result');
+            if (result) result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+    }
+
     window.switchViewMode = function(mode) {
         currentViewMode = mode;
         const btnCard = document.getElementById('btn-view-card');
@@ -9430,6 +9550,9 @@ window.exportCostCheck = async function() {
 
             const masters = await Promise.all(resolvedCodes.map(c => db.masters.get(c)));
             const costs = await Promise.all(resolvedCodes.map(c => db.costs.get(c)));
+            // 回収残（同一メインコードを合算。回収DBのcodeは小文字保存のため小文字化して照合）
+            const collRowsList = await Promise.all(resolvedCodes.map(c => db.collections.where('code').equals(String(c).toLowerCase()).toArray()));
+            await ensureMultiCompareFieldsLoaded();
             multiCompareData = [];
             
             resolvedCodes.forEach((code, index) => {
@@ -9445,8 +9568,9 @@ window.exportCostCheck = async function() {
                 const cost = c.costTotal || 0;
                 const profit = c.profitTotal || 0;
                 const margin = sales ? (profit / sales * 100) : 0;
+                const uncollected = (collRowsList[index] || []).reduce((a, r) => a + (r.uncollectedAmount || 0), 0);
                 const exists = (m.code || c.code);
-                multiCompareData.push({ code, name, manager, owner, branch, endDate, subCodes, sales, cost, profit, margin, exists });
+                multiCompareData.push({ code, name, manager, owner, branch, endDate, subCodes, sales, cost, profit, margin, uncollected, exists });
             });
             window.renderMultiCompare();
         } catch (e) { console.error(e); alert("エラー: " + e.message); }
@@ -9460,60 +9584,62 @@ window.exportCostCheck = async function() {
 
     // Card Render
     window.renderMultiCompareCards = function(container) {
+        const vf = multiCompareVisibleFields;
         let html = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">';
         multiCompareData.forEach(d => {
             if (!d.exists) {
                 html += `
                     <div class="bg-red-50 p-4 rounded-lg border border-red-200 shadow-sm opacity-75">
                         <div class="flex justify-between items-start mb-2">
-                            <span class="text-2xl font-black text-black font-mono">${d.code}</span>
+                            <span class="text-2xl font-black text-black font-mono cursor-pointer hover:underline hover:text-indigo-700" onclick="window.jumpToSiteSearch('${d.code}')" title="クリックで現場検索へ">${d.code}</span>
                             <span class="text-xs text-red-500 font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i>データなし</span>
                         </div>
                         <div class="text-xs text-red-400">指定された工番のデータは見つかりませんでした。</div>
                     </div>`;
             } else {
                 let subHtml = '';
-                if(d.subCodes && d.subCodes.length > 0) {
+                if (vf.has('subCodes') && d.subCodes && d.subCodes.length > 0) {
                     subHtml = `<div class="mt-3 pt-2 border-t border-slate-100"><span class="text-xs text-slate-400 block mb-1">関連サブコード</span><div class="flex flex-wrap gap-1">` + 
                         d.subCodes.map(s => `<span class="bg-blue-50 text-blue-600 text-xs px-2 py-1 rounded border border-blue-100 font-bold" title="${s.name}">${s.subCode || ''}</span>`).join('') +
                         `</div></div>`;
                 }
+                let tagsHtml = '';
+                if (vf.has('manager')) tagsHtml += `<span class="bg-slate-100 px-2 py-1 rounded border border-slate-200"><i class="fa-solid fa-user mr-1 text-slate-400"></i>${d.manager}</span>`;
+                if (vf.has('branch')) tagsHtml += `<span class="bg-slate-100 px-2 py-1 rounded border border-slate-200"><i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${d.branch}</span>`;
+                let tags2Html = '';
+                if (vf.has('owner')) tags2Html += `<span class="bg-orange-50 text-orange-800 px-2 py-1 rounded border border-orange-100"><i class="fa-solid fa-briefcase mr-1 text-orange-400"></i>${d.owner}</span>`;
+                if (vf.has('endDate')) tags2Html += `<span class="bg-green-50 text-green-800 px-2 py-1 rounded border border-green-100"><i class="fa-regular fa-calendar-check mr-1 text-green-500"></i>${d.endDate}</span>`;
+
+                let numbersHtml = '';
+                if (vf.has('sales')) numbersHtml += `<div><span class="text-xs text-slate-400 block font-bold">売上(税抜)</span><div class="font-mono font-bold text-slate-700 text-lg">${window.formatCurrency(d.sales)}</div></div>`;
+                if (vf.has('cost')) numbersHtml += `<div class="text-right"><span class="text-xs text-slate-400 block font-bold">原価</span><div class="font-mono font-bold text-slate-500 text-lg">${window.formatCurrency(d.cost)}</div></div>`;
+
+                let bottomRowHtml = '';
+                if (vf.has('profit') || vf.has('margin')) {
+                    bottomRowHtml = `<div class="col-span-2 flex justify-between items-center bg-slate-50 rounded px-3 py-2 mt-1">`;
+                    if (vf.has('profit')) bottomRowHtml += `<div><span class="text-xs text-slate-400 block font-bold">粗利益</span><div class="font-mono font-bold ${d.profit<0?'text-red-600':'text-indigo-600'} text-xl">${window.formatCurrency(d.profit)}</div></div>`;
+                    if (vf.has('margin')) bottomRowHtml += `<div class="text-right"><span class="text-xs text-slate-400 block font-bold">利益率</span><div class="font-mono font-bold ${d.margin<10?'text-red-600':'text-blue-600'} text-xl">${d.margin.toFixed(1)}%</div></div>`;
+                    bottomRowHtml += `</div>`;
+                }
+                let uncollectedHtml = '';
+                if (vf.has('uncollected')) {
+                    uncollectedHtml = `<div class="col-span-2 flex justify-between items-center rounded px-3 py-2 mt-1 ${d.uncollected > 0 ? 'bg-orange-50' : 'bg-slate-50'}">
+                        <span class="text-xs font-bold ${d.uncollected > 0 ? 'text-orange-600' : 'text-slate-400'}"><i class="fa-solid fa-circle-exclamation mr-1"></i>回収残</span>
+                        <div class="font-mono font-bold ${d.uncollected > 0 ? 'text-orange-700' : 'text-slate-400'} text-lg">${window.formatCurrency(d.uncollected)}</div>
+                    </div>`;
+                }
+
                 html += `
                     <div class="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow relative group">
                         <div class="mb-3">
                             <div class="flex items-center gap-2 mb-2">
-                                <span class="text-2xl font-black text-black font-mono tracking-tight">${d.code}</span>
+                                <span class="text-2xl font-black text-black font-mono tracking-tight cursor-pointer hover:underline hover:text-indigo-700" onclick="window.jumpToSiteSearch('${d.code}')" title="クリックで現場検索へ">${d.code}</span>
                             </div>
                             <h4 class="font-bold text-slate-800 text-lg mb-2 line-clamp-1" title="${d.name}">${d.name}</h4>
-                            <div class="flex flex-wrap gap-2 text-sm text-slate-600 mb-2">
-                                <span class="bg-slate-100 px-2 py-1 rounded border border-slate-200"><i class="fa-solid fa-user mr-1 text-slate-400"></i>${d.manager}</span>
-                                <span class="bg-slate-100 px-2 py-1 rounded border border-slate-200"><i class="fa-solid fa-building mr-1 text-slate-400"></i>${d.branch}</span>
-                            </div>
-                            <div class="flex flex-wrap gap-2 text-sm text-slate-600">
-                                <span class="bg-orange-50 text-orange-800 px-2 py-1 rounded border border-orange-100"><i class="fa-solid fa-briefcase mr-1 text-orange-400"></i>${d.owner}</span>
-                                <span class="bg-green-50 text-green-800 px-2 py-1 rounded border border-green-100"><i class="fa-regular fa-calendar-check mr-1 text-green-500"></i>${d.endDate}</span>
-                            </div>
+                            ${tagsHtml ? `<div class="flex flex-wrap gap-2 text-sm text-slate-600 mb-2">${tagsHtml}</div>` : ''}
+                            ${tags2Html ? `<div class="flex flex-wrap gap-2 text-sm text-slate-600">${tags2Html}</div>` : ''}
                         </div>
-                        <div class="grid grid-cols-2 gap-x-4 gap-y-4 pt-4 border-t border-slate-100">
-                            <div>
-                                <span class="text-xs text-slate-400 block font-bold">売上(税抜)</span>
-                                <div class="font-mono font-bold text-slate-700 text-lg">${window.formatCurrency(d.sales)}</div>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-xs text-slate-400 block font-bold">原価</span>
-                                <div class="font-mono font-bold text-slate-500 text-lg">${window.formatCurrency(d.cost)}</div>
-                            </div>
-                            <div class="col-span-2 flex justify-between items-center bg-slate-50 rounded px-3 py-2 mt-1">
-                                <div>
-                                    <span class="text-xs text-slate-400 block font-bold">粗利益</span>
-                                    <div class="font-mono font-bold ${d.profit<0?'text-red-600':'text-indigo-600'} text-xl">${window.formatCurrency(d.profit)}</div>
-                                </div>
-                                <div class="text-right">
-                                    <span class="text-xs text-slate-400 block font-bold">利益率</span>
-                                    <div class="font-mono font-bold ${d.margin<10?'text-red-600':'text-blue-600'} text-xl">${d.margin.toFixed(1)}%</div>
-                                </div>
-                            </div>
-                        </div>
+                        ${(numbersHtml || bottomRowHtml || uncollectedHtml) ? `<div class="grid grid-cols-2 gap-x-4 gap-y-4 pt-4 border-t border-slate-100">${numbersHtml}${bottomRowHtml}${uncollectedHtml}</div>` : ''}
                         ${subHtml}
                     </div>
                 `;
@@ -9525,6 +9651,19 @@ window.exportCostCheck = async function() {
 
     // Table Render
     window.renderMultiCompareTable = function(container) {
+        const vf = multiCompareVisibleFields;
+        const cols = [
+            { key: 'manager',     label: '担当者',       align: '' },
+            { key: 'owner',       label: '施工主',       align: '' },
+            { key: 'branch',      label: '拠点',         align: 'text-center' },
+            { key: 'endDate',     label: '完工日',       align: 'text-center' },
+            { key: 'sales',       label: '売上(税抜)',   align: 'text-right' },
+            { key: 'cost',        label: '原価',         align: 'text-right' },
+            { key: 'profit',      label: '粗利益',       align: 'text-right' },
+            { key: 'margin',      label: '粗利率',       align: 'text-right' },
+            { key: 'uncollected', label: '回収残',       align: 'text-right' },
+        ].filter(c => vf.has(c.key));
+
         let html = `
             <div class="rounded border border-slate-200 shadow-sm bg-white overflow-hidden w-full">
                 <div class="overflow-x-auto w-full">
@@ -9533,34 +9672,30 @@ window.exportCostCheck = async function() {
                             <tr>
                                 <th class="px-3 py-2 border-b border-r border-slate-200">工番</th>
                                 <th class="px-3 py-2 border-b border-r border-slate-200">現場名</th>
-                                <th class="px-3 py-2 border-b border-r border-slate-200">担当者</th>
-                                <th class="px-3 py-2 border-b border-r border-slate-200">施工主</th>
-                                <th class="px-3 py-2 border-b border-r border-slate-200">拠点</th>
-                                <th class="px-3 py-2 border-b border-r border-slate-200">完工日</th>
-                                <th class="px-3 py-2 border-b border-r border-slate-200 text-right">売上(税抜)</th>
-                                <th class="px-3 py-2 border-b border-r border-slate-200 text-right">原価</th>
-                                <th class="px-3 py-2 border-b border-r border-slate-200 text-right">粗利益</th>
-                                <th class="px-3 py-2 border-b border-slate-200 text-right">粗利率</th>
+                                ${cols.map((c, i) => `<th class="px-3 py-2 border-b ${i < cols.length - 1 ? 'border-r' : ''} border-slate-200 ${c.align}">${c.label}</th>`).join('')}
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-slate-100">
         `;
         multiCompareData.forEach(d => {
             if (!d.exists) {
-                html += `<tr class="bg-red-50"><td class="px-3 py-2 border text-red-900 font-black font-mono">${d.code}</td><td colspan="9" class="px-3 py-2 border text-red-400 text-xs">データなし</td></tr>`;
+                html += `<tr class="bg-red-50"><td class="px-3 py-2 border text-red-900 font-black font-mono cursor-pointer hover:underline" onclick="window.jumpToSiteSearch('${d.code}')" title="クリックで現場検索へ">${d.code}</td><td colspan="${1 + cols.length}" class="px-3 py-2 border text-red-400 text-xs">データなし</td></tr>`;
             } else {
+                const cellHtml = { manager: `<td class="px-3 py-2 border text-xs">${d.manager}</td>`,
+                    owner: `<td class="px-3 py-2 border text-xs truncate max-w-[120px]" title="${d.owner}">${d.owner}</td>`,
+                    branch: `<td class="px-3 py-2 border text-center text-xs">${d.branch}</td>`,
+                    endDate: `<td class="px-3 py-2 border text-center text-xs font-mono">${d.endDate}</td>`,
+                    sales: `<td class="px-3 py-2 border text-right font-mono text-slate-700">${window.formatCurrency(d.sales)}</td>`,
+                    cost: `<td class="px-3 py-2 border text-right font-mono text-slate-500">${window.formatCurrency(d.cost)}</td>`,
+                    profit: `<td class="px-3 py-2 border text-right font-mono font-bold ${d.profit < 0 ? 'text-red-600' : 'text-slate-700'}">${window.formatCurrency(d.profit)}</td>`,
+                    margin: `<td class="px-3 py-2 border text-right font-mono font-bold ${d.margin < 10 ? 'text-red-600' : 'text-blue-600'}">${d.margin.toFixed(1)}%</td>`,
+                    uncollected: `<td class="px-3 py-2 border text-right font-mono font-bold ${d.uncollected > 0 ? 'text-orange-600' : 'text-slate-400'}">${window.formatCurrency(d.uncollected)}</td>`,
+                };
                 html += `
                     <tr class="hover:bg-slate-50 transition-colors">
-                        <td class="px-3 py-2 border font-mono text-base font-black text-black bg-slate-50/50">${d.code}</td>
+                        <td class="px-3 py-2 border font-mono text-base font-black text-black bg-slate-50/50 cursor-pointer hover:underline hover:text-indigo-700" onclick="window.jumpToSiteSearch('${d.code}')" title="クリックで現場検索へ">${d.code}</td>
                         <td class="px-3 py-2 border truncate max-w-[200px] text-xs font-bold text-slate-700" title="${d.name}">${d.name}</td>
-                        <td class="px-3 py-2 border text-xs">${d.manager}</td>
-                        <td class="px-3 py-2 border text-xs truncate max-w-[120px]" title="${d.owner}">${d.owner}</td>
-                        <td class="px-3 py-2 border text-center text-xs">${d.branch}</td>
-                        <td class="px-3 py-2 border text-center text-xs font-mono">${d.endDate}</td>
-                        <td class="px-3 py-2 border text-right font-mono text-slate-700">${window.formatCurrency(d.sales)}</td>
-                        <td class="px-3 py-2 border text-right font-mono text-slate-500">${window.formatCurrency(d.cost)}</td>
-                        <td class="px-3 py-2 border text-right font-mono font-bold ${d.profit < 0 ? 'text-red-600' : 'text-slate-700'}">${window.formatCurrency(d.profit)}</td>
-                        <td class="px-3 py-2 border text-right font-mono font-bold ${d.margin < 10 ? 'text-red-600' : 'text-blue-600'}">${d.margin.toFixed(1)}%</td>
+                        ${cols.map(c => cellHtml[c.key]).join('')}
                     </tr>
                 `;
             }
