@@ -1,0 +1,1764 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>外構積算ツール 土工事・ブロック V23</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f0f4f8;
+    --card:#ffffff;
+    --accent:#007a5a;
+    --accent-light:#e8f5f0;
+    --text:#2c3e50;
+    --border:#dce1e7;
+    --guide-bg:#fff8e1;
+    --guide-border:#ffe082;
+    --guide-text:#5d4037;
+    --result-bg:#1e2a35;
+    --result-border:#007a5a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+    background:var(--bg); margin:0; color:var(--text); line-height:1.6; font-size:14px;
+  }
+  .wrap{max-width:980px; margin:12px auto; padding:0 12px;}
+
+  header{
+    background:var(--card); padding:14px 18px; border-radius:10px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08); margin-bottom:16px;
+    border-top:4px solid var(--accent);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  h1{margin:0; font-size:17px; font-weight:700; color:var(--text);}
+  .header-sub{font-size:11px; color:#888; margin-top:2px;}
+  .btn-menu{
+    font-weight:700; color:var(--accent); text-decoration:none; font-size:13px;
+    border:1.5px solid var(--accent); padding:6px 12px; border-radius:6px;
+    transition:background .15s;
+  }
+  .btn-menu:hover{background:var(--accent-light);}
+
+  details.card{
+    background:var(--card); border-radius:10px; margin-bottom:14px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.08); border:1px solid var(--border); overflow:hidden;
+  }
+  details.card summary{
+    padding:13px 16px; cursor:pointer; font-size:14px; font-weight:700;
+    background:#fafafa; list-style:none;
+    display:flex; justify-content:space-between; align-items:center;
+    transition:background .15s; border-bottom:1px solid transparent;
+    user-select:none;
+  }
+  details[open].card summary{border-bottom:1px solid #eee; background:#f5f9f7;}
+  details.card summary:hover{background:var(--accent-light); color:var(--accent);}
+  details.card summary::-webkit-details-marker{display:none;}
+  details.card summary .sum-left{display:flex; align-items:center; gap:8px;}
+  details.card summary .sum-badge{
+    font-size:11px; font-weight:700; background:var(--accent); color:#fff;
+    padding:2px 7px; border-radius:10px;
+  }
+  details.card summary::after{content:'+'; font-size:18px; color:#bbb; transition:transform .2s;}
+  details[open].card summary::after{content:'−'; color:var(--accent);}
+  .details-content{padding:18px; background:#fff;}
+
+  .guide-box{
+    background:var(--guide-bg); border:1px solid var(--guide-border);
+    padding:11px 13px; border-radius:6px; margin-bottom:14px;
+    font-size:12.5px; color:var(--guide-text);
+  }
+  .guide-title{font-weight:700; display:block; margin-bottom:4px; color:#e65100;}
+  .guide-box strong{color:#bf360c;}
+  .guide-box ul{margin:4px 0 0 0; padding-left:18px;}
+  .guide-box li{margin-bottom:3px;}
+
+  label{display:block; font-weight:700; margin-bottom:3px; font-size:11.5px; color:#666;}
+  input,select,textarea{
+    padding:7px 9px; border:1.5px solid #d0d7de; border-radius:5px;
+    font-size:13.5px; width:100%; background:#fff; color:var(--text);
+    height:36px; transition:border-color .15s, background .15s;
+  }
+  textarea{height:auto;}
+  input:focus,select:focus{outline:none; border-color:var(--accent); background:#f0fdf8;}
+  input[type=number]{text-align:right;}
+
+  .group-box{
+    background:#fafbfc; border:1px solid #e8ecf0; padding:14px;
+    border-radius:7px; margin-bottom:14px;
+  }
+  .group-title{
+    font-size:12px; font-weight:700; color:var(--accent); margin-bottom:10px;
+    padding-bottom:6px; border-bottom:1px solid #e0ebe6;
+  }
+  .form-grid{display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(170px,1fr));}
+  .full-width{grid-column:1/-1;}
+  .section-divider{
+    grid-column:1/-1; border-bottom:1px dashed #ccd; margin-top:6px; margin-bottom:2px;
+    padding-bottom:4px; font-weight:700; color:var(--accent); font-size:12px;
+  }
+
+  button{
+    padding:9px 14px; font-size:13.5px; font-weight:700; border:none; border-radius:5px;
+    cursor:pointer; width:100%; transition:opacity .15s, transform .1s; height:38px;
+  }
+  button:hover{opacity:.88;}
+  .btn-primary{background:var(--accent); color:#fff; box-shadow:0 2px 0 #004d3a;}
+  .btn-primary:active{transform:translateY(1px); box-shadow:none;}
+  .btn-calc{background:#2980b9; color:#fff; box-shadow:0 2px 0 #1c5a85;}
+  .btn-calc:active{transform:translateY(1px); box-shadow:none;}
+  .btn-danger{background:#fff; color:#c0392b; border:1.5px solid #e74c3c; height:32px; font-size:12px; padding:0 10px;}
+  .btn-danger:hover{background:#fdf0ee;}
+  .btn-refresh{background:#c0392b; color:#fff; box-shadow:0 2px 0 #922b21;}
+
+  .adjust-wrapper{
+    display:flex; align-items:center; gap:8px; justify-content:center;
+    background:#fff; padding:7px; border-radius:5px; border:1.5px solid #ddd;
+  }
+  .btn-adjust{
+    padding:0; width:34px; height:34px; font-size:18px; line-height:32px;
+    border-radius:4px; background:#f0f0f0; border:1px solid #ccc; color:#444;
+  }
+
+  .table-wrap{overflow-x:auto; border:1px solid #e8ecf0; border-radius:6px; margin-top:10px;}
+  table{width:100%; border-collapse:collapse; min-width:560px; font-size:12.5px;}
+  th{background:#f0f4f8; padding:9px 10px; text-align:left; border-bottom:2px solid #d0d9e2; font-weight:700; color:#555;}
+  td{padding:8px 10px; border-bottom:1px solid #eef0f3;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:#f7fafc;}
+
+  .result-box{
+    background:var(--result-bg); color:#e8f0f4; padding:14px 16px; border-radius:6px;
+    font-family:'Courier New',monospace; margin-top:12px; font-size:12.5px; line-height:1.9;
+    border-left:4px solid var(--result-border);
+  }
+  .result-box strong{color:#f1c40f;}
+  .result-box .cut{color:#ff7675;}
+  .result-box .fill{color:#74b9ff;}
+  .result-box .ok{color:#55efc4;}
+  .result-box .total-line{
+    background:rgba(0,122,90,.3); border-radius:3px;
+    padding:3px 10px; display:inline-block; margin-top:4px;
+  }
+  .result-box hr{border:none; border-top:1px dashed #445; margin:7px 0;}
+
+  .calc-result-box{
+    background:#fff; border:1px solid #f39c12; border-radius:5px;
+    padding:10px 12px; margin-top:10px; color:#333;
+    font-family:'Courier New',monospace; font-size:12.5px; line-height:1.6;
+  }
+  .ok-text{color:#27ae60; font-weight:700;}
+  .ng-text{color:#c0392b; font-weight:700;}
+  .calc-final{font-weight:700; color:#d35400; font-size:14px; margin-top:6px;}
+  .micro{font-size:11px; color:#aaa; margin-top:3px;}
+  .formula{font-size:11.5px; color:#8ab4c8; font-style:italic;}
+
+  .sec-h3{
+    font-size:13px; font-weight:700; color:var(--accent);
+    margin:0 0 10px 0; padding:6px 10px;
+    background:var(--accent-light); border-radius:5px; border-left:3px solid var(--accent);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🏗 外構積算ツール｜土工事・ブロック</h1>
+      <div class="header-sub">V23 ／ 解説ガイド付き</div>
+    </div>
+    <a href="index.html" class="btn-menu">← メニュー</a>
+  </header>
+
+  <!-- 1. 敷地情報・整地 -->
+  <details class="card" open>
+    <summary>
+      <span class="sum-left"><span class="sum-badge">1</span>敷地情報・整地</span>
+    </summary>
+    <div class="details-content">
+      <div class="guide-box">
+        <span class="guide-title">📐 整地計算について</span>
+        現況レベル（9点）の平均と設計GLの差 × 面積 で地山土量を算出。<br>
+        <strong>搬出土量 ＝ 地山土量 × 膨張率 × (1＋ロス率%)</strong>　で残土量を計算します。
+      </div>
+      <div class="group-box">
+        <div class="group-title">現況レベル入力</div>
+        <div class="form-grid">
+          <div class="full-width">
+            <label>現況レベル（9点）― 1行に1値、またはスペース・カンマ区切り</label>
+            <textarea id="levels9" rows="3" placeholder="例：10.12&#10;10.35&#10;10.08"></textarea>
+          </div>
+          <div><label>設計GL (m)</label><input id="designGL" type="number" value="10.10" step="0.01" /></div>
+          <div><label>整地面積 (m²)</label><input id="siteArea" type="number" value="50" step="0.1" /></div>
+        </div>
+      </div>
+      <div class="group-box">
+        <div class="group-title">残土計算係数</div>
+        <div class="form-grid">
+          <div><label>膨張率</label><input id="site_bulking" type="number" value="1.37" step="0.01" /></div>
+          <div><label>残土ロス (%)</label><input id="site_waste_pct" type="number" value="5" step="0.1" /></div>
+          <div><label>土比重 (t/m³)</label><input id="site_density" type="number" value="1.6" step="0.01" /></div>
+        </div>
+      </div>
+
+      <div class="group-box">
+        <div class="group-title">客土計算係数（盛土が必要な場合）</div>
+        <div class="form-grid">
+          <div><label>購入土 増し率 (%)</label><input id="site_fill_extra_pct" type="number" value="10" step="1" /></div>
+        </div>
+        <div class="micro" style="margin-top:6px;">購入土量 ＝ 必要盛土量 × (1＋増し率)　※転圧による締まり・ロスを考慮</div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:4px;">
+        <button id="calc9" class="btn-calc" style="max-width:160px;">整地計算</button>
+        <button id="clear9" class="btn-danger" style="width:auto; height:38px;">クリア</button>
+      </div>
+      <div id="result9" class="result-box" style="display:none;"></div>
+
+      <!-- 法面 -->
+      <div class="group-box" style="margin-top:14px; border-color:#b0c4de;">
+        <div class="group-title" style="color:#2471a3;">⛰ 法面（のり面）土量</div>
+        <div class="guide-box" style="margin-bottom:10px;">
+          <span class="guide-title">📐 法面土量の計算について</span>
+          台形断面（始点・終点で高さが異なる場合も対応）× 延長 で地山土量を算出します。<br>
+          <strong>断面積 ＝ (上幅 + 下幅) ÷ 2 × 法面高さ</strong>　で計算。<br>
+          法面勾配は「縦1に対して横○」の形式（例: 1:1.0 = 45°、1:0.5 = 急勾配）
+        </div>
+        <div id="slope_rows"></div>
+
+        <!-- 入力モード切替 -->
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <label style="display:flex; align-items:center; gap:4px; font-weight:700; cursor:pointer;">
+            <input type="radio" name="slope_mode" value="height" checked id="slope_mode_h"> 高さ直接入力
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-weight:700; cursor:pointer;">
+            <input type="radio" name="slope_mode" value="level" id="slope_mode_lv"> レベルから計算
+          </label>
+        </div>
+
+        <div class="form-grid" style="margin-top:4px;">
+          <div><label>区間名</label><input id="slope_name" type="text" placeholder="例: 南側法面" /></div>
+
+          <!-- 高さ直接入力モード -->
+          <div id="slope_grp_height" style="display:contents;">
+            <div>
+              <label>始点 法面高 H1 (m)</label>
+              <input id="slope_h1" type="number" value="0.50" step="0.01" />
+            </div>
+            <div>
+              <label>終点 法面高 H2 (m)</label>
+              <input id="slope_h2" type="number" value="0.80" step="0.01" />
+            </div>
+          </div>
+
+          <!-- レベル入力モード -->
+          <div id="slope_grp_level" style="display:none; grid-column:span 2;">
+            <div class="form-grid" style="grid-template-columns:1fr 1fr 1fr;">
+              <div><label>道路GL (m)</label><input id="slope_road1" type="number" value="10.05" step="0.01" /></div>
+              <div><label>始点 敷地GL (m)</label><input id="slope_site1" type="number" value="10.55" step="0.01" /></div>
+              <div><label>終点 敷地GL (m)</label><input id="slope_site2" type="number" value="10.85" step="0.01" /></div>
+            </div>
+            <div id="slope_level_preview" style="margin-top:6px; font-size:12px; color:#74b9ff; font-family:monospace; background:#1e2a35; padding:6px 10px; border-radius:4px; display:none;"></div>
+          </div>
+
+          <!-- 勾配 -->
+          <div>
+            <label>法面勾配（横/縦）</label>
+            <input id="slope_grad" type="number" value="1.5" step="0.1" placeholder="例: 1.5" />
+            <div style="margin-top:4px; font-size:11px; color:#888; line-height:1.7;">
+              0.5 → 63.4°（急）<br>
+              1.0 → 45.0°<br>
+              1.5 → 33.7°（標準）<br>
+              2.0 → 26.6°（緩）
+            </div>
+          </div>
+
+          <div><label>延長 L (m)</label><input id="slope_len" type="number" value="10" step="0.01" /></div>
+
+          <!-- 断面プレビュー -->
+          <div id="slope_preview_wrap" style="grid-column:1/-1; display:none;">
+            <label style="margin-bottom:6px;">断面プレビュー</label>
+            <svg id="slope_svg" viewBox="0 0 500 240" width="100%" style="background:#1a2530; border-radius:6px; max-width:560px;"></svg>
+          </div>
+
+          <div class="full-width">
+            <button id="slope_preview_btn" class="btn-calc" style="background:#5d6d7e; max-width:130px; margin-bottom:8px;">プレビュー</button>
+            <button id="slope_add" class="btn-primary" style="max-width:130px; margin-left:8px;">＋ 追加</button>
+          </div>
+        </div>
+        <div id="slope_all_out" class="result-box" style="display:none; margin-top:10px;"></div>
+        <div id="slope_exclude_wrap" style="display:none; margin-top:8px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px; font-weight:700;">
+            <input type="checkbox" id="slope_exclude" style="width:16px; height:16px; cursor:pointer;" />
+            <span>法面土量を積算集計から<span style="color:#c0392b;">除外する</span>（パターンB：平場面積に法面込みで計算済みの場合）</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- 2. 土工事 -->
+  <details class="card" open>
+    <summary>
+      <span class="sum-left"><span class="sum-badge">2</span>土工事（掘削）</span>
+    </summary>
+    <div class="details-content">
+      <div class="guide-box">
+        <span class="guide-title">📖 土工用語メモ</span>
+        <ul>
+          <li><strong>膨張率：</strong>掘り返すと空気を含み体積増。粘性土（関東ローム等）は1.25〜1.40程度。</li>
+          <li><strong>土比重：</strong>ダンプ積載制限(t)換算用。一般土＝1.6〜1.8 t/m³。</li>
+          <li><strong>ロス率：</strong>運搬こぼれ・掘削誤差の予備。</li>
+        </ul>
+      </div>
+
+      <h3 class="sec-h3">2a. 掘削区分の追加</h3>
+      <div class="group-box">
+        <div class="form-grid">
+          <div><label>区分名</label><input id="earth_name" type="text" placeholder="例: 南面 基礎" /></div>
+          <div><label>種類</label>
+            <select id="earth_type">
+              <option value="foundation">基礎掘削 (L×W×D)</option>
+              <option value="floor">床掘削 (面積×D)</option>
+              <option value="other">その他 (面積×D)</option>
+            </select>
+          </div>
+          <div><label>深さ D (m)</label><input id="earth_D" type="number" step="0.01" value="0.6" /></div>
+          <div id="earth_L_wrap"><label>延長 L (m)</label><input id="earth_L" type="number" value="10" step="0.01" /></div>
+          <div id="earth_W_wrap"><label>基礎幅 W (mm)</label><input id="earth_W_mm" type="number" value="300" /></div>
+          <div id="earth_A_wrap" style="display:none;"><label>面積 (m²)</label><input id="earth_Area" type="number" value="40" /></div>
+          <div class="full-width"><button id="earth_add" class="btn-primary">＋ 追加</button></div>
+        </div>
+      </div>
+
+      <h3 class="sec-h3">2b. 登録リスト</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>区分名</th><th>種類</th><th>詳細</th><th>深さ</th><th>地山土量</th><th>操作</th></tr></thead>
+          <tbody id="earth_tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="group-box" style="margin-top:14px;">
+        <div class="group-title">合算係数（変更すると自動再計算）</div>
+        <div class="form-grid">
+          <div><label>膨張率</label><input id="earth_bulking" type="number" value="1.37" step="0.01" /></div>
+          <div><label>残土ロス (%)</label><input id="earth_waste_pct" type="number" value="5" step="0.1" /></div>
+          <div><label>土比重 (t/m³)</label><input id="earth_density" type="number" value="1.6" step="0.01" /></div>
+        </div>
+      </div>
+      <div id="earth_all_out" class="result-box" style="display:none;"></div>
+    </div>
+  </details>
+
+  <!-- 3. 基礎・ブロック工事 -->
+  <details class="card" open>
+    <summary>
+      <span class="sum-left"><span class="sum-badge">3</span>基礎・ブロック工事</span>
+    </summary>
+    <div class="details-content">
+
+      <h3 class="sec-h3">3a. ブロック区画の追加</h3>
+      <div class="group-box">
+        <div class="form-grid">
+          <div class="full-width"><label>区画名</label><input id="block_name" type="text" placeholder="例: 南面 CB150" /></div>
+
+          <div class="section-divider">基礎・型枠</div>
+          <div><label>延長 L (m)</label><input id="block_len" type="number" value="10" step="0.01" /></div>
+          <div><label>基礎幅 (mm)</label><input id="base_w_mm" type="number" value="300" /></div>
+          <div><label>基礎厚 (mm)</label><input id="base_t_mm" type="number" value="150" /></div>
+          <div><label>砕石厚 (mm)</label><input id="crushed_stone_mm" type="number" value="50" /></div>
+          <div><label>型枠高 (m)</label><input id="form_h_m" type="number" value="0.10" step="0.01" /></div>
+          <div><label>縦筋ピッチ (mm)</label><input id="rebar_v_pitch" type="number" value="800" /></div>
+          <div><label>横筋 段おき</label><input id="rebar_h_steps" type="number" value="2" /></div>
+
+          <div class="section-divider">ブロック</div>
+          <div><label>寸法</label><input id="block_size" type="text" value="390×190×150" /></div>
+          <div><label>コーナー数</label><input id="block_corners" type="number" value="0" step="1" /></div>
+          <div><label>うち基礎段数</label><input id="base_block_steps" type="number" value="0" /></div>
+
+          <div class="section-divider">モルタル係数</div>
+          <div><label>目地モルタル (m³/個)</label><input id="mortar_joint_unit" type="number" value="0.003" step="0.001" /></div>
+          <div><label>横筋モルタル倍率（目地比）</label><input id="mortar_hbar_ratio" type="number" value="1.5" step="0.1" /></div>
+          <div><label>中込空洞率 (%)</label><input id="mortar_void_pct" type="number" value="65" step="1" /></div>
+
+          <div class="section-divider">笠木</div>
+          <div><label>笠木種別</label>
+            <select id="block_kasagi_type">
+              <option value="none">なし</option>
+              <option value="cb120">CB120</option>
+              <option value="cb150">CB150</option>
+              <option value="cb180">CB180</option>
+              <option value="alumi">アルミ</option>
+            </select>
+          </div>
+          <div id="kasagi_len_input" style="display:none;">
+            <label>製品長 (m)</label>
+            <input id="block_kasagi_len" type="number" value="0.4" step="0.01" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 根入れ・段数計算 -->
+      <div class="group-box" style="background:#fffbf0; border:1.5px solid #f39c12;">
+        <div class="guide-box" style="margin-bottom:10px;">
+          <span class="guide-title">📏 段数と高さのルール</span>
+          ブロック高190mm ＋ 目地10mm ＝ <strong>1段 = 200mm (0.2m)</strong> で計算。<br>
+          埋設計 ＝ 根入れ深さ ＋ 基礎厚 ＋ 砕石厚 が <strong>0.35m以上</strong> 必要。
+        </div>
+        <div class="group-title" style="color:#d35400;">根入れ・段数計算（0.35mルール）</div>
+
+        <!-- モード切替 -->
+        <div style="display:flex; gap:8px; margin-bottom:12px;">
+          <label style="display:flex; align-items:center; gap:4px; font-weight:700; cursor:pointer;">
+            <input type="radio" name="stepcalc_mode" value="top" checked id="stepcalc_mode_top"> 天端レベルから計算
+          </label>
+          <label style="display:flex; align-items:center; gap:4px; font-weight:700; cursor:pointer;">
+            <input type="radio" name="stepcalc_mode" value="manual" id="stepcalc_mode_manual"> 段数を手動指定
+          </label>
+        </div>
+
+        <div class="form-grid">
+          <div><label>設計GL (m)</label><input id="quick_design_gl" type="number" value="10.10" step="0.01" /></div>
+
+          <!-- 天端モード -->
+          <div id="stepcalc_grp_top" style="display:contents;">
+            <div><label>天端レベル (m)</label><input id="quick_block_top" type="number" value="10.80" step="0.01" /></div>
+          </div>
+
+          <!-- 手動モード -->
+          <div id="stepcalc_grp_manual" style="display:none; grid-column:span 2;">
+            <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+              <div><label>地上段数（見え掛かり）</label><input id="manual_above_steps" type="number" value="3" step="1" min="0" /></div>
+              <div><label>根入れ段数</label><input id="manual_embed_steps" type="number" value="1" step="1" min="0" /></div>
+            </div>
+          </div>
+
+          <div><label>ブロック高</label>
+            <select id="quick_block_h">
+              <option value="190" selected>190mm（標準）</option>
+              <option value="custom">任意入力</option>
+            </select>
+            <input id="quick_block_h_custom" type="number" value="190" style="display:none; margin-top:4px;" />
+          </div>
+          <div style="display:flex; align-items:flex-end;">
+            <button id="calcQuickBlock" class="btn-calc" style="background:#f39c12; height:36px;">段数計算</button>
+          </div>
+        </div>
+        <div id="quick_block_out" class="calc-result-box" style="display:none;"></div>
+        <svg id="block_svg" viewBox="0 0 480 320" width="100%"
+          style="display:none; background:#1a2530; border-radius:6px; margin-top:10px; max-width:520px;"></svg>
+        <div style="margin-top:14px; border-top:1px dashed #f39c12; padding-top:12px;">
+          <div class="form-grid" style="grid-template-columns:1fr 1fr;">
+            <div style="display:flex; flex-direction:column; align-items:center;">
+              <label style="color:#d35400; font-size:12px;">★ 最終段数（調整可）</label>
+              <div class="adjust-wrapper">
+                <button id="btn_step_minus" class="btn-adjust">－</button>
+                <input id="final_steps" type="number" value="1"
+                  style="border:none; font-weight:700; font-size:20px; color:#d35400; text-align:center; width:52px; background:transparent;" readonly />
+                <button id="btn_step_plus" class="btn-adjust">＋</button>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center;">
+              <button id="block_add" class="btn-primary" style="height:52px;">＋ 区画を追加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="sec-h3">3b. 登録リスト</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>区画名</th><th>仕様</th><th>段数(基礎)</th><th>コーナー</th><th>笠木</th><th>操作</th></tr></thead>
+          <tbody id="block_tbody"></tbody>
+        </table>
+      </div>
+      <div id="block_out" class="result-box" style="display:none;"></div>
+    </div>
+  </details>
+
+  <!-- 4. 積算集計 -->
+  <details class="card" open>
+    <summary>
+      <span class="sum-left"><span class="sum-badge">4</span>積算集計</span>
+    </summary>
+    <div class="details-content">
+      <div class="guide-box" style="border-color:#ccc; background:#fafafa; color:#666; margin-bottom:12px;">
+        各セクションで計算・追加・削除すると自動更新されます。
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:4px;">
+        <button id="calc_all" class="btn-calc btn-refresh" style="max-width:160px;">手動リフレッシュ</button>
+        <button id="export_excel" class="btn-primary" style="max-width:160px; background:#217346;">📊 Excel出力</button>
+        <button id="reset_all" class="btn-danger" style="width:auto; height:38px;">全リセット</button>
+      </div>
+      <div id="all_out" class="result-box" style="display:none;"></div>
+
+      <div class="group-box" style="margin-top:14px;">
+        <div class="group-title">🚛 ダンプトラック台数計算</div>
+        <div style="font-size:12px; color:#888; margin-bottom:8px;">積載量（m³）を入力してください。空欄の行は無視されます。</div>
+        <div class="form-grid" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr));">
+          <div><label>車両① 積載 (m³)</label><input id="truck_3t" type="number" value="1.5" step="0.1" placeholder="例: 1.5" /></div>
+          <div><label>車両② 積載 (m³)</label><input id="truck_2t" type="number" value="2.5" step="0.1" placeholder="例: 2.5" /></div>
+          <div><label>車両③ 積載 (m³)</label><input id="truck_4t" type="number" value="4.0" step="0.1" placeholder="例: 4.0" /></div>
+          <div><label>車両④ 積載 (m³)</label><input id="truck_8t" type="number" value="" step="0.1" placeholder="未使用なら空欄" /></div>
+        </div>
+        <div id="truck_out" style="margin-top:10px; display:none; background:#263945; border-radius:5px; padding:12px 14px; font-family:monospace; font-size:13px; color:#e8f0f4; line-height:2;"></div>
+      </div>
+    </div>
+  </details>
+
+  <footer style="margin-top:20px; text-align:center; color:#aaa; font-size:11px; padding-bottom:20px;">
+    外構積算ツール V23
+  </footer>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const toNum = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+  const fmt = (v, d) => (isFinite(v) ? (+v).toFixed(d !== undefined ? d : 3) : '0.000');
+
+  let summary = {};
+  let earthRows = [];
+  let blockRows = [];
+
+  // -------------------------------------------------------
+  // UI helpers
+  // -------------------------------------------------------
+  $('quick_block_h').addEventListener('change', () => {
+    $('quick_block_h_custom').style.display = $('quick_block_h').value === 'custom' ? 'block' : 'none';
+  });
+  document.querySelectorAll('input[name="stepcalc_mode"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const isManual = $('stepcalc_mode_manual').checked;
+      $('stepcalc_grp_top').style.display    = isManual ? 'none'  : 'contents';
+      $('stepcalc_grp_manual').style.display = isManual ? 'block' : 'none';
+    });
+  });
+  $('block_kasagi_type').addEventListener('change', e => {
+    const t = e.target.value;
+    $('kasagi_len_input').style.display = t === 'none' ? 'none' : 'block';
+    if (t !== 'none') $('block_kasagi_len').value = t === 'alumi' ? '2.0' : '0.4';
+  });
+  $('earth_type').addEventListener('change', e => {
+    const isFound = e.target.value === 'foundation';
+    $('earth_L_wrap').style.display = isFound ? 'block' : 'none';
+    $('earth_W_wrap').style.display = isFound ? 'block' : 'none';
+    $('earth_A_wrap').style.display = isFound ? 'none'  : 'block';
+    $('earth_D').value = isFound ? '0.6' : '0.15';
+  });
+
+  // 土工係数変更 → 自動再計算
+  ['earth_bulking','earth_waste_pct','earth_density'].forEach(id => {
+    $(id).addEventListener('input', calculateEarthTotal);
+  });
+
+  // -------------------------------------------------------
+  // 1. 敷地整地
+  // -------------------------------------------------------
+  $('calc9').addEventListener('click', () => {
+    const raw = ($('levels9').value || '')
+      .split(/[\r\n,;\s]+/)
+      .map(s => parseFloat(s))
+      .filter(v => !isNaN(v));
+    if (raw.length === 0) { alert('レベル値を入力してください'); return; }
+
+    const avg     = raw.reduce((a, b) => a + b, 0) / raw.length;
+    const design  = toNum($('designGL').value);
+    const area    = toNum($('siteArea').value);
+    const vol_raw = area * (avg - design);  // 地山土量（正=切土、負=盛土）
+
+    const bulking   = toNum($('site_bulking').value)   || 1.37;
+    const waste_pct = toNum($('site_waste_pct').value);
+    const density   = toNum($('site_density').value)   || 1.6;
+
+    let html = `入力点数: ${raw.length}点　<strong>平均現況: ${fmt(avg,3)} m</strong>　設計GL: ${fmt(design,3)} m　差: ${fmt(avg-design,3)} m<hr>`;
+    html += `地山土量: <strong>${fmt(Math.abs(vol_raw),3)} m³</strong><br>`;
+    html += `<span class="formula">　= 面積 ${fmt(area,1)} m² × 高低差 ${fmt(Math.abs(avg-design),3)} m</span><hr>`;
+
+    if (vol_raw > 0.001) {
+      const vol_waste = vol_raw * bulking * (1 + waste_pct / 100);
+      const vol_t     = vol_waste * density;
+      summary.site_excavation = { raw: vol_raw, waste: vol_waste, t: vol_t };
+      html += `<span class="cut">▲ 切土（残土発生）</span><br>`;
+      html += `搬出土量: <strong><span class="cut">${fmt(vol_waste,3)} m³</span></strong><br>`;
+      html += `<span class="formula">　= 地山 ${fmt(vol_raw,3)} m³ × 膨張率 ${bulking.toFixed(2)} × (1 + ロス ${waste_pct}%)</span><br>`;
+      html += `重量: <strong>${fmt(vol_t,2)} t</strong><br>`;
+      html += `<span class="formula">　= 搬出土量 ${fmt(vol_waste,3)} m³ × 比重 ${density} t/m³</span>`;
+    } else if (vol_raw < -0.001) {
+      const vol_fill   = Math.abs(vol_raw);
+      const extra_pct  = toNum($('site_fill_extra_pct').value);
+      const vol_purchase = vol_fill * (1 + extra_pct / 100);
+      summary.site_excavation = null;
+      summary.site_fill = { raw: vol_fill, purchase: vol_purchase };
+      html += `<span class="fill">▼ 盛土（客土が必要）</span><br>`;
+      html += `必要盛土量: <strong><span class="fill">${fmt(vol_fill,3)} m³</span></strong><br>`;
+      html += `<span class="formula">　= 面積 ${fmt(area,1)} m² × 高低差 ${fmt(Math.abs(avg-design),3)} m</span><br>`;
+      html += `購入土量: <strong><span class="fill">${fmt(vol_purchase,3)} m³</span></strong><br>`;
+      html += `<span class="formula">　= 必要盛土量 ${fmt(vol_fill,3)} m³ × (1 + 増し率 ${extra_pct}%)</span>`;
+    } else {
+      summary.site_excavation = null;
+      html += `<span class="ok">◎ ほぼGL一致（残土なし）</span>`;
+    }
+
+    const box = $('result9');
+    box.style.display = 'block';
+    box.innerHTML = html;
+    calculateEarthTotal();
+  });
+
+  $('clear9').addEventListener('click', () => {
+    $('levels9').value = '';
+    $('result9').style.display = 'none';
+    $('result9').innerHTML = '';
+    summary.site_excavation = null;
+    summary.site_fill = null;
+    calculateEarthTotal();
+  });
+
+  // -------------------------------------------------------
+  // 1b. 法面土量
+  // -------------------------------------------------------
+  let slopeRows = [];
+
+  // モード切替
+  document.querySelectorAll('input[name="slope_mode"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const isLevel = $('slope_mode_lv').checked;
+      $('slope_grp_height').style.display = isLevel ? 'none' : 'contents';
+      $('slope_grp_level').style.display  = isLevel ? 'block' : 'none';
+    });
+  });
+
+  // レベル入力 → H自動プレビュー
+  ['slope_road1','slope_site1','slope_site2'].forEach(id => {
+    $(id).addEventListener('input', updateLevelPreview);
+  });
+  function updateLevelPreview() {
+    if (!$('slope_mode_lv').checked) return;
+    const road = toNum($('slope_road1').value);
+    const h1 = toNum($('slope_site1').value) - road;
+    const h2 = toNum($('slope_site2').value) - road;
+    const pv = $('slope_level_preview');
+    if (h1 < 0 || h2 < 0) {
+      pv.style.display = 'block';
+      pv.innerHTML = `<span style="color:#ff7675;">⚠ 敷地GLが道路GLより低くなっています</span>`;
+      return;
+    }
+    pv.style.display = 'block';
+    pv.innerHTML = `H1 = ${fmt(h1,3)} m　（始点敷地 ${fmt(toNum($('slope_site1').value),3)} − 道路 ${fmt(road,3)}）　／　H2 = ${fmt(h2,3)} m　（終点敷地 ${fmt(toNum($('slope_site2').value),3)} − 道路 ${fmt(road,3)}）`;
+  }
+
+  // 断面プレビューSVG
+  function drawSlopeSVG(h1, h2, grad) {
+    const svg  = $('slope_svg');
+    const hAvg = (h1 + h2) / 2;
+    const wBase = hAvg * grad;
+    const deg   = (Math.atan(1 / grad) * 180 / Math.PI).toFixed(1);
+    const slopeLen = Math.sqrt(hAvg*hAvg + wBase*wBase).toFixed(2);
+
+    // キャンバスサイズ・余白
+    const W = 500, H = 260;
+    // 描画領域：左右に寸法線スペース、上下にラベルスペース
+    const padL = 30, padR = 140, padT = 50, padB = 70;
+    const drawW = W - padL - padR;
+    const drawH = H - padT - padB;
+
+    // スケール（幅・高さ両方収まるように）
+    const scaleW = drawW / Math.max(wBase, 0.01);
+    const scaleH = drawH / Math.max(hAvg, 0.01);
+    const scale  = Math.min(scaleW, scaleH);
+    const pxW = wBase * scale;
+    const pxH = hAvg  * scale;
+
+    // 図形の座標（法尻を右下に固定）
+    const toeX     = padL + pxW;   // 法尻X（右）
+    const toeY     = padT + pxH;   // 法尻Y（下）
+    const shouldX  = padL;          // 法肩X（左）
+    const shouldY  = padT;          // 法肩Y（上）
+    const groundY  = toeY;          // 地面Y
+
+    // 地盤延長
+    const leftTopX  = shouldX - 20;
+    const rightGndX = toeX + 50;
+
+    // ハッチ生成
+    function hatch(x, y, w, n, flip=false) {
+      let s = '';
+      const step = w / n;
+      for(let i=0;i<n;i++){
+        const hx = x + i*step + step*0.5;
+        s += flip
+          ? `<line x1="${hx}" y1="${y}" x2="${hx+10}" y2="${y+13}" stroke="#5d8a60" stroke-width="1.3"/>`
+          : `<line x1="${hx}" y1="${y}" x2="${hx-10}" y2="${y+13}" stroke="#5d8a60" stroke-width="1.3"/>`;
+      }
+      return s;
+    }
+
+    // 角度弧
+    const arcR  = Math.min(pxW, pxH, 32);
+    const aRad  = Math.atan2(pxH, pxW);
+    const arcX2 = toeX - arcR * Math.cos(aRad);
+    const arcY2 = toeY - arcR * Math.sin(aRad);
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = `
+    <defs>
+      <marker id="slArrow" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto">
+        <path d="M0,1 L6,3.5 L0,6 Z" fill="#e74c3c"/>
+      </marker>
+      <marker id="slArrowR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto-start-reverse">
+        <path d="M0,1 L6,3.5 L0,6 Z" fill="#e74c3c"/>
+      </marker>
+      <marker id="slArrowB" markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto">
+        <path d="M0,1 L6,3.5 L0,6 Z" fill="#3498db"/>
+      </marker>
+      <marker id="slArrowBR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto-start-reverse">
+        <path d="M0,1 L6,3.5 L0,6 Z" fill="#3498db"/>
+      </marker>
+    </defs>
+
+    <!-- 土の塗り -->
+    <polygon points="${shouldX},${shouldY} ${toeX},${toeY} ${shouldX},${toeY}"
+      fill="rgba(139,100,60,0.3)" stroke="none"/>
+
+    <!-- 上の地盤（法肩）-->
+    <line x1="${leftTopX}" y1="${shouldY}" x2="${shouldX}" y2="${shouldY}"
+      stroke="#5d8a60" stroke-width="2.5"/>
+    ${hatch(leftTopX, shouldY, shouldX-leftTopX, 3, true)}
+    <text x="${leftTopX-4}" y="${shouldY+4}" fill="#5d8a60" font-size="11"
+      font-family="sans-serif" text-anchor="end">敷地GL</text>
+
+    <!-- 下の地盤（法尻）-->
+    <line x1="${toeX}" y1="${groundY}" x2="${rightGndX}" y2="${groundY}"
+      stroke="#5d8a60" stroke-width="2.5"/>
+    ${hatch(toeX, groundY, rightGndX-toeX, 5)}
+    <text x="${rightGndX+4}" y="${groundY+4}" fill="#5d8a60" font-size="11"
+      font-family="sans-serif">道路GL</text>
+
+    <!-- 法面斜線 -->
+    <line x1="${shouldX}" y1="${shouldY}" x2="${toeX}" y2="${toeY}"
+      stroke="#ffffff" stroke-width="2.5"/>
+
+    <!-- 垂直補助線（高さ） -->
+    <line x1="${toeX}" y1="${shouldY}" x2="${toeX}" y2="${toeY}"
+      stroke="#e74c3c" stroke-width="1" stroke-dasharray="4,3"/>
+
+    <!-- 水平補助線（幅） -->
+    <line x1="${shouldX}" y1="${toeY}" x2="${toeX}" y2="${toeY}"
+      stroke="#3498db" stroke-width="1" stroke-dasharray="4,3"/>
+
+    <!-- 高さ寸法線（図の右外側）-->
+    <line x1="${toeX+30}" y1="${shouldY}" x2="${toeX+30}" y2="${toeY}"
+      stroke="#e74c3c" stroke-width="1.5"
+      marker-start="url(#slArrowR)" marker-end="url(#slArrow)"/>
+    <line x1="${toeX+24}" y1="${shouldY}" x2="${toeX+36}" y2="${shouldY}" stroke="#e74c3c" stroke-width="1"/>
+    <line x1="${toeX+24}" y1="${toeY}"    x2="${toeX+36}" y2="${toeY}"    stroke="#e74c3c" stroke-width="1"/>
+    <text x="${toeX+40}" y="${(shouldY+toeY)/2+4}" fill="#e74c3c"
+      font-size="12" font-family="sans-serif" font-weight="bold">H=${fmt(hAvg,2)}m</text>
+
+    <!-- 幅寸法線（図の上外側）-->
+    <line x1="${shouldX}" y1="${shouldY-28}" x2="${toeX}" y2="${shouldY-28}"
+      stroke="#3498db" stroke-width="1.5"
+      marker-start="url(#slArrowBR)" marker-end="url(#slArrowB)"/>
+    <line x1="${shouldX}" y1="${shouldY-22}" x2="${shouldX}" y2="${shouldY-34}" stroke="#3498db" stroke-width="1"/>
+    <line x1="${toeX}"    y1="${shouldY-22}" x2="${toeX}"    y2="${shouldY-34}" stroke="#3498db" stroke-width="1"/>
+    <text x="${(shouldX+toeX)/2}" y="${shouldY-34}" fill="#3498db"
+      font-size="12" font-family="sans-serif" font-weight="bold" text-anchor="middle">幅 ${fmt(wBase,2)}m</text>
+
+    <!-- 勾配ラベル（斜線の左上外側）-->
+    <text x="${shouldX - 6}" y="${(shouldY+toeY)/2 - 8}" fill="#ffffff"
+      font-size="13" font-family="sans-serif" font-weight="bold" text-anchor="end">1:${grad}</text>
+
+    <!-- 角度弧 -->
+    <path d="M${toeX-arcR},${toeY} A${arcR},${arcR} 0 0,1 ${arcX2},${arcY2}"
+      fill="none" stroke="#74b9ff" stroke-width="1.5"/>
+    <text x="${toeX - arcR*1.6}" y="${toeY - arcR*0.3}"
+      fill="#74b9ff" font-size="11" font-family="sans-serif">${deg}°</text>
+
+    <!-- 斜長ラベル（図下・凡例エリア）-->
+    <text x="${(shouldX+toeX)/2}" y="${H - 48}"
+      fill="#f39c12" font-size="12" font-family="sans-serif" text-anchor="middle">
+      斜長（実長）: ${slopeLen} m</text>
+
+    <!-- 凡例（図の右下、寸法線と重ならない位置）-->
+    <rect x="${W-130}" y="${H-58}" width="124" height="52" rx="4"
+      fill="rgba(0,0,0,0.5)" stroke="#555" stroke-width="1"/>
+    <line x1="${W-124}" y1="${H-46}" x2="${W-110}" y2="${H-46}" stroke="#e74c3c" stroke-width="2"/>
+    <text x="${W-106}" y="${H-42}" fill="#e74c3c" font-size="11" font-family="sans-serif">高さ H</text>
+    <line x1="${W-124}" y1="${H-32}" x2="${W-110}" y2="${H-32}" stroke="#3498db" stroke-width="2"/>
+    <text x="${W-106}" y="${H-28}" fill="#3498db" font-size="11" font-family="sans-serif">幅（水平）</text>
+    <line x1="${W-124}" y1="${H-18}" x2="${W-110}" y2="${H-18}" stroke="#f39c12" stroke-width="2"/>
+    <text x="${W-106}" y="${H-14}" fill="#f39c12" font-size="11" font-family="sans-serif">斜長（実長）</text>
+    `;
+    $('slope_preview_wrap').style.display = 'block';
+  }
+
+  $('slope_preview_btn').addEventListener('click', () => {
+    const { h1, h2, grad } = getSlopeInputs();
+    if (grad <= 0) { alert('勾配を入力してください'); return; }
+    drawSlopeSVG(h1, h2, grad);
+  });
+
+  function getSlopeInputs() {
+    let h1, h2;
+    if ($('slope_mode_lv').checked) {
+      const road = toNum($('slope_road1').value);
+      h1 = toNum($('slope_site1').value) - road;
+      h2 = toNum($('slope_site2').value) - road;
+    } else {
+      h1 = toNum($('slope_h1').value);
+      h2 = toNum($('slope_h2').value);
+    }
+    const grad = toNum($('slope_grad').value);
+    const len  = toNum($('slope_len').value);
+    return { h1, h2, grad, len };
+  }
+
+  function renderSlope() {
+    const wrap = $('slope_rows');
+    if (slopeRows.length === 0) { wrap.innerHTML = ''; return; }
+    let tbl = `<div class="table-wrap" style="margin-bottom:10px;"><table>
+      <thead><tr><th>区間名</th><th>H1(m)</th><th>H2(m)</th><th>勾配</th><th>延長(m)</th><th>平均断面(m²)</th><th>地山土量(m³)</th><th>操作</th></tr></thead><tbody>`;
+    slopeRows.forEach((r, i) => {
+      const sec1    = 0.5 * r.h1 * r.h1 * r.grad;
+      const sec2    = 0.5 * r.h2 * r.h2 * r.grad;
+      const avg_sec = (sec1 + sec2) / 2;
+      const vol     = avg_sec * r.len;
+      const deg     = (Math.atan(1/r.grad)*180/Math.PI).toFixed(1);
+      tbl += `<tr>
+        <td><strong>${r.name}</strong></td>
+        <td>${fmt(r.h1,2)}</td><td>${fmt(r.h2,2)}</td>
+        <td>1:${r.grad}（${deg}°）</td>
+        <td>${r.len}</td>
+        <td>${fmt(avg_sec,3)}</td>
+        <td>${fmt(vol,3)}</td>
+        <td><button data-i="${i}" class="slope_del btn-danger">削除</button></td>
+      </tr>`;
+    });
+    tbl += '</tbody></table></div>';
+    wrap.innerHTML = tbl;
+    document.querySelectorAll('.slope_del').forEach(b => {
+      b.addEventListener('click', e => {
+        slopeRows.splice(+e.target.dataset.i, 1);
+        renderSlope();
+        calculateSlopeTotal();
+      });
+    });
+  }
+
+  $('slope_add').addEventListener('click', () => {
+    const { h1, h2, grad, len } = getSlopeInputs();
+    if (h1 < 0 || h2 < 0) { alert('法面高さが負になっています。レベル値を確認してください'); return; }
+    if (h1 <= 0 && h2 <= 0) { alert('法面高さを入力してください'); return; }
+    if (grad <= 0) { alert('法面勾配を入力してください'); return; }
+    if (len  <= 0) { alert('延長を入力してください'); return; }
+    slopeRows.push({
+      name: $('slope_name').value || `法面${slopeRows.length + 1}`,
+      h1, h2, grad, len
+    });
+    renderSlope();
+    calculateSlopeTotal();
+  });
+
+  function calculateSlopeTotal() {
+    const box = $('slope_all_out');
+    const bulking   = toNum($('site_bulking').value)   || 1.37;
+    const waste_pct = toNum($('site_waste_pct').value);
+    const density   = toNum($('site_density').value)   || 1.6;
+
+    let total_raw = 0;
+    slopeRows.forEach(r => {
+      const sec1 = 0.5 * r.h1 * r.h1 * r.grad;
+      const sec2 = 0.5 * r.h2 * r.h2 * r.grad;
+      total_raw += ((sec1 + sec2) / 2) * r.len;
+    });
+
+    if (total_raw <= 0) {
+      box.style.display = 'none';
+      summary.slope_excavation = null;
+      calculateEarthTotal();
+      return;
+    }
+
+    const vol_waste = total_raw * bulking * (1 + waste_pct / 100);
+    const vol_t     = vol_waste * density;
+    summary.slope_excavation = { raw: total_raw, waste: vol_waste, t: vol_t };
+
+    let out = `法面 地山土量合計: <strong>${fmt(total_raw,3)} m³</strong><br>`;
+    out += `<span class="formula">　平均断面法：各断面積の平均 × 延長</span><hr>`;
+    out += `搬出土量: <strong><span class="cut">${fmt(vol_waste,3)} m³</span></strong><br>`;
+    out += `<span class="formula">　= 地山 ${fmt(total_raw,3)} m³ × 膨張率 ${bulking.toFixed(2)} × ロス係数 ${(1+waste_pct/100).toFixed(2)}</span><br>`;
+    out += `重量: <strong>${fmt(vol_t,2)} t</strong><br>`;
+    out += `<span class="formula">　= 搬出土量 ${fmt(vol_waste,3)} m³ × 比重 ${density} t/m³</span>`;
+
+    box.style.display = 'block';
+    box.innerHTML = out;
+    $('slope_exclude_wrap').style.display = 'block';
+    calculateEarthTotal();
+  }
+
+  $('slope_exclude').addEventListener('change', calculateEarthTotal);
+
+  // -------------------------------------------------------
+  // 2. 土工事
+  // -------------------------------------------------------
+  function typeLabel(t) {
+    return t === 'foundation' ? '基礎掘削' : t === 'floor' ? '床掘削' : 'その他';
+  }
+  function rowVol(r) {
+    return r.type === 'foundation'
+      ? r.L * (r.W_mm / 1000) * r.D
+      : r.Area * r.D;
+  }
+
+  function renderEarth() {
+    const tbody = $('earth_tbody');
+    tbody.innerHTML = '';
+    earthRows.forEach((r, i) => {
+      const vol    = rowVol(r);
+      const detail = r.type === 'foundation' ? `L:${r.L}m W:${r.W_mm}mm` : `A:${r.Area}m²`;
+      tbody.innerHTML += `<tr>
+        <td><strong>${r.name}</strong></td>
+        <td>${typeLabel(r.type)}</td>
+        <td>${detail}</td>
+        <td>${r.D}m</td>
+        <td>${fmt(vol,3)} m³</td>
+        <td><button data-i="${i}" class="earth_del btn-danger">削除</button></td>
+      </tr>`;
+    });
+    document.querySelectorAll('.earth_del').forEach(b => {
+      b.addEventListener('click', e => {
+        earthRows.splice(+e.target.dataset.i, 1);
+        renderEarth();
+        calculateEarthTotal();
+      });
+    });
+  }
+
+  $('earth_add').addEventListener('click', () => {
+    const type = $('earth_type').value;
+    earthRows.push({
+      name : $('earth_name').value || `区分${earthRows.length + 1}`,
+      type : type,
+      D    : toNum($('earth_D').value),
+      L    : toNum($('earth_L').value),
+      W_mm : toNum($('earth_W_mm').value),
+      Area : toNum($('earth_Area').value)
+    });
+    renderEarth();
+    calculateEarthTotal();
+  });
+
+  function calculateEarthTotal() {
+    const box = $('earth_all_out');
+
+    const bulking   = toNum($('earth_bulking').value)   || 1.37;
+    const waste_pct = toNum($('earth_waste_pct').value);
+    const density   = toNum($('earth_density').value)   || 1.6;
+
+    let v_found = 0, v_floor = 0, v_other = 0;
+    earthRows.forEach(r => {
+      const vol = rowVol(r);
+      if      (r.type === 'foundation') v_found += vol;
+      else if (r.type === 'floor')      v_floor += vol;
+      else                              v_other += vol;
+    });
+
+    const total_raw   = v_found + v_floor + v_other;
+    const total_waste = total_raw * bulking * (1 + waste_pct / 100);
+    const total_t     = total_waste * density;
+
+    summary.earth_excavation = earthRows.length > 0
+      ? { waste: total_waste, t: total_t }
+      : null;
+
+    // ①整地分・法面分との合算
+    const s  = summary.site_excavation;
+    const slRaw = summary.slope_excavation;
+    const slExcluded = $('slope_exclude').checked;
+    const sl = (slRaw && !slExcluded) ? slRaw : null;
+    const grand_waste = total_waste + (s ? s.waste : 0) + (sl ? sl.waste : 0);
+    const grand_t     = total_t     + (s ? s.t     : 0) + (sl ? sl.t     : 0);
+
+    // 土工データなし・整地もなし → 非表示
+    if (earthRows.length === 0 && !s) {
+      box.style.display = 'none';
+      calculateAllTotal();
+      return;
+    }
+
+    let html = '';
+
+    if (earthRows.length > 0) {
+      if (v_found > 0) html += `基礎掘削（地山）: ${fmt(v_found,3)} m³<br>`;
+      if (v_floor > 0) html += `床掘削（地山）　: ${fmt(v_floor,3)} m³<br>`;
+      if (v_other > 0) html += `その他（地山）　: ${fmt(v_other,3)} m³<br>`;
+      html += `<hr>`;
+      html += `<strong>②掘削合計（地山）: ${fmt(total_raw,3)} m³</strong><br>`;
+      html += `膨張率 ×${bulking.toFixed(2)}　ロス +${waste_pct}%　比重 ${density} t/m³<br>`;
+      html += `<strong>②搬出土量: ${fmt(total_waste,3)} m³　(${fmt(total_t,2)} t)</strong>`;
+    }
+
+    if (s || sl) {
+      html += `<hr>`;
+      if (s)  html += `①整地搬出　: ${fmt(s.waste,3)} m³　(${fmt(s.t,2)} t)<br>`;
+      if (sl) html += `①法面搬出　: ${fmt(sl.waste,3)} m³　(${fmt(sl.t,2)} t)<br>`;
+      if (earthRows.length > 0) {
+        html += `②土工搬出　: ${fmt(total_waste,3)} m³　(${fmt(total_t,2)} t)<br>`;
+      }
+      html += `<span class="total-line">🚛 合計残土: <strong>${fmt(grand_waste,3)} m³　${fmt(grand_t,2)} t</strong></span>`;
+    }
+
+    box.style.display = 'block';
+    box.innerHTML = html;
+    calculateAllTotal();
+  }
+
+  // -------------------------------------------------------
+  // 3. ブロック工事
+  // -------------------------------------------------------
+  function runStepCalc(targetSteps) {
+    const design    = toNum($('quick_design_gl').value);
+    const bh_mm     = $('quick_block_h').value === 'custom'
+                      ? toNum($('quick_block_h_custom').value)
+                      : toNum($('quick_block_h').value);
+    const base_t    = toNum($('base_t_mm').value) / 1000;        // 基礎厚(m)
+    const stone_t   = toNum($('crushed_stone_mm').value) / 1000; // 砕石厚(m)
+    const pitch     = bh_mm / 1000 + 0.010;  // 1段高さ = ブロック高 + 目地10mm
+    const outBox    = $('quick_block_out');
+
+    const isManual = $('stepcalc_mode_manual').checked;
+
+    let top, steps, manualNote = '';
+
+    if (isManual) {
+      // 手動モード：地上段数＋根入れ段数を直接指定 → 天端を逆算
+      const aboveN = Math.max(0, Math.round(toNum($('manual_above_steps').value)));
+      const embedN = Math.max(0, Math.round(toNum($('manual_embed_steps').value)));
+      steps = aboveN + embedN;
+      if (steps <= 0) {
+        outBox.style.display = 'block';
+        outBox.innerHTML = "<span class='ng-text'>エラー: 地上段数＋根入れ段数が0です</span>";
+        return;
+      }
+      top = design + aboveN * pitch;  // 天端を逆算
+      manualNote = `<div style="color:#74b9ff; margin-bottom:4px;">手動指定: 地上${aboveN}段 ＋ 根入れ${embedN}段　→　天端を逆算: <strong>${fmt(top,3)} m</strong></div>`;
+      $('quick_block_top').value = top.toFixed(3); // 表示・断面図用に反映
+    } else {
+      top = toNum($('quick_block_top').value);
+      if (top <= design) {
+        outBox.style.display = 'block';
+        outBox.innerHTML = "<span class='ng-text'>エラー: 天端レベルが設計GL以下です</span>";
+        return;
+      }
+    }
+
+    const visible_h = top - design;  // 見え掛かり高さ
+    if (targetSteps !== undefined) {
+      steps = targetSteps;
+    } else if (!isManual) {
+      steps = Math.ceil(visible_h / pitch);
+    }
+    // isManualかつtargetSteps未指定の場合はstepsは既に確定済み（aboveN+embedN）
+
+    // ヘッダー情報
+    let log = manualNote;
+    log += `<div style="color:#aaa; margin-bottom:4px;">`;
+    log += `見え掛かり ${fmt(visible_h,3)} m　1段高さ ${fmt(pitch*1000,0)} mm（ブロック${bh_mm}mm＋目地10mm）`;
+    log += `　基礎厚 ${(base_t*1000).toFixed(0)}mm　砕石厚 ${(stone_t*1000).toFixed(0)}mm</div>`;
+    log += `<div style="color:#aaa; font-size:11px; margin-bottom:6px; border-bottom:1px dashed #445; padding-bottom:4px;">`;
+    log += `埋設計 ＝ 根入れ深さ ＋ 基礎厚 ＋ 砕石厚（≥0.35m必要）</div>`;
+
+    // 自動探索ループは「天端モード」かつ「段数未指定（自動）」のときだけ実行
+    if (!isManual && targetSteps === undefined) {
+      while (true) {
+        const bottom      = top - (steps * pitch);
+        const root        = design - bottom;          // 根入れ深さ（GLからブロック底まで）
+        const total_embed = root + base_t + stone_t;  // 埋設計
+        if (total_embed >= 0.35 - 0.001) {
+          log += `<div>${steps}段: 根入れ <strong>${fmt(root,3)}m</strong> ＋ 基礎 ${fmt(base_t,3)}m ＋ 砕石 ${fmt(stone_t,3)}m ＝ 埋設計 <strong>${fmt(total_embed,3)} m</strong> <span class='ok-text'>✔ OK (≥0.35m)</span></div>`;
+          break;
+        } else {
+          log += `<div>${steps}段: 根入れ <strong>${fmt(root,3)}m</strong> ＋ 基礎 ${fmt(base_t,3)}m ＋ 砕石 ${fmt(stone_t,3)}m ＝ 埋設計 <strong>${fmt(total_embed,3)} m</strong> <span class='ng-text'>✘ 不足 → +1段</span></div>`;
+          steps++;
+        }
+        if (steps > 50) break;
+      }
+    }
+
+    const final_bottom = top - (steps * pitch);
+    const final_root   = design - final_bottom;
+    const final_embed  = final_root + base_t + stone_t;
+    const ok = final_embed >= 0.35 - 0.001;
+
+    outBox.style.display = 'block';
+    outBox.innerHTML = log +
+      `<div class='calc-final'>★ ${steps} 段　根入れ: ${fmt(final_root,3)} m　基礎厚: ${fmt(base_t,3)} m　砕石: ${fmt(stone_t,3)} m　埋設計: ${fmt(final_embed,3)} m　` +
+      (ok ? `<span class='ok-text'>✔ OK</span>` : `<span class='ng-text'>✘ 0.35m不足</span>`) + `</div>`;
+    $('final_steps').value = steps;
+    drawBlockSVG(steps, final_root, base_t, stone_t, bh_mm, design);
+  }
+
+  function drawBlockSVG(steps, rootDepth, base_t, stone_t, bh_mm, designGL) {
+    const svg = $('block_svg');
+    svg.style.display = 'block';
+
+    const top        = toNum($('quick_block_top').value);
+    const pitch      = bh_mm / 1000 + 0.010;
+    const base_steps = toNum($('base_block_steps').value);
+
+    // ── 段の分類（シンプル版）──
+    // ブロックは天端から1段ずつ隙間なく積む。合計steps段。
+    // 通常ブロック（地上・上から）: steps - base_steps 段
+    // 基礎段（充填・一番下のbase_steps段）: 天端から数えて下からbase_steps段
+    const normalSteps = Math.max(0, steps - base_steps);  // 通常CB段数（上側）
+    const blkBotLevel = top - steps * pitch;               // ブロック全体の底レベル
+    // GLより下に入る段数（根入れ判定用、表示には使わないが互換のため保持）
+    const embedBlkSteps = Math.max(0, Math.floor((designGL - blkBotLevel) / pitch + 0.001));
+    const aboveSteps    = normalSteps; // 後方互換用
+
+    // レベル値
+    const lvTop      = top;
+    const lvGL       = designGL;
+    const lvBlkBot   = blkBotLevel;
+    const lvBasBot   = lvBlkBot - base_t;
+    const lvStnBot   = lvBasBot - stone_t;
+
+    // キャンバスレイアウト
+    // 左: 定規エリア(80px) + ブロック描画(160px) + 右寸法線(120px) + 余白
+    const W       = 580;
+    const RULER_W = 80;   // 左定規幅
+    const BLK_W   = 160;  // ブロック幅
+    const bx0     = RULER_W + 10;
+    const bx1     = bx0 + BLK_W;
+    const cx      = bx0 + BLK_W / 2;
+
+    // 高さスケール: 全体レベル幅に対してPXを割り当て
+    const levelSpan = lvTop - lvStnBot;
+    const PAD_T = 30, PAD_B = 45;
+    const drawPxH = 280;
+    const scale   = drawPxH / Math.max(levelSpan, 0.01);  // px/m
+
+    // レベル→Y変換関数（天端が上）
+    function lv2y(lv) { return PAD_T + (lvTop - lv) * scale; }
+
+    const yTop    = lv2y(lvTop);
+    const yGL     = lv2y(lvGL);
+    const yBlkBot = lv2y(lvBlkBot);
+    const yBasBot = lv2y(lvBasBot);
+    const yStnBot = lv2y(lvStnBot);
+    const H       = yStnBot + PAD_B + 10;
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+    function hatch(x, y, w, n) {
+      let s = '';
+      const step = w / n;
+      for (let i = 0; i < n; i++) {
+        const hx = x + i * step + step * 0.5;
+        s += `<line x1="${hx}" y1="${y}" x2="${hx-10}" y2="${y+12}" stroke="#5d8a60" stroke-width="1.2"/>`;
+      }
+      return s;
+    }
+
+    // 右寸法線ヘルパー
+    function dimR(y1, y2, label, color) {
+      if (Math.abs(y2 - y1) < 4) return '';
+      const ox = bx1 + 70, mid = (y1 + y2) / 2;
+      return `<line x1="${ox}" y1="${y1}" x2="${ox}" y2="${y2}" stroke="${color}" stroke-width="1.5"
+          marker-start="url(#bAR)" marker-end="url(#bA)"/>
+        <line x1="${ox-4}" y1="${y1}" x2="${ox+4}" y2="${y1}" stroke="${color}" stroke-width="1"/>
+        <line x1="${ox-4}" y1="${y2}" x2="${ox+4}" y2="${y2}" stroke="${color}" stroke-width="1"/>
+        <text x="${ox+8}" y="${mid+4}" fill="${color}" font-size="11"
+          font-family="sans-serif">${label}</text>`;
+    }
+
+    const embedTotal = lvGL - lvStnBot;
+    const embedOK    = embedTotal >= 0.35 - 0.001;
+    const embedColor = embedOK ? '#55efc4' : '#ff7675';
+    const bH = pitch * scale;
+
+    let out = `<defs>
+      <marker id="bA"  markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto">
+        <path d="M0,1 L6,3.5 L0,6 Z" fill="#e74c3c"/>
+      </marker>
+      <marker id="bAR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto-start-reverse">
+        <path d="M0,1 L6,3.5 L0,6 Z" fill="#e74c3c"/>
+      </marker>
+    </defs>`;
+
+    // ── 定規（左エリア）──
+    // 0.1m刻み目盛り
+    const rulerX   = RULER_W - 6;
+    const tickStep = 0.1;
+    const lvStart  = Math.ceil(lvStnBot / tickStep) * tickStep;
+    const lvEnd    = Math.floor(lvTop   / tickStep) * tickStep;
+
+    out += `<line x1="${rulerX}" y1="${yTop}" x2="${rulerX}" y2="${yStnBot}"
+      stroke="#445" stroke-width="1.5"/>`;
+
+    // 0.1m刻みで目盛りを生成（整数倍を丸めて誤差を防ぐ）
+    const nStart = Math.round(lvStart * 10);
+    const nEnd   = Math.round(lvEnd   * 10);
+    for (let n = nStart; n <= nEnd; n++) {
+      const lv = n / 10;
+      const py = lv2y(lv);
+      const isHalf = (n % 5 === 0); // 0.5m刻み = 長め＋数値
+      const tLen   = isHalf ? 11 : 5;
+      const col    = isHalf ? '#8a93a8' : '#566';
+      out += `<line x1="${rulerX - tLen}" y1="${py}" x2="${rulerX}" y2="${py}"
+        stroke="${col}" stroke-width="${isHalf ? 1.3 : 0.8}"/>`;
+      if (isHalf) {
+        const keyLvs = [lvTop, lvGL, lvBlkBot, lvBasBot, lvStnBot];
+        const tooClose = keyLvs.some(k => Math.abs(k - lv) < 0.06);
+        if (!tooClose) {
+          out += `<text x="${rulerX - tLen - 3}" y="${py + 3.5}" fill="#8a93a8"
+            font-size="8.5" font-family="monospace" text-anchor="end">${lv.toFixed(2)}</text>`;
+        }
+      }
+    }
+
+    // 主要レベルのラベル（定規の左側）
+    const keyLevs = [
+      { lv: lvTop,    py: yTop,    color: '#74b9ff', label: lvTop.toFixed(3) + 'm' },
+      { lv: lvGL,     py: yGL,     color: '#f1c40f', label: lvGL.toFixed(3)  + 'm' },
+      { lv: lvBlkBot, py: yBlkBot, color: '#e67e22', label: lvBlkBot.toFixed(3) + 'm' },
+      { lv: lvBasBot, py: yBasBot, color: '#7f8c8d', label: lvBasBot.toFixed(3) + 'm' },
+      { lv: lvStnBot, py: yStnBot, color: '#5d8a60', label: lvStnBot.toFixed(3) + 'm' },
+    ];
+    // 近すぎるラベルは間引く（10px以内）
+    const shown = [];
+    keyLevs.forEach(k => {
+      if (shown.every(s => Math.abs(s.py - k.py) > 14)) {
+        shown.push(k);
+        out += `<text x="${rulerX - 13}" y="${k.py + 3.5}" fill="${k.color}"
+          font-size="9.5" font-family="monospace" font-weight="bold"
+          text-anchor="end">${k.label}</text>`;
+        // 定規にノッチ
+        out += `<line x1="${rulerX - 13}" y1="${k.py}" x2="${rulerX}" y2="${k.py}"
+          stroke="${k.color}" stroke-width="1.5"/>`;
+      }
+    });
+
+    // ── 地上ブロック（緑）──
+    for (let i = 0; i < normalSteps; i++) {
+      const ly = lvTop - i * pitch;
+      const y1 = lv2y(ly), y2 = lv2y(ly - pitch);
+      out += `<rect x="${bx0}" y="${y1}" width="${BLK_W}" height="${y2-y1-1}"
+        fill="${i===0?'#145a32':'#1e8449'}" stroke="#2ecc71" stroke-width="1" rx="1"/>`;
+      if (y2 - y1 > 16) out += `<text x="${cx}" y="${(y1+y2)/2+4}" fill="#a9dfbf"
+        font-size="10" font-family="sans-serif" text-anchor="middle">CB ${normalSteps-i}段</text>`;
+    }
+
+    // ── 基礎段（充填・青緑）── 天端から数えてnormalSteps段の次から、一番下まで base_steps 段
+    for (let i = 0; i < base_steps; i++) {
+      const ly = lvTop - (normalSteps + i) * pitch;
+      const y1 = lv2y(ly), y2 = lv2y(ly - pitch);
+      out += `<rect x="${bx0}" y="${y1}" width="${BLK_W}" height="${y2-y1-1}"
+        fill="#1a5276" stroke="#2e86c1" stroke-width="1.5" rx="1"/>`;
+      if (y2 - y1 > 16) out += `<text x="${cx}" y="${(y1+y2)/2+4}" fill="#aed6f1"
+        font-size="10" font-family="sans-serif" text-anchor="middle">基礎段 ${base_steps-i}段</text>`;
+    }
+
+    // 根入れブロック専用の描画は廃止
+    // → 通常ブロック・基礎段の描画がGL以下に食い込む場合、そのまま下まで描かれる
+    // GL以下にかかった部分だけハッチング線を重ねて「根入れ部分」を視覚的に示す
+    if (blkBotLevel < lvGL - 0.001) {
+      const y1 = lv2y(lvGL);
+      const y2 = lv2y(blkBotLevel);
+      // 食い込み部分の枠（点線オレンジ）
+      out += `<rect x="${bx0}" y="${y1}" width="${BLK_W}" height="${y2-y1}"
+        fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="4,3"/>`;
+      // ラベルは枠の左外側（ブロックとは重ならない位置）に矢印付きで配置
+      const midY = (y1 + y2) / 2;
+      const labelX = bx0 - 16;
+      out += `<line x1="${labelX}" y1="${midY}" x2="${bx0-2}" y2="${midY}"
+        stroke="#e67e22" stroke-width="1.2"/>`;
+      out += `<rect x="${labelX-58}" y="${midY-9}" width="58" height="18" fill="#1a2530" rx="2"/>`;
+      out += `<text x="${labelX-4}" y="${midY+4}" fill="#e67e22" font-size="10"
+        font-family="sans-serif" text-anchor="end">根入れ部分</text>`;
+    }
+
+    // ── 基礎コンクリート ──
+    out += `<rect x="${bx0-8}" y="${yBlkBot}" width="${BLK_W+16}" height="${yBasBot-yBlkBot}"
+      fill="#1c2833" stroke="#7f8c8d" stroke-width="1.5" rx="2"/>`;
+    if (yBasBot - yBlkBot > 14) out += `<text x="${cx}" y="${(yBlkBot+yBasBot)/2+4}"
+      fill="#aab7b8" font-size="10" font-family="sans-serif" text-anchor="middle">
+      基礎コンクリート ${(base_t*1000).toFixed(0)}mm</text>`;
+
+    // ── 砕石 ──
+    if (stone_t > 0) {
+      out += `<rect x="${bx0-8}" y="${yBasBot}" width="${BLK_W+16}" height="${yStnBot-yBasBot}"
+        fill="#2e4053" stroke="#5d6d7e" stroke-width="1.5" rx="2"/>`;
+      if (yStnBot - yBasBot > 12) out += `<text x="${cx}" y="${(yBasBot+yStnBot)/2+4}"
+        fill="#85929e" font-size="10" font-family="sans-serif" text-anchor="middle">
+        砕石 ${(stone_t*1000).toFixed(0)}mm</text>`;
+    }
+
+    // ── 天端ライン ──
+    out += `<line x1="${bx0-10}" y1="${yTop}" x2="${bx1+10}" y2="${yTop}"
+      stroke="#74b9ff" stroke-width="1.5" stroke-dasharray="5,3"/>
+    <text x="${bx1+14}" y="${yTop-3}" fill="#74b9ff" font-size="10" font-family="sans-serif">天端</text>`;
+
+    // ── 設計GLライン ──
+    out += `<line x1="${bx0-10}" y1="${yGL}" x2="${bx1+10}" y2="${yGL}"
+      stroke="#f1c40f" stroke-width="2" stroke-dasharray="6,3"/>`;
+    out += hatch(bx0 - 30, yGL, BLK_W + 60, 8);
+    // GLラベルは右側寸法線の外側に配置（CB段ラベルと被らないよう）不透明背景＋枠
+    out += `<rect x="${bx1+82}" y="${yGL-9}" width="48" height="18" fill="#0d141b" stroke="#f1c40f" stroke-width="0.8" rx="2"/>`;
+    out += `<text x="${bx1+87}" y="${yGL+4}" fill="#f1c40f" font-size="10" font-family="sans-serif">設計GL</text>`;
+
+    // ── 掘削底ライン ──
+    out += `<line x1="${bx0-10}" y1="${yStnBot}" x2="${bx1+10}" y2="${yStnBot}"
+      stroke="#5d8a60" stroke-width="1.5"/>`;
+    out += hatch(bx0 - 30, yStnBot, BLK_W + 60, 8);
+    out += `<rect x="${bx0-8}" y="${yStnBot+6}" width="46" height="17" fill="#0d141b" stroke="#5d8a60" stroke-width="0.8" rx="2"/>
+    <text x="${bx0-3}" y="${yStnBot+18}" fill="#5d8a60" font-size="10" font-family="sans-serif">掘削底</text>`;
+
+    // ── 右側寸法線 ──
+    if (aboveSteps > 0) {
+      out += dimR(yTop, yGL, `地上 ${fmt(lvTop-lvGL,3)}m`, '#2ecc71');
+    }
+    out += dimR(yGL, yStnBot, `埋設計 ${fmt(embedTotal,3)}m`, embedColor);
+
+    // ── 埋設計OK/NGラベル ──
+    out += `<text x="${cx}" y="${yStnBot+34}" fill="${embedColor}"
+      font-size="12" font-family="sans-serif" font-weight="bold" text-anchor="middle">
+      埋設計 ${fmt(embedTotal,3)}m ${embedOK ? '✔ 0.35m OK' : '✘ 0.35m 不足'}</text>`;
+
+    // ── 凡例（右下・ブロック描画エリア外）──
+    const lgX = bx1 + 142, lgY = yTop;
+    out += `<rect x="${lgX}" y="${lgY}" width="120" height="82" rx="4"
+      fill="rgba(0,0,0,0.5)" stroke="#555" stroke-width="1"/>
+    <rect x="${lgX+6}" y="${lgY+8}"  width="10" height="9" fill="#1e8449" stroke="#2ecc71"/>
+    <text x="${lgX+20}" y="${lgY+17}" fill="#a9dfbf"  font-size="10" font-family="sans-serif">地上ブロック</text>
+    <rect x="${lgX+6}" y="${lgY+22}" width="10" height="9" fill="#1a5276" stroke="#2e86c1"/>
+    <text x="${lgX+20}" y="${lgY+31}" fill="#aed6f1"  font-size="10" font-family="sans-serif">基礎段（充填）</text>
+    <rect x="${lgX+6}" y="${lgY+36}" width="10" height="9" fill="#6e2f0a" stroke="#e67e22"/>
+    <text x="${lgX+20}" y="${lgY+45}" fill="#fad7a0"  font-size="10" font-family="sans-serif">根入れブロック</text>
+    <rect x="${lgX+6}" y="${lgY+50}" width="10" height="9" fill="#1c2833" stroke="#7f8c8d"/>
+    <text x="${lgX+20}" y="${lgY+59}" fill="#aab7b8"  font-size="10" font-family="sans-serif">基礎コンクリート</text>
+    <rect x="${lgX+6}" y="${lgY+64}" width="10" height="9" fill="#2e4053" stroke="#5d6d7e"/>
+    <text x="${lgX+20}" y="${lgY+73}" fill="#85929e"  font-size="10" font-family="sans-serif">砕石</text>`;
+
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = out;
+  }
+
+  $('calcQuickBlock').addEventListener('click', () => runStepCalc());
+  $('btn_step_plus').addEventListener('click',  () => runStepCalc(parseInt($('final_steps').value) + 1));
+  $('btn_step_minus').addEventListener('click', () => {
+    const s = parseInt($('final_steps').value);
+    if (s > 1) runStepCalc(s - 1);
+  });
+
+  function renderBlock() {
+    const tbody = $('block_tbody');
+    tbody.innerHTML = '';
+    blockRows.forEach((r, i) => {
+      tbody.innerHTML += `<tr>
+        <td><strong>${r.name}</strong></td>
+        <td>L:${r.L}m / ${r.size}</td>
+        <td>${r.steps}段（基礎${r.base_steps}段）</td>
+        <td>${r.corners}</td>
+        <td>${r.kasagi_type === 'none' ? 'なし' : r.kasagi_type.toUpperCase()}</td>
+        <td><button data-i="${i}" class="block_del btn-danger">削除</button></td>
+      </tr>`;
+    });
+    document.querySelectorAll('.block_del').forEach(b => {
+      b.addEventListener('click', e => {
+        blockRows.splice(+e.target.dataset.i, 1);
+        renderBlock();
+        calculateBlockTotal();
+      });
+    });
+  }
+
+  $('block_add').addEventListener('click', () => {
+    const steps = parseInt($('final_steps').value);
+    if (!steps || steps <= 0) { alert('先に段数を計算してください'); return; }
+    blockRows.push({
+      name      : $('block_name').value || `区画${blockRows.length + 1}`,
+      L         : toNum($('block_len').value),
+      steps     : steps,
+      corners   : toNum($('block_corners').value),
+      base_w_mm : toNum($('base_w_mm').value),
+      base_t_mm : toNum($('base_t_mm').value),
+      stone_mm  : toNum($('crushed_stone_mm').value),
+      form_h_m  : toNum($('form_h_m').value),
+      rebar_v   : toNum($('rebar_v_pitch').value),
+      rebar_h   : toNum($('rebar_h_steps').value),
+      size      : $('block_size').value,
+      base_steps: toNum($('base_block_steps').value),
+      kasagi_type: $('block_kasagi_type').value,
+      kasagi_len : toNum($('block_kasagi_len').value)
+    });
+    renderBlock();
+    calculateBlockTotal();
+  });
+
+  function calculateBlockTotal() {
+    const box = $('block_out');
+    if (blockRows.length === 0) {
+      box.style.display = 'none';
+      summary.block_res  = null;
+      summary.kasagi_res = null;
+      calculateAllTotal();
+      return;
+    }
+
+    // 掘削深さ平均（縦筋長さ計算用）
+    let avg_D = 0.6;
+    const founds = earthRows.filter(r => r.type === 'foundation');
+    if (founds.length > 0) avg_D = founds.reduce((a, b) => a + b.D, 0) / founds.length;
+
+    let sum = {
+      base_vol:0, stone_vol:0,
+      mortar:0, mortar_joint:0, mortar_infill:0, mortar_top:0, mortar_hbar:0,
+      blk_std_flat:0, blk_std_cor:0,
+      blk_base_flat:0, blk_base_cor:0,
+      rebar:0, kasagi_m:0, breakdown:[]
+    };
+    let k_det = { cb120:0, cb150:0, cb180:0, alumi:0 };
+
+    // モルタル係数（共通入力欄）
+    const jointUnit  = toNum($('mortar_joint_unit').value) || 0.003; // m³/個
+    const hbarRatio  = toNum($('mortar_hbar_ratio').value) || 1.5;   // 目地の何倍か
+    const voidPct    = (toNum($('mortar_void_pct').value)  || 65) / 100;
+
+    blockRows.forEach(r => {
+      // 基礎コンクリート
+      sum.base_vol += r.L * (r.base_w_mm / 1000) * (r.base_t_mm / 1000);
+      // 砕石（基礎幅と同幅で計算）
+      sum.stone_vol += r.L * (r.base_w_mm / 1000) * ((r.stone_mm||0) / 1000);
+
+      // ブロック寸法を解析（例: "390×190×150" → [390,190,150]mm）
+      const dims = (r.size || '390×190×150').split(/[×xX*]/).map(s => parseFloat(s)).filter(v => !isNaN(v));
+      const [bl, bh_, bw] = [dims[0]||390, dims[1]||190, dims[2]||150];
+      const blockOuterVol = (bl/1000) * (bh_/1000) * (bw/1000); // 外形体積(m³)
+
+      // ブロック本数
+      const unit_w       = (bl + 10) / 1000;        // ブロック長+目地10mm
+      const total_cols   = r.L / unit_w;
+      const flat_per_row = Math.max(0, total_cols - r.corners);
+      const one_tier     = Math.ceil(flat_per_row) + r.corners;
+      sum.breakdown.push(`[${r.name}] 1段: 約${one_tier}個（基本${Math.ceil(flat_per_row)}＋コーナー${r.corners}）`);
+
+      const std_steps  = Math.max(0, r.steps - r.base_steps); // 通常段数（基礎段を除く）
+
+      sum.blk_std_flat  += Math.ceil(flat_per_row * std_steps);
+      sum.blk_std_cor   += r.corners * std_steps;
+      sum.blk_base_flat += Math.ceil(flat_per_row * r.base_steps);
+      sum.blk_base_cor  += r.corners * r.base_steps;
+
+      // ── モルタル内訳の計算（段単位で分類） ──
+      // 1個あたりの個数（基本+コーナー、1段分）
+      const perTier = one_tier;
+      const totalBlocks = Math.ceil(flat_per_row * r.steps) + r.corners * r.steps;
+
+      // 目地モルタル：全段・全個数に固定値
+      sum.mortar_joint += totalBlocks * jointUnit;
+
+      // 中込モルタル：基礎段（充填指定段）のみ、外形×空洞率
+      const baseBlockCount = Math.ceil(flat_per_row * r.base_steps) + r.corners * r.base_steps;
+      sum.mortar_infill += baseBlockCount * blockOuterVol * voidPct;
+
+      // 天端仕上げモルタル：天端1段のみ（外形×空洞率÷2）、ただしその段が基礎段でなければ
+      const topIsBaseStep = r.base_steps >= r.steps; // 全段基礎なら天端も基礎扱い（中込で計上済み）
+      if (!topIsBaseStep && r.steps > 0) {
+        const topBlockCount = perTier; // 天端1段分の個数
+        sum.mortar_top += topBlockCount * blockOuterVol * voidPct / 2;
+      }
+
+      // 横筋モルタル：天端でも基礎段でもない中間段（目地の倍率）
+      // 中間段数 = 全段数 - 天端1段 - 基礎段数（重複しないよう）
+      const midSteps = Math.max(0, r.steps - (topIsBaseStep ? 0 : 1) - r.base_steps);
+      const midBlockCount = Math.ceil(flat_per_row * midSteps) + r.corners * midSteps;
+      sum.mortar_hbar += midBlockCount * jointUnit * hbarRatio;
+
+      // 鉄筋
+      // 縦筋: 根入れ深さ + 段数×ブロック1段高
+      const block_pitch = bh_ / 1000 + 0.010;
+      const v_num = Math.ceil(r.L / (r.rebar_v / 1000)) + 1;
+      const v_len = v_num * (avg_D + r.steps * block_pitch);
+      // 横筋: 段数÷横筋間隔段 × 延長
+      const h_rows = Math.max(1, Math.floor(r.steps / r.rebar_h));
+      const h_len  = h_rows * r.L;
+      sum.rebar += v_len + h_len;
+
+      // 笠木
+      if (r.kasagi_type !== 'none') {
+        sum.kasagi_m += r.L;
+        if (r.kasagi_len > 0 && k_det[r.kasagi_type] !== undefined) {
+          k_det[r.kasagi_type] += Math.ceil(r.L / r.kasagi_len);
+        }
+      }
+    });
+
+    // モルタル合計
+    sum.mortar = sum.mortar_joint + sum.mortar_infill + sum.mortar_top + sum.mortar_hbar;
+
+    summary.block_res  = sum;
+    summary.kasagi_res = k_det;
+
+    let txt = `<strong>【基礎コンクリート】</strong>　${fmt(sum.base_vol,3)} m³<br>`;
+    txt += `<strong>【砕石】</strong>　${fmt(sum.stone_vol,3)} m³<hr>`;
+    txt += `<strong>【ブロック本体】</strong><br>`;
+    txt += `標準 基本: <strong>${sum.blk_std_flat}</strong> 個　コーナー: <strong>${sum.blk_std_cor}</strong> 個<br>`;
+    if (sum.blk_base_flat > 0 || sum.blk_base_cor > 0) {
+      txt += `基礎用 基本: <strong>${sum.blk_base_flat}</strong> 個　コーナー: <strong>${sum.blk_base_cor}</strong> 個<br>`;
+    }
+    txt += `<hr><strong>【モルタル内訳】</strong><br>`;
+    txt += `目地: ${fmt(sum.mortar_joint,3)} m³　横筋部: ${fmt(sum.mortar_hbar,3)} m³<br>`;
+    txt += `中込（基礎段）: ${fmt(sum.mortar_infill,3)} m³　天端仕上げ: ${fmt(sum.mortar_top,3)} m³<br>`;
+    txt += `<strong>モルタル合計: ${fmt(sum.mortar,3)} m³</strong>　鉄筋: <strong>${fmt(sum.rebar,1)} m</strong>`;
+    if (sum.breakdown.length > 0) {
+      txt += `<hr><div class="micro">${sum.breakdown.join('<br>')}</div>`;
+    }
+    if (sum.kasagi_m > 0) {
+      txt += `<hr><strong>【笠木】</strong>　総延長: ${fmt(sum.kasagi_m,2)} m<br>`;
+      if (k_det.cb120 > 0) txt += `CB120: ${k_det.cb120} 本　`;
+      if (k_det.cb150 > 0) txt += `CB150: ${k_det.cb150} 本　`;
+      if (k_det.cb180 > 0) txt += `CB180: ${k_det.cb180} 本　`;
+      if (k_det.alumi > 0) txt += `アルミ: ${k_det.alumi} 本`;
+    }
+
+    box.style.display = 'block';
+    box.innerHTML = txt;
+    calculateAllTotal();
+  }
+
+  // -------------------------------------------------------
+  // 4. 積算集計
+  // -------------------------------------------------------
+  function calculateAllTotal() {
+    const b   = summary.block_res;
+    const e   = summary.earth_excavation;
+    const s   = summary.site_excavation;
+    const f   = summary.site_fill;
+    const k   = summary.kasagi_res;
+    const box = $('all_out');
+
+    if (!b && !e && !s && !f) { box.style.display = 'none'; return; }
+
+    const slRaw2 = summary.slope_excavation;
+    const sl = (slRaw2 && !$('slope_exclude').checked) ? slRaw2 : null;
+    const waste_vol = (s ? s.waste : 0) + (sl ? sl.waste : 0) + (e ? e.waste : 0);
+    const waste_t   = (s ? s.t     : 0) + (sl ? sl.t     : 0) + (e ? e.t     : 0);
+
+    let out = `<strong>═══ 積算集計 ═══</strong><hr>`;
+
+    if (s || e) {
+      out += `<strong>【残土搬出】</strong><br>`;
+      if (s)    out += `　①整地分: ${fmt(s.waste,3)} m³　(${fmt(s.t,2)} t)<br>`;
+      if (sl)   out += `　①法面分: ${fmt(sl.waste,3)} m³　(${fmt(sl.t,2)} t)<br>`;
+      if (slRaw2 && !sl) out += `　<span style="color:#f39c12;">⚠ 法面 ${fmt(slRaw2.waste,3)} m³ 除外中（パターンB）</span><br>`;
+      if (e)  out += `　②土工分: ${fmt(e.waste,3)} m³　(${fmt(e.t,2)} t)<br>`;
+      out += `　<span class="total-line">🚛 搬出合計: <strong>${fmt(waste_vol,3)} m³　${fmt(waste_t,2)} t</strong></span>`;
+      out += `<hr>`;
+    }
+
+    if (f) {
+      out += `<strong>【客土（購入土）】</strong><br>`;
+      out += `　必要盛土量: ${fmt(f.raw,3)} m³<br>`;
+      out += `　<span class="total-line">🚚 購入土量: <strong>${fmt(f.purchase,3)} m³</strong></span>`;
+      out += `<hr>`;
+    }
+
+    if (b) {
+      out += `<strong>【コンクリート】</strong>　${fmt(b.base_vol,3)} m³<br>`;
+      out += `<strong>【砕石】</strong>　${fmt(b.stone_vol,3)} m³<br>`;
+      out += `<strong>【モルタル】</strong>　${fmt(b.mortar,3)} m³<br>`;
+      out += `<span class="micro">　目地${fmt(b.mortar_joint,3)} ＋ 横筋部${fmt(b.mortar_hbar,3)} ＋ 中込${fmt(b.mortar_infill,3)} ＋ 天端${fmt(b.mortar_top,3)} m³</span><br>`;
+      out += `<strong>【鉄筋】</strong>　${fmt(b.rebar,1)} m<hr>`;
+      out += `<strong>【ブロック材】</strong><br>`;
+      out += `　標準 基本: <strong>${b.blk_std_flat}</strong> 個　コーナー: <strong>${b.blk_std_cor}</strong> 個<br>`;
+      if (b.blk_base_flat > 0) {
+        out += `　基礎用 基本: <strong>${b.blk_base_flat}</strong> 個　コーナー: <strong>${b.blk_base_cor}</strong> 個<br>`;
+      }
+      if (b.kasagi_m > 0 && k) {
+        out += `<hr><strong>【笠木】</strong>　総延長 ${fmt(b.kasagi_m,2)} m<br>`;
+        if (k.cb120 > 0) out += `　CB120: ${k.cb120} 本　`;
+        if (k.cb150 > 0) out += `　CB150: ${k.cb150} 本　`;
+        if (k.cb180 > 0) out += `　CB180: ${k.cb180} 本　`;
+        if (k.alumi > 0) out += `　アルミ: ${k.alumi} 本`;
+      }
+      if (b.breakdown.length > 0) {
+        out += `<hr><div class="micro">${b.breakdown.join('<br>')}</div>`;
+      }
+    }
+
+    box.style.display = 'block';
+    box.innerHTML = out;
+
+    // トラック台数更新
+    calculateTrucks(waste_vol);
+  }
+
+  // -------------------------------------------------------
+  // トラック台数計算
+  // -------------------------------------------------------
+  function calculateTrucks(total_vol) {
+    const tbox = $('truck_out');
+    if (!total_vol || total_vol <= 0) { tbox.style.display = 'none'; return; }
+
+    const trucks = [
+      { label:'3t車', cap: toNum($('truck_3t').value) },
+      { label:'2t車', cap: toNum($('truck_2t').value) },
+      { label:'4t車', cap: toNum($('truck_4t').value) },
+      { label:'8t車', cap: toNum($('truck_8t').value) },
+    ];
+
+    let html = `搬出合計: <strong style="color:#f1c40f;">${fmt(total_vol,3)} m³</strong><br>`;
+    trucks.forEach((t, idx) => {
+      if (t.cap <= 0) return;
+      const trips = Math.ceil(total_vol / t.cap);
+      html += `積載 <strong style="color:#f1c40f;">${t.cap} m³</strong>/台　→　<strong style="color:#74b9ff;">${trips} 台</strong><br>`;
+    });
+    tbox.style.display = 'block';
+    tbox.innerHTML = html;
+  }
+
+  // 積載量変更時も自動再計算
+  ['truck_3t','truck_2t','truck_4t','truck_8t'].forEach(id => {
+    $(id).addEventListener('input', () => {
+      const s = summary.site_excavation;
+      const e = summary.earth_excavation;
+      const total = (s ? s.waste : 0) + (e ? e.waste : 0);
+      calculateTrucks(total);
+    });
+  });
+
+  $('calc_all').addEventListener('click', calculateAllTotal);
+
+  // -------------------------------------------------------
+  // Excel出力
+  // -------------------------------------------------------
+  $('export_excel').addEventListener('click', () => {
+    const b  = summary.block_res;
+    const e  = summary.earth_excavation;
+    const s  = summary.site_excavation;
+    const f  = summary.site_fill;
+    const slRaw = summary.slope_excavation;
+    const sl = (slRaw && !$('slope_exclude').checked) ? slRaw : null;
+    const k  = summary.kasagi_res;
+
+    if (!b && !e && !s && !f) {
+      alert('集計データがありません。各セクションで計算してから出力してください。');
+      return;
+    }
+
+    const rows = [['外構積算ツール 集計結果', '', '']];
+    rows.push(['出力日時', new Date().toLocaleString('ja-JP'), '']);
+    rows.push(['', '', '']);
+
+    // 残土搬出
+    if (s || sl || e) {
+      rows.push(['【残土搬出】', '数量', '単位']);
+      if (s)  rows.push(['整地分（搬出土量）', fmt(s.waste,3), 'm³']);
+      if (s)  rows.push(['整地分（重量換算）', fmt(s.t,2), 't']);
+      if (sl) rows.push(['法面分（搬出土量）', fmt(sl.waste,3), 'm³']);
+      if (sl) rows.push(['法面分（重量換算）', fmt(sl.t,2), 't']);
+      if (slRaw && !sl) rows.push(['法面分（除外中・参考値）', fmt(slRaw.waste,3), 'm³']);
+      if (e)  rows.push(['土工分（搬出土量）', fmt(e.waste,3), 'm³']);
+      if (e)  rows.push(['土工分（重量換算）', fmt(e.t,2), 't']);
+      const waste_vol = (s?s.waste:0) + (sl?sl.waste:0) + (e?e.waste:0);
+      const waste_t   = (s?s.t:0)     + (sl?sl.t:0)     + (e?e.t:0);
+      rows.push(['搬出合計', fmt(waste_vol,3), 'm³']);
+      rows.push(['搬出合計（重量）', fmt(waste_t,2), 't']);
+      rows.push(['', '', '']);
+    }
+
+    // 客土
+    if (f) {
+      rows.push(['【客土（購入土）】', '数量', '単位']);
+      rows.push(['必要盛土量', fmt(f.raw,3), 'm³']);
+      rows.push(['購入土量', fmt(f.purchase,3), 'm³']);
+      rows.push(['', '', '']);
+    }
+
+    // ブロック工事
+    if (b) {
+      rows.push(['【基礎・ブロック工事】', '数量', '単位']);
+      rows.push(['基礎コンクリート', fmt(b.base_vol,3), 'm³']);
+      rows.push(['砕石', fmt(b.stone_vol,3), 'm³']);
+      rows.push(['モルタル合計', fmt(b.mortar,3), 'm³']);
+      rows.push(['　目地モルタル', fmt(b.mortar_joint,3), 'm³']);
+      rows.push(['　横筋部モルタル', fmt(b.mortar_hbar,3), 'm³']);
+      rows.push(['　中込モルタル（基礎段）', fmt(b.mortar_infill,3), 'm³']);
+      rows.push(['　天端仕上げモルタル', fmt(b.mortar_top,3), 'm³']);
+      rows.push(['鉄筋', fmt(b.rebar,1), 'm']);
+      rows.push(['ブロック（標準・基本）', b.blk_std_flat, '個']);
+      rows.push(['ブロック（標準・コーナー）', b.blk_std_cor, '個']);
+      if (b.blk_base_flat > 0 || b.blk_base_cor > 0) {
+        rows.push(['ブロック（基礎用・基本）', b.blk_base_flat, '個']);
+        rows.push(['ブロック（基礎用・コーナー）', b.blk_base_cor, '個']);
+      }
+      if (b.kasagi_m > 0 && k) {
+        rows.push(['笠木 総延長', fmt(b.kasagi_m,2), 'm']);
+        if (k.cb120 > 0) rows.push(['　CB120', k.cb120, '本']);
+        if (k.cb150 > 0) rows.push(['　CB150', k.cb150, '本']);
+        if (k.cb180 > 0) rows.push(['　CB180', k.cb180, '本']);
+        if (k.alumi > 0) rows.push(['　アルミ', k.alumi, '本']);
+      }
+      rows.push(['', '', '']);
+    }
+
+    // トラック台数
+    const wasteVolForTruck = (s?s.waste:0) + (sl?sl.waste:0) + (e?e.waste:0);
+    if (wasteVolForTruck > 0) {
+      const trucks = [
+        { label:'車両①', cap: toNum($('truck_3t').value) },
+        { label:'車両②', cap: toNum($('truck_2t').value) },
+        { label:'車両③', cap: toNum($('truck_4t').value) },
+        { label:'車両④', cap: toNum($('truck_8t').value) },
+      ];
+      const validTrucks = trucks.filter(t => t.cap > 0);
+      if (validTrucks.length > 0) {
+        rows.push(['【ダンプ台数】', '台数', '備考']);
+        validTrucks.forEach(t => {
+          const trips = Math.ceil(wasteVolForTruck / t.cap);
+          rows.push([`${t.label}（積載${t.cap}m³）`, trips, '台']);
+        });
+        rows.push(['', '', '']);
+      }
+    }
+
+    // 区画別ブロック内訳（3bのリスト）
+    if (blockRows.length > 0) {
+      rows.push(['【区画別 ブロック内訳】', '', '']);
+      rows.push(['区画名', '延長(m)', '段数']);
+      blockRows.forEach(r => {
+        rows.push([r.name, r.L, `${r.steps}段（基礎${r.base_steps}段）`]);
+      });
+      rows.push(['', '', '']);
+    }
+
+    // 土工区分別内訳（2bのリスト）
+    if (earthRows.length > 0) {
+      rows.push(['【土工 区分別内訳】', '', '']);
+      rows.push(['区分名', '種類', '深さ(m)']);
+      earthRows.forEach(r => {
+        rows.push([r.name, typeLabel(r.type), r.D]);
+      });
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 28 }, { wch: 14 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '積算集計');
+
+    const today = new Date();
+    const fname = `積算集計_${today.getFullYear()}${(today.getMonth()+1).toString().padStart(2,'0')}${today.getDate().toString().padStart(2,'0')}.xlsx`;
+    XLSX.writeFile(wb, fname);
+  });
+
+  $('reset_all').addEventListener('click', () => {
+    if (confirm('全データをリセットしますか？')) location.reload();
+  });
+
+})();
+</script>
+</body>
+</html>
