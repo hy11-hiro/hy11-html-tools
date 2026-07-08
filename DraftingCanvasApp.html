@@ -585,6 +585,8 @@
             const [showGaikoPanel, setShowGaikoPanel] = useState(false);
             const [selectedMaterial, setSelectedMaterial] = useState('none');
             const [textFontSize, setTextFontSize] = useState(3);
+            const [dimFontSize, setDimFontSize] = useState(3);
+            const [dimTextOffset, setDimTextOffset] = useState(0.5);
             const [bwFill, setBwFill] = useState(true);
             const [blockThickness, setBlockThickness] = useState(150);
             const [blockPosition, setBlockPosition] = useState('center');
@@ -1990,13 +1992,13 @@
                     }
                     
                     if (ent.type === TOOLS.DIM) {
-                        ctx.fillStyle = color; ctx.font = '3px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                        ctx.fillStyle = color; ctx.font = `${dimFontSize}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                         const mid = Geo.mid(ent.p1, ent.p2);
                         const dimText = formatDim(Geo.dist(ent.p1, ent.p2) * drawingScale);
                         ctx.save(); ctx.translate(mid.x, mid.y);
                         const ang = Math.atan2(ent.p2.y - ent.p1.y, ent.p2.x - ent.p1.x);
                         ctx.rotate( (ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang );
-                        ctx.fillText(dimText, 0, -0.5); ctx.restore();
+                        ctx.fillText(dimText, 0, -dimTextOffset); ctx.restore();
                     }
                     } catch(e) { console.warn('entity render error', ent.type, e); }
                 });
@@ -2008,11 +2010,11 @@
                     if (tool === TOOLS.LINE || tool === TOOLS.DIM) {
                         ctx.moveTo(start.x, start.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
                         const dimText = formatDim(Geo.dist(start, curr) * drawingScale);
-                        ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                        ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = `${dimFontSize}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                         const mid = Geo.mid(start, curr);
                         const ang = Math.atan2(curr.y - start.y, curr.x - start.x);
                         ctx.translate(mid.x, mid.y); ctx.rotate((ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang);
-                        ctx.fillText(dimText, 0, -1); ctx.restore();
+                        ctx.fillText(dimText, 0, -dimTextOffset); ctx.restore();
                     } else if (tool === TOOLS.RECT) {
                         const w = curr.x - start.x, h = curr.y - start.y;
                         ctx.rect(start.x, start.y, w, h); ctx.stroke();
@@ -2214,7 +2216,7 @@
                         }
                     }
                 }
-            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides, bwFill]);
+            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides, bwFill, dimFontSize, dimTextOffset]);
 
             useEffect(() => {
                 let id;
@@ -2707,6 +2709,27 @@
                                         onChange={e => setTextFontSize(parseFloat(e.target.value))}
                                         className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
                                     <span className="text-xs text-gray-500">mm</span>
+                                </div>
+                            )}
+                            {/* 寸法ツール: 文字サイズ・文字位置（上下オフセット）設定 */}
+                            {tool === TOOLS.DIM && (
+                                <div className="flex flex-col items-center gap-2 bg-gray-800 border border-gray-600 rounded px-1 py-2">
+                                    <div className="flex flex-col items-center gap-0.5">
+                                        <span className="text-xs text-blue-300">{dimFontSize}</span>
+                                        <input type="range" min="1" max="10" step="0.5" value={dimFontSize}
+                                            onMouseEnter={(e) => showTip(e, '寸法文字サイズ')} onMouseLeave={hideTip}
+                                            onChange={e => setDimFontSize(parseFloat(e.target.value))}
+                                            className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                        <span className="text-xs text-gray-500 leading-tight text-center">文字<br/>サイズ</span>
+                                    </div>
+                                    <div className="flex flex-col items-center gap-0.5">
+                                        <span className="text-xs text-blue-300">{dimTextOffset}</span>
+                                        <input type="range" min="-2" max="5" step="0.1" value={dimTextOffset}
+                                            onMouseEnter={(e) => showTip(e, '寸法線からの文字の高さ（上下位置）')} onMouseLeave={hideTip}
+                                            onChange={e => setDimTextOffset(parseFloat(e.target.value))}
+                                            className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                        <span className="text-xs text-gray-500 leading-tight text-center">上下<br/>位置</span>
+                                    </div>
                                 </div>
                             )}
                             {/* 立方体ツール（透視図モード時のみ表示） */}
