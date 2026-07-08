@@ -103,6 +103,17 @@
             tap:        { label: '立水栓',          category: '設備', w: 200,  h: 200  },
             light_post: { label: 'ポールライト',    category: '設備', r: 200  , isLight: true },
             light_wall: { label: '壁付ライト',      category: '設備', w: 200,  h: 150  , isLight: true },
+            // 敷地・外構記号（国交省「建築工事設計図書作成基準」別表1・別表2 準拠）
+            kita:       { label: '方位記号',        category: '敷地記号', r: 450, isCompass: true },
+            kyoukai:    { label: '敷地境界標',      category: '敷地記号', w: 180, h: 180 },
+            bm:         { label: 'ベンチマーク(BM)', category: '敷地記号', w: 350, h: 350 },
+            engishi:    { label: '縁石',            category: '敷地記号', w: 600, h: 150 },
+            masu_u:     { label: '排水桝（雨水）',   category: '敷地記号', w: 400, h: 400 },
+            masu_o:     { label: '排水桝（汚水）',   category: '敷地記号', w: 400, h: 400 },
+            suiryoki:   { label: '量水器',          category: '敷地記号', r: 220, iconChar: '水' },
+            gas_meter:  { label: 'ガスメーター',    category: '敷地記号', w: 400, h: 280 },
+            hydrant:    { label: '屋外消火栓',      category: '敷地記号', r: 250, iconChar: '消' },
+            boring:     { label: 'ボーリング位置',  category: '敷地記号', r: 150, iconChar: 'B' },
         };
 
         // 外構材料パターン定義
@@ -122,8 +133,9 @@
             natural_stone: { label: '乱形石',             color: '#c8c0a8', pattern: 'nstone',    category: '石・タイル' },
             // 自然
             gravel:        { label: '砂利',               color: '#d4c9a0', pattern: 'gravel',    category: '自然' },
+            crushed_stone: { label: '割り石・砕石',       color: '#c8c4b8', pattern: 'crushed', category: '自然' },
             sand:          { label: '砂',                 color: '#f0e6c0', pattern: 'sand',      category: '自然' },
-            soil:          { label: '土',                 color: '#c4a882', pattern: 'soil',      category: '自然' },
+            soil:          { label: '地盤（土）',         color: '#c4a882', pattern: 'soil',      category: '自然' },
             grass:         { label: '芝（洋芝）',         color: '#72b050', pattern: 'grass',     category: '自然' },
             grass_j:       { label: '芝（高麗芝）',       color: '#5a9038', pattern: 'grass_j',   category: '自然' },
             // 木材
@@ -572,6 +584,8 @@
             const [showGridPanel, setShowGridPanel] = useState(false);
             const [showGaikoPanel, setShowGaikoPanel] = useState(false);
             const [selectedMaterial, setSelectedMaterial] = useState('none');
+            const [textFontSize, setTextFontSize] = useState(3);
+            const [bwFill, setBwFill] = useState(true);
             const [blockThickness, setBlockThickness] = useState(150);
             const [blockPosition, setBlockPosition] = useState('center');
             const [fenceType, setFenceType] = useState('none');
@@ -626,7 +640,7 @@
 
 
             // ── 材料ハッチングパターン描画 ──
-            const drawMaterialPattern = (ctx, pts, material, scale) => {
+            const drawMaterialPattern = (ctx, pts, material, scale, bw) => {
                 const mat = MATERIALS[material];
                 if (!mat || !mat.pattern) return;
                 if (pts.length < 3) return;
@@ -674,6 +688,15 @@
                             ctx.stroke();
                         }
                     }
+                } else if (mat.pattern === 'crushed') {
+                    // 割り石・砕石: 斜線のみ（国交省「建築工事設計図書作成基準」別表2 準拠）
+                    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+                    ctx.lineWidth = 0.18;
+                    for (let d = minX + minY - (maxX - minX + maxY - minY); d < maxX + maxY; d += sp * 0.8) {
+                        ctx.beginPath();
+                        ctx.moveTo(d - minY, minY); ctx.lineTo(d - maxY, maxY);
+                        ctx.stroke();
+                    }
                 } else if (mat.pattern === 'sand') {
                     // 砂: 細かいドット
                     ctx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -690,7 +713,7 @@
                         }
                     }
                 } else if (mat.pattern === 'soil') {
-                    // 土: 斜線 + 点
+                    // 地盤（土）: 斜線＋点
                     for (let d = minX + minY - (maxX - minX + maxY - minY); d < maxX + maxY; d += sp * 1.5) {
                         ctx.beginPath();
                         ctx.moveTo(d - minY, minY); ctx.lineTo(d - maxY, maxY);
@@ -705,9 +728,9 @@
                         }
                     }
                 } else if (mat.pattern === 'grass') {
-                    // 芝: 短い V字
-                    ctx.strokeStyle = 'rgba(0,100,0,0.5)';
-                    ctx.lineWidth = 0.2;
+                    // 芝: 短い V字（黒線、製図の一般的な芝記号）
+                    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+                    ctx.lineWidth = 0.15;
                     for (let gx = minX + sp/2; gx < maxX; gx += sp) {
                         for (let gy = minY + sp/2; gy < maxY; gy += sp * 0.8) {
                             const h = sp * 0.45;
@@ -796,11 +819,15 @@
                         const row = Math.round((gy - minY) / ilh);
                         const offset = (row % 2) * ilw * 0.5;
                         for (let gx = minX - ilw + offset; gx < maxX; gx += ilw) {
-                            ctx.fillStyle = row % 3 === 0 ? 'rgba(180,160,130,0.3)'
-                                          : row % 3 === 1 ? 'rgba(160,150,120,0.3)'
-                                          : 'rgba(170,155,125,0.3)';
-                            ctx.fillRect(gx+0.1, gy+0.1, ilw-0.2, ilh-0.2);
-                            ctx.strokeRect(gx, gy, ilw, ilh);
+                            if (bw) {
+                                ctx.strokeRect(gx, gy, ilw, ilh);
+                            } else {
+                                ctx.fillStyle = row % 3 === 0 ? 'rgba(180,160,130,0.3)'
+                                              : row % 3 === 1 ? 'rgba(160,150,120,0.3)'
+                                              : 'rgba(170,155,125,0.3)';
+                                ctx.fillRect(gx+0.1, gy+0.1, ilw-0.2, ilh-0.2);
+                                ctx.strokeRect(gx, gy, ilw, ilh);
+                            }
                         }
                     }
 
@@ -821,9 +848,10 @@
                             const ox = (rsn()-0.5)*sp*0.5, oy = (rsn()-0.5)*sp*0.5;
                             const rw = sp*(0.5+rsn()*0.3), rh = sp*(0.4+rsn()*0.25);
                             const ang = rsn()*Math.PI;
-                            ctx.fillStyle = 'rgba(180,170,150,0.4)';
+                            if (!bw) { ctx.fillStyle = 'rgba(180,170,150,0.4)'; }
                             ctx.beginPath(); ctx.ellipse(gx+ox, gy+oy, rw, rh, ang, 0, Math.PI*2);
-                            ctx.fill(); ctx.stroke();
+                            if (!bw) ctx.fill();
+                            ctx.stroke();
                         }
                     }
 
@@ -844,7 +872,9 @@
                                 i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
                             }
                             ctx.closePath();
-                            ctx.fillStyle = 'rgba(180,170,145,0.2)'; ctx.fill(); ctx.stroke();
+                            if (!bw) ctx.fillStyle = 'rgba(180,170,145,0.2)';
+                            if (!bw) ctx.fill();
+                            ctx.stroke();
                         }
                     }
 
@@ -852,7 +882,7 @@
                     // 高麗芝: 短い斜め線（密な横縞）
                     for (let gy = minY; gy < maxY; gy += sp * 0.5) {
                         for (let gx = minX; gx < maxX; gx += sp * 0.6) {
-                            ctx.strokeStyle = 'rgba(60,140,40,0.5)';
+                            ctx.strokeStyle = bw ? 'rgba(0,0,0,0.5)' : 'rgba(60,140,40,0.5)';
                             const jitter = (Math.sin(gx * 7.3 + gy * 3.1) * 0.5) * sp * 0.15;
                             ctx.beginPath(); ctx.moveTo(gx + jitter, gy);
                             ctx.lineTo(gx + sp*0.12 + jitter, gy - sp*0.3); ctx.stroke();
@@ -871,7 +901,7 @@
                             const ox = (rwcn()-0.5)*sp*0.45, oy = (rwcn()-0.5)*sp*0.45;
                             const ang = rwcn() * Math.PI;
                             const cl = sp * (0.15 + rwcn()*0.2);
-                            ctx.strokeStyle = `rgba(${100+Math.floor(rwcn()*60)},${60+Math.floor(rwcn()*40)},20,0.6)`;
+                            ctx.strokeStyle = bw ? 'rgba(0,0,0,0.5)' : `rgba(${100+Math.floor(rwcn()*60)},${60+Math.floor(rwcn()*40)},20,0.6)`;
                             ctx.beginPath();
                             ctx.moveTo(gx+ox-Math.cos(ang)*cl, gy+oy-Math.sin(ang)*cl);
                             ctx.lineTo(gx+ox+Math.cos(ang)*cl, gy+oy+Math.sin(ang)*cl);
@@ -1041,8 +1071,31 @@
                 const lw = ent.lineWidth || 0.25;
 
                 if (sym.r) {
-                    // 植栽・ライト（円形）
                     const r = sym.r / s;
+                    if (sym.isCompass) {
+                        // 方位記号: 円 + 北を指す矢印 + N
+                        ctx.strokeStyle = '#000'; ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = lw * 1.2;
+                        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                        ctx.beginPath();
+                        ctx.moveTo(0, -r * 0.85); ctx.lineTo(r * 0.22, r * 0.35); ctx.lineTo(0, r * 0.15); ctx.lineTo(-r * 0.22, r * 0.35);
+                        ctx.closePath(); ctx.fillStyle = '#000'; ctx.fill();
+                        ctx.rotate(-rotation);
+                        ctx.fillStyle = '#000'; ctx.font = `bold ${r * 0.55}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText('N', 0, -r * 0.15);
+                        ctx.restore(); return;
+                    } else if (sym.iconChar) {
+                        // 汎用丸アイコン（量水器・屋外消火栓・ボーリング位置など）
+                        const ic = ent.color || '#333';
+                        ctx.strokeStyle = ic; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = lw * 1.2;
+                        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+                        ctx.rotate(-rotation);
+                        ctx.fillStyle = ic; ctx.font = `bold ${r * 0.9}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText(sym.iconChar, 0, 0);
+                        ctx.fillStyle = '#333'; ctx.font = `1.8px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+                        ctx.fillText(sym.label, 0, r + 0.8);
+                        ctx.restore(); return;
+                    }
+                    // 植栽・ライト（円形）
                     if (sym.isLight) {
                         ctx.strokeStyle = '#cc8800'; ctx.lineWidth = lw * 1.2;
                         ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
@@ -1183,6 +1236,43 @@
                     ctx.fillStyle='rgba(255,200,0,0.2)'; ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
                     ctx.lineWidth=lw*0.5; ctx.strokeStyle='rgba(255,180,0,0.6)';
                     for(let i=-2;i<=2;i++){const a=i*Math.PI/8;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.sin(a)*h*1.5,-Math.cos(a)*h*1.5);ctx.stroke();}
+
+                } else if (symbolType==='kyoukai') {
+                    // 敷地境界標: 小さな四角＋対角線
+                    ctx.strokeStyle='#000'; ctx.lineWidth=lw*1.3;
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh); ctx.lineTo(hw,hh); ctx.moveTo(hw,-hh); ctx.lineTo(-hw,hh); ctx.stroke();
+
+                } else if (symbolType==='bm') {
+                    // ベンチマーク(BM): 三角形＋小円
+                    ctx.strokeStyle='#000'; ctx.lineWidth=lw*1.2; ctx.fillStyle='rgba(255,255,255,0.9)';
+                    ctx.beginPath(); ctx.moveTo(0,-hh); ctx.lineTo(hw,hh); ctx.lineTo(-hw,hh); ctx.closePath(); ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0,-hh*0.15,hw*0.22,0,Math.PI*2); ctx.stroke();
+
+                } else if (symbolType==='engishi') {
+                    // 縁石: 帯状に短いハッチング
+                    ctx.strokeStyle='#000'; ctx.lineWidth=lw*1.1;
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.6;
+                    for(let gx=-hw+ h*0.6; gx<hw; gx+=h*0.9){ ctx.beginPath(); ctx.moveTo(gx,-hh); ctx.lineTo(gx-h*0.5,hh); ctx.stroke(); }
+
+                } else if (symbolType==='masu_u' || symbolType==='masu_o') {
+                    // 排水桝（雨水／汚水）: 正方形＋対角線＋文字
+                    const isU = symbolType==='masu_u';
+                    ctx.strokeStyle = isU ? '#0066aa' : '#996600'; ctx.lineWidth=lw*1.2; ctx.fillStyle='rgba(255,255,255,0.9)';
+                    ctx.strokeRect(-hw,-hh,w,h); ctx.fillRect(-hw,-hh,w,h);
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh); ctx.lineTo(hw,hh); ctx.moveTo(hw,-hh); ctx.lineTo(-hw,hh); ctx.stroke();
+                    ctx.rotate(-rotation);
+                    ctx.fillStyle = isU ? '#0066aa' : '#996600'; ctx.font=`bold ${h*0.55}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+                    ctx.fillText(isU ? '雨' : '汚', 0, 0);
+
+                } else if (symbolType==='gas_meter') {
+                    ctx.strokeStyle='#cc6600'; ctx.lineWidth=lw;
+                    ctx.fillStyle='rgba(255,200,150,0.2)'; ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.rotate(-rotation);
+                    ctx.fillStyle='#cc6600'; ctx.font=`bold ${h*0.5}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+                    ctx.fillText('G', 0, 0);
+
                 } else {
                     ctx.strokeStyle='#333'; ctx.lineWidth=lw; ctx.strokeRect(-hw,-hh,w,h);
                 }
@@ -1691,19 +1781,27 @@
                     else if (ent.type === TOOLS.CIRCLE) { ctx.arc(ent.c.x, ent.c.y, ent.r, 0, Math.PI * 2); ctx.stroke(); }
                     else if (ent.type === TOOLS.POLYGON) {
                         if (!ent.pts || ent.pts.length < 2) return;
-                        // 塗り
+                        // 塗り（白黒モード時は色を付けず、ハッチングのみで表現）
                         const mat = MATERIALS[ent.material || 'none'];
-                        if (mat && mat.color) {
+                        if (mat && mat.color && !bwFill) {
                             ctx.beginPath();
                             ctx.moveTo(ent.pts[0].x, ent.pts[0].y);
                             for (let i = 1; i < ent.pts.length; i++) ctx.lineTo(ent.pts[i].x, ent.pts[i].y);
                             ctx.closePath();
                             ctx.fillStyle = mat.color + 'aa';
                             ctx.fill();
+                        } else if (bwFill && mat && (mat.color || mat.pattern)) {
+                            // 白黒モード: 背景を白で塗り、下地が透けないようにする（用紙が白のため実質そのまま）
+                            ctx.beginPath();
+                            ctx.moveTo(ent.pts[0].x, ent.pts[0].y);
+                            for (let i = 1; i < ent.pts.length; i++) ctx.lineTo(ent.pts[i].x, ent.pts[i].y);
+                            ctx.closePath();
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fill();
                         }
                         // ハッチング
                         if (ent.material && ent.material !== 'none') {
-                            drawMaterialPattern(ctx, ent.pts, ent.material, drawingScale);
+                            drawMaterialPattern(ctx, ent.pts, ent.material, drawingScale, bwFill);
                         }
                         // 輪郭線
                         ctx.beginPath();
@@ -1860,8 +1958,9 @@
                     else if (ent.type === 'text_label') {
                         const isGroupName = ent.color === '#ffff00';
                         const isDimLabel  = ent.isDim === true;
+                        const isUserText  = ent.userText === true;
 
-                        if (!isGroupName && !isDimLabel) {
+                        if (!isGroupName && !isDimLabel && !isUserText) {
                             // 測点マーカー
                             ctx.lineWidth = 0.5 / viewRef.current.scale;
                             ctx.beginPath();
@@ -1870,15 +1969,24 @@
                             ctx.stroke();
                         }
 
-                        const fontSize = ent.fontSize || (isGroupName ? 4 : 2);
+                        const fontSize = ent.fontSize || (isGroupName ? 4 : (isUserText ? 3 : 2));
                         const align    = ent.align || (isGroupName ? 'center' : 'left');
+                        const rotation = (ent.rotation || 0) * Math.PI / 180;
+
+                        ctx.save();
+                        if (isUserText && rotation !== 0) {
+                            ctx.translate(ent.p1.x, ent.p1.y);
+                            ctx.rotate(rotation);
+                            ctx.translate(-ent.p1.x, -ent.p1.y);
+                        }
                         ctx.fillStyle = ent.color || '#ff00ff';
                         ctx.font = `${isDimLabel ? 'bold ' : ''}${fontSize}px sans-serif`;
                         ctx.textAlign = align;
-                        ctx.textBaseline = isDimLabel ? 'middle' : (isGroupName ? 'middle' : 'bottom');
-                        const tx = align === 'left' ? ent.p1.x + 1.5 : ent.p1.x;
-                        const ty = isDimLabel ? ent.p1.y : (isGroupName ? ent.p1.y : ent.p1.y - 1);
+                        ctx.textBaseline = isDimLabel ? 'middle' : (isGroupName ? 'middle' : (isUserText ? 'middle' : 'bottom'));
+                        const tx = align === 'left' ? ent.p1.x + (isUserText ? 0 : 1.5) : ent.p1.x;
+                        const ty = isDimLabel ? ent.p1.y : (isGroupName || isUserText ? ent.p1.y : ent.p1.y - 1);
                         ctx.fillText(ent.text, tx, ty);
+                        ctx.restore();
                     }
                     
                     if (ent.type === TOOLS.DIM) {
@@ -2106,7 +2214,7 @@
                         }
                     }
                 }
-            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides]);
+            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides, bwFill]);
 
             useEffect(() => {
                 let id;
@@ -2268,6 +2376,31 @@
                         };
                         const next = [...entities, newEnt];
                         setEntities(next); pushHistory(next);
+                        return;
+                    }
+
+                    // ── 文字ツール: クリックでテキスト配置 ──
+                    if (tool === TOOLS.TEXT) {
+                        const inputText = window.prompt('テキストを入力してください', '');
+                        if (inputText && inputText.trim() !== '') {
+                            const newEnt = {
+                                id: Date.now() + Math.random() * 999,
+                                type: 'text_label',
+                                userText: true,
+                                p1: { x: pt.x, y: pt.y },
+                                text: inputText,
+                                rotation: 0,
+                                fontSize: textFontSize,
+                                align: 'left',
+                                color: strokeColor,
+                                layer: 'annotation'
+                            };
+                            const next = [...entities, newEnt];
+                            setEntities(next); pushHistory(next);
+                            selectedIds.current = new Set([newEnt.id]);
+                            setTool(TOOLS.SELECT);
+                            setSelVersion(v => v + 1);
+                        }
                         return;
                     }
 
@@ -2468,6 +2601,26 @@
                 v.offsetX += (after.x - before.x) * v.scale * MM_TO_PX; v.offsetY += (after.y - before.y) * v.scale * MM_TO_PX;
             };
 
+            // ── 選択中のテキストエンティティ（文字ツールで配置したもの）を取得 ──
+            const selectedTextEntity = (tool === TOOLS.SELECT && selectedIds.current.size === 1)
+                ? entities.find(e => selectedIds.current.has(e.id) && e.type === 'text_label' && e.userText === true) || null
+                : null;
+
+            const updateSelectedText = (patch, commit = true) => {
+                if (!selectedTextEntity) return;
+                const next = entities.map(e => e.id === selectedTextEntity.id ? { ...e, ...patch } : e);
+                setEntities(next);
+                if (commit) pushHistory(next);
+            };
+
+            const deleteSelectedText = () => {
+                if (!selectedTextEntity) return;
+                const next = entities.filter(e => e.id !== selectedTextEntity.id);
+                setEntities(next); pushHistory(next);
+                selectedIds.current = new Set();
+                setSelVersion(v => v + 1);
+            };
+
             return (
                 <div className="w-full h-screen flex flex-col bg-[#2d2d2d]">
                     <div className="h-14 bg-gray-900 border-b border-gray-700 flex items-center px-4 space-x-4 flex-shrink-0">
@@ -2503,7 +2656,7 @@
                                     <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">不透明度</label><input type="range" min="0.1" max="1" step="0.1" value={gridConfig.opacity} onChange={(e) => setGridConfig({...gridConfig, opacity: parseFloat(e.target.value)})}/></div>
                                     <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">間隔: {gridConfig.spacing}mm</label><input type="range" min="5" max="100" step="5" value={gridConfig.spacing} onChange={(e) => setGridConfig({...gridConfig, spacing: parseInt(e.target.value)})}/></div>
                                     <div className="mb-2 flex items-center"><input type="checkbox" id="subgrid" checked={gridConfig.showSubGrid} onChange={(e)=>setGridConfig({...gridConfig, showSubGrid: e.target.checked})} className="mr-2"/><label htmlFor="subgrid" className="text-xs text-gray-300">補助線</label></div>
-                                    {gridConfig.showSubGrid && <div className="mb-2 flex items-center pl-6"><span className="text-xs text-gray-400 mr-2">分割数:</span><input type="number" min="2" max="20" value={gridConfig.subDivisions} onChange={(e)=>setGridConfig({...gridConfig, subDivisions: Math.max(2, parseInt(e.target.value))})}/></div>}
+                                    {gridConfig.showSubGrid && <div className="mb-2 flex items-center pl-6"><span className="text-xs text-gray-300 mr-2">分割数:</span><input type="number" min="2" max="20" value={gridConfig.subDivisions} onChange={(e)=>{ const raw = e.target.value; if(raw === '') { setGridConfig({...gridConfig, subDivisions: raw}); return; } const n = parseInt(raw); if(!isNaN(n)) setGridConfig({...gridConfig, subDivisions: n}); }} onBlur={(e)=>{ let n = parseInt(e.target.value); if(isNaN(n)) n = 2; n = Math.max(2, Math.min(20, n)); setGridConfig({...gridConfig, subDivisions: n}); }} className="w-16 bg-white text-black border border-gray-400 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"/></div>}
                                     {gridMode === GRID_MODES.ISO && <div className="mb-2"><label className="block text-xs text-gray-300">ISO角度</label><input type="range" min="15" max="75" step="5" value={gridConfig.isoAngle} onChange={(e)=>setGridConfig({...gridConfig, isoAngle: parseInt(e.target.value)})}/></div>}
                                 </div>
                             )}
@@ -2540,12 +2693,22 @@
                         <div className="w-14 bg-gray-900 flex flex-col items-center py-3 space-y-1.5 border-r border-gray-700 z-10 flex-shrink-0 overflow-y-auto overflow-x-visible" style={{scrollbarWidth: 'thin'}}>
                             {[ 
                                 {id:TOOLS.SELECT, i:'mouse-pointer-2', l:'選択'}, {id:TOOLS.LINE, i:'minus', l:'線分'}, {id:TOOLS.RECT, i:'square', l:'矩形'}, 
-                                {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
+                                {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.TEXT, i:'type', l:'文字（クリックで配置）'}, {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
                             ].map(t => (
                                 <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} onMouseEnter={(e) => showTip(e, t.l)} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${tool === t.id ? 'active' : 'text-gray-400'}`}>
                                     <i data-lucide={t.i}></i>
                                 </button>
                             ))}
+                            {/* 文字ツール: 配置前のフォントサイズ設定 */}
+                            {tool === TOOLS.TEXT && (
+                                <div className="w-10 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-blue-300">{textFontSize}</span>
+                                    <input type="range" min="1" max="15" step="0.5" value={textFontSize}
+                                        onChange={e => setTextFontSize(parseFloat(e.target.value))}
+                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                    <span className="text-xs text-gray-500">mm</span>
+                                </div>
+                            )}
                             {/* 立方体ツール（透視図モード時のみ表示） */}
                             {gridMode.includes('PERSP') && (
                                 <button onClick={() => { setTool(TOOLS.CUBE); setTempPoints([]); }} onMouseEnter={(e) => showTip(e, '立方体（クリックで配置）')} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${tool === TOOLS.CUBE ? 'active' : 'text-purple-400'}`}>
@@ -2620,6 +2783,60 @@
                                 onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onWheel={handleWheel} onContextMenu={(e) => e.preventDefault()}
                                 className="block absolute top-0 left-0" />
 
+                            {/* ── テキストプロパティパネル（文字ツールで配置したテキストを選択中に表示） ── */}
+                            {selectedTextEntity && (
+                                <div className="fixed bottom-4 right-4 panel w-72 z-50 text-sm select-none">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-bold text-blue-400 flex items-center gap-2"><i data-lucide="type" className="w-4 h-4"></i>テキスト編集</span>
+                                        <button onClick={deleteSelectedText} className="text-red-400 hover:text-red-300" title="削除"><i data-lucide="trash-2" className="w-4 h-4"></i></button>
+                                    </div>
+
+                                    <label className="block text-xs text-gray-300 mb-1">内容</label>
+                                    <textarea
+                                        value={selectedTextEntity.text}
+                                        onChange={(e) => updateSelectedText({ text: e.target.value }, false)}
+                                        onBlur={(e) => updateSelectedText({ text: e.target.value }, true)}
+                                        rows={2}
+                                        className="w-full bg-white text-black border border-gray-400 rounded p-1 mb-2 focus:outline-none focus:border-blue-500 resize-none"
+                                    />
+
+                                    <label className="block text-xs text-gray-300 mb-1">文字の向き（回転）: {selectedTextEntity.rotation || 0}°</label>
+                                    <div className="grid grid-cols-4 gap-1 mb-2">
+                                        {[0, 90, 180, 270].map(deg => (
+                                            <button key={deg}
+                                                onClick={() => updateSelectedText({ rotation: deg })}
+                                                className={`px-1 py-1 rounded text-xs border ${ (selectedTextEntity.rotation || 0) === deg ? 'border-blue-400 bg-blue-900 text-blue-200' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                {deg}°
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <input
+                                        type="range" min="0" max="359" step="1"
+                                        value={selectedTextEntity.rotation || 0}
+                                        onChange={(e) => updateSelectedText({ rotation: parseInt(e.target.value) }, false)}
+                                        onMouseUp={(e) => updateSelectedText({ rotation: parseInt(e.target.value) }, true)}
+                                        className="w-full mb-2"
+                                    />
+
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="flex-1">
+                                            <label className="block text-xs text-gray-300 mb-1">文字サイズ</label>
+                                            <input type="number" min="1" max="20" step="0.5"
+                                                value={selectedTextEntity.fontSize || 3}
+                                                onChange={(e) => { const n = parseFloat(e.target.value); if(!isNaN(n)) updateSelectedText({ fontSize: n }); }}
+                                                className="w-full bg-white text-black border border-gray-400 rounded p-1 focus:outline-none focus:border-blue-500" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs text-gray-300 mb-1">色</label>
+                                            <input type="color" value={selectedTextEntity.color || '#000000'}
+                                                onChange={(e) => updateSelectedText({ color: e.target.value })}
+                                                className="w-10 h-8" />
+                                        </div>
+                                    </div>
+                                    <div className="text-xs text-gray-500">キャンバス上でドラッグして移動できます</div>
+                                </div>
+                            )}
+
                             {/* ── 外構設定パネル（fixedで overflow-hidden の影響を回避） ── */}
                             {showGaikoPanel && (
                                 <div className="fixed top-20 right-4 panel w-72 z-50 text-sm select-none flex flex-col" style={{maxHeight: 'calc(100vh - 100px)'}}>
@@ -2635,7 +2852,7 @@
                                     {/* シンボルライブラリ */}
                                     <div className="mb-4">
                                         <div className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-wider border-b border-gray-700 pb-1">外構シンボル（クリックで選択→キャンバスに配置）</div>
-                                        {['構造物','乗り物','植栽','設備'].map(cat => (
+                                        {['構造物','乗り物','植栽','設備','敷地記号'].map(cat => (
                                             <div key={cat} className="mb-2">
                                                 <div className="text-xs text-gray-500 mb-1">{cat}</div>
                                                 <div className="grid grid-cols-2 gap-1">
@@ -2654,6 +2871,10 @@
                                     {/* 多角形の塗り材料 */}
                                     <div className="mb-4">
                                         <div className="text-xs text-gray-400 font-bold mb-2 uppercase tracking-wider border-b border-gray-700 pb-1">多角形 — 面材料</div>
+                                        <label className="flex items-center gap-2 mb-2 text-xs bg-gray-800 border border-gray-600 rounded px-2 py-1.5 cursor-pointer hover:bg-gray-700">
+                                            <input type="checkbox" checked={bwFill} onChange={(e) => setBwFill(e.target.checked)} />
+                                            <span className="text-gray-200">白黒モード（着色なし・JIS製図ハッチングのみ）</span>
+                                        </label>
                                         {['基本','石・タイル','自然','木材'].map(cat => (
                                             <div key={cat} className="mb-2">
                                                 <div className="text-xs text-gray-500 mb-1">{cat}</div>
