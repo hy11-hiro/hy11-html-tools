@@ -272,6 +272,14 @@
         }
 
         /* 原価計算サブタブ */
+        .tl-dir-btn {
+            width:28px; height:28px; border-radius:4px;
+            background:var(--panel2); border:1px solid var(--border);
+            color:#a8c8e8; font-size:14px; cursor:pointer;
+            display:flex; align-items:center; justify-content:center;
+            transition:all .15s;
+        }
+        .tl-dir-btn:hover { background:rgba(79,142,247,0.25); border-color:var(--accent); color:#fff; }
         .chart-sub-tab {
             color: var(--text-dim);
             border-bottom: 2px solid transparent;
@@ -590,9 +598,8 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
 
         <!-- File ops -->
         <div class="flex rounded overflow-hidden border border-cad-border">
-            <label class="cursor-pointer hover:bg-white/5 px-3 py-1 text-sm text-white border-r border-cad-border flex items-center gap-1" title="図面読込（レベルツールと共有されます）">
+            <label class="cursor-pointer hover:bg-white/5 px-3 py-1 text-sm text-white border-r border-cad-border flex items-center gap-1" title="図面読込">
                 <i class="fas fa-folder-open text-xs"></i> 読込
-                <span style="font-size:9px; background:rgba(79,142,247,.25); color:#7ab8ff; border-radius:3px; padding:1px 4px; margin-left:2px;">共有</span>
                 <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
             </label>
             <button id="rotateLeftBtn" class="hover:bg-white/5 px-2 py-1 text-white border-r border-cad-border" title="左90度回転"><i class="fas fa-undo text-xs"></i></button>
@@ -1024,6 +1031,226 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
     </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════
+     タイル・レンガ 敷き詰めレイアウト設計モーダル
+     ══════════════════════════════════════════════════════════ -->
+<div id="tlModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.72);align-items:center;justify-content:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;width:96vw;max-width:1400px;height:92vh;display:flex;flex-direction:column;overflow:hidden;">
+
+    <!-- ヘッダー -->
+    <div class="flex items-center justify-between px-4 py-2.5 flex-shrink-0" style="border-bottom:1px solid var(--border);background:var(--panel2);">
+      <span class="font-bold text-sm text-white"><i class="fas fa-draw-polygon mr-2" style="color:#ffb454;"></i>敷き詰めレイアウト設計</span>
+      <button onclick="closeTileLayout()" class="text-gray-400 hover:text-white text-lg"><i class="fas fa-times"></i></button>
+    </div>
+
+    <!-- 本体: 左=キャンバス／右=設定パネル -->
+    <div class="flex flex-1 overflow-hidden">
+
+      <!-- 左: 描画エリア -->
+      <div class="flex-1 flex flex-col overflow-hidden" style="background:#0d0e12;border-right:1px solid var(--border);">
+        <!-- ツールバー -->
+        <div class="flex items-center gap-2 px-3 py-2 flex-wrap flex-shrink-0" style="background:var(--panel2);border-bottom:1px solid var(--border);">
+          <div class="flex rounded overflow-hidden border" style="border-color:var(--border);">
+            <button id="tl-mode-click" onclick="tlSetMode('click')" class="text-xs px-3 py-1.5" style="background:rgba(79,142,247,0.25);color:#7ab8ff;">
+              <i class="fas fa-mouse-pointer mr-1"></i>クリックで描画
+            </button>
+            <button id="tl-mode-num" onclick="tlSetMode('num')" class="text-xs px-3 py-1.5" style="background:transparent;color:var(--text-dim);">
+              <i class="fas fa-keyboard mr-1"></i>数値で入力
+            </button>
+            <button id="tl-mode-move" onclick="tlSetMode('move')" class="text-xs px-3 py-1.5" style="background:transparent;color:var(--text-dim);">
+              <i class="fas fa-arrows-alt mr-1"></i>選択・移動
+            </button>
+            <button id="tl-mode-measure" onclick="tlSetMode('measure')" class="text-xs px-3 py-1.5" style="background:transparent;color:var(--text-dim);">
+              <i class="fas fa-ruler mr-1"></i>計測
+            </button>
+          </div>
+          <div class="w-px h-5" style="background:var(--border);"></div>
+          <button id="tl-snap-toggle" onclick="tlToggleSnap()" class="btn text-xs px-2 py-1" style="background:rgba(255,224,102,0.15);border:1px solid #ffe066;color:#ffe066;" title="45度刻みの角度スナップ ON/OFF">
+            <i class="fas fa-magnet mr-1"></i>スナップ:ON
+          </button>
+          <div class="w-px h-5" style="background:var(--border);"></div>
+          <button onclick="tlUndoVertex()" class="btn btn-dim text-xs px-2 py-1"><i class="fas fa-undo mr-1"></i>1点戻す</button>
+          <button onclick="tlClosePolygon()" class="btn text-xs px-2 py-1" style="background:rgba(61,220,151,0.15);border:1px solid var(--green);color:var(--green);"><i class="fas fa-draw-polygon mr-1"></i>枠を閉じる</button>
+          <button onclick="tlClearActivePart()" class="btn btn-red text-xs px-2 py-1"><i class="fas fa-trash mr-1"></i>このパーツをクリア</button>
+          <button onclick="tlClearMeasurements()" class="btn btn-dim text-xs px-2 py-1"><i class="fas fa-ruler-combined mr-1"></i>計測をクリア</button>
+          <div class="w-px h-5" style="background:var(--border);"></div>
+          <button onclick="tlFitView()" class="btn btn-dim text-xs px-2 py-1"><i class="fas fa-expand-arrows-alt mr-1"></i>フィット</button>
+          <div class="w-px h-5" style="background:var(--border);"></div>
+          <button onclick="tlRecalc()" class="btn text-xs px-3 py-1 font-bold" style="background:rgba(255,180,84,0.2);border:1px solid #ffb454;color:#ffb454;">
+            <i class="fas fa-th mr-1"></i>タイルを配置する
+          </button>
+          <span id="tl-scale-label" class="text-xs text-gray-500 ml-1"></span>
+        </div>
+
+        <!-- 数値入力バー（数値モード時のみ表示） -->
+        <div id="tl-numeric-bar" class="hidden items-start gap-3 px-3 py-2.5 flex-wrap flex-shrink-0" style="background:rgba(79,142,247,0.06);border-bottom:1px solid var(--border);">
+          <div>
+            <div class="text-xs text-gray-400 mb-1">方向を選択</div>
+            <div style="display:grid;grid-template-columns:repeat(3,28px);grid-template-rows:repeat(3,28px);gap:2px;">
+              <button onclick="tlSetDir(135)"  class="tl-dir-btn" title="左上">↖</button>
+              <button onclick="tlSetDir(90)"   class="tl-dir-btn" title="上">↑</button>
+              <button onclick="tlSetDir(45)"   class="tl-dir-btn" title="右上">↗</button>
+              <button onclick="tlSetDir(180)"  class="tl-dir-btn" title="左">←</button>
+              <div></div>
+              <button onclick="tlSetDir(0)"    class="tl-dir-btn" title="右">→</button>
+              <button onclick="tlSetDir(225)"  class="tl-dir-btn" title="左下">↙</button>
+              <button onclick="tlSetDir(270)"  class="tl-dir-btn" title="下">↓</button>
+              <button onclick="tlSetDir(315)"  class="tl-dir-btn" title="右下">↘</button>
+            </div>
+          </div>
+          <div class="flex flex-col gap-1.5" style="min-width:220px;">
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-400" style="width:60px;">長さ(mm)</label>
+              <input id="tl-num-len" type="number" class="inp text-xs flex-1" placeholder="例: 900">
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs text-gray-400" style="width:60px;">角度(°)</label>
+              <input id="tl-num-ang" type="number" class="inp text-xs flex-1" placeholder="方向ボタンで自動入力" value="0">
+            </div>
+            <div class="text-xs text-gray-600">方向ボタンを押すと角度が自動入力されます。斜めの傾きが必要な時は角度欄を直接編集してください。</div>
+            <button onclick="tlAddVertexNumeric()" class="btn text-xs px-3 py-1.5 font-bold" style="background:var(--accent);color:#fff;">
+              <i class="fas fa-plus mr-1"></i>この辺を追加
+            </button>
+          </div>
+        </div>
+
+        <!-- キャンバス -->
+        <div id="tl-canvas-wrap" class="flex-1 relative" style="overflow:hidden;">
+          <canvas id="tl-canvas"></canvas>
+        </div>
+        <div class="px-3 py-1.5 text-xs text-gray-500 flex-shrink-0" style="background:var(--panel2);border-top:1px solid var(--border);">
+          <span id="tl-hint-click">クリックで頂点追加（45度スナップ）　数字キーで長さ指定　始点に近づけて再クリックで枠を閉じる　右クリック：確定／全消去　ダブルクリック：1点戻す</span>
+          <span id="tl-hint-move" class="hidden">図形をクリックして選択（設定パネルに反映）　ドラッグでその場所へ移動</span>
+          <span id="tl-hint-measure" class="hidden">2点をクリックして長さを計測（辺の上でクリックすると頂点にスナップ）　右クリック：計測中止</span>
+        </div>
+      </div>
+
+      <!-- 右: 設定パネル -->
+      <div style="width:360px;flex-shrink:0;overflow-y:auto;padding:16px;">
+
+        <!-- パーツ一覧 -->
+        <div class="rounded-lg p-3 mb-3" style="background:var(--panel2);border:1px solid var(--border);">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-bold" style="color:var(--accent);"><i class="fas fa-shapes mr-1"></i>パーツ一覧</span>
+            <button onclick="tlNewPart()" class="btn text-xs px-2 py-1 font-bold" style="background:rgba(61,220,151,0.15);border:1px solid var(--green);color:var(--green);">
+              <i class="fas fa-plus mr-1"></i>新規パーツ
+            </button>
+          </div>
+          <div id="tl-parts-list" class="flex flex-col gap-1.5">
+            <div class="text-xs text-gray-600">まだパーツがありません。「新規パーツ」またはキャンバスをクリックして描き始めてください。</div>
+          </div>
+        </div>
+
+        <!-- タイル寸法（アクティブなパーツに適用） -->
+        <div class="rounded-lg p-3 mb-3" style="background:var(--panel2);border:1px solid var(--border);">
+          <div class="text-xs font-bold mb-2" style="color:var(--accent);"><i class="fas fa-ruler-combined mr-1"></i>タイル／レンガ寸法（選択中パーツ）</div>
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <div><label class="text-gray-500" style="font-size:10px;">幅 (mm)</label>
+              <input id="tl-tile-w" type="number" class="inp text-xs w-full" value="300" oninput="tlRecalc()"></div>
+            <div><label class="text-gray-500" style="font-size:10px;">高さ (mm)</label>
+              <input id="tl-tile-h" type="number" class="inp text-xs w-full" value="300" oninput="tlRecalc()"></div>
+          </div>
+          <div class="mb-2">
+            <label class="text-gray-500" style="font-size:10px;">目地幅 (mm)</label>
+            <input id="tl-joint" type="number" class="inp text-xs w-full" value="3" step="0.5" oninput="tlRecalc()">
+          </div>
+          <div class="mb-2">
+            <label class="text-gray-500" style="font-size:10px;">張り方向</label>
+            <select id="tl-pattern" class="inp text-xs w-full" onchange="tlRecalc()">
+              <option value="grid">芋張り（縦横グリッド）</option>
+              <option value="running">馬目地（半分ずらし）</option>
+              <option value="diagonal45">四半張り（45度）</option>
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="text-gray-500" style="font-size:10px;">グリッド回転角（度）</label>
+            <input id="tl-grid-angle" type="number" class="inp text-xs w-full" value="0" step="1" oninput="tlRecalc()">
+          </div>
+
+          <!-- グリッド位置移動（上下左右） -->
+          <div class="mb-2">
+            <label class="text-gray-500" style="font-size:10px;">グリッド位置移動（目地の始点をずらす）</label>
+            <div class="flex items-center gap-2 mt-1">
+              <div style="display:grid;grid-template-columns:repeat(3,26px);grid-template-rows:repeat(3,26px);gap:2px;">
+                <div></div>
+                <button onclick="tlNudgeGrid(0,-1)" class="tl-dir-btn" title="上へ移動">↑</button>
+                <div></div>
+                <button onclick="tlNudgeGrid(-1,0)" class="tl-dir-btn" title="左へ移動">←</button>
+                <button onclick="tlNudgeGrid(0,0,true)" class="tl-dir-btn" title="リセット" style="font-size:10px;">0</button>
+                <button onclick="tlNudgeGrid(1,0)" class="tl-dir-btn" title="右へ移動">→</button>
+                <div></div>
+                <button onclick="tlNudgeGrid(0,1)" class="tl-dir-btn" title="下へ移動">↓</button>
+                <div></div>
+              </div>
+              <div class="flex flex-col gap-1 flex-1">
+                <div class="flex items-center gap-1">
+                  <span class="text-gray-500" style="font-size:10px;width:38px;">X(mm)</span>
+                  <input id="tl-offset-x" type="number" class="inp text-xs flex-1" value="0" step="1" oninput="tlRecalc()">
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="text-gray-500" style="font-size:10px;width:38px;">Y(mm)</span>
+                  <input id="tl-offset-y" type="number" class="inp text-xs flex-1" value="0" step="1" oninput="tlRecalc()">
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="text-gray-500" style="font-size:10px;width:38px;">刻み</span>
+                  <input id="tl-nudge-step" type="number" class="inp text-xs flex-1" value="10" step="1">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="tlRecalc()" class="btn text-xs w-full py-1.5 font-bold" style="background:rgba(255,180,84,0.2);border:1px solid #ffb454;color:#ffb454;">
+            <i class="fas fa-sync-alt mr-1"></i>この設定でタイルを配置
+          </button>
+        </div>
+
+        <!-- 単価（アクティブなパーツに適用） -->
+        <div class="rounded-lg p-3 mb-3" style="background:var(--panel2);border:1px solid var(--border);">
+          <div class="text-xs font-bold mb-2" style="color:var(--accent);"><i class="fas fa-yen-sign mr-1"></i>単価（選択中パーツ）</div>
+          <div class="grid grid-cols-2 gap-2 mb-2">
+            <div><label class="text-gray-500" style="font-size:10px;">タイル 1枚あたり(円)</label>
+              <input id="tl-price-piece" type="number" class="inp text-xs w-full" value="0" oninput="tlRecalc()"></div>
+            <div><label class="text-gray-500" style="font-size:10px;">施工 職人単価(円/㎡)</label>
+              <input id="tl-price-craft" type="number" class="inp text-xs w-full" value="0" oninput="tlRecalc()"></div>
+          </div>
+          <div>
+            <label class="text-gray-500" style="font-size:10px;">カット材の扱い</label>
+            <select id="tl-cut-mode" class="inp text-xs w-full" onchange="tlToggleWasteInput();tlRecalc()">
+              <option value="full">カット片も1枚として消費（実務標準）</option>
+              <option value="area">面積按分（端材再利用を想定）</option>
+            </select>
+          </div>
+          <div id="tl-waste-row" class="mt-2 hidden">
+            <label class="text-gray-500" style="font-size:10px;">端部カットロス・予備率 (%)　<span class="text-gray-600">目安 3〜5%</span></label>
+            <input id="tl-waste-rate" type="number" class="inp text-xs w-full" value="5" step="0.5" min="0" oninput="tlRecalc()">
+          </div>
+        </div>
+
+        <!-- 計算結果（選択中パーツ＋全パーツ合計） -->
+        <div class="rounded-lg p-3 mb-3" style="background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.3);">
+          <div class="text-xs font-bold mb-2" style="color:var(--accent);"><i class="fas fa-calculator mr-1"></i>計算結果（選択中パーツ）</div>
+          <div id="tl-result" class="text-xs leading-relaxed" style="color:#d5d9e8;">
+            枠を作成すると自動計算されます
+          </div>
+          <div id="tl-grand-total" class="mt-2 pt-2 text-xs hidden" style="border-top:1px dashed rgba(255,255,255,0.15);"></div>
+        </div>
+
+        <!-- 反映 -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <label class="text-gray-500 flex-shrink-0" style="font-size:10px;">選択中パーツの名称</label>
+            <input id="tl-item-name" type="text" class="inp text-xs flex-1" placeholder="例：階段1段目タイル貼り" oninput="tlRenameActivePart()">
+          </div>
+          <button onclick="tlSendAllToSummary()" class="btn text-xs px-3 py-2 font-bold" style="background:var(--green);color:#000;">
+            <i class="fas fa-arrow-up mr-1"></i>① 粗利サマリーへ追加（全パーツ・明細ごと）
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- CHART VIEW -->
 <div id="view-chart" class="flex-1 hidden overflow-auto" style="background:var(--bg);">
 
@@ -1210,6 +1437,22 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
                         <div id="tileCalcRows"></div>
                         <div class="mt-2 p-2 rounded text-xs" style="background:var(--panel2);" id="tileCalcResult">
                             行を追加して積算リストから項目を選択してください
+                        </div>
+
+                        <!-- ── タイル・レンガ 敷き詰めレイアウト設計（枠から自動割付） ── -->
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                <span class="text-xs font-bold" style="color:#ffb454;">
+                                    <i class="fas fa-th mr-1"></i>敷き詰めレイアウト設計（階段・門柱の展開図など）
+                                </span>
+                                <button onclick="openTileLayout()" class="btn text-xs px-3 py-1 flex-shrink-0"
+                                    style="background:rgba(255,180,84,0.14);border:1px solid rgba(255,180,84,0.4);color:#ffb454;">
+                                    <i class="fas fa-draw-polygon mr-1"></i>枠を作成してタイルを割り付ける
+                                </button>
+                            </div>
+                            <p class="text-xs text-gray-500">
+                                図面と連動しない任意形状（展開図・階段の側面など）に対して、枠を描いてタイル／レンガの必要枚数と材料原価を自動計算します。
+                            </p>
                         </div>
                     </div>
 
@@ -3944,7 +4187,8 @@ function drawShapeLabel(ctx, shape) {
     const label = shape.settings.name;
     const val = valStr + unit;
 
-    const fSize = App.fontSize;
+    // ラベル文字サイズはズーム倍率に連動（図形と同じ比率で拡大縮小、極端な縮小時は下限を設ける）
+    const fSize = Math.max(9, App.fontSize * App.scale);
     ctx.font = `500 ${fSize}px 'Noto Sans JP'`;
     const lw1 = ctx.measureText(label).width;
     ctx.font = `600 ${fSize}px 'JetBrains Mono'`;
@@ -4161,14 +4405,67 @@ function hexToRGBA(hex, alpha) {
 async function handleFileUpload(e) {
     const file = e.target.files[0];
     if (!file) return;
-    showLoader('図面を読み込んでいます...');
+    showLoader("図面を読み込んでいます...");
     try {
-        await sharedLoadPDF(file, msg => showLoader(msg));
+        if (file.type === 'application/pdf') {
+            // PDF: ページサイズに合わせた動的スケールで高画質化
+            const ab = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+            const page = await pdf.getPage(1);
+            // ページの実寸を取得し、長辺が最低4000pxになるスケールを選択
+            const baseVp = page.getViewport({ scale: 1.0 });
+            const longSide = Math.max(baseVp.width, baseVp.height);
+            const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
+            showLoader(`PDF高画質化中 (x${pdfScale.toFixed(1)})...`);
+            const vp = page.getViewport({ scale: pdfScale });
+            const cvs = document.createElement('canvas');
+            cvs.width = vp.width;
+            cvs.height = vp.height;
+            // willReadFrequently: false で GPU加速を有効化
+            const renderCtx = cvs.getContext('2d', { alpha: false });
+            await page.render({ canvasContext: renderCtx, viewport: vp }).promise;
+            App.bgImage = cvs;
+            App.bgImageDPI = Math.round(pdfScale * 72); // 参考DPI保持
+        } else {
+            // 画像: createImageBitmap で高品質デコード
+            showLoader("画像を高品質読み込み中...");
+            const bitmap = await createImageBitmap(file, {
+                imageOrientation: 'from-image',
+                premultiplyAlpha: 'none',
+                colorSpaceConversion: 'default',
+                resizeQuality: 'high'
+            });
+            // 画像が非常に大きい場合はそのまま（縮小しない）
+            const MAX_PX = 8000;
+            if (bitmap.width <= MAX_PX && bitmap.height <= MAX_PX) {
+                // そのままcanvasに焼き付け
+                const cvs = document.createElement('canvas');
+                cvs.width = bitmap.width; cvs.height = bitmap.height;
+                cvs.getContext('2d', { alpha: false }).drawImage(bitmap, 0, 0);
+                bitmap.close();
+                App.bgImage = cvs;
+            } else {
+                // 超高解像度画像はMAX_PXに収まるようリサイズ
+                const ratio = Math.min(MAX_PX / bitmap.width, MAX_PX / bitmap.height);
+                const bm2 = await createImageBitmap(file, {
+                    resizeWidth: Math.round(bitmap.width * ratio),
+                    resizeHeight: Math.round(bitmap.height * ratio),
+                    resizeQuality: 'high'
+                });
+                bitmap.close();
+                const cvs = document.createElement('canvas');
+                cvs.width = bm2.width; cvs.height = bm2.height;
+                cvs.getContext('2d', { alpha: false }).drawImage(bm2, 0, 0);
+                bm2.close();
+                App.bgImage = cvs;
+            }
+        }
+        fitToScreen();
         App.pixelsPerMeter = 0;
         const el = document.getElementById('scaleStatus');
         el.textContent = '未設定'; el.style.color = 'var(--yellow)';
     } catch (err) {
-        console.error(err); alert('ファイルの読み込みに失敗しました: ' + err.message);
+        console.error(err); alert("ファイルの読み込みに失敗しました: " + err.message);
     } finally {
         hideLoader(); render();
     }
@@ -6543,15 +6840,65 @@ function saveCanvasAsImage() {
 }
 
 async function saveCanvasAsPDF() {
-    showLoader("PDF生成中...");
+    showLoader("PDF生成中（高解像度）...");
+    // 元のApp状態を退避
+    const orig = {
+        canvas: App.canvas, ctx: App.ctx, width: App.width, height: App.height,
+        dpr: App.dpr, scale: App.scale, offsetX: App.offsetX, offsetY: App.offsetY,
+    };
     try {
         const { jsPDF } = window.jspdf;
-        const dataUrl = App.canvas.toDataURL('image/jpeg', 0.9);
-        const pdf = new jsPDF({ orientation: App.width > App.height ? 'l' : 'p', unit: 'px', format: [App.width, App.height] });
-        pdf.addImage(dataUrl, 'JPEG', 0, 0, App.width, App.height);
+        let exportW, exportH, exportScale;
+        const offCanvas = document.createElement('canvas');
+
+        if (App.bgImage) {
+            // 読み込んだPDF/画像の実寸解像度をそのまま使用（最大8000pxにクランプ）
+            const MAX_PX = 8000;
+            const ratio = Math.min(1, MAX_PX / Math.max(App.bgImage.width, App.bgImage.height));
+            exportW = Math.round(App.bgImage.width * ratio);
+            exportH = Math.round(App.bgImage.height * ratio);
+            exportScale = ratio; // world座標(=元画像px) → 出力px への倍率
+        } else {
+            // 背景画像なし: 現在の表示を3倍の解像度で出力
+            exportW = App.width * 3;
+            exportH = App.height * 3;
+            exportScale = App.scale * 3;
+        }
+
+        offCanvas.width = exportW;
+        offCanvas.height = exportH;
+        const offCtx = offCanvas.getContext('2d', { alpha: false });
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.imageSmoothingQuality = 'high';
+
+        // Appの描画ターゲットを一時的にオフスクリーンキャンバスへ切り替えて再描画
+        App.canvas = offCanvas;
+        App.ctx = offCtx;
+        App.width = exportW;
+        App.height = exportH;
+        App.dpr = 1;
+        App.scale = exportScale;
+        App.offsetX = 0;
+        App.offsetY = 0;
+
+        render();
+
+        const dataUrl = offCanvas.toDataURL('image/jpeg', 0.95);
+        const pdf = new jsPDF({ orientation: exportW > exportH ? 'l' : 'p', unit: 'px', format: [exportW, exportH] });
+        pdf.addImage(dataUrl, 'JPEG', 0, 0, exportW, exportH);
         pdf.save(`${document.getElementById('projectName').value||'drawing'}.pdf`);
-    } catch { alert("PDF生成に失敗しました。"); }
-    hideLoader();
+    } catch (e) {
+        console.error(e);
+        alert("PDF生成に失敗しました。");
+    } finally {
+        // 元の画面表示に戻す
+        App.canvas = orig.canvas; App.ctx = orig.ctx;
+        App.width = orig.width; App.height = orig.height;
+        App.dpr = orig.dpr; App.scale = orig.scale;
+        App.offsetX = orig.offsetX; App.offsetY = orig.offsetY;
+        render();
+        hideLoader();
+    }
 }
 
 // ==========================================
@@ -6590,83 +6937,45 @@ window.searchMaterialImage = searchMaterialImage;
 // ============================================================
 const CALC = { scale:1, offsetX:0, offsetY:0, panning:false, lastX:0, lastY:0 };
 
-// ══════════════════════════════════════════════════════════════
-// 共有PDF/画像 — どのタブで読み込んでも全タブに反映
-// ══════════════════════════════════════════════════════════════
-const SHARED_PDF = { img: null, w: 0, h: 0 };
-
-async function sharedLoadPDF(file, statusCb) {
-  if (!file) return;
-  statusCb = statusCb || (() => {});
-  statusCb('読み込み中...');
-  try {
-    let oc;
-    if (file.type === 'application/pdf') {
-      const ab = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-      const page = await pdf.getPage(1);
-      const baseVp = page.getViewport({ scale: 1.0 });
-      const longSide = Math.max(baseVp.width, baseVp.height);
-      const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
-      statusCb(`高画質化中 (x${pdfScale.toFixed(1)})... しばらくお待ちください`);
-      const vp = page.getViewport({ scale: pdfScale });
-      oc = document.createElement('canvas');
-      oc.width = vp.width; oc.height = vp.height;
-      await page.render({ canvasContext: oc.getContext('2d', { alpha: false }), viewport: vp }).promise;
-    } else {
-      statusCb('画像を高品質読み込み中...');
-      const bitmap = await createImageBitmap(file, {
-        imageOrientation: 'from-image', premultiplyAlpha: 'none', colorSpaceConversion: 'default'
-      });
-      const MAX_PX = 8000;
-      if (bitmap.width <= MAX_PX && bitmap.height <= MAX_PX) {
-        oc = document.createElement('canvas');
-        oc.width = bitmap.width; oc.height = bitmap.height;
-        oc.getContext('2d', { alpha: false }).drawImage(bitmap, 0, 0);
-        bitmap.close();
-      } else {
-        const ratio = Math.min(MAX_PX / bitmap.width, MAX_PX / bitmap.height);
-        const bm2 = await createImageBitmap(file, {
-          resizeWidth: Math.round(bitmap.width * ratio),
-          resizeHeight: Math.round(bitmap.height * ratio),
-          resizeQuality: 'high'
-        });
-        bitmap.close();
-        oc = document.createElement('canvas');
-        oc.width = bm2.width; oc.height = bm2.height;
-        oc.getContext('2d', { alpha: false }).drawImage(bm2, 0, 0);
-        bm2.close();
-      }
-    }
-
-    // ── 全タブに反映 ──
-    SHARED_PDF.img = oc; SHARED_PDF.w = oc.width; SHARED_PDF.h = oc.height;
-
-    // レベルツール（注記・計算両タブ）
-    AN.pdfImg = oc; AN.pdfW = oc.width; AN.pdfH = oc.height;
-    resizeACanvas(); annotRedraw();
-    setTimeout(() => calcFitReset(), 20);
-
-    // 積算ツール
-    App.bgImage = oc;
-    App.bgImageDPI = 0;
-    fitToScreen(); render();
-
-    statusCb('完了');
-    return oc;
-  } catch(e) {
-    statusCb('読み込みエラー');
-    alert('読み込みエラー: ' + e.message);
-    throw e;
-  }
-}
-
 async function calcLoad(inp) {
   const f = inp.files[0]; if (!f) return;
   inp.value = '';
   const hint = document.getElementById('calc-pdf-hint');
-  await sharedLoadPDF(f, msg => { if (hint) hint.textContent = msg; });
-  if (hint) hint.textContent = 'ホイール：ズーム　ドラッグ：移動　※全タブで共有されます';
+  const origHint = hint ? hint.textContent : '';
+  if (hint) hint.textContent = '読み込み中...';
+
+  try {
+    if (f.type === 'application/pdf') {
+      const ab = await f.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+      const page = await pdf.getPage(1);
+      // 積算ツールと同じ高画質化: 長辺4000px基準、scale 3.0〜8.0
+      const baseVp = page.getViewport({ scale: 1.0 });
+      const longSide = Math.max(baseVp.width, baseVp.height);
+      const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
+      if (hint) hint.textContent = `高画質化中 (x${pdfScale.toFixed(1)})... しばらくお待ちください`;
+      const vp = page.getViewport({ scale: pdfScale });
+      const oc = document.createElement('canvas');
+      oc.width = vp.width; oc.height = vp.height;
+      await page.render({ canvasContext: oc.getContext('2d', { alpha: false }), viewport: vp }).promise;
+      AN.pdfImg = oc; AN.pdfW = vp.width; AN.pdfH = vp.height;
+    } else {
+      const bitmap = await createImageBitmap(f, {
+        imageOrientation: 'from-image', premultiplyAlpha: 'none', colorSpaceConversion: 'default'
+      });
+      const oc = document.createElement('canvas');
+      oc.width = bitmap.width; oc.height = bitmap.height;
+      oc.getContext('2d').drawImage(bitmap, 0, 0);
+      bitmap.close();
+      AN.pdfImg = oc; AN.pdfW = oc.width; AN.pdfH = oc.height;
+    }
+    calcFitReset();
+    resizeACanvas(); annotRedraw();
+    if (hint) hint.textContent = 'ホイール：ズーム　ドラッグ：移動　※注記タブで読み込んだPDFも共有されます';
+  } catch(e) {
+    alert('読み込みエラー: ' + e.message);
+    if (hint) hint.textContent = origHint;
+  }
 }
 
 function calcFitReset() {
@@ -7287,8 +7596,39 @@ function setAStatus(m) { const el = document.getElementById('annot-status'); if 
 async function annotLoad(inp) {
   const f = inp.files[0]; if (!f) return;
   inp.value = '';
-  await sharedLoadPDF(f, msg => setAStatus(msg));
-  setAStatus('ツールを選択してください');
+  setAStatus('読み込み中...');
+  try {
+    if (f.type === 'application/pdf') {
+      const ab = await f.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+      const page = await pdf.getPage(1);
+      const baseVp = page.getViewport({ scale: 1.0 });
+      const longSide = Math.max(baseVp.width, baseVp.height);
+      const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
+      setAStatus(`高画質化中 (x${pdfScale.toFixed(1)})...`);
+      const vp = page.getViewport({ scale: pdfScale });
+      const oc = document.createElement('canvas');
+      oc.width = vp.width; oc.height = vp.height;
+      await page.render({ canvasContext: oc.getContext('2d', { alpha: false }), viewport: vp }).promise;
+      AN.pdfImg = oc; AN.pdfW = vp.width; AN.pdfH = vp.height;
+    } else {
+      const bitmap = await createImageBitmap(f, {
+        imageOrientation: 'from-image', premultiplyAlpha: 'none', colorSpaceConversion: 'default'
+      });
+      const oc = document.createElement('canvas');
+      oc.width = bitmap.width; oc.height = bitmap.height;
+      oc.getContext('2d').drawImage(bitmap, 0, 0);
+      bitmap.close();
+      AN.pdfImg = oc; AN.pdfW = oc.width; AN.pdfH = oc.height;
+    }
+    resizeACanvas(); annotRedraw();
+    // レベル計算タブ側も更新
+    calcFitReset();
+    setAStatus('ツールを選択してください');
+  } catch(e) {
+    alert('読み込みエラー: ' + e.message);
+    setAStatus('読み込みエラー');
+  }
 }
 
 function resizeACanvas() { fitCanvas(); }
@@ -7878,9 +8218,9 @@ function annotRedraw() {
     ctx.drawImage(AN.pdfImg, 0, 0, AN.pdfW, AN.pdfH);
   } else {
     ctx.fillStyle = '#111318'; ctx.fillRect(0, 0, 1200, 900);
-    ctx.fillStyle = '#2e3040'; ctx.font = `14px Noto Sans JP`; ctx.textAlign = 'center';
+    ctx.fillStyle = '#2e3040'; ctx.font = `${14/s}px Noto Sans JP`; ctx.textAlign = 'center';
     ctx.fillText('PDFまたは画像ファイルを読み込んでください', 600, 440);
-    ctx.font = `12px Noto Sans JP`;
+    ctx.font = `${12/s}px Noto Sans JP`;
     ctx.fillText('(ツールバーの「PDF/画像 読み込み」ボタン)', 600, 460);
   }
 
@@ -7930,7 +8270,7 @@ function annotRedraw() {
       const mx = (bmAnnot.x + nearPt.x) / 2, my = (bmAnnot.y + nearPt.y) / 2;
       const diffFmt = parseFloat(nearV.toFixed(2));
       const dirStr = diffFmt > 0 ? `KBM +${fmtAbs(nearV)}mm` : diffFmt < 0 ? `KBM ${fmtAbs(nearV)}mm` : `KBM ±0`;
-      ctx.font = `bold ${fs * 0.88}px "JetBrains Mono",monospace`;
+      ctx.font = `bold ${(fs * 0.88)/s}px "JetBrains Mono",monospace`;
       const tw = ctx.measureText(dirStr).width;
       ctx.fillStyle = '#0d0e12ee';
       ctx.fillRect(mx - tw/2 - 5, my - fs, tw + 10, fs * 1.35);
@@ -7970,7 +8310,7 @@ function annotRedraw() {
       ctx.closePath(); ctx.fill();
       const mx2 = (nearPt.x + closestOther.x)/2, my2 = (nearPt.y + closestOther.y)/2;
       const dirStr2 = diff > 0 ? `↑ +${fmtAbs(absDiff)}mm` : diff < 0 ? `↓ ${fmtAbs(absDiff)}mm` : `= 0mm`;
-      ctx.font = `bold ${fs * 0.88}px "JetBrains Mono",monospace`;
+      ctx.font = `bold ${(fs * 0.88)/s}px "JetBrains Mono",monospace`;
       const tw2 = ctx.measureText(dirStr2).width;
       ctx.fillStyle = '#0d0e12ee';
       ctx.fillRect(mx2 - tw2/2 - 5, my2 - fs, tw2 + 10, fs * 1.35);
@@ -8018,9 +8358,9 @@ function drawBM(ctx, a, fs, bmAbs, sel, s=1) {
   const c = a.color, sz = fs * 0.9;
   ctx.fillStyle = c + 'cc'; ctx.strokeStyle = c; ctx.lineWidth = 2/s;
   ctx.beginPath(); ctx.moveTo(a.x, a.y-sz*1.5); ctx.lineTo(a.x-sz, a.y); ctx.lineTo(a.x+sz, a.y); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.font = `bold ${fs}px "JetBrains Mono",monospace`; ctx.fillStyle = c; ctx.textAlign = 'center';
+  ctx.font = `bold ${(fs)/s}px "JetBrains Mono",monospace`; ctx.fillStyle = c; ctx.textAlign = 'center';
   ctx.fillText(`◆ ${a.label||'KBM'} ±0`, a.x, a.y - sz*2);
-  if (!isNaN(bmAbs)) { ctx.font = `${fs*0.8}px "JetBrains Mono",monospace`; ctx.fillText(`GL = ${bmAbs}mm`, a.x, a.y - sz*3.2); }
+  if (!isNaN(bmAbs)) { ctx.font = `${(fs*0.8)/s}px "JetBrains Mono",monospace`; ctx.fillText(`GL = ${bmAbs}mm`, a.x, a.y - sz*3.2); }
 }
 
 function drawLevel(ctx, a, fs, bmAbs, sel, s=1) {
@@ -8037,17 +8377,17 @@ function drawLevel(ctx, a, fs, bmAbs, sel, s=1) {
 
   // ▽マーク
   ctx.fillStyle = c;
-  ctx.font = `bold ${fs * (isRef ? 1.3 : 1.1)}px serif`;
+  ctx.font = `bold ${(fs * (isRef ? 1.3 : 1.1))/s}px serif`;
   ctx.textAlign = 'center';
   ctx.fillText('▽', a.x, a.y - 2);
 
   // 値ラベル
-  ctx.font = `bold ${fs}px "JetBrains Mono",monospace`;
+  ctx.font = `bold ${(fs)/s}px "JetBrains Mono",monospace`;
   ctx.fillText(signStr + ' mm', a.x, a.y - fs * 1.6);
 
   // BM参照ラベルに「[BM]」バッジ
   if (isRef) {
-    ctx.font = `${fs * 0.75}px "JetBrains Mono",monospace`;
+    ctx.font = `${(fs * 0.75)/s}px "JetBrains Mono",monospace`;
     ctx.fillStyle = c + 'bb';
     const bw = ctx.measureText('[BM参照]').width;
     ctx.fillStyle = c + '22';
@@ -8058,14 +8398,14 @@ function drawLevel(ctx, a, fs, bmAbs, sel, s=1) {
 
   // 名称
   if (a.label) {
-    ctx.font = `${fs*0.85}px "Noto Sans JP",sans-serif`;
+    ctx.font = `${(fs*0.85)/s}px "Noto Sans JP",sans-serif`;
     ctx.fillStyle = c + 'cc';
     ctx.fillText(a.label, a.x, a.y - fs * (isRef ? 3.2 : 2.7));
   }
 
   // 絶対レベル（BM設定時）
   if (!isNaN(v) && !isNaN(bmAbs)) {
-    ctx.font = `${fs*0.78}px "JetBrains Mono",monospace`;
+    ctx.font = `${(fs*0.78)/s}px "JetBrains Mono",monospace`;
     ctx.fillStyle = c + '88';
     const offsetRow = a.label ? (isRef ? 4.2 : 3.7) : (isRef ? 3.0 : 2.7);
     // m-mode: KBM(m) + diff(mm)/1000 = 実測m値
@@ -8077,7 +8417,7 @@ function drawLevel(ctx, a, fs, bmAbs, sel, s=1) {
   // rawValueがあれば入力した実測値を補足表示
   if (a.rawValue !== undefined && !isNaN(a.rawValue)) {
     const offExtra = a.label ? (isRef ? 5.0 : 4.5) : (isRef ? 3.8 : 3.5);
-    ctx.font = `${fs*0.72}px "JetBrains Mono",monospace`;
+    ctx.font = `${(fs*0.72)/s}px "JetBrains Mono",monospace`;
     ctx.fillStyle = c + '66';
     const rawDisp = UNIT_MODE === 'm' ? `入力:${fmtAbs(a.rawValue,2)}m` : `入力:${fmtAbs(a.rawValue,1)}mm`;
     ctx.fillText(rawDisp, a.x, a.y - fs * offExtra);
@@ -8113,7 +8453,7 @@ function drawDiff(ctx, a, fs, sel, s=1) {
 
   // ── 各点の横にレベル値をタグ表示（直角方向にずらす） ──
   const tagOff = 22 / s;
-  ctx.font = `bold ${fs}px "JetBrains Mono",monospace`;
+  ctx.font = `bold ${(fs)/s}px "JetBrains Mono",monospace`;
 
   // 高い点: 「→ 高 +X.XXmm」
   const hTagX = higherPt.x + Math.cos(perp) * tagOff;
@@ -8140,14 +8480,14 @@ function drawDiff(ctx, a, fs, sel, s=1) {
   const my = (a.y + a.y2) / 2 - Math.sin(perp) * tagOff * 0.6;
   const absFmt = parseFloat(abs.toFixed(2));
   const mainLabel = `差 ${fmtAbs(abs)}mm`;
-  ctx.font = `bold ${fs}px "JetBrains Mono",monospace`;
+  ctx.font = `bold ${(fs)/s}px "JetBrains Mono",monospace`;
   const tw = ctx.measureText(mainLabel).width;
   ctx.fillStyle = '#0d0e12ee';
   ctx.fillRect(mx - tw/2 - 5, my - fs, tw + 10, fs * 1.35);
   ctx.fillStyle = c; ctx.textAlign = 'center';
   ctx.fillText(mainLabel, mx, my + fs * 0.2);
 
-  ctx.font = `${fs*0.8}px "JetBrains Mono",monospace`;
+  ctx.font = `${(fs*0.8)/s}px "JetBrains Mono",monospace`;
   ctx.fillStyle = c + 'aa';
   ctx.fillText(`(${(abs/10).toFixed(1)}cm)`, mx, my + fs*1.2);
 }
@@ -8162,14 +8502,14 @@ function drawSlope(ctx, a, fs, sel, s=1) {
   arrowHead(ctx,a.x,a.y,a.x2,a.y2,c,11/s,s);
   const mx=(a.x+a.x2)/2, my=(a.y+a.y2)/2;
   const label = `${pct}% (1m=${per1m}mm↓)`;
-  ctx.font = `bold ${fs}px "JetBrains Mono",monospace`;
+  ctx.font = `bold ${(fs)/s}px "JetBrains Mono",monospace`;
   const tw = ctx.measureText(label).width;
   ctx.fillStyle = '#0d0e12ee'; ctx.fillRect(mx-tw/2-4,my-fs*0.9,tw+8,fs*1.35);
   ctx.fillStyle = c; ctx.textAlign = 'center'; ctx.fillText(label, mx, my+fs*0.3);
 }
 
 function drawText(ctx, a, fs, sel, s=1) {
-  ctx.font = `${fs}px "Noto Sans JP",sans-serif`;
+  ctx.font = `${(fs)/s}px "Noto Sans JP",sans-serif`;
   const tw = ctx.measureText(a.label||'').width;
   ctx.fillStyle = '#0d0e12cc'; ctx.fillRect(a.x-2, a.y-fs, tw+4, fs*1.3);
   ctx.fillStyle = a.color; ctx.textAlign = 'left';
@@ -8195,7 +8535,7 @@ function drawDist(ctx, a, fs, sel, s=1) {
   // 中点ラベル
   const mx=(a.x+a.x2)/2, my=(a.y+a.y2)/2;
   const lbl = a.label || '';
-  ctx.font = `bold ${fs}px "JetBrains Mono",monospace`;
+  ctx.font = `bold ${(fs)/s}px "JetBrains Mono",monospace`;
   const tw = ctx.measureText(lbl).width;
   // ラベル背景
   ctx.fillStyle = '#0d0e12ee';
@@ -8203,7 +8543,7 @@ function drawDist(ctx, a, fs, sel, s=1) {
   ctx.fillStyle = c; ctx.textAlign = 'center';
   ctx.fillText(lbl, mx, my+fs*0.25);
   // 距離アイコン
-  ctx.fillStyle = c+'99'; ctx.font = `${fs*0.75}px "JetBrains Mono",monospace`;
+  ctx.fillStyle = c+'99'; ctx.font = `${(fs*0.75)/s}px "JetBrains Mono",monospace`;
   ctx.fillText('←→', mx, my-fs*0.25);
 }
 
@@ -8301,6 +8641,895 @@ document.addEventListener('DOMContentLoaded', () => {
     annotRedraw();
   });
 });
+
+// ══════════════════════════════════════════════════════════════
+// タイル・レンガ 敷き詰めレイアウト設計ツール
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// タイル・レンガ 敷き詰めレイアウト設計ツール
+// 複数パーツ（独立した枠）をキャンバス内に作成し、個別に移動・計測できる
+// ══════════════════════════════════════════════════════════════
+const TL = {
+  parts: [],          // { id, name, points, closed, tileW,tileH,joint,pattern,gridAngle,offsetX,offsetY,pricePiece,priceCraft,cutMode,wasteRate, result, measurements }
+  activeIndex: -1,
+  mode: 'click',       // 'click' | 'num' | 'move' | 'measure'
+  scale: 1,            // px per mm
+  offsetX: 0, offsetY: 0,
+  panning: false, lastX: 0, lastY: 0,
+  hoverPt: null,
+  snapEnabled: true,
+  dragging: false, dragPartIndex: -1, dragStartMM: null, dragOrigPoints: null,
+  measureStart: null,  // 計測モードで1点目をクリックした後の座標(mm)
+};
+
+function tlBlankPartSettings() {
+  return {
+    tileW: 300, tileH: 300, joint: 3, pattern: 'grid', gridAngle: 0,
+    offsetX: 0, offsetY: 0,
+    pricePiece: 0, priceCraft: 0,
+    cutMode: 'full', wasteRate: 5,
+  };
+}
+
+function tlActive() {
+  return TL.activeIndex >= 0 ? TL.parts[TL.activeIndex] : null;
+}
+
+// 新しいパーツを作成（既存パーツの設定値を引き継ぐと使いやすい）
+function tlNewPart() {
+  const prev = tlActive();
+  const settings = prev ? {
+    tileW: prev.tileW, tileH: prev.tileH, joint: prev.joint, pattern: prev.pattern,
+    gridAngle: prev.gridAngle, offsetX: 0, offsetY: 0,
+    pricePiece: prev.pricePiece, priceCraft: prev.priceCraft,
+    cutMode: prev.cutMode, wasteRate: prev.wasteRate,
+  } : tlBlankPartSettings();
+  const part = {
+    id: Date.now() + Math.random(),
+    name: '',
+    points: [],
+    closed: false,
+    result: null,
+    measurements: [],  // 手動計測: [{x1,y1,x2,y2}] 単位mm
+    ...settings,
+  };
+  TL.parts.push(part);
+  TL.activeIndex = TL.parts.length - 1;
+  tlSetMode('click');
+  tlLoadSettingsToForm();
+  tlRenderPartsList();
+  tlRender();
+  tlRecalc();
+}
+
+function tlSelectPart(idx) {
+  if (idx < 0 || idx >= TL.parts.length) return;
+  TL.activeIndex = idx;
+  tlLoadSettingsToForm();
+  tlRenderPartsList();
+  tlRender();
+  tlRecalc();
+}
+
+function tlDeletePart(idx, ev) {
+  if (ev) ev.stopPropagation();
+  if (!confirm('このパーツを削除しますか？')) return;
+  TL.parts.splice(idx, 1);
+  if (TL.activeIndex >= TL.parts.length) TL.activeIndex = TL.parts.length - 1;
+  tlLoadSettingsToForm();
+  tlRenderPartsList();
+  tlRender();
+  tlRecalc();
+}
+
+function tlRenameActivePart() {
+  const p = tlActive();
+  if (!p) return;
+  p.name = document.getElementById('tl-item-name').value;
+  tlRenderPartsList();
+}
+
+// ── 設定フォーム ⇄ アクティブパーツ の同期 ──
+function tlLoadSettingsToForm() {
+  const p = tlActive();
+  const s = p || tlBlankPartSettings();
+  document.getElementById('tl-tile-w').value = s.tileW;
+  document.getElementById('tl-tile-h').value = s.tileH;
+  document.getElementById('tl-joint').value = s.joint;
+  document.getElementById('tl-pattern').value = s.pattern;
+  document.getElementById('tl-grid-angle').value = s.gridAngle;
+  document.getElementById('tl-offset-x').value = s.offsetX;
+  document.getElementById('tl-offset-y').value = s.offsetY;
+  document.getElementById('tl-price-piece').value = s.pricePiece;
+  document.getElementById('tl-price-craft').value = s.priceCraft;
+  document.getElementById('tl-cut-mode').value = s.cutMode;
+  document.getElementById('tl-waste-rate').value = s.wasteRate;
+  document.getElementById('tl-item-name').value = p ? (p.name || '') : '';
+  tlToggleWasteInput();
+}
+function tlSaveSettingsFromForm() {
+  const p = tlActive();
+  if (!p) return;
+  p.tileW = parseFloat(document.getElementById('tl-tile-w').value) || 300;
+  p.tileH = parseFloat(document.getElementById('tl-tile-h').value) || 300;
+  p.joint = parseFloat(document.getElementById('tl-joint').value) || 0;
+  p.pattern = document.getElementById('tl-pattern').value;
+  p.gridAngle = parseFloat(document.getElementById('tl-grid-angle').value) || 0;
+  p.offsetX = parseFloat(document.getElementById('tl-offset-x').value) || 0;
+  p.offsetY = parseFloat(document.getElementById('tl-offset-y').value) || 0;
+  p.pricePiece = parseFloat(document.getElementById('tl-price-piece').value) || 0;
+  p.priceCraft = parseFloat(document.getElementById('tl-price-craft').value) || 0;
+  p.cutMode = document.getElementById('tl-cut-mode').value;
+  p.wasteRate = parseFloat(document.getElementById('tl-waste-rate').value) || 0;
+}
+
+function tlToggleWasteInput() {
+  const mode = document.getElementById('tl-cut-mode').value;
+  document.getElementById('tl-waste-row').classList.toggle('hidden', mode !== 'area');
+}
+
+function openTileLayout() {
+  document.getElementById('tlModal').style.display = 'flex';
+  if (TL.parts.length === 0) {
+    TL.activeIndex = -1;
+    TL.snapEnabled = true;
+    const snapBtn = document.getElementById('tl-snap-toggle');
+    snapBtn.innerHTML = '<i class="fas fa-magnet mr-1"></i>スナップ:ON';
+    snapBtn.style.color = '#ffe066'; snapBtn.style.borderColor = '#ffe066'; snapBtn.style.background = 'rgba(255,224,102,0.15)';
+    tlNewPart(); // 最初のパーツを自動作成して即描画開始できるように
+  } else {
+    tlLoadSettingsToForm();
+    tlSetMode('click');
+  }
+  setTimeout(() => { tlInitCanvasEvents(); tlFitView(); tlRecalc(); }, 30);
+}
+function closeTileLayout() {
+  document.getElementById('tlModal').style.display = 'none';
+}
+
+function tlSetMode(mode) {
+  TL.mode = mode;
+  TL.measureStart = null; // モード切替時は計測の1点目をリセット
+  ['click','num','move','measure'].forEach(m => {
+    const btn = document.getElementById('tl-mode-' + m);
+    if (!btn) return;
+    btn.style.background = mode === m ? 'rgba(79,142,247,0.25)' : 'transparent';
+    btn.style.color = mode === m ? '#7ab8ff' : 'var(--text-dim)';
+  });
+  document.getElementById('tl-numeric-bar').classList.toggle('hidden', mode !== 'num');
+  document.getElementById('tl-hint-click').classList.toggle('hidden', mode === 'move' || mode === 'measure');
+  document.getElementById('tl-hint-move').classList.toggle('hidden', mode !== 'move');
+  document.getElementById('tl-hint-measure').classList.toggle('hidden', mode !== 'measure');
+}
+
+function tlToggleSnap() {
+  TL.snapEnabled = !TL.snapEnabled;
+  const btn = document.getElementById('tl-snap-toggle');
+  btn.innerHTML = `<i class="fas fa-magnet mr-1"></i>スナップ:${TL.snapEnabled ? 'ON' : 'OFF'}`;
+  btn.style.color = TL.snapEnabled ? '#ffe066' : 'var(--text-dim)';
+  btn.style.borderColor = TL.snapEnabled ? '#ffe066' : 'var(--border)';
+  btn.style.background = TL.snapEnabled ? 'rgba(255,224,102,0.15)' : 'transparent';
+}
+
+function tlUndoVertex() {
+  const p = tlActive();
+  if (!p) return;
+  if (p.closed) p.closed = false;
+  else p.points.pop();
+  tlRender(); tlRecalc();
+}
+function tlClosePolygon() {
+  const p = tlActive();
+  if (!p) { alert('パーツが選択されていません'); return; }
+  if (p.points.length < 3) { alert('頂点を3つ以上配置してください'); return; }
+  p.closed = true;
+  tlRender(); tlRecalc();
+}
+function tlClearActivePart() {
+  const p = tlActive();
+  if (!p) return;
+  if (p.points.length && !confirm('このパーツの枠をクリアしますか？')) return;
+  p.points = []; p.closed = false; p.result = null; p.measurements = [];
+  tlRender(); tlRecalc();
+}
+
+function tlClearMeasurements() {
+  const p = tlActive();
+  if (!p || !p.measurements || p.measurements.length === 0) return;
+  if (!confirm('このパーツの計測をすべてクリアしますか？')) return;
+  p.measurements = [];
+  TL.measureStart = null;
+  tlRender();
+}
+
+// ── 数値入力で頂点追加 ──
+function tlAddVertexNumeric() {
+  const p = tlActive();
+  if (!p) { alert('パーツが選択されていません。「新規パーツ」を押してください'); return; }
+  const len = parseFloat(document.getElementById('tl-num-len').value);
+  const ang = parseFloat(document.getElementById('tl-num-ang').value) || 0;
+  if (isNaN(len) || len <= 0) { alert('長さを入力してください'); return; }
+  if (p.closed) { alert('枠が閉じられています。「1点戻す」で編集してください'); return; }
+  const rad = ang * Math.PI / 180;
+  let nx, ny;
+  if (p.points.length === 0) {
+    nx = 0; ny = 0;
+  } else {
+    const last = p.points[p.points.length - 1];
+    nx = last.x + len * Math.cos(rad);
+    ny = last.y - len * Math.sin(rad);
+  }
+  p.points.push({ x: nx, y: ny });
+  document.getElementById('tl-num-len').value = '';
+  document.getElementById('tl-num-len').focus();
+  tlFitView(); tlRecalc();
+}
+
+function tlSetDir(deg) {
+  document.getElementById('tl-num-ang').value = deg;
+  document.getElementById('tl-num-len').focus();
+}
+
+// グリッド位置を上下左右に微調整（reset=trueで0,0に戻す）
+function tlNudgeGrid(dirX, dirY, reset) {
+  const xEl = document.getElementById('tl-offset-x');
+  const yEl = document.getElementById('tl-offset-y');
+  if (reset) {
+    xEl.value = 0; yEl.value = 0;
+  } else {
+    const step = parseFloat(document.getElementById('tl-nudge-step').value) || 10;
+    xEl.value = (parseFloat(xEl.value) || 0) + dirX * step;
+    yEl.value = (parseFloat(yEl.value) || 0) + dirY * step;
+  }
+  tlRecalc();
+}
+
+// ── 点が多角形の内側にあるか（レイキャスティング法） ──
+function tlPointInPolygon(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    const intersect = ((yi > pt.y) !== (yj > pt.y)) &&
+      (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// ── キャンバスイベント ──
+let tlEventsInit = false;
+function tlInitCanvasEvents() {
+  const canvas = document.getElementById('tl-canvas');
+  const wrap = document.getElementById('tl-canvas-wrap');
+  if (!canvas || !wrap) return;
+
+  const ro = new ResizeObserver(() => {
+    canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
+    tlRender();
+  });
+  ro.observe(wrap);
+  canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
+
+  if (tlEventsInit) { tlRender(); return; }
+  tlEventsInit = true;
+
+  function toMM(px, py) {
+    return { x: (px - TL.offsetX) / TL.scale, y: (py - TL.offsetY) / TL.scale };
+  }
+
+  // 図面積算と同じ角度自動スナップ（0/45/90/135/180/225/270/315度）
+  function tlSnapAngle(wx, wy, prevX, prevY) {
+    const dx = wx - prevX, dy = wy - prevY;
+    const angle = Math.atan2(dy, dx);
+    const dist = Math.hypot(dx, dy);
+    const snapAngles = [0,45,90,135,180,225,270,315].map(a => a * Math.PI/180);
+    let minDiff = Infinity, bestAngle = angle;
+    snapAngles.forEach(a => {
+      let diff = Math.abs(angle - a);
+      if (diff > Math.PI) diff = 2*Math.PI - diff;
+      if (diff < minDiff) { minDiff = diff; bestAngle = a; }
+    });
+    if (minDiff < 0.15) {
+      return { x: prevX + dist*Math.cos(bestAngle), y: prevY + dist*Math.sin(bestAngle) };
+    }
+    return { x: wx, y: wy };
+  }
+
+  const CLOSE_PX = 14;
+
+  // 計測モード用: 頂点・辺にスナップする最寄り点を探す
+  function tlFindSnapPoint(sx, sy) {
+    const SNAP_PX = 12;
+    let best = null, bestDist = SNAP_PX;
+    // 頂点スナップ（優先）
+    TL.parts.forEach(part => {
+      part.points.forEach(pt => {
+        const px = pt.x*TL.scale + TL.offsetX, py = pt.y*TL.scale + TL.offsetY;
+        const d = Math.hypot(sx-px, sy-py);
+        if (d < bestDist) { bestDist = d; best = { x: pt.x, y: pt.y }; }
+      });
+    });
+    if (best) return best;
+    // 辺スナップ（垂線の足）
+    bestDist = SNAP_PX;
+    TL.parts.forEach(part => {
+      if (part.points.length < 2) return;
+      const n = part.closed ? part.points.length : part.points.length - 1;
+      for (let i = 0; i < n; i++) {
+        const a = part.points[i], b = part.points[(i+1)%part.points.length];
+        const ax = a.x*TL.scale+TL.offsetX, ay = a.y*TL.scale+TL.offsetY;
+        const bx = b.x*TL.scale+TL.offsetX, by = b.y*TL.scale+TL.offsetY;
+        const dx = bx-ax, dy = by-ay;
+        const lenSq = dx*dx+dy*dy;
+        if (lenSq === 0) continue;
+        let t = ((sx-ax)*dx + (sy-ay)*dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
+        const px = ax + t*dx, py = ay + t*dy;
+        const d = Math.hypot(sx-px, sy-py);
+        if (d < bestDist) {
+          bestDist = d;
+          best = { x: a.x + t*(b.x-a.x), y: a.y + t*(b.y-a.y) };
+        }
+      }
+    });
+    return best;
+  }
+
+  canvas.addEventListener('click', e => {
+    if (TL.panning || TL.dragging) return;
+
+    if (TL.mode === 'measure') {
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+      const snapped = tlFindSnapPoint(sx, sy);
+      const mm = snapped || toMM(sx, sy);
+      const p = tlActive();
+      if (!p) { alert('パーツを選択してください'); return; }
+      if (!TL.measureStart) {
+        TL.measureStart = mm;
+      } else {
+        if (!p.measurements) p.measurements = [];
+        p.measurements.push({ x1: TL.measureStart.x, y1: TL.measureStart.y, x2: mm.x, y2: mm.y });
+        TL.measureStart = null;
+      }
+      tlRender();
+      return;
+    }
+
+    if (TL.mode === 'move') {
+      // クリックでパーツを選択（重なっている場合は最後に描かれたもの＝配列末尾から探す）
+      const rect = canvas.getBoundingClientRect();
+      const mm = toMM(e.clientX - rect.left, e.clientY - rect.top);
+      for (let i = TL.parts.length - 1; i >= 0; i--) {
+        const part = TL.parts[i];
+        if (part.closed && tlPointInPolygon(mm, part.points)) {
+          tlSelectPart(i);
+          return;
+        }
+      }
+      return;
+    }
+
+    if (TL.mode !== 'click') return;
+    const p = tlActive();
+    if (!p || p.closed) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    let mm = toMM(sx, sy);
+
+    if (TL.snapEnabled && p.points.length > 0) {
+      const last = p.points[p.points.length - 1];
+      mm = tlSnapAngle(mm.x, mm.y, last.x, last.y);
+    }
+
+    if (p.points.length >= 3) {
+      const first = p.points[0];
+      const firstPx = { x: first.x*TL.scale + TL.offsetX, y: first.y*TL.scale + TL.offsetY };
+      if (Math.hypot(sx - firstPx.x, sy - firstPx.y) < CLOSE_PX) {
+        tlClosePolygon();
+        return;
+      }
+    }
+
+    p.points.push(mm);
+    tlRender(); tlRecalc();
+  });
+
+  canvas.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (TL.mode === 'measure') {
+      if (TL.measureStart) { TL.measureStart = null; tlRender(); }
+      return;
+    }
+    if (TL.mode !== 'click') return;
+    const p = tlActive();
+    if (!p || p.closed) return;
+    if (p.points.length >= 3) tlClosePolygon();
+    else if (p.points.length > 0) tlClearActivePart();
+  });
+
+  canvas.addEventListener('dblclick', e => {
+    if (TL.mode !== 'click') return;
+    const p = tlActive();
+    if (!p || p.closed) return;
+    if (p.points.length > 0) { p.points.pop(); tlRender(); tlRecalc(); }
+  });
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+    let mm = toMM(sx, sy);
+    const p = tlActive();
+    if (TL.snapEnabled && TL.mode === 'click' && p && !p.closed && p.points.length > 0) {
+      const last = p.points[p.points.length - 1];
+      mm = tlSnapAngle(mm.x, mm.y, last.x, last.y);
+    }
+    if (TL.mode === 'measure') {
+      const snapped = tlFindSnapPoint(sx, sy);
+      mm = snapped || mm;
+    }
+    TL.hoverPt = mm;
+
+    if (TL.dragging && TL.dragPartIndex >= 0) {
+      const dx = mm.x - TL.dragStartMM.x, dy = mm.y - TL.dragStartMM.y;
+      const part = TL.parts[TL.dragPartIndex];
+      part.points = TL.dragOrigPoints.map(pt => ({ x: pt.x + dx, y: pt.y + dy }));
+      if (TL.dragOrigMeasurements) {
+        part.measurements = TL.dragOrigMeasurements.map(m => ({
+          x1: m.x1+dx, y1: m.y1+dy, x2: m.x2+dx, y2: m.y2+dy
+        }));
+      }
+      tlRender();
+      return;
+    }
+
+    if (TL.panning) {
+      TL.offsetX += e.clientX - TL.lastX;
+      TL.offsetY += e.clientY - TL.lastY;
+      TL.lastX = e.clientX; TL.lastY = e.clientY;
+    }
+    tlRender();
+  });
+
+  canvas.addEventListener('mousedown', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mm = toMM(e.clientX - rect.left, e.clientY - rect.top);
+
+    if (TL.mode === 'move' && e.button === 0) {
+      for (let i = TL.parts.length - 1; i >= 0; i--) {
+        const part = TL.parts[i];
+        if (part.closed && tlPointInPolygon(mm, part.points)) {
+          TL.dragging = true;
+          TL.dragPartIndex = i;
+          TL.dragStartMM = mm;
+          TL.dragOrigPoints = part.points.map(pt => ({ ...pt }));
+          TL.dragOrigMeasurements = (part.measurements || []).map(m => ({ ...m }));
+          if (TL.activeIndex !== i) tlSelectPart(i);
+          canvas.style.cursor = 'grabbing';
+          return;
+        }
+      }
+    }
+    if (e.button === 1 || e.altKey || TL.mode === 'num') {
+      TL.panning = true; TL.lastX = e.clientX; TL.lastY = e.clientY;
+      canvas.style.cursor = 'grabbing';
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    if (TL.dragging) {
+      TL.dragging = false; TL.dragPartIndex = -1; TL.dragStartMM = null; TL.dragOrigPoints = null; TL.dragOrigMeasurements = null;
+      tlRecalc();
+    }
+    TL.panning = false;
+    canvas.style.cursor = TL.mode === 'move' ? 'pointer' : 'crosshair';
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    TL.offsetX = mx - (mx - TL.offsetX) * factor;
+    TL.offsetY = my - (my - TL.offsetY) * factor;
+    TL.scale *= factor;
+    tlRender();
+  }, { passive: false });
+
+  // 数字キー: 手書き描画中に長さをテンキー指定
+  window.addEventListener('keydown', e => {
+    if (document.getElementById('tlModal').style.display !== 'flex') return;
+    const tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    const p = tlActive();
+    if (TL.mode !== 'click' || !p || p.closed || p.points.length === 0) return;
+    if (!/^[0-9.]$/.test(e.key) || e.ctrlKey || e.metaKey) return;
+
+    const inputLen = prompt('長さを指定してください (mm):', e.key);
+    if (inputLen === null) return;
+    const len = parseFloat(inputLen);
+    if (isNaN(len) || len <= 0 || !TL.hoverPt) return;
+
+    const last = p.points[p.points.length - 1];
+    const dx = TL.hoverPt.x - last.x, dy = TL.hoverPt.y - last.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist === 0) return;
+    const ratio = len / dist;
+    p.points.push({ x: last.x + dx*ratio, y: last.y + dy*ratio });
+    tlRender(); tlRecalc();
+  });
+}
+
+function tlFitView() {
+  const canvas = document.getElementById('tl-canvas');
+  const allPts = TL.parts.flatMap(p => p.points);
+  if (!canvas || allPts.length === 0) {
+    TL.scale = 0.5; TL.offsetX = canvas ? canvas.width/2 : 400; TL.offsetY = canvas ? canvas.height/2 : 300;
+    tlRender(); return;
+  }
+  const xs = allPts.map(p=>p.x), ys = allPts.map(p=>p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const w = Math.max(maxX - minX, 100), h = Math.max(maxY - minY, 100);
+  const cw = canvas.width || 800, ch = canvas.height || 600;
+  TL.scale = Math.min((cw*0.7) / w, (ch*0.7) / h);
+  TL.offsetX = cw/2 - (minX+maxX)/2 * TL.scale;
+  TL.offsetY = ch/2 - (minY+maxY)/2 * TL.scale;
+  tlRender();
+}
+
+// ── 幾何ユーティリティ ──
+function tlPolygonArea(pts) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const p1 = pts[i], p2 = pts[(i+1)%pts.length];
+    a += p1.x * p2.y - p2.x * p1.y;
+  }
+  return Math.abs(a) / 2;
+}
+function tlClipPolygon(subject, clip) {
+  let output = subject.slice();
+  for (let i = 0; i < clip.length; i++) {
+    if (output.length === 0) break;
+    const A = clip[i], B = clip[(i+1)%clip.length];
+    const input = output; output = [];
+    const cross = (p) => (B.x-A.x)*(p.y-A.y) - (B.y-A.y)*(p.x-A.x);
+    for (let j = 0; j < input.length; j++) {
+      const cur = input[j], prev = input[(j-1+input.length)%input.length];
+      const curIn = cross(cur) <= 1e-9, prevIn = cross(prev) <= 1e-9;
+      if (curIn) {
+        if (!prevIn) output.push(tlIntersect(prev, cur, A, B));
+        output.push(cur);
+      } else if (prevIn) {
+        output.push(tlIntersect(prev, cur, A, B));
+      }
+    }
+  }
+  return output;
+}
+function tlIntersect(p1, p2, A, B) {
+  const d1x = p2.x-p1.x, d1y = p2.y-p1.y;
+  const d2x = B.x-A.x, d2y = B.y-A.y;
+  const denom = d1x*d2y - d1y*d2x;
+  if (Math.abs(denom) < 1e-12) return p1;
+  const t = ((A.x-p1.x)*d2y - (A.y-p1.y)*d2x) / denom;
+  return { x: p1.x + t*d1x, y: p1.y + t*d1y };
+}
+
+// 1つの枠に対してタイルを生成
+function tlGenerateTilesForFrame(framePts, tileW, tileH, joint, gridAngle, pattern, offsetX, offsetY) {
+  const stepX = tileW + joint, stepY = tileH + joint;
+  const rad = gridAngle * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const toLocal = (p) => ({ x: p.x*cos + p.y*sin, y: -p.x*sin + p.y*cos });
+  const toWorld = (p) => ({ x: p.x*cos - p.y*sin, y: p.x*sin + p.y*cos });
+
+  const localFrame = framePts.map(toLocal);
+  const xs = localFrame.map(p=>p.x), ys = localFrame.map(p=>p.y);
+  const minX = Math.min(...xs) - stepX, maxX = Math.max(...xs) + stepX;
+  const minY = Math.min(...ys) - stepY, maxY = Math.max(...ys) + stepY;
+
+  const tiles = [];
+  let row = 0;
+  for (let ly = minY; ly < maxY; ly += stepY, row++) {
+    let rowOffset = 0;
+    if (pattern === 'running') rowOffset = (row % 2) * (stepX / 2);
+    for (let lx = minX - stepX; lx < maxX; lx += stepX) {
+      const x0 = lx + rowOffset + offsetX, x1 = x0 + tileW;
+      const y0 = ly + offsetY, y1 = y0 + tileH;
+      const localRect = [{x:x0,y:y1},{x:x1,y:y1},{x:x1,y:y0},{x:x0,y:y0}];
+      const worldRect = localRect.map(toWorld);
+      const clipped = tlClipPolygon(framePts, worldRect);
+      if (clipped.length < 3) continue;
+      const area = tlPolygonArea(clipped);
+      const ratio = area / (tileW*tileH);
+      if (ratio < 0.003) continue;
+      // カット後の実寸（グリッドの向きを基準にしたローカル座標での幅・高さ）
+      const localClipped = clipped.map(toLocal);
+      const lxs = localClipped.map(p=>p.x), lys = localClipped.map(p=>p.y);
+      const cutW = Math.max(...lxs) - Math.min(...lxs);
+      const cutH = Math.max(...lys) - Math.min(...lys);
+      tiles.push({ poly: clipped, full: ratio > 0.985, area, ratio, cutW, cutH });
+    }
+  }
+  return tiles;
+}
+
+// 1パーツ分の計算結果を作成
+function tlComputePart(part) {
+  if (!part.closed || part.points.length < 3) return null;
+  let gridAngle = part.gridAngle;
+  const pattern = part.pattern;
+  const effectiveAngle = pattern === 'diagonal45' ? gridAngle + 45 : gridAngle;
+
+  const tiles = tlGenerateTilesForFrame(
+    part.points, part.tileW, part.tileH, part.joint, effectiveAngle, pattern, part.offsetX, part.offsetY
+  );
+  const frameArea = tlPolygonArea(part.points);
+  const fullCount = tiles.filter(t => t.full).length;
+  const cutCount = tiles.length - fullCount;
+  const cutAreaSum = tiles.filter(t => !t.full).reduce((s,t)=>s+t.area, 0);
+  const wasteRate = part.cutMode === 'area' ? part.wasteRate : 0;
+  const cutAreaWithWaste = cutAreaSum * (1 + wasteRate / 100);
+  const cutConsumed = part.cutMode === 'area'
+    ? Math.ceil(cutAreaWithWaste / (part.tileW*part.tileH))
+    : cutCount;
+  const totalConsumed = fullCount + cutConsumed;
+
+  const areaM2 = frameArea / 1e6;
+  const matCost = Math.round(totalConsumed * part.pricePiece);
+  const craftCost = Math.round(areaM2 * part.priceCraft);
+
+  return { tiles, frameArea, areaM2, fullCount, cutCount, cutConsumed, totalConsumed, matCost, craftCost, wasteRate, cutMode: part.cutMode };
+}
+
+// 全パーツを再計算（設定フォーム→アクティブパーツへの保存も行う）
+function tlRecalc() {
+  tlSaveSettingsFromForm();
+  TL.parts.forEach(p => { p.result = tlComputePart(p); });
+  tlRender();
+  tlRenderPartsList();
+
+  const active = tlActive();
+  const el = document.getElementById('tl-result');
+  if (!active) {
+    el.innerHTML = '「新規パーツ」を押すか、キャンバスをクリックして枠を描いてください';
+  } else if (!active.result) {
+    el.innerHTML = '枠を閉じる（3点以上）と自動計算されます';
+  } else {
+    const r = active.result;
+    el.innerHTML = `
+      <div class="grid grid-cols-2 gap-1 mb-2">
+        <div>枠面積</div><div class="text-right mono">${r.areaM2.toFixed(3)} ㎡</div>
+        <div>フルタイル</div><div class="text-right mono">${r.fullCount} 枚</div>
+        <div>カット片</div><div class="text-right mono">${r.cutCount} 枚</div>
+        <div style="color:var(--yellow);">消費枚数（原価計算用）</div><div class="text-right mono" style="color:var(--yellow);">${r.totalConsumed} 枚</div>
+        ${r.cutMode === 'area' && r.wasteRate > 0 ? `<div class="text-gray-500" style="grid-column:1/3;font-size:10px;">（面積按分＋端部ロス・予備率 ${r.wasteRate}% 上乗せ済み）</div>` : ''}
+      </div>
+      <div class="pt-2 border-t border-gray-700 grid grid-cols-2 gap-1">
+        <div>材料原価</div><div class="text-right mono">¥${r.matCost.toLocaleString()}</div>
+        <div>施工費</div><div class="text-right mono">¥${r.craftCost.toLocaleString()}</div>
+        <div class="font-bold" style="color:var(--accent);">原価合計</div><div class="text-right mono font-bold" style="color:var(--accent);">¥${(r.matCost+r.craftCost).toLocaleString()}</div>
+      </div>`;
+  }
+
+  // 全パーツ合計
+  const withResult = TL.parts.filter(p => p.result);
+  const gtEl = document.getElementById('tl-grand-total');
+  if (withResult.length >= 1) {
+    const totalArea = withResult.reduce((s,p)=>s+p.result.areaM2, 0);
+    const totalTiles = withResult.reduce((s,p)=>s+p.result.totalConsumed, 0);
+    const totalCost = withResult.reduce((s,p)=>s+p.result.matCost+p.result.craftCost, 0);
+    gtEl.classList.remove('hidden');
+    gtEl.innerHTML = `
+      <div class="font-bold mb-1" style="color:#5deeaa;"><i class="fas fa-layer-group mr-1"></i>全パーツ合計（${withResult.length}個）</div>
+      <div class="grid grid-cols-2 gap-1">
+        <div>合計面積</div><div class="text-right mono">${totalArea.toFixed(3)} ㎡</div>
+        <div>合計消費枚数</div><div class="text-right mono">${totalTiles} 枚</div>
+        <div class="font-bold">合計原価</div><div class="text-right mono font-bold">¥${totalCost.toLocaleString()}</div>
+      </div>`;
+  } else {
+    gtEl.classList.add('hidden');
+  }
+}
+
+// ── パーツ一覧パネルの描画 ──
+function tlRenderPartsList() {
+  const wrap = document.getElementById('tl-parts-list');
+  if (!wrap) return;
+  if (TL.parts.length === 0) {
+    wrap.innerHTML = '<div class="text-xs text-gray-600">まだパーツがありません。「新規パーツ」またはキャンバスをクリックして描き始めてください。</div>';
+    return;
+  }
+  wrap.innerHTML = TL.parts.map((p, i) => {
+    const isActive = i === TL.activeIndex;
+    const label = p.name || `パーツ${i+1}`;
+    const status = !p.closed ? '<span style="color:#ffe066;">描画中</span>'
+      : p.result ? `${p.result.totalConsumed}枚 / ¥${(p.result.matCost+p.result.craftCost).toLocaleString()}`
+      : '<span style="color:var(--text-dim);">未計算</span>';
+    return `
+      <div onclick="tlSelectPart(${i})" class="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer text-xs"
+        style="background:${isActive ? 'rgba(79,142,247,0.2)' : 'transparent'};border:1px solid ${isActive ? 'var(--accent)' : 'transparent'};">
+        <div class="flex-1 min-w-0">
+          <div class="truncate font-medium" style="color:${isActive ? '#fff' : '#d5d9e8'};">${label}</div>
+          <div class="text-gray-500" style="font-size:10px;">${status}</div>
+        </div>
+        <button onclick="tlDeletePart(${i}, event)" class="text-gray-500 hover:text-red-400 px-1.5 flex-shrink-0"><i class="fas fa-trash-alt"></i></button>
+      </div>`;
+  }).join('');
+}
+
+// ── 描画 ──
+function tlRender() {
+  const canvas = document.getElementById('tl-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0d0e12'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const s = TL.scale;
+  const toPx = (p) => ({ x: p.x*s + TL.offsetX, y: p.y*s + TL.offsetY });
+
+  // グリッド背景
+  ctx.save();
+  const step = 100;
+  const viewMinX = -TL.offsetX/s, viewMaxX = (canvas.width-TL.offsetX)/s;
+  const viewMinY = -TL.offsetY/s, viewMaxY = (canvas.height-TL.offsetY)/s;
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  for (let gx = Math.floor(viewMinX/step)*step; gx < viewMaxX; gx += step) {
+    const px = toPx({x:gx,y:0}).x;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, canvas.height); ctx.stroke();
+  }
+  for (let gy = Math.floor(viewMinY/step)*step; gy < viewMaxY; gy += step) {
+    const py = toPx({x:0,y:gy}).y;
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(canvas.width, py); ctx.stroke();
+  }
+  ctx.restore();
+
+  // 全パーツを描画（非アクティブは薄く、アクティブは明るく＋編集ハンドル）
+  TL.parts.forEach((part, idx) => {
+    const isActive = idx === TL.activeIndex;
+
+    // タイル
+    if (part.result) {
+      part.result.tiles.forEach(t => {
+        const pxPts = t.poly.map(toPx);
+        ctx.beginPath();
+        pxPts.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+        ctx.closePath();
+        const alpha = isActive ? 1 : 0.45;
+        ctx.fillStyle = t.full ? `rgba(79,142,247,${0.28*alpha})` : `rgba(255,180,84,${0.32*alpha})`;
+        ctx.fill();
+        ctx.strokeStyle = t.full ? `rgba(79,142,247,${0.7*alpha})` : `rgba(255,180,84,${0.85*alpha})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+    }
+
+    if (part.points.length === 0) return;
+    const pxPts = part.points.map(toPx);
+    ctx.beginPath();
+    pxPts.forEach((p,i) => i===0 ? ctx.moveTo(p.x,p.y) : ctx.lineTo(p.x,p.y));
+    if (part.closed) ctx.closePath();
+
+    ctx.strokeStyle = isActive ? '#3ddc97' : 'rgba(61,220,151,0.35)';
+    ctx.lineWidth = isActive ? 2.5 : 1.5;
+    ctx.stroke();
+
+    // ラベル（パーツ名 / パーツ番号）を重心付近に表示
+    if (part.closed) {
+      const cx = pxPts.reduce((s,p)=>s+p.x,0)/pxPts.length;
+      const cy = pxPts.reduce((s,p)=>s+p.y,0)/pxPts.length;
+      ctx.font = `bold 11px "Noto Sans JP",sans-serif`;
+      ctx.fillStyle = isActive ? '#fff' : 'rgba(255,255,255,0.4)';
+      ctx.textAlign = 'center';
+      ctx.fillText(part.name || `パーツ${idx+1}`, cx, cy);
+    }
+
+    if (!isActive) return; // 以下は選択中パーツのみ表示
+
+    // 頂点マーカー（始点は閉じ判定に近づくとハイライト）
+    let firstIsCloseable = false;
+    if (!part.closed && TL.mode === 'click' && part.points.length >= 3 && TL.hoverPt) {
+      const hoverPx = toPx(TL.hoverPt);
+      firstIsCloseable = Math.hypot(hoverPx.x - pxPts[0].x, hoverPx.y - pxPts[0].y) < 14;
+    }
+    pxPts.forEach((p, i) => {
+      const isFirstHot = i === 0 && firstIsCloseable;
+      ctx.beginPath(); ctx.arc(p.x, p.y, isFirstHot ? 9 : 4, 0, Math.PI*2);
+      ctx.fillStyle = isFirstHot ? '#ffe066' : '#3ddc97';
+      ctx.fill();
+      if (isFirstHot) { ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
+    });
+
+    // 辺の長さラベル
+    ctx.font = '12px "JetBrains Mono",monospace';
+    ctx.fillStyle = '#5deeaa'; ctx.textAlign = 'center';
+    const n = part.closed ? part.points.length : part.points.length - 1;
+    for (let i = 0; i < n; i++) {
+      const a = part.points[i], b = part.points[(i+1)%part.points.length];
+      const len = Math.hypot(b.x-a.x, b.y-a.y);
+      const mid = toPx({x:(a.x+b.x)/2, y:(a.y+b.y)/2});
+      const label = len >= 1000 ? (len/1000).toFixed(2)+'m' : Math.round(len)+'mm';
+      ctx.fillStyle = '#0d0e12dd';
+      const tw = ctx.measureText(label).width;
+      ctx.fillRect(mid.x - tw/2 - 3, mid.y - 8, tw + 6, 16);
+      ctx.fillStyle = '#5deeaa';
+      ctx.fillText(label, mid.x, mid.y + 4);
+    }
+
+    // 未確定の次辺プレビュー
+    if (!part.closed && TL.mode === 'click' && TL.hoverPt && part.points.length > 0) {
+      const last = toPx(part.points[part.points.length-1]);
+      const hov = toPx(TL.hoverPt);
+      ctx.setLineDash([5,4]);
+      ctx.strokeStyle = 'rgba(61,220,151,0.5)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(last.x,last.y); ctx.lineTo(hov.x,hov.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // 手動計測（ピンク系の実線＋長さラベル）
+    const meas = part.measurements || [];
+    meas.forEach(m => {
+      const a = toPx({x:m.x1,y:m.y1}), b = toPx({x:m.x2,y:m.y2});
+      const len = Math.hypot(m.x2-m.x1, m.y2-m.y1);
+      ctx.strokeStyle = '#ff6ec7'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      // 端点マーカー
+      [a,b].forEach(pt => {
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, 3, 0, Math.PI*2);
+        ctx.fillStyle = '#ff6ec7'; ctx.fill();
+      });
+      const mid = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+      const label = len >= 1000 ? (len/1000).toFixed(3)+'m' : Math.round(len)+'mm';
+      ctx.font = 'bold 12px "JetBrains Mono",monospace';
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = '#0d0e12ee';
+      ctx.fillRect(mid.x - tw/2 - 4, mid.y - 9, tw + 8, 18);
+      ctx.fillStyle = '#ff6ec7'; ctx.textAlign = 'center';
+      ctx.fillText(label, mid.x, mid.y + 4);
+    });
+
+    // 計測中（1点目クリック済み）のライブプレビュー
+    if (isActive && TL.mode === 'measure' && TL.measureStart && TL.hoverPt) {
+      const a = toPx(TL.measureStart), b = toPx(TL.hoverPt);
+      const len = Math.hypot(TL.hoverPt.x-TL.measureStart.x, TL.hoverPt.y-TL.measureStart.y);
+      ctx.setLineDash([6,4]);
+      ctx.strokeStyle = 'rgba(255,110,199,0.8)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(a.x, a.y, 4, 0, Math.PI*2);
+      ctx.fillStyle = '#ff6ec7'; ctx.fill();
+      const mid = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+      const label = len >= 1000 ? (len/1000).toFixed(3)+'m' : Math.round(len)+'mm';
+      ctx.font = 'bold 12px "JetBrains Mono",monospace';
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = '#0d0e12ee';
+      ctx.fillRect(mid.x - tw/2 - 4, mid.y - 9, tw + 8, 18);
+      ctx.fillStyle = '#ff9ed9'; ctx.textAlign = 'center';
+      ctx.fillText(label, mid.x, mid.y + 4);
+    }
+
+    // 計測モードでのスナップ候補ハイライト
+    if (isActive && TL.mode === 'measure' && TL.hoverPt) {
+      const hp = toPx(TL.hoverPt);
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, 6, 0, Math.PI*2);
+      ctx.strokeStyle = '#ff9ed9'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  });
+
+  document.getElementById('tl-scale-label').textContent = `1mm=${(TL.scale).toFixed(2)}px`;
+}
+
+// ── ① 粗利サマリーへ反映（全パーツを明細ごとに追加） ──
+function tlSendAllToSummary() {
+  const withResult = TL.parts.filter(p => p.result);
+  if (withResult.length === 0) { alert('計算済みのパーツがありません。枠を閉じてタイルを配置してください'); return; }
+  withResult.forEach((p, i) => {
+    const name = p.name || `タイル敷き詰め（パーツ${TL.parts.indexOf(p)+1}）`;
+    addSummaryRow({ name, sell: 0, mat: p.result.matCost, craft: p.result.craftCost, color: '#ffb454' });
+  });
+  closeTileLayout();
+}
+
 </script>
 
 </body>
