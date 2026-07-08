@@ -1,0 +1,2511 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>資材管理システム — 松戸支店</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f3f6;
+  --white:#ffffff;
+  --bd:#d7dae2;
+  --bd2:#e7e9ee;
+  --text:#1c2230;
+  --muted:#646d7e;
+  --muted2:#9aa1b0;
+  --pri:#1e3a5f;
+  --pri-h:#16293f;
+  --pri-l:#eef1f6;
+  --pri-bd:#c7d2e2;
+  --accent:#5b6478;
+  --grn:#15803d;
+  --grn-l:#f1f7f3;
+  --red:#b91c1c;
+  --red-l:#fbf1f1;
+  --shadow:0 1px 2px rgba(20,24,38,.06);
+  --shadow-md:0 3px 10px rgba(20,24,38,.08);
+  --r:5px;
+  --mono:'IBM Plex Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#c0c8d8;border-radius:3px}
+
+/* HEADER */
+.hdr{background:var(--pri);color:#fff;height:52px;padding:0 20px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+.hdr-l{display:flex;flex-direction:column;gap:1px}
+.hdr-t{font-weight:700;font-size:14px;letter-spacing:.3px}
+.hdr-s{font-size:11px;opacity:.65}
+.mth-btn{background:transparent;border:1px solid rgba(255,255,255,.35);
+  color:#fff;padding:5px 16px;border-radius:3px;font-size:12px;font-family:var(--mono);
+  cursor:pointer;transition:background .15s,border-color .15s}
+.mth-btn:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.55)}
+
+/* TABS */
+.tabs{background:var(--white);border-bottom:1px solid var(--bd);display:flex;
+  padding:0 16px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{background:none;border:none;padding:12px 16px;font-size:12.5px;
+  font-family:'Noto Sans JP',sans-serif;font-weight:500;color:var(--muted);
+  letter-spacing:.2px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.on{color:var(--pri);border-bottom-color:var(--pri);font-weight:700}
+
+/* PAGE */
+.pg{display:none;padding:16px;max-width:1140px;margin:0 auto}
+.pg.on{display:block}
+
+/* CARD */
+.card{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);
+  padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
+.ct{font-size:12px;font-weight:700;
+  color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;
+  padding-bottom:8px;border-bottom:1px solid var(--bd2)}
+
+/* FORM LAYOUT */
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg.w0{width:80px}
+.fg.w1{width:110px}
+.fg.w2{width:160px}
+.fg.w3{flex:1;min-width:180px}
+.fg.w4{flex:2;min-width:220px}
+.lbl{font-size:12px;font-weight:700;color:#4b5566;letter-spacing:.2px}
+
+/* INPUTS */
+input,select,textarea{
+  border:1.5px solid var(--bd);background:var(--white);
+  color:var(--text);padding:8px 10px;border-radius:6px;
+  font-size:14px;font-family:'Noto Sans JP',sans-serif;width:100%;
+  transition:border .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus{
+  outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(29,78,216,.1)}
+input[readonly]{background:#f6f8fc;color:var(--muted);cursor:default}
+input.numpad{font-family:var(--mono);font-size:15px;letter-spacing:.5px}
+textarea{resize:vertical;min-height:140px;font-size:13px;line-height:1.6}
+select option{background:var(--white)}
+
+/* NUMPAD HIGHLIGHT */
+input:focus.numpad{background:var(--pri-l);border-color:var(--pri)}
+
+/* AUTOCOMPLETE */
+.acw{position:relative}
+.acd{position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:300;
+  background:var(--white);border:1.5px solid var(--pri);border-radius:7px;
+  box-shadow:var(--shadow-md);max-height:220px;overflow-y:auto;display:none}
+.acd.open{display:block}
+.aci{padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bd2)}
+.aci:last-child{border-bottom:none}
+.aci:hover,.aci.sel{background:var(--pri-l)}
+.aci b{color:var(--pri)}
+.aci .asub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* SITE INFO */
+.si-box{display:flex;flex-wrap:wrap;gap:6px;background:var(--pri-l);
+  border:1px solid var(--pri-bd);border-radius:6px;padding:9px 12px;
+  font-size:12px;margin-bottom:12px}
+.si-kv{display:flex;gap:4px}
+.si-k{font-weight:700;color:var(--pri);white-space:nowrap}
+
+/* WORKER BADGE */
+.wk-ref{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.wk-chip{display:inline-flex;align-items:center;gap:4px;
+  background:#f1f5f9;border:1px solid var(--bd);border-radius:4px;
+  padding:2px 8px;font-size:11px;cursor:default}
+.wk-chip .wkn{font-family:var(--mono);font-weight:700;color:var(--pri)}
+
+/* MAT TABLE */
+.mst{font-size:11px;font-weight:700;color:var(--text);
+  text-transform:uppercase;letter-spacing:.6px;
+  padding:0 0 6px;border-bottom:1.5px solid var(--text);display:inline-block;margin-bottom:0}
+.mt{width:100%;border-collapse:collapse;margin-bottom:12px}
+.mt thead th{background:#eef1f7;font-size:11.5px;font-weight:700;color:#4b5566;
+  padding:5px 8px;border-bottom:1.5px solid var(--bd);text-align:left}
+.mt thead th.r{text-align:right}
+.mt tbody tr{border-bottom:1px solid var(--bd2)}
+.mt tbody tr:hover{background:#fafbff}
+.mt tbody tr.has-val{background:#fffbeb}
+.mt td{padding:3px 6px;vertical-align:middle}
+.mt td.nm{font-size:14px;padding-left:8px;min-width:180px}
+.mt td.un{font-size:12.5px;color:var(--muted);text-align:center;width:40px}
+.mt td.pr{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right;width:70px}
+.mt td.qi{text-align:right;width:100px}
+.mt td.qi input{width:90px;text-align:right;padding:5px 8px;font-family:var(--mono);font-size:15px;border-radius:4px}
+.mt td.qi input.has{border-color:var(--pri);background:var(--pri-l);color:var(--pri);font-weight:700}
+
+/* BUTTONS */
+.btn{padding:7px 16px;border:none;border-radius:6px;font-size:13px;
+  font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;
+  transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-p{background:var(--pri);color:#fff}.btn-p:hover{background:var(--pri-h)}
+.btn-g{background:var(--grn);color:#fff}.btn-g:hover{filter:brightness(1.08)}
+.btn-o{background:var(--white);color:var(--text);border:1.5px solid var(--bd)}.btn-o:hover{border-color:var(--pri);color:var(--pri)}
+.btn-d{background:var(--white);color:var(--red);border:1.5px solid var(--bd)}.btn-d:hover{background:var(--red-l);border-color:var(--red)}
+.btn-xl{background:#16803c;color:#fff;padding:8px 20px;font-size:14px}.btn-xl:hover{background:#15803d}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px}
+
+/* SEC HEADER */
+.sh{display:flex;align-items:center;justify-content:space-between;
+  margin:18px 0 8px;flex-wrap:wrap;gap:8px}
+.st{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+
+/* BADGE */
+.bdg{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:700;font-family:var(--mono)}
+.bb{background:#dbeafe;color:var(--pri)}
+.bg{background:#dcfce7;color:var(--grn)}
+.bo{background:#ffedd5;color:#c2410c}
+.bk{background:#f1f5f9;color:var(--muted)}
+
+/* RECORD TABLE */
+.rw{overflow-x:auto;border:1px solid var(--bd);border-radius:var(--r)}
+.rt{width:100%;border-collapse:collapse;font-size:12px}
+.rt thead th{background:#f6f8fc;padding:7px 9px;font-size:11px;font-weight:700;
+  color:var(--muted);border-bottom:1.5px solid var(--bd);white-space:nowrap;text-align:left}
+.rt tbody tr{border-bottom:1px solid var(--bd2)}
+.rt tbody tr:last-child{border-bottom:none}
+.rt tbody tr:hover{background:#f8fafc}
+.rt td{padding:6px 9px;vertical-align:middle;white-space:nowrap}
+.rt td.r{text-align:right;font-family:var(--mono)}
+.rt td.c{text-align:center}
+
+/* SUMMARY TABLE */
+.smt{width:100%;border-collapse:collapse;font-size:12px}
+.smt thead th{background:var(--pri);color:#fff;padding:7px 9px;font-size:11px;
+  font-weight:600;border:1px solid var(--pri-h);text-align:center;white-space:nowrap}
+.smt thead th:first-child{text-align:left}
+.smt tbody tr:nth-child(even){background:#f8fafc}
+.smt tbody tr:hover{background:#eff6ff}
+.smt td{padding:5px 8px;border:1px solid var(--bd2);vertical-align:middle}
+.smt td:first-child{min-width:160px;font-size:12px;white-space:normal}
+.smt td.c{text-align:center}
+.smt td.r{text-align:right;font-family:var(--mono)}
+.smt td.calc{background:#eff6ff;font-family:var(--mono);font-weight:700;text-align:center;color:var(--pri)}
+.sin{width:72px;text-align:right;background:var(--white);border:1.5px solid var(--bd);
+  padding:4px 6px;border-radius:4px;font-family:var(--mono);font-size:12px}
+.sin:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 2px rgba(29,78,216,.1)}
+.pos{color:var(--red);font-weight:700}
+.neg{color:var(--grn);font-weight:700}
+
+/* DISPOSAL */
+.ds-hdr{font-size:13px;font-weight:700;background:#f8fafc;border:1px solid var(--bd);
+  border-bottom:none;padding:7px 12px;border-radius:6px 6px 0 0}
+
+/* EMPTY */
+.emp{text-align:center;padding:30px 20px;color:var(--muted2);font-size:13px}
+
+/* UTILS */
+.flex{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.mu{color:var(--muted)}.sm{font-size:12px}.mn{font-family:var(--mono)}
+.sep{font-size:11.5px;font-weight:700;color:#4b5566;text-transform:uppercase;
+  letter-spacing:.5px;border-bottom:1.5px solid var(--bd2);padding-bottom:5px;margin:14px 0 8px}
+hr{border:none;border-top:1px solid var(--bd);margin:14px 0}
+
+/* PRICE GRID */
+.pg2{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:8px}
+
+/* NUMPAD HINT */
+.np-hint{
+  display:flex;flex-direction:column;gap:5px;
+  background:var(--pri-l);border:1px solid var(--pri-bd);border-radius:5px;
+  padding:8px 12px;font-size:12px;color:var(--text);line-height:1.7
+}
+.np-hint .np-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.np-key{
+  display:inline-block;background:#fff;border:1px solid var(--bd);border-radius:3px;
+  padding:1px 6px;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--pri)
+}
+.np-ex{
+  display:inline-block;background:#fff;border-radius:3px;
+  padding:1px 6px;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--text)
+}
+
+/* TOAST */
+.toast{position:fixed;bottom:18px;right:18px;z-index:9999;
+  background:var(--text);color:#fff;padding:11px 16px 11px 14px;border-radius:4px;
+  border-left:4px solid var(--muted2);
+  font-size:13px;box-shadow:var(--shadow-md);
+  transform:translateY(50px);opacity:0;transition:all .22s;pointer-events:none;
+  display:flex;align-items:center;gap:8px;max-width:300px}
+.toast.on{transform:translateY(0);opacity:1}
+.toast.ok{border-left-color:#4ade80}
+.toast.w{border-left-color:#d97706}
+.toast.e{border-left-color:#f87171}
+
+
+/* PURCHASE USERFORM */
+.pu-row{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:2px 0}
+.pu-lbl{font-size:12px;white-space:nowrap;flex:1}
+.pu-lbl.sm{font-size:11px}
+.pu-qty{width:70px!important;text-align:right!important;font-family:var(--mono)!important;
+  font-size:13px!important;padding:4px 6px!important;border-radius:3px!important}
+.pu-qty:focus{background:#fffbeb!important;border-color:var(--accent)!important}
+
+/* PRINT */
+@media print{
+  .hdr,.tabs,.np,.no-p,.btn{display:none!important}
+  .pg{display:block!important;padding:0}
+  body{background:#fff;font-size:11px}
+  .card{box-shadow:none;border-color:#ccc}
+  .smt thead th{background:var(--pri);color:#fff;-webkit-print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-l">
+    <div class="hdr-t">資材管理システム</div>
+    <div class="hdr-s">ヒューマンヤード 松戸支店</div>
+  </div>
+  <button class="mth-btn" id="mthBtn" onclick="goPage('settings')">----年--月</button>
+</header>
+
+<!-- TABS -->
+<nav class="tabs">
+  <button class="tab on" onclick="goPage('tf')">持ち出し入力</button>
+  <button class="tab" onclick="goPage('line')">LINE解析</button>
+  <button class="tab" onclick="goPage('pu')">購入仕入</button>
+  <button class="tab" onclick="goPage('ds')">現金在庫処分</button>
+  <button class="tab" onclick="goPage('sm')">支店長提出用</button>
+  <button class="tab" onclick="goPage('cfg')">設定</button>
+</nav>
+
+<!-- ═══════════════════ 持ち出し入力 ═══════════════════ -->
+<div class="pg on" id="pg-tf">
+<div class="card">
+  <div class="ct">持ち出し入力フォーム</div>
+
+  <!-- NUMPAD HINT -->
+  <div class="np-hint no-p" style="margin-bottom:14px">
+    <div class="np-row">
+      <span class="np-key">Enter</span><span>次の項目へ進む</span>
+      <span class="np-key" style="margin-left:8px">↑</span><span class="np-key">↓</span><span>資材間を移動</span>
+      <span style="margin-left:8px">担当コードは数字キーで入力 →</span>
+      <span id="wk-hint-inline" style="font-size:12px;color:var(--pri);font-weight:700"></span>
+    </div>
+    <div class="np-row" style="color:var(--muted)">
+      <span>日付は</span><span class="np-ex">20260601</span><span>または</span><span class="np-ex">6/1</span>
+      <span>の形式で入力できます（年を省略した場合は対象月から自動補完）</span>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- DATE -->
+    <div class="fg w1">
+      <label class="lbl">日付</label>
+      <input type="text" id="tf-dt" class="numpad" placeholder="20260601"
+        maxlength="10" inputmode="numeric" tabindex="10"
+        oninput="fmtDate(this,'tf-sc')" onkeydown="dateKeyDown(event,this,'tf-sc')" onblur="normDateField(this)">
+    </div>
+    <!-- SITE CODE -->
+    <div class="fg w2">
+      <label class="lbl">工番 <span style="font-size:10.5px;color:var(--muted2)">(数字のみでも可)</span></label>
+      <div class="acw">
+        <input type="text" id="tf-sc" class="numpad" placeholder="0048"
+          autocomplete="off" tabindex="11"
+          oninput="acInp()" onkeydown="acKey(event)" onblur="acBlur()">
+        <div class="acd" id="acd"></div>
+      </div>
+    </div>
+    <!-- SITE NAME -->
+    <div class="fg w4">
+      <label class="lbl">現場名称（自動）</label>
+      <input type="text" id="tf-nm" readonly tabindex="-1" style="background:#f6f8fc">
+    </div>
+  </div>
+
+  <!-- SITE INFO -->
+  <div id="si-box" style="display:none"></div>
+
+  <div class="row">
+    <!-- SUPERVISOR readonly -->
+    <div class="fg w2">
+      <label class="lbl">現場監督名 <span style="font-size:10.5px;font-weight:700;background:var(--pri);color:#fff;padding:1.5px 6px;border-radius:3px;margin-left:3px;vertical-align:1px">自動</span></label>
+      <input type="text" id="tf-sp" readonly tabindex="-1" style="background:#f6f8fc" placeholder="工番選択で自動入力">
+    </div>
+    <!-- WORKER CODE -->
+    <div class="fg w2">
+      <label class="lbl">担当コード <span style="font-size:10.5px;color:var(--muted2)">(数字)</span></label>
+      <input type="text" id="tf-wk" class="numpad" maxlength="2" placeholder="1"
+        inputmode="numeric" tabindex="13"
+        oninput="wkCodeInp(this,'tf-wk-nm')"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();focusFirstMat()}">
+    </div>
+    <!-- WORKER NAME -->
+    <div class="fg w2">
+      <label class="lbl">担当者名 <span style="font-size:10.5px;font-weight:700;background:var(--pri);color:#fff;padding:1.5px 6px;border-radius:3px;margin-left:3px;vertical-align:1px">自動</span></label>
+      <input type="text" id="tf-wk-nm" readonly tabindex="-1" style="background:#f6f8fc">
+    </div>
+  </div>
+
+  <!-- WORKER CODE REFERENCE TABLE -->
+  <div id="wk-ref" style="margin-bottom:14px"></div>
+
+  <!-- MATERIAL TABLES -->
+  <div class="sep" style="display:flex;align-items:center;justify-content:space-between;margin-top:16px">
+    <span>使用数量（空欄＝未使用　Enter / ↑↓ で移動）</span>
+    <button class="btn btn-o btn-xs no-p" onclick="toggleHideMode()" id="hide-mode-btn">項目を非表示にする</button>
+  </div>
+  <div id="hide-hint" style="display:none;margin-bottom:8px">
+    <div class="np-hint"><div class="np-row">表示/除外 ボタンをクリックして切り替えできます。
+      <button class="btn btn-o btn-xs" style="margin-left:8px" onclick="resetHidden()">全て表示に戻す</button>
+    </div></div>
+  </div>
+  <div>
+    <div class="mst">一般資材</div>
+    <table class="mt">
+      <thead><tr><th class="hide-eye-col" style="display:none;width:30px"></th><th>品名</th><th style="width:40px;text-align:right">単位</th><th style="width:70px;text-align:right">単価</th><th style="width:100px;text-align:right">使用数</th></tr></thead>
+      <tbody id="mm-body"></tbody>
+    </table>
+  </div>
+  <div>
+    <div class="mst">ブロック資材</div>
+    <table class="mt">
+      <thead><tr><th class="hide-eye-col" style="display:none;width:30px"></th><th>品名</th><th style="width:40px;text-align:right">単位</th><th style="width:70px;text-align:right">単価</th><th style="width:100px;text-align:right">使用数</th></tr></thead>
+      <tbody id="bm-body"></tbody>
+    </table>
+  </div>
+
+  <div class="flex mt12 no-p">
+    <button class="btn btn-p" onclick="saveTf()" id="tf-save-btn" tabindex="200"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();saveTf()}">保存 (Enter)</button>
+    <button class="btn btn-o btn-sm" onclick="clrTf()" tabindex="201">クリア</button>
+  </div>
+</div>
+
+<div class="sh no-p">
+  <div class="st">今月の持ち出し記録 <span class="bdg bb" id="tf-cnt">0件</span></div>
+  <div class="flex">
+    <input type="text" id="tf-q" placeholder="工番・現場名で検索" style="width:190px;font-size:12px" oninput="rdTfList()">
+    <button class="btn btn-xl btn-sm" onclick="xlTf()">Excel出力</button>
+  </div>
+</div>
+<div class="rw no-p">
+  <table class="rt">
+    <thead><tr><th>日付</th><th>工番</th><th>現場名</th><th>監督</th><th>担当</th><th>主な使用資材</th><th></th></tr></thead>
+    <tbody id="tf-list"></tbody>
+  </table>
+
+</div>
+</div>
+
+<!-- ═══════════════════ LINE解析 ═══════════════════ -->
+<div class="pg" id="pg-line">
+<div class="card">
+  <div class="ct">LINEテキスト解析</div>
+  <div style="display:grid;grid-template-columns:1fr 1.8fr;gap:16px">
+    <div>
+      <div class="sep">LINEテキスト 貼り付け</div>
+      <textarea id="li-in" style="min-height:200px" placeholder="LINEの資材報告テキストをそのまま貼り付け
+
+例：
+5月8日(木)
+09:30 田口監督
+i0048
+砂　20
+セメント　10
+目地グレー　30
+D10 4m　50"></textarea>
+      <div class="flex mt8">
+        <button class="btn btn-p btn-sm" onclick="parseLi()">解析実行</button>
+        <button class="btn btn-o btn-sm" onclick="liSmp()">サンプル</button>
+        <button class="btn btn-o btn-sm" onclick="document.getElementById('li-in').value=''">クリア</button>
+      </div>
+      <div class="mt8" style="background:var(--pri-l);border:1px solid var(--pri-bd);border-radius:5px;padding:8px 10px;font-size:11px;color:var(--muted);line-height:1.7">
+        <b style="color:var(--text)">解析ルール（一行一項目）</b><br>
+        ・日付行：5月8日 / 2026/05/08 など<br>
+        ・発言者：09:30 田口監督 / 田口監督 など<br>
+        ・工番：i0048 など<br>
+        ・資材：品名　数量（スペース・全角スペース区切り）
+      </div>
+    </div>
+    <div>
+      <div class="sep">解析結果 <span class="bdg bb" id="li-cnt">0件</span>
+        <span class="sm mu" style="margin-left:8px">現場ごとにグループ表示・各項目は直接書き換え可</span>
+      </div>
+      <div id="li-result-area" style="max-height:480px;overflow-y:auto"></div>
+      <div class="flex mt8">
+        <button class="btn btn-g btn-sm" onclick="liAddAllTf()">全件を持ち出しに追加</button>
+        <button class="btn btn-o btn-sm" onclick="liCopy()">TSVコピー</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ═══════════════════ 購入仕入 ═══════════════════ -->
+<div class="pg" id="pg-pu">
+<div style="display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start">
+
+<!-- LEFT: UserForm style input panel -->
+<div class="card" style="padding:16px;min-width:380px;max-width:440px">
+  <div class="ct" style="margin-bottom:12px">購入仕入入力</div>
+
+  <!-- 日付 -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid var(--bd)">
+    <label class="lbl" style="white-space:nowrap;font-size:13px;font-weight:700;min-width:40px">日付</label>
+    <input type="text" id="pu-dt" class="numpad" placeholder="20260601" maxlength="10"
+      inputmode="numeric" style="width:130px;font-size:14px"
+      oninput="fmtDate(this,'pu-q0')" onkeydown="dateKeyDown(event,this,'pu-q0')" onblur="normDateField(this)">
+    <span class="sm mu">6/1のような省略入力も可</span>
+  </div>
+
+  <!-- 常用3品 block -->
+  <div style="background:var(--pri-l);border:1px solid var(--pri-bd);border-radius:5px;padding:10px 12px;margin-bottom:12px">
+    <div class="lbl" style="margin-bottom:8px;font-size:12px">常用</div>
+    <div id="pu-quick-rows"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button id="pu-q-btn" tabindex="0"
+        onclick="puQuickSave()"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();puQuickSave()}"
+        style="background:var(--pri);color:#fff;border:none;border-radius:4px;
+          font-size:13px;padding:6px 18px;font-family:'Noto Sans JP',sans-serif;
+          font-weight:700;cursor:pointer">Enter ／ 入力</button>
+    </div>
+  </div>
+
+  <!-- その他資材 2列グリッド -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-bottom:14px" id="pu-other-rows"></div>
+
+  <!-- 千葉中央支店 block -->
+  <div style="background:var(--bg);border:1px solid var(--bd);border-radius:5px;padding:8px 12px;margin-bottom:10px">
+    <div class="lbl" style="margin-bottom:6px;font-size:11px">千葉中央支店</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px" id="pu-chiba-rows"></div>
+  </div>
+
+  <!-- らく目地ブロック block (別枠保存) -->
+  <div style="background:var(--white);border:1px solid var(--bd);border-radius:5px;padding:8px 12px;margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:6px;font-size:11px;color:#7c3aed">らく目地ブロック <span style="background:#f3f0fb;color:#7c3aed;padding:1px 6px;border-radius:3px;font-size:10px;margin-left:4px">別枠保存</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px" id="pu-raku-rows"></div>
+  </div>
+
+  <!-- 備考 -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+    <label class="lbl" style="white-space:nowrap;min-width:40px">備考</label>
+    <input type="text" id="pu-nt" placeholder="請求書番号など" style="flex:1;font-size:12px"
+      onkeydown="ifEnter(event,null,puSaveAll)">
+  </div>
+
+  <!-- 入力ボタン -->
+  <button onclick="puSaveAll()"
+    style="width:100%;height:54px;background:var(--grn);color:#fff;border:none;border-radius:5px;
+    font-size:20px;font-weight:700;font-family:'Noto Sans JP',sans-serif;cursor:pointer;
+    transition:filter .15s"
+    onmouseover="this.style.filter='brightness(1.1)'" onmouseout="this.style.filter=''">
+    入　力
+  </button>
+</div>
+
+<!-- RIGHT: record lists -->
+<div style="min-width:0">
+  <div class="sh" style="margin-top:0">
+    <div class="st">今月の購入記録 <span class="bdg bb" id="pu-cnt">0件</span></div>
+    <button class="btn btn-xl btn-sm" onclick="xlPu()">Excel出力</button>
+  </div>
+  <div class="rw">
+    <table class="rt">
+      <thead><tr><th>日付</th><th>品名</th><th class="r">数量</th><th>単位</th><th class="r">単価</th><th class="r">金額</th><th>備考</th><th></th></tr></thead>
+      <tbody id="pu-list"></tbody>
+    </table>
+  </div>
+  <div class="sh" style="margin-top:16px">
+    <div class="st" style="color:#7c3aed">らく目地ブロック記録 <span class="bdg" style="background:#f3f0fb;color:#7c3aed" id="pu-blk-cnt">0件</span></div>
+  </div>
+  <div class="rw">
+    <table class="rt">
+      <thead><tr><th>日付</th><th>品名</th><th class="r">数量</th><th>単位</th><th class="r">単価</th><th class="r">金額</th><th></th></tr></thead>
+      <tbody id="pu-blk-list"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+</div>
+
+<!-- ═══════════════════ 現金在庫処分 ═══════════════════ -->
+<div class="pg" id="pg-ds">
+<div class="card no-p">
+  <div class="ct">現金在庫処分（持ち出しから自動転記）</div>
+  <p class="sm mu">持ち出し入力のブロック資材使用記録が自動的に反映されます。</p>
+  <div class="flex mt8">
+    <button class="btn btn-o btn-sm" onclick="rdDs()">更新</button>
+    <button class="btn btn-o btn-sm" onclick="window.print()">印刷</button>
+    <button class="btn btn-xl btn-sm" onclick="xlDs()">Excel出力</button>
+  </div>
+</div>
+<div id="ds-view"></div>
+</div>
+
+<!-- ═══════════════════ 支店長提出用 ═══════════════════ -->
+<div class="pg" id="pg-sm">
+<div class="flex no-p" style="margin-bottom:12px;gap:8px;flex-wrap:wrap">
+  <button class="btn btn-p" onclick="rdSm()">集計更新</button>
+  <button class="btn btn-o btn-sm" onclick="window.print()">印刷</button>
+  <button class="btn btn-xl" onclick="xlSm()">Excel出力</button>
+  <button class="btn btn-o" onclick="xlAll()">全シート一括出力</button>
+</div>
+<div style="background:var(--white);border:1px solid var(--bd);border-radius:5px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;flex-wrap:wrap;gap:10px">
+  <span style="font-size:13px;font-weight:700;color:var(--text)">前月実在庫の引き継ぎ</span>
+  <button class="btn btn-sm" style="background:var(--grn);color:#fff" onclick="closeMth()">月次締め（翌月へ自動繰り越し）</button>
+  <button class="btn btn-o btn-sm" onclick="smExportCSV()">実在庫をCSV保存</button>
+  <button class="btn btn-o btn-sm" onclick="document.getElementById('sm-csv-imp').click()">CSVから前月分を読み込む</button>
+  <input type="file" id="sm-csv-imp" accept=".csv" style="display:none" onchange="smImportCSV(event)">
+  <span class="sm mu">初回のみ手入力。以後は月次締め または CSV読み込みで自動セット</span>
+</div>
+<div class="card" id="sm-area">
+  <div style="text-align:center;margin-bottom:16px">
+    <div style="font-size:18px;font-weight:700;margin-bottom:4px">在　庫　一　覧　表</div>
+    <div class="mu sm">ヒューマンヤード 松戸支店　令和 <span id="sm-wr">--</span> 年 <span id="sm-mm">--</span> 月 末〆</div>
+  </div>
+  <div class="sep">一般資材（新単価松戸支店）</div>
+  <div class="rw" style="margin-bottom:18px">
+    <table class="smt"><thead><tr>
+      <th style="text-align:left">在庫品</th><th>単位</th><th>単価</th>
+      <th>前月実在庫<br><small style="font-weight:400">手入力</small></th>
+      <th>仕入れ数<br><small style="font-weight:400">自動</small></th>
+      <th>使用数<br><small style="font-weight:400">自動</small></th>
+      <th>外注使用<br><small style="font-weight:400">手入力</small></th>
+      <th>書類上<br><small style="font-weight:400">自動</small></th>
+      <th>実在庫<br><small style="font-weight:400">手入力</small></th>
+      <th>差</th>
+    </tr></thead>
+    <tbody id="sm-main"></tbody></table>
+  </div>
+  <div class="sep">ブロック資材</div>
+  <div class="rw">
+    <table class="smt"><thead><tr>
+      <th style="text-align:left">在庫品</th><th>単位</th><th>単価</th>
+      <th>前月分<br><small style="font-weight:400">手入力</small></th>
+      <th>仕入れ数<br><small style="font-weight:400">自動</small></th>
+      <th>使用数<br><small style="font-weight:400">自動</small></th>
+      <th>外注使用<br><small style="font-weight:400">手入力</small></th>
+      <th>書類上<br><small style="font-weight:400">自動</small></th>
+      <th>実在庫<br><small style="font-weight:400">手入力</small></th>
+      <th>差</th>
+    </tr></thead>
+    <tbody id="sm-blk"></tbody></table>
+  </div>
+  <p class="sm mu" style="text-align:right;margin-top:8px">差 = 書類上 − 実在庫　プラス=書類上過剰（実在庫不足）　マイナス=実在庫超過（余り）</p>
+</div>
+</div>
+
+<!-- ═══════════════════ 設定 ═══════════════════ -->
+<div class="pg" id="pg-cfg">
+
+<!-- 月次 -->
+<div class="card">
+  <div class="ct">月次設定</div>
+  <div class="row">
+    <div class="fg w2"><label class="lbl">対象月</label><input type="month" id="cfg-m"></div>
+  </div>
+  <div class="flex mt8">
+    <button class="btn btn-p" onclick="setMth()">月を切替</button>
+    <button class="btn btn-o" onclick="closeMth()">月次締め（翌月へ繰り越す）</button>
+  </div>
+  <p class="sm mu mt8">月次締め：支店長提出用の実在庫が翌月の前月分に自動セットされます。</p>
+</div>
+
+<!-- WORKER CODES -->
+<div class="card">
+  <div class="ct">担当者コード設定（テンキー入力用）</div>
+  <p class="sm mu" style="margin-bottom:10px">数字コード（1〜9）に担当者名を割り当てます。持ち出し入力でコード番号を入力すると担当者名が自動入力されます。</p>
+  <div id="wk-cfg-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px"></div>
+  <button class="btn btn-p btn-sm mt12" onclick="saveWk()">担当者設定を保存</button>
+</div>
+
+<!-- 現場マスター -->
+<div class="card">
+  <div class="ct">現場マスター インポート</div>
+  <p class="sm mu" style="margin-bottom:10px">システム出力のTXTファイル（UTF-16 タブ区切り）を選択またはテキストで貼り付けてください。</p>
+  <div class="flex" style="margin-bottom:10px">
+    <input type="file" id="sf" accept=".txt" style="display:none" onchange="sfLoad(event)">
+    <button class="btn btn-p btn-sm" onclick="document.getElementById('sf').click()">TXTファイル選択</button>
+    <span class="bdg bb" id="s-cnt">0件</span>
+    <label style="display:flex;align-items:center;gap:4px;font-size:12px">
+      <input type="checkbox" id="bf" checked style="width:auto"> 松戸支店のみ表示
+    </label>
+  </div>
+  <div id="s-progress" style="display:none;padding:7px 12px;background:var(--pri-l);border:1px solid var(--pri-bd);border-radius:5px;font-size:12px;font-family:var(--mono);margin-bottom:8px"></div>
+  <textarea id="sp" placeholder="ヘッダー・インデックス・データ行のTSV形式で貼り付け" style="min-height:70px;font-size:11px;font-family:var(--mono)"></textarea>
+  <div class="flex mt8">
+    <button class="btn btn-p btn-sm" onclick="impSites(document.getElementById('sp').value)">テキストからインポート</button>
+    <button class="btn btn-d btn-sm" onclick="clrSites()">全削除</button>
+  </div>
+  <div style="margin-top:10px" id="s-prev"></div>
+</div>
+
+<!-- 資材マスター -->
+<div class="card">
+  <div class="ct">資材マスター設定</div>
+  <p class="sm mu" style="margin-bottom:12px">
+    持ち出し入力フォームに表示する資材の品名・略称・単位・単価を編集します。
+    支店で使わない資材は削除し、必要な資材を追加してください（持ち出し入力フォームの一覧にすぐ反映されます）。<br>
+    <span style="color:var(--muted2)">※ 購入仕入フォームの「常用／千葉中央支店／らく目地」欄とLINE解析の自動認識ワードは、この設定とは別管理です。</span>
+  </p>
+
+  <div class="sep">一般資材</div>
+  <div class="rw" style="margin-bottom:8px">
+    <table class="mt">
+      <thead><tr><th>品名</th><th style="width:90px">略称</th><th style="width:54px">単位</th><th style="width:90px">単価</th><th style="width:44px"></th></tr></thead>
+      <tbody id="mat-edit-main"></tbody>
+    </table>
+  </div>
+  <button class="btn btn-o btn-sm" onclick="addMatRow('main')">＋ 一般資材を追加</button>
+
+  <div class="sep mt16">ブロック資材</div>
+  <div class="rw" style="margin-bottom:8px">
+    <table class="mt">
+      <thead><tr><th>品名</th><th style="width:90px">略称</th><th style="width:54px">単位</th><th style="width:90px">単価</th><th style="width:44px"></th></tr></thead>
+      <tbody id="mat-edit-blk"></tbody>
+    </table>
+  </div>
+  <button class="btn btn-o btn-sm" onclick="addMatRow('blk')">＋ ブロック資材を追加</button>
+
+  <div class="flex mt16">
+    <button class="btn btn-p" onclick="saveMatMaster()">資材マスターを保存</button>
+    <button class="btn btn-o btn-sm" onclick="resetMatMaster()">既定の品目に戻す</button>
+  </div>
+</div>
+
+<!-- データ -->
+<div class="card">
+  <div class="ct">データ管理</div>
+  <div class="flex">
+    <button class="btn btn-o btn-sm" onclick="expD()">エクスポート（JSON）</button>
+    <button class="btn btn-o btn-sm" onclick="document.getElementById('impf').click()">インポート（JSON）</button>
+    <input type="file" id="impf" accept=".json" style="display:none" onchange="impD(event)">
+  </div>
+  <hr>
+  <button class="btn btn-d btn-sm" onclick="clrAll()">全データ初期化</button>
+</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════
+   MASTER DATA
+═══════════════════════════════════════════ */
+const DEFAULT_MATS=[
+  {id:'suna',  label:'砂（昭光物産 EX細目砂 25kg）',       short:'砂',        unit:'袋',price:336},
+  {id:'jari',  label:'砂利（昭光物産 EX2005砕石 25kg）',   short:'砂利',      unit:'袋',price:320},
+  {id:'cmt',   label:'セメント（昭光物産 業務用 25kg）',    short:'セメント',  unit:'袋',price:520},
+  {id:'mg',    label:'伸縮目地 グレー（60本@）',            short:'目地グレー',unit:'本',price:450},
+  {id:'mb',    label:'伸縮目地 ブラック（60本@）',          short:'目地黒',    unit:'本',price:430},
+  {id:'d4',    label:'D-10 ／ 4m',                         short:'D10 4m',    unit:'本',price:244},
+  {id:'d5',    label:'D-10 ／ 5m',                         short:'D10 5m',    unit:'本',price:0},
+  {id:'rc',    label:'RC砕石',                              short:'RC砕石',    unit:'㎥',price:2000},
+  {id:'cd',    label:'CD管 / PF管 PF-16',                   short:'CD/PF管',   unit:'巻',price:2500},
+  {id:'m45',   label:'メッシュ 4.5mm（WM CD4.5×150 1×2）', short:'メッシュ4.5',unit:'枚',price:420},
+  {id:'m6',    label:'メッシュ 6mm（WM CD6.0×150 1×2）',   short:'メッシュ6', unit:'枚',price:0},
+  {id:'anc',   label:'アンカー450（50本@）',                short:'アンカー',  unit:'ｹｰｽ',price:52},
+  {id:'as',    label:'あなふさ君 小（48入）',               short:'あなふさ小',unit:'箱',price:800},
+  {id:'al',    label:'あなふさ君 大（24入）',               short:'あなふさ大',unit:'箱',price:1500},
+  {id:'gp',    label:'グリップスペーサー / サイコロ（48入）',short:'グリップ', unit:'ｹｰｽ',price:1968},
+  {id:'tk',    label:'耐寒剤',                              short:'耐寒剤',    unit:'缶',price:3400},
+  {id:'bs',    label:'バラ砂',                              short:'バラ砂',    unit:'㎥',price:4850},
+  {id:'rs',    label:'6号砕石',                             short:'6号砕石',   unit:'㎥',price:7100},
+];
+const DEFAULT_BLKS=[
+  {id:'r1y',label:'らく目地 100 横',       short:'らく100横',   unit:'本',price:110},
+  {id:'r1c',label:'らく目地 100 コーナー', short:'らく100コーナー',unit:'本',price:110},
+  {id:'r2y',label:'らく目地 120 横',       short:'らく120横',   unit:'本',price:130},
+  {id:'r2c',label:'らく目地 120 コーナー', short:'らく120コーナー',unit:'本',price:130},
+];
+// MATS/BLKS/ALL は支店ごとに資材マスター設定でカスタマイズ可能。
+// localStorage に保存があれば復元し、なければ既定値を使う。
+let MATS=[],BLKS=[],ALL=[];
+function loadMats(){
+  try{
+    const cm=JSON.parse(localStorage.getItem('hy_mats_custom'));
+    MATS=(Array.isArray(cm)&&cm.length)?cm:DEFAULT_MATS.map(m=>({...m}));
+  }catch{MATS=DEFAULT_MATS.map(m=>({...m}))}
+  try{
+    const cb=JSON.parse(localStorage.getItem('hy_blks_custom'));
+    BLKS=(Array.isArray(cb)&&cb.length)?cb:DEFAULT_BLKS.map(m=>({...m}));
+  }catch{BLKS=DEFAULT_BLKS.map(m=>({...m}))}
+  ALL.length=0;ALL.push(...MATS,...BLKS);
+}
+
+/* ═══════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════ */
+let month=localStorage.getItem('hy_m')||nowM();
+let sites=[];
+let prices={};
+let workers={};  // {code: name}
+let acPool=[];
+let acIdx=-1;
+
+function nowM(){const d=new Date();return`${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}`}
+function kk(t){return`hy_${t}_${month}`}
+function rr(t){try{return JSON.parse(localStorage.getItem(kk(t))||'[]')}catch{return[]}}
+function sv(t,d){localStorage.setItem(kk(t),JSON.stringify(d))}
+function sd(){try{return JSON.parse(localStorage.getItem(`hy_s_${month}`)||'{}')}catch{return{}}}
+function svs(d){localStorage.setItem(`hy_s_${month}`,JSON.stringify(d))}
+function gp(m){return prices[m.id]??m.price??0}
+
+/* ═══════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════ */
+function init(){
+  loadMats();
+  try{sites=loadSites()}catch(e){sites=[]}
+  try{prices=JSON.parse(localStorage.getItem('hy_prices')||'{}')}catch{prices={}}
+  try{workers=JSON.parse(localStorage.getItem('hy_workers')||'{}')}catch{workers={}}
+  ALL.forEach(m=>{if(prices[m.id]!=null)m.price=prices[m.id]});
+  buildMatTbls();buildPuSel();buildMatEditor();buildWkCfg();
+  document.getElementById('cfg-m').value=month;
+  const td=new Date().toISOString().slice(0,10).replace(/-/g,'');
+  ['tf-dt','pu-dt'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=td});
+  updMthUI();rdTfList();rdPuList();rdPuBlkList();rdDs();rdSm();sShowPrev();rdWkRef();
+}
+
+/* ═══════════════════════════════════════════
+   PAGE SWITCHING
+═══════════════════════════════════════════ */
+function goPage(name){
+  const ns=['tf','line','pu','ds','sm','cfg'];
+  document.querySelectorAll('.tab').forEach((b,i)=>b.classList.toggle('on',ns[i]===name));
+  document.querySelectorAll('.pg').forEach(p=>p.classList.toggle('on',p.id==='pg-'+name));
+  if(name==='ds')rdDs();
+  if(name==='sm')rdSm();
+  if(name==='pu'){rdPuList();rdPuBlkList();}
+}
+
+function updMthUI(){
+  const[y,m]=month.split('-');
+  document.getElementById('mthBtn').textContent=`${y}年${m}月`;
+  const wr=parseInt(y)-2018;
+  const we=document.getElementById('sm-wr'),me=document.getElementById('sm-mm');
+  if(we)we.textContent=wr;if(me)me.textContent=parseInt(m);
+}
+
+/* ═══════════════════════════════════════════
+   NUMPAD HELPERS
+═══════════════════════════════════════════ */
+function ifEnter(e,nextId,fn){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  if(fn)fn();
+  else if(nextId){
+    const el=document.getElementById(nextId);if(el){el.focus();if(el.select)el.select()}
+  }
+}
+
+function fmtDate(el,nextId){
+  const raw=el.value;
+  // 数字のみで構成されている間は高速入力（8桁で次項目へ自動移動）を維持する。
+  // スラッシュ等を含む「6/1」のような省略入力は、確定タイミング（blur／Enter）で
+  // normDateField() が年を補完して 8桁形式に変換する。
+  if(/^[0-9]+$/.test(raw)){
+    if(raw.length===8){
+      if(nextId){const n=document.getElementById(nextId);if(n){n.focus();if(n.select)n.select()}}
+    }else if(raw.length>8){
+      el.value=raw.slice(0,8);
+    }
+  }
+}
+
+// 日付入力欄の値を「YYYYMMDD」の8桁形式へ正規化する。
+// 年が省略された「6/1」「6-1」のような入力は、対象月（month変数）の年を補って解釈する。
+function parseDateInput(raw){
+  if(!raw)return'';
+  const s=String(raw).trim();
+  if(!s)return'';
+
+  // 年込み: "2026/6/1" "2026-06-01" "2026.6.1" "20260601"
+  let m=s.match(/^(\d{4})[\/\-\.]?(\d{1,2})[\/\-\.]?(\d{1,2})$/);
+  if(m)return`${m[1]}${m[2].padStart(2,'0')}${m[3].padStart(2,'0')}`;
+
+  // 年省略: "6/1" "6-1" "6.1"（対象月の年を補完）
+  m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})$/);
+  if(m){
+    const y=(typeof month==='string'&&month.includes('-'))?month.split('-')[0]:String(new Date().getFullYear());
+    return`${y}${m[1].padStart(2,'0')}${m[2].padStart(2,'0')}`;
+  }
+
+  // 数字のみ
+  const d=s.replace(/[^0-9]/g,'');
+  if(d.length===8)return d;
+  if(d.length===4){ // MMDD（年省略）
+    const y=(typeof month==='string'&&month.includes('-'))?month.split('-')[0]:String(new Date().getFullYear());
+    return`${y}${d}`;
+  }
+  return d;
+}
+
+// Enterキー押下時：日付欄を正規化してから次項目へ移動
+function dateKeyDown(e,el,nextId){
+  if(e.key!=='Enter')return;
+  e.preventDefault();
+  normDateField(el);
+  if(nextId){const n=document.getElementById(nextId);if(n){n.focus();if(n.select)n.select()}}
+}
+
+// blur（フォーカスが外れた）時に日付欄を正規化
+function normDateField(el){
+  const v=parseDateInput(el.value);
+  if(v)el.value=v;
+}
+
+function parseDate(v){
+  const r=parseDateInput(v);
+  return(r&&r.length===8)?r:'';
+}
+
+/* ═══════════════════════════════════════════
+   WORKER CODES
+═══════════════════════════════════════════ */
+function buildWkCfg(){
+  const grid=document.getElementById('wk-cfg-grid');
+  grid.innerHTML=[1,2,3,4,5,6,7,8,9].map(n=>`
+    <div class="fg">
+      <label class="lbl">コード ${n}</label>
+      <input type="text" id="wkc-${n}" value="${esc(workers[n]||'')}" placeholder="担当者名">
+    </div>`).join('');
+}
+
+function saveWk(){
+  const obj={};
+  [1,2,3,4,5,6,7,8,9].forEach(n=>{
+    const v=(document.getElementById('wkc-'+n)?.value||'').trim();
+    if(v)obj[n]=v;
+  });
+  workers=obj;
+  localStorage.setItem('hy_workers',JSON.stringify(workers));
+  rdWkRef();
+  toast('担当者設定を保存しました');
+}
+
+function rdWkRef(){
+  // inline hint (numpad hint bar)
+  const hint=document.getElementById('wk-hint-inline');
+  if(hint){
+    const entries=Object.entries(workers).slice(0,6).map(([k,v])=>`${k}:${v}`).join(' / ');
+    hint.textContent=entries||'（設定タブで登録）';
+  }
+  // code reference table inside form
+  const ref=document.getElementById('wk-ref');
+  if(!ref)return;
+  const entries=Object.entries(workers);
+  if(!entries.length){
+    ref.innerHTML='<span class="sm mu">設定タブで担当コードを登録してください</span>';
+    return;
+  }
+  const cells=entries.map(([k,v])=>`
+    <div style="display:flex;align-items:center;gap:6px;background:#f0f4ff;border:1px solid #c7d7ff;
+      border-radius:5px;padding:5px 10px;cursor:pointer;user-select:none"
+      onclick="applyWkCode('${k}')" title="クリックで入力">
+      <span style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--pri);
+        background:#fff;border:2px solid var(--pri);border-radius:4px;
+        width:24px;height:24px;display:flex;align-items:center;justify-content:center">${k}</span>
+      <span style="font-size:13px;font-weight:500">${esc(v)}</span>
+    </div>`).join('');
+  ref.innerHTML=`
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+      background:#f8fafc;border:1px solid var(--bd);border-radius:6px;padding:8px 10px;">
+      <span class="sm mu" style="width:100%;margin-bottom:2px">▼ 担当コード一覧（クリックでも入力できます）</span>
+      ${cells}
+    </div>`;
+}
+
+function applyWkCode(code){
+  const el=document.getElementById('tf-wk');
+  if(el){el.value=code;wkCodeInp(el,'tf-wk-nm')}
+}
+
+function wkCodeInp(el,nameId){
+  const code=el.value.trim();
+  const name=workers[code]||'';
+  const nameEl=document.getElementById(nameId);
+  if(nameEl)nameEl.value=name;
+}
+
+/* ═══════════════════════════════════════════
+   MATERIAL TABLES
+═══════════════════════════════════════════ */
+let hideMode=false;
+let hiddenMats=new Set(JSON.parse(localStorage.getItem('hy_hidden')||'[]'));
+
+function buildMatTbls(){
+  buildMBody('mm-body',MATS,50);
+  buildMBody('bm-body',BLKS,50+MATS.length);
+  applyHidden();
+}
+
+function buildMBody(tbId,list,base){
+  document.getElementById(tbId).innerHTML=list.map((m,i)=>`
+    <tr id="mtr-${m.id}">
+      <td class="hide-eye-col" style="display:none;text-align:center;width:30px;padding:0 4px">
+        <button onclick="toggleMatHide('${m.id}')" id="eye-${m.id}"
+          style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px"
+          title="クリックで表示/除外を切り替え">表示</button>
+      </td>
+      <td class="nm">${esc(m.label)}</td>
+      <td class="un">${m.unit}</td>
+      <td class="pr">${m.price?'¥'+m.price.toLocaleString():'—'}</td>
+      <td class="qi">
+        <input type="number" id="tf-${m.id}" min="0" placeholder="—"
+          tabindex="${base+i}" class="numpad"
+          onkeydown="matNav(event,'${m.id}')"
+          oninput="hCell(this,'${m.id}')">
+      </td>
+    </tr>`).join('');
+}
+
+function toggleHideMode(){
+  hideMode=!hideMode;
+  document.getElementById('hide-mode-btn').textContent=hideMode?'非表示モード終了':'項目を非表示にする';
+  document.getElementById('hide-hint').style.display=hideMode?'block':'none';
+  document.querySelectorAll('.hide-eye-col').forEach(el=>el.style.display=hideMode?'table-cell':'none');
+  applyHidden();
+}
+
+function toggleMatHide(id){
+  if(hiddenMats.has(id))hiddenMats.delete(id);
+  else hiddenMats.add(id);
+  localStorage.setItem('hy_hidden',JSON.stringify([...hiddenMats]));
+  applyHidden();
+}
+
+function focusFirstMat(){
+  // Focus the first visible (non-hidden) material input
+  const all=[...MATS,...BLKS];
+  const first=all.find(m=>!hiddenMats.has(m.id));
+  if(first){
+    const el=document.getElementById('tf-'+first.id);
+    if(el){el.focus();el.select();}
+  }
+}
+
+function applyHidden(){
+  ALL.forEach(m=>{
+    const tr=document.getElementById('mtr-'+m.id);
+    const eye=document.getElementById('eye-'+m.id);
+    if(!tr)return;
+    const hidden=hiddenMats.has(m.id);
+    if(hideMode){
+      // In hide mode: show everything, mark hidden ones with strikethrough style
+      tr.style.display='';
+      tr.style.opacity=hidden?'0.45':'';
+      tr.style.background=hidden?'#fef2f2':'';
+      if(eye)eye.textContent=hidden?'除外':'表示';
+    } else {
+      // Normal mode: completely hide hidden rows
+      tr.style.display=hidden?'none':'';
+      tr.style.opacity='';
+      tr.style.background='';
+    }
+  });
+}
+
+function resetHidden(){
+  hiddenMats.clear();
+  localStorage.setItem('hy_hidden','[]');
+  applyHidden();
+  toast('全項目を表示に戻しました');
+}
+
+function hCell(el,id){
+  const has=el.value&&parseFloat(el.value)>0;
+  el.classList.toggle('has',has);
+  document.getElementById('mtr-'+id)?.classList.toggle('has-val',has);
+}
+
+function matNav(e,cid){
+  if(e.key!=='Enter'&&e.key!=='ArrowDown'&&e.key!=='ArrowUp') return;
+  e.preventDefault();
+  e.stopPropagation();
+  const all=[...MATS,...BLKS];
+  const i=all.findIndex(m=>m.id===cid); if(i<0) return;
+  const dir=(e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey))?-1:1;
+  let ni=i+dir;
+  // skip hidden rows
+  while(ni>=0&&ni<all.length&&hiddenMats.has(all[ni].id)) ni+=dir;
+  if(ni>=all.length){
+    // 最後の資材を超えたら保存ボタンへ
+    setTimeout(()=>{const sb=document.getElementById('tf-save-btn');if(sb)sb.focus();},0);
+    return;
+  }
+  if(ni<0) return;
+  const nm=all[ni];
+  // setTimeout で number input のブラウザ挙動と競合しないようにする
+  setTimeout(()=>{const el=document.getElementById('tf-'+nm.id);if(el){el.focus();el.select();}},0);
+}
+
+/* ═══════════════════════════════════════════
+   AUTOCOMPLETE (SITE CODE)
+═══════════════════════════════════════════ */
+function acInp(){
+  const v=document.getElementById('tf-sc').value.trim();
+  if(!v){acClose();clrSI();return}
+  const bf=document.getElementById('bf')?.checked;
+  let pool=bf?sites.filter(s=>!s.base||s.base==='松戸支店'):sites;
+  const q=v.toLowerCase();
+  // Match by code start, numeric part, or name
+  const num=v.replace(/[^0-9]/g,'');
+  acPool=pool.filter(s=>{
+    const sc=s.code.toLowerCase();
+    if(sc.startsWith(q))return true;
+    if(num&&s.code.replace(/[^0-9]/g,'').includes(num))return true;
+    if(s.name.includes(v))return true;
+    return false;
+  }).slice(0,12);
+  rdAcDrop();
+  // Exact code match → fill immediately
+  const ex=sites.find(s=>s.code.toLowerCase()===q);
+  if(ex){fillSI(ex);document.getElementById('tf-nm').value=ex.name}
+}
+
+function rdAcDrop(){
+  const d=document.getElementById('acd');
+  if(!acPool.length){acClose();return}
+  d.innerHTML=acPool.map((s,i)=>`
+    <div class="aci${acIdx===i?' sel':''}" data-i="${i}"
+      onmousedown="acSel(${i})" onmouseover="acIdx=${i};rdAcDrop()">
+      <b>${esc(s.code)}</b> ${esc(s.name)}
+      ${s.client||s.manager?`<div class="asub">${[s.client,s.manager?'担当:'+s.manager:''].filter(Boolean).join(' ／ ')}</div>`:''}
+    </div>`).join('');
+  d.classList.add('open');
+}
+
+function acClose(){document.getElementById('acd').classList.remove('open');acIdx=-1}
+
+function acKey(e){
+  const open=document.getElementById('acd').classList.contains('open');
+  if(e.key==='ArrowDown'){e.preventDefault();acIdx=Math.min(acPool.length-1,acIdx+1);rdAcDrop()}
+  else if(e.key==='ArrowUp'){e.preventDefault();acIdx=Math.max(0,acIdx-1);rdAcDrop()}
+  else if(e.key==='Enter'){
+    e.preventDefault();
+    if(open&&acIdx>=0)acSel(acIdx);
+    else{const ex=sites.find(s=>s.code===document.getElementById('tf-sc').value.trim());
+      if(ex){fillSI(ex);document.getElementById('tf-nm').value=ex.name}
+      const n=document.getElementById('tf-wk');if(n){n.focus();n.select()}}
+  }
+  else if(e.key==='Escape')acClose();
+}
+
+function acBlur(){setTimeout(acClose,160)}
+
+function acSel(i){
+  const s=acPool[i];
+  document.getElementById('tf-sc').value=s.code;
+  document.getElementById('tf-nm').value=s.name;
+  fillSI(s);acClose();
+  const n=document.getElementById('tf-wk');if(n){n.focus();n.select()}
+}
+
+function fillSI(s){
+  const box=document.getElementById('si-box');
+  // always overwrite supervisor (readonly)
+  const spEl=document.getElementById('tf-sp');
+  if(spEl)spEl.value=s.manager||'';
+  const parts=[];
+  if(s.client)parts.push(`<div class="si-kv"><span class="si-k">得意先：</span>${esc(s.client)}</div>`);
+  if(s.manager)parts.push(`<div class="si-kv"><span class="si-k">現場担当：</span>${esc(s.manager)}</div>`);
+  if(s.base)parts.push(`<div class="si-kv"><span class="si-k">拠点：</span>${esc(s.base)}</div>`);
+  if(s.completeDate)parts.push(`<div class="si-kv"><span class="si-k">完了日：</span>${fmtD8(s.completeDate)}</div>`);
+  if(!parts.length){box.style.display='none';return}
+  box.innerHTML=`<div class="si-box">${parts.join('')}</div>`;
+  box.style.display='block';
+}
+
+function clrSI(){
+  document.getElementById('tf-nm').value='';
+  document.getElementById('si-box').style.display='none';
+}
+
+function fmtD8(d){
+  if(!d||d==='0')return'';
+  const s=String(d).replace(/[^0-9]/g,'');
+  if(s.length===8)return`${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)}`;
+  return d;
+}
+
+/* ═══════════════════════════════════════════
+   TRANSFER
+═══════════════════════════════════════════ */
+function saveTf(){
+  const dt=parseDate(document.getElementById('tf-dt').value);
+  const code=document.getElementById('tf-sc').value.trim();
+  if(!dt||!code){toast('日付と工番を入力してください','w');return}
+  const nm=document.getElementById('tf-nm').value.trim();
+  const sp=document.getElementById('tf-sp').value.trim();
+  const wkCode=document.getElementById('tf-wk').value.trim();
+  const wkNm=document.getElementById('tf-wk-nm').value.trim()||workers[wkCode]||'';
+  const s=sites.find(x=>x.code===code);
+  const mats={};
+  ALL.forEach(m=>{const v=parseFloat(document.getElementById('tf-'+m.id)?.value)||0;if(v>0)mats[m.id]=v});
+  const rs=rr('tf');
+  rs.push({id:Date.now(),date:dt,code,name:nm||s?.name||code,
+    client:s?.client||'',manager:s?.manager||sp,sp,wk:wkNm,mats});
+  sv('tf',rs);clrTf();rdTfList();toast('保存しました');
+}
+
+function clrTf(){
+  ALL.forEach(m=>{const e=document.getElementById('tf-'+m.id);if(e){e.value='';hCell(e,m.id)}});
+  ['tf-sc','tf-nm','tf-sp','tf-wk','tf-wk-nm'].forEach(id=>{const e=document.getElementById(id);if(e)e.value=''});
+  document.getElementById('si-box').style.display='none';
+  // re-apply hidden so rows stay hidden after clear
+  applyHidden();
+  document.getElementById('tf-sc').focus();
+}
+
+function rdTfList(){
+  const rs=rr('tf');
+  const q=(document.getElementById('tf-q')?.value||'').toLowerCase();
+  const fl=q?rs.filter(r=>r.code.toLowerCase().includes(q)||r.name.toLowerCase().includes(q)):rs;
+  document.getElementById('tf-cnt').textContent=rs.length+'件';
+  const tb=document.getElementById('tf-list');
+  if(!fl.length){tb.innerHTML=`<tr><td colspan="7"><div class="emp">記録がありません</div></td></tr>`;return}
+  tb.innerHTML=fl.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>{
+    const ms=Object.entries(r.mats||{}).map(([id,q])=>{const m=ALL.find(x=>x.id===id);return m?`${m.short}:${q}${m.unit}`:''}).filter(Boolean).slice(0,5).join(' ');
+    return`<tr>
+      <td class="mn sm">${r.date}</td>
+      <td><span class="bdg bb">${esc(r.code)}</span></td>
+      <td>${esc(r.name)}</td>
+      <td>${esc(r.sp||r.manager)}</td>
+      <td class="mu sm">${esc(r.wk)}</td>
+      <td style="font-size:11px;color:var(--muted)">${ms||'—'}</td>
+      <td><button class="btn btn-d btn-xs" onclick="delTf(${r.id})">削除</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function delTf(id){
+  if(!confirm('削除しますか？'))return;
+  sv('tf',rr('tf').filter(r=>r.id!==id));rdTfList();toast('削除しました');
+}
+
+/* ═══════════════════════════════════════════
+   LINE PARSER  (v2 — based on actual screenshot format)
+═══════════════════════════════════════════ */
+
+/*
+  実際のLINEコピー形式:
+    4月28日(火)
+    田口肇            ← 発言者（メッセージ上の行）
+    本北方2丁目先行　j0173   ← 現場名 + 工番（同じ行）
+    砂　30
+    砂50              ← スペースなしも対応
+    セメント　10
+    D10 15            ← D10のみ（4m/5m省略）→ 4mとして扱う
+    120CB基本6        ← らく目地120横
+    伸縮目地グレー10
+    メッシュ20
+
+  システムメッセージ（「〜がグループから削除しました」等）はスキップ
+*/
+
+// ── Material keyword map
+const MKW = [
+  // 一般資材
+  { id: 'suna', re: /^砂(?!利)/ },
+  { id: 'jari', re: /^砂利/ },
+  { id: 'cmt',  re: /セメント|ｾﾒﾝﾄ/ },
+  { id: 'mg',   re: /(伸縮)?目地.*(グレー|グレ|ｸﾞﾚｰ|gray)/i },
+  { id: 'mb',   re: /(伸縮)?目地.*(黒|ブラック|ﾌﾞﾗｯｸ|black)/i },
+  // D10 with explicit 5m first, then 4m, then bare D10 → default 4m
+  { id: 'd5',   re: /D[-\s]?10.{0,3}5m/i },
+  { id: 'd4',   re: /D[-\s]?10/i },          // catches "D10 15", "D10　4" etc.
+  { id: 'rc',   re: /RC砕石|[Rr][Cc]砕石/ },
+  { id: 'cd',   re: /CD管|PF管/ },
+  { id: 'm45',  re: /メッシュ|ﾒｯｼｭ/ },       // default mesh to 4.5 when no size
+  { id: 'anc',  re: /アンカー|ｱﾝｶｰ/ },
+  { id: 'as',   re: /あなふさ.{0,4}小/ },
+  { id: 'al',   re: /あなふさ.{0,4}大/ },
+  { id: 'gp',   re: /グリップ|サイコロ/ },
+  { id: 'tk',   re: /耐寒/ },
+  { id: 'bs',   re: /バラ砂/ },
+  { id: 'rs',   re: /6号砕石|6号|六号/ },
+  // ブロック資材 — 順番重要: 120/100 × 基本(横) / コーナー
+  { id: 'r2y', re: /120\s*CB.*(基本|横)|CB\s*120.*(基本|横)|らく.{0,3}120.*(基本|横)/i },
+  { id: 'r2c', re: /120\s*CB.*コーナー|CB\s*120.*コーナー|らく.{0,3}120.*コーナー/i },
+  { id: 'r1y', re: /100\s*CB.*(基本|横)|CB\s*100.*(基本|横)|らく.{0,3}100.*(基本|横)/i },
+  { id: 'r1c', re: /100\s*CB.*コーナー|CB\s*100.*コーナー|らく.{0,3}100.*コーナー/i },
+];
+
+function mMat(t) {
+  const s = t.trim();
+  for (const k of MKW) if (k.re.test(s)) return k.id;
+  return null;
+}
+
+// ── Extract trailing number from a line like "砂50" or "砂　30" or "D10 15"
+// Returns {name, qty} or null
+function splitNameQty(raw) {
+  // Normalize: full-width space → half
+  const s = raw.replace(/　/g, ' ').trim();
+  // 単位文字（数量の直後にのみ付く可能性がある）。
+  // ※以前は行全体から無条件にこれらの文字を除去していたため、
+  //   「基本」の「本」まで消えて r1y/r2y が認識できなくなる不具合があった。
+  //   数量の直後（末尾）に限定して除去するよう修正。
+  const UNIT = '袋本巻枚缶箱ｹｰｽ㎥個';
+
+  // Pattern A: "名前 数量[単位]" with space before the number
+  const pA = s.match(new RegExp(`^(.+?)\\s+([\\d]+(?:\\.\\d+)?)\\s*[${UNIT}]?\\s*$`));
+  if (pA) return { name: pA[1].trim(), qty: parseFloat(pA[2]) };
+
+  // Pattern B: number then name "20 砂"
+  const pB = s.match(/^([\d]+(?:\.\d+)?)\s+(.+?)\s*$/);
+  if (pB) return { name: pB[2].trim(), qty: parseFloat(pB[1]) };
+
+  // Pattern C: trailing number glued to name "砂50" "120CB基本6" "100CB基本84"
+  const pC = s.match(new RegExp(`^(.+?)(\\d+(?:\\.\\d+)?)\\s*[${UNIT}]?\\s*$`));
+  if (pC) return { name: pC[1].trim(), qty: parseFloat(pC[2]) };
+
+  return null;
+}
+
+function extractMatQty(line) {
+  const nq = splitNameQty(line);
+  if (!nq || nq.qty <= 0) return null;
+  const id = mMat(nq.name);
+  if (id) return { matId: id, qty: nq.qty };
+  return null;
+}
+
+// ── groups: [{date, sender, code, name, items}]
+let liGroups = [];
+let liData   = [];
+
+// Lines to skip entirely
+const SKIP_RE = /がグループ|から削除|メッセージを取り消|既読|スタンプ|画像|動画|ファイルを送信/;
+
+// Is this a sender-name-only line?
+// Heuristic: only Japanese/katakana/space chars, no digits, ≤16 chars, not clearly a place name
+function isSenderLine(line) {
+  if (SKIP_RE.test(line)) return false;
+  if (/\d/.test(line)) return false;
+  if (line.length > 16) return false;
+  // Must contain CJK chars
+  if (!/[\u4e00-\u9fa5\u3040-\u309f\u30a0-\u30ff]/.test(line)) return false;
+  // Skip lines that look like material names alone
+  if (mMat(line)) return false;
+  return true;
+}
+
+// ── 「発言者 [読み] 現場名」の文字列を発言者部分と現場名部分に分割する。
+//    例: "田口肇 東深井先行"        → sender:"田口肇"        site:"東深井先行"
+//        "石橋　さとし 習志野市藤崎" → sender:"石橋　さとし"  site:"習志野市藤崎"
+//    ひらがな/カタカナのみのトークンは発言者名の「読み」の続きとみなして
+//    発言者側に含める（最大2トークンまで）。それ以外は現場名側とする。
+function splitSenderSite(text) {
+  const tokens = text.split(/[\s　]+/).filter(Boolean);
+  if (!tokens.length) return { sender: '', site: '' };
+  const senderParts = [tokens[0]];
+  let i = 1;
+  while (i < tokens.length && senderParts.length < 2 && /^[\u3040-\u309f\u30a0-\u30ffー]+$/.test(tokens[i])) {
+    senderParts.push(tokens[i]); i++;
+  }
+  return { sender: senderParts.join('　'), site: tokens.slice(i).join(' ') };
+}
+
+function parseLi() {
+  const text = document.getElementById('li-in').value;
+  liGroups = []; liData = [];
+
+  let curDate = '', curSender = '', curCode = '', curName = '', curItems = [];
+  // ブロック資材（120CB/CB120等）のヘッダーが単独行で、
+  // 「基本」「コーナー」が別行に続くケース用の継続状態
+  let curBlockPrefix = null;
+
+  function pushGroup() {
+    if (curCode || curItems.length > 0) {
+      liGroups.push({ date: curDate, sender: curSender, code: curCode, name: curName, items: [...curItems] });
+    }
+    curCode = ''; curName = ''; curItems = [];
+    curBlockPrefix = null;
+  }
+
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+  for (const line of lines) {
+    // Skip system messages
+    if (SKIP_RE.test(line)) continue;
+
+    // ── Date line: "4月28日(火)" / "2026/05/08" / "2026.06.16 火曜日"
+    //    日付が変わったら、それまでのメッセージは必ず確定させる
+    //    （日をまたいで資材や発言者が混ざらないようにするため）
+    const dm = line.match(/^(\d{1,2})月(\d{1,2})日/);
+    if (dm) {
+      pushGroup();
+      const y = new Date().getFullYear();
+      curDate = `${y}${dm[1].padStart(2,'0')}${dm[2].padStart(2,'0')}`;
+      continue;
+    }
+    const dm2 = line.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})/);
+    if (dm2) {
+      pushGroup();
+      curDate = `${dm2[1]}${dm2[2].padStart(2,'0')}${dm2[3].padStart(2,'0')}`;
+      continue;
+    }
+
+    // ── 新しいLINEメッセージ（"HH:MM ..."で始まる行）を検知したら、
+    //    内容を判定する前に、必ずそれまでのメッセージを確定させる。
+    //    こうすることで、業務連絡（工番のないメッセージ）が
+    //    直前の現場のメッセージに資材として紛れ込むことを防ぐ。
+    const isNewMsg = /^\d{1,2}:\d{2}[\s　]/.test(line);
+    if (isNewMsg) pushGroup();
+
+    // ── job-code line（工番を含む行）
+    //    重要: 「時刻+発言者」より先にこちらを判定する。
+    //    "17:35 田口肇 東深井先行　j0489" のように、時刻・発言者・現場名・工番が
+    //    すべて同一行にまとまっている書式があり、以前は時刻+発言者の判定が
+    //    先にマッチして工番が見落とされ、メッセージごとに新しいグループが
+    //    作られずに全件が1グループへ誤って統合されていた。
+    //
+    //    さらに、単純に「英字1文字+数字3〜5桁」を行末から探すと、
+    //    "CB120" "CB100" のような資材名の一部（"B120""B100"）まで
+    //    工番として誤検出してしまうため、英字の直前が行頭または
+    //    空白（半角/全角）であることを必須条件とする。
+    const cm = line.match(/^(.*?)([a-zA-Z]\d{3,5})\s*$/);
+    const cmValidBoundary = cm && (cm[1] === '' || /[\s　]$/.test(cm[1]));
+    if (cm && cmValidBoundary) {
+      if (!isNewMsg) pushGroup(); // 既に isNewMsg で確定済みでなければここで確定
+      curCode = cm[2];
+      let rest = cm[1].replace(/[\s　]+$/, '').trim();
+
+      // 同一行内に「時刻 発言者 現場名」が含まれている場合はここで分離する
+      const tmIn = rest.match(/^(\d{1,2}:\d{2})[\s　]+(.*)$/);
+      if (tmIn) {
+        const { sender, site } = splitSenderSite(tmIn[2].trim());
+        if (sender) curSender = sender;
+        rest = site;
+      }
+      // tmIn がない場合は rest は現場名のみ（発言者は直前の行で確定済み）
+
+      const found = sites.find(s => s.code.toLowerCase() === curCode.toLowerCase());
+      curName = found ? found.name : (rest || curCode);
+      continue;
+    }
+
+    // ── Time + sender only line（工番が別行のケース、または工番のない業務連絡）: "09:30 田口監督"
+    const tm = line.match(/^(\d{1,2}:\d{2})\s+(.+)/);
+    if (tm) { curSender = tm[2].trim(); continue; }
+
+    // ── Sender-name-only line（旧形式：発言者名だけの行）
+    //    このような行は必ず「新しい現場のメッセージの先頭」を意味するため、
+    //    ここでも直前まで蓄積していたグループを確定させてから発言者を更新する。
+    //    （そうしないと、まだ確定していない前の現場のグループに、
+    //    次の現場の発言者名が混入してしまう）
+    if (isSenderLine(line)) { pushGroup(); curSender = line; continue; }
+
+    // ── ブロック資材ヘッダー単独行: "120CB"/"CB120" "100CB"/"CB100"
+    //    （「基本」「コーナー」が別行で続く書式に対応。順序はどちらでも可）
+    //    工番が確定しているメッセージの中でのみ資材として扱う。
+    if (curCode) {
+      const bareBlock = line.match(/^(?:らく.{0,3})?(?:(120|100)\s*CB|CB\s*(120|100))\s*$/i);
+      if (bareBlock) { curBlockPrefix = bareBlock[1] || bareBlock[2]; continue; }
+
+      // ── 直前のブロックヘッダーに続く「基本／横／コーナー　数量」行
+      //    1行に複数項目（例:「基本　5 コーナー　2」）がある場合にも対応する
+      if (curBlockPrefix) {
+        const bmMatches = [...line.matchAll(/(基本|横|コーナー)[\s　]*([\d.]+)/g)];
+        if (bmMatches.length) {
+          bmMatches.forEach(bm => {
+            const isCorner = /コーナー/.test(bm[1]);
+            const id = curBlockPrefix === '120' ? (isCorner ? 'r2c' : 'r2y') : (isCorner ? 'r1c' : 'r1y');
+            curItems.push({ matId: id, qty: parseFloat(bm[2]) });
+          });
+          continue;
+        }
+      }
+
+      // ── Material line
+      //    工番が確定しているメッセージ内でのみ資材として解析する。
+      //    工番のない業務連絡文の中に「メッシュ」「アンカー」等の
+      //    資材キーワードが偶然含まれていても、誤って数量として
+      //    取り込まないようにするための重要なガード。
+      const mq = extractMatQty(line);
+      if (mq) { curItems.push(mq); }
+      // else: unrecognized line — silently skip
+    }
+    // curCode が未確定の間の行（業務連絡の本文など）は無視する
+  }
+  pushGroup();
+
+  liData = liGroups.flatMap(g =>
+    g.items.map(it => ({ code: g.code, name: g.name, date: g.date, sender: g.sender, ...it }))
+  );
+  rdLiResult();
+}
+
+// 資材セレクトの選択肢（一般資材／ブロック資材でグループ化）
+function liMatOptionsHtml(selectedId) {
+  const opt = m => `<option value="${esc(m.id)}" ${m.id === selectedId ? 'selected' : ''}>${esc(m.short || m.label)}（${esc(m.unit)}）</option>`;
+  return `<optgroup label="一般資材">${MATS.map(opt).join('')}</optgroup>`
+       + `<optgroup label="ブロック資材">${BLKS.map(opt).join('')}</optgroup>`;
+}
+
+function rdLiResult() {
+  const area = document.getElementById('li-result-area');
+  const total = liGroups.reduce((s, g) => s + g.items.length, 0);
+  document.getElementById('li-cnt').textContent = total + '件';
+
+  // 完全に空（工番も現場名も資材もない）グループのみ非表示にする。
+  // 資材が0件でも工番/現場名があれば、手直しで資材を追加できるよう表示する。
+  const visible = liGroups
+    .map((g, gi) => ({ g, gi }))
+    .filter(({ g }) => g.items.length > 0 || g.code || g.name);
+
+  if (!visible.length) {
+    area.innerHTML = `<div class="emp">解析結果なし<br><span class="sm">資材行が認識されませんでした</span></div>`;
+    return;
+  }
+
+  area.innerHTML = visible.map(({ g, gi }) => {
+    const hdr = `
+      <div style="background:var(--pri);color:#fff;padding:8px 10px;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <input type="text" value="${esc(g.date || '')}" placeholder="日付" title="日付"
+            style="width:88px;font-size:11px;padding:4px 6px;font-family:var(--mono)"
+            onchange="liUpdField(${gi},'date',this.value)">
+          <input type="text" value="${esc(g.sender || '')}" placeholder="発言者" title="発言者"
+            style="width:110px;font-size:11px;padding:4px 6px"
+            onchange="liUpdField(${gi},'sender',this.value)">
+          <input type="text" value="${esc(g.code || '')}" placeholder="工番" title="工番"
+            style="width:78px;font-size:11px;padding:4px 6px;font-family:var(--mono)"
+            onchange="liUpdField(${gi},'code',this.value)">
+          <input type="text" value="${esc(g.name || '')}" placeholder="現場名" title="現場名"
+            style="flex:1;min-width:120px;font-size:12px;padding:4px 6px;font-weight:700"
+            onchange="liUpdField(${gi},'name',this.value)">
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm"
+            style="background:rgba(255,255,255,.92);color:var(--pri);font-size:11px;padding:4px 10px"
+            onclick="liToForm(${gi})">フォームに転記</button>
+          <button class="btn btn-sm btn-d" style="font-size:11px;padding:4px 10px"
+            onclick="liDeleteGroup(${gi})">この現場を削除</button>
+        </div>
+      </div>`;
+
+    const rows = g.items.map((it, ii) => `<tr>
+        <td style="padding:4px 6px">
+          <select onchange="liUpdItem(${gi},${ii},'matId',this.value)" style="font-size:12px;padding:4px 6px">
+            ${liMatOptionsHtml(it.matId)}
+          </select>
+        </td>
+        <td style="text-align:right;width:74px;padding:4px 6px">
+          <input type="number" value="${it.qty}" min="0" step="any"
+            onchange="liUpdItem(${gi},${ii},'qty',this.value)"
+            style="width:64px;text-align:right;font-family:var(--mono);padding:4px 6px">
+        </td>
+        <td style="width:32px;text-align:center;padding:4px 2px">
+          <button class="btn btn-d btn-xs" title="この資材行を削除" onclick="liDelItem(${gi},${ii})">×</button>
+        </td>
+      </tr>`).join('');
+
+    return `<div style="margin-bottom:12px;border:1.5px solid var(--pri);border-radius:6px;overflow:hidden">
+      ${hdr}
+      <table class="rt" style="margin:0">
+        <thead><tr><th>資材名</th><th style="text-align:right">数量</th><th></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="3" class="mu sm" style="padding:8px 10px">資材が登録されていません</td></tr>`}</tbody>
+      </table>
+      <div style="padding:6px 10px;background:var(--bg)">
+        <button class="btn btn-o btn-xs" onclick="liAddItem(${gi})">＋ 資材を追加</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 手直し編集用ハンドラ ──
+function liUpdField(gi, field, value) {
+  const g = liGroups[gi]; if (!g) return;
+  g[field] = value;
+  // 入力中にカーソルが飛ばないよう、ヘッダーのテキスト編集では全体再描画はしない
+}
+
+function liUpdItem(gi, ii, field, value) {
+  const g = liGroups[gi]; if (!g) return;
+  const it = g.items[ii]; if (!it) return;
+  if (field === 'qty') it.qty = parseFloat(value) || 0;
+  else it[field] = value;
+}
+
+function liDelItem(gi, ii) {
+  const g = liGroups[gi]; if (!g) return;
+  g.items.splice(ii, 1);
+  rdLiResult();
+}
+
+function liAddItem(gi) {
+  const g = liGroups[gi]; if (!g) return;
+  const defaultMat = (MATS[0] && MATS[0].id) || (BLKS[0] && BLKS[0].id) || '';
+  g.items.push({ matId: defaultMat, qty: 1 });
+  rdLiResult();
+}
+
+function liDeleteGroup(gi) {
+  if (!confirm('この現場のデータを解析結果から削除します。よろしいですか？')) return;
+  liGroups.splice(gi, 1);
+  rdLiResult();
+}
+
+function liToForm(gi) {
+  const g = liGroups[gi]; if (!g) return;
+  goPage('tf');
+  // date
+  const dtEl = document.getElementById('tf-dt');
+  if (dtEl) dtEl.value = g.date || '';
+  // code + site
+  const cdEl = document.getElementById('tf-sc');
+  if (cdEl) { cdEl.value = g.code || ''; acInp(); }
+  const nmEl = document.getElementById('tf-nm');
+  if (nmEl && !nmEl.value) nmEl.value = g.name || '';
+  // supervisor from sender
+  const spEl = document.getElementById('tf-sp');
+  if (spEl) spEl.value = g.sender || '';
+  // clear then fill materials（同一資材が複数行ある場合は合算する）
+  ALL.forEach(m => { const e = document.getElementById('tf-' + m.id); if (e) { e.value = ''; hCell(e, m.id); } });
+  const sums = {};
+  g.items.forEach(it => { sums[it.matId] = (sums[it.matId] || 0) + it.qty; });
+  Object.entries(sums).forEach(([matId, qty]) => {
+    const e = document.getElementById('tf-' + matId);
+    if (e) { e.value = qty; hCell(e, matId); }
+  });
+  toast(`${esc(g.name)} をフォームに転記しました`);
+}
+
+function liAddAllTf() {
+  if (!liGroups.length) { toast('解析データがありません', 'w'); return; }
+  const rs = rr('tf');
+  liGroups.forEach(g => {
+    if (!g.items.length) return;
+    const s = sites.find(x => x.code.toLowerCase() === (g.code || '').toLowerCase());
+    const mats = {};
+    g.items.forEach(it => { mats[it.matId] = (mats[it.matId] || 0) + it.qty; });
+    rs.push({
+      id: Date.now() + Math.random(),
+      date: g.date || new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+      code: g.code || '', name: s?.name || g.name || '',
+      client: s?.client || '', manager: s?.manager || g.sender || '',
+      sp: g.sender || '', wk: '(LINE)', mats
+    });
+  });
+  sv('tf', rs); rdTfList(); goPage('tf');
+  toast(`${liGroups.length}件を持ち出しに追加しました`);
+}
+
+function liAddTf() { liAddAllTf(); }
+
+function liCopy() {
+  const rows = [];
+  liGroups.forEach(g => {
+    g.items.forEach(it => {
+      const m = ALL.find(x => x.id === it.matId);
+      rows.push([g.date, g.sender, g.name, g.code, m?.label || it.matId, it.qty, m?.unit || ''].join('\t'));
+    });
+  });
+  navigator.clipboard.writeText(rows.join('\n')).then(() => toast('コピーしました'));
+}
+
+function liSmp() {
+  document.getElementById('li-in').value =
+`4月28日(火)
+田口肇
+本北方2丁目先行　j0173
+砂　30
+セメント　10
+砂利　7
+D10 15
+
+4月29日(水)
+田口肇
+江戸川区松本1丁目368番　j0175
+砂 24
+セメント　8
+砂利　6
+D10 6
+伸縮目地グレー　10
+
+石橋　さとし
+柏市亀甲台町　i2899
+砂50
+セメント17
+伸縮目地グレー11
+120CB基本6
+D10　4
+
+石橋　さとし
+柏市逆井　J0142
+120CB基本8
+伸縮目地グレー10
+メッシュ20
+
+5月1日(金)
+9:16
+伊藤支店長が金子をグループから削除しました。`;
+}
+
+/* ═══════════════════════════════════════════
+   PURCHASE
+═══════════════════════════════════════════ */
+// ── Purchase UserForm layout ──────────────────────────
+
+// 常用3品
+const PU_QUICK = [
+  { id:'suna', label:'昭光物産　ＥＸ細目砂　約25kg' },
+  { id:'cmt',  label:'昭光物産　業務用セメント　25kg' },
+  { id:'jari', label:'昭光物産　ＥＸ2005砕石　約25kg' },
+];
+
+// その他資材（2列グリッド 左→右）
+const PU_OTHER = [
+  { id:'d4',   label:'D10キカク　4m' },
+  { id:'mg',   label:'伸縮目地（60本@）グレー' },
+  { id:'d5',   label:'D10キカク　5.5m' },
+  { id:'mb',   label:'伸縮目地（60本@）ブラック' },
+  { id:'cd',   label:'ＰＦ管　ＰＦ－16' },
+  { id:'anc',  label:'ワンタッチアンカー450（50本@）' },
+  { id:'as',   label:'あなふさ君（小48入）' },
+  { id:'m45',  label:'メッシュ（WM CD4.5×150　1×2）' },
+  { id:'al',   label:'あなふさ君（大24入）' },
+  { id:'gp',   label:'グリップスペーサー（48入）' },
+  { id:'tk',   label:'耐寒剤' },
+  { id:'',     label:'' },  // spacer
+];
+
+// 千葉中央支店エリア
+const PU_CHIBA = [
+  { id:'bs',   label:'バラ砂' },
+  { id:'rc',   label:'RC砕石' },
+  { id:'rs',   label:'6号砕石' },
+];
+
+// らく目地ブロック（別枠保存: 'pu_blk'キー）
+const PU_RAKU = [
+  { id:'r1y',  label:'らく目地 100 横' },
+  { id:'r1c',  label:'らく目地 100 コーナー' },
+  { id:'r2y',  label:'らく目地 120 横' },
+  { id:'r2c',  label:'らく目地 120 コーナー' },
+];
+
+function buildPuSel(){ buildPuForm(); }
+function puChg(){}
+
+function buildPuForm(){
+  // Quick rows
+  const qr = document.getElementById('pu-quick-rows');
+  if(!qr) return;
+  qr.innerHTML = PU_QUICK.map((m,i)=>{
+    const nextId = i < PU_QUICK.length-1 ? `pu-q${i+1}` : 'pu-q-btn';
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <label style="font-size:13px;font-weight:500;min-width:200px;cursor:pointer"
+        onclick="focusPuQ(${i})">${m.label}</label>
+      <input type="number" id="pu-q${i}" min="0" placeholder="—"
+        class="numpad" style="width:70px;text-align:right;font-size:14px;font-weight:700"
+        onkeydown="puQKey(event,${i})"
+        oninput="if(this.value)this.style.borderColor='var(--pri)';else this.style.borderColor=''">
+    </div>`;
+  }).join('');
+
+  // Other rows
+  const or2 = document.getElementById('pu-other-rows');
+  if(or2){
+    or2.innerHTML = PU_OTHER.map((m,i)=>{
+      if(!m.id) return '<div></div><div></div>';
+      return `<div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;flex:1;cursor:pointer" onclick="focusPuO(${i})">${m.label}</label>
+        <input type="number" id="pu-o${i}" min="0" placeholder="—"
+          class="numpad" style="width:62px;text-align:right;font-size:13px;font-weight:700"
+          onkeydown="puOKey(event,${i})"
+          oninput="if(this.value)this.style.borderColor='var(--pri)';else this.style.borderColor=''">
+      </div>`;
+    }).join('');
+  }
+
+  // Chiba rows
+  const cr = document.getElementById('pu-chiba-rows');
+  if(cr){
+    cr.innerHTML = PU_CHIBA.map((m,i)=>`
+      <div style="display:flex;flex-direction:column;gap:3px;align-items:center">
+        <label style="font-size:11px;color:var(--muted);cursor:pointer" onclick="focusPuC(${i})">${m.label}</label>
+        <input type="number" id="pu-c${i}" min="0" placeholder="—"
+          class="numpad" style="width:62px;text-align:right;font-size:13px;font-weight:700"
+          oninput="if(this.value)this.style.borderColor='var(--pri)';else this.style.borderColor=''">
+      </div>`).join('');
+  }
+  // Raku rows
+  const rr2 = document.getElementById('pu-raku-rows');
+  if(rr2){
+    rr2.innerHTML = PU_RAKU.map((m,i)=>`
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;flex:1;cursor:pointer;color:#6d28d9" onclick="focusPuR(${i})">${m.label}</label>
+        <input type="number" id="pu-r${i}" min="0" placeholder="—"
+          class="numpad" style="width:62px;text-align:right;font-size:13px;font-weight:700;border-color:#d8b4fe"
+          oninput="if(this.value)this.style.borderColor='#7c3aed';else this.style.borderColor='#d8b4fe'">
+      </div>`).join('');
+  }
+}
+
+function focusPuQ(i){ const e=document.getElementById('pu-q'+i); if(e){e.focus();e.select()} }
+function focusPuO(i){ const e=document.getElementById('pu-o'+i); if(e){e.focus();e.select()} }
+function focusPuC(i){ const e=document.getElementById('pu-c'+i); if(e){e.focus();e.select()} }
+function focusPuR(i){ const e=document.getElementById('pu-r'+i); if(e){e.focus();e.select()} }
+
+function puQKey(e,i){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    if(i < PU_QUICK.length-1){ focusPuQ(i+1); }
+    else {
+      // Move focus to Enter/入力 button
+      const btn=document.getElementById('pu-q-btn');
+      if(btn) btn.focus();
+    }
+  } else if(e.key==='ArrowDown'){ e.preventDefault(); focusPuQ(Math.min(i+1,PU_QUICK.length-1)); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); if(i>0) focusPuQ(i-1); }
+}
+
+function puOKey(e,i){
+  if(e.key!=='Enter'&&e.key!=='ArrowDown'&&e.key!=='ArrowUp') return;
+  e.preventDefault();
+  const dir=(e.key==='ArrowUp')?-1:1;
+  let ni=i+dir;
+  // Skip spacer entries (id='')
+  while(ni>=0&&ni<PU_OTHER.length&&!PU_OTHER[ni].id) ni+=dir;
+  if(ni>=0&&ni<PU_OTHER.length) focusPuO(ni);
+}
+
+// Enter/入力 → save quick items only
+function puQuickSave(){
+  const dt = parseDate(document.getElementById('pu-dt').value);
+  if(!dt){ toast('日付を入力してください','w'); document.getElementById('pu-dt').focus(); return; }
+  const note = document.getElementById('pu-nt').value;
+  let saved = 0;
+  const rs = rr('pu');
+  PU_QUICK.forEach((m,i)=>{
+    const v = parseFloat(document.getElementById('pu-q'+i)?.value)||0;
+    if(v<=0) return;
+    const mat = ALL.find(x=>x.id===m.id);
+    rs.push({id:Date.now()+Math.random(), date:dt, matId:m.id,
+      label:mat?.label||m.id, unit:mat?.unit||'', qty:v, price:gp(mat||{id:m.id,price:0}), note});
+    saved++;
+  });
+  if(!saved){ toast('数量を入力してください','w'); focusPuQ(0); return; }
+  sv('pu',rs);
+  // Clear quick inputs only
+  PU_QUICK.forEach((_,i)=>{ const e=document.getElementById('pu-q'+i); if(e){e.value='';e.style.borderColor=''} });
+  rdPuList();
+  toast(saved+'件保存しました');
+  // Loop back to date
+  const dtEl=document.getElementById('pu-dt');
+  if(dtEl){ dtEl.focus(); dtEl.select(); }
+}
+
+// 入力ボタン → save ALL filled items
+function puSaveAll(){
+  const dt = parseDate(document.getElementById('pu-dt').value);
+  if(!dt){ toast('日付を入力してください','w'); document.getElementById('pu-dt').focus(); return; }
+  const note = document.getElementById('pu-nt').value;
+  let saved=0;
+  const rs=rr('pu');
+
+  const saveGroup = (list, prefix) => {
+    list.forEach((m,i)=>{
+      if(!m.id) return;
+      const v = parseFloat(document.getElementById(prefix+i)?.value)||0;
+      if(v<=0) return;
+      const mat = ALL.find(x=>x.id===m.id);
+      rs.push({id:Date.now()+Math.random(), date:dt, matId:m.id,
+        label:mat?.label||m.id, unit:mat?.unit||'', qty:v, price:gp(mat||{id:m.id,price:0}), note});
+      saved++;
+    });
+  };
+
+  saveGroup(PU_QUICK, 'pu-q');
+  saveGroup(PU_OTHER, 'pu-o');
+  saveGroup(PU_CHIBA, 'pu-c');
+
+  // らく目地は別キーに保存
+  const rkSaved=[];
+  const rsBlk=rr('pu_blk');
+  PU_RAKU.forEach((m,i)=>{
+    const v=parseFloat(document.getElementById('pu-r'+i)?.value)||0;
+    if(v<=0)return;
+    const mat=ALL.find(x=>x.id===m.id);
+    rsBlk.push({id:Date.now()+Math.random(),date:dt,matId:m.id,
+      label:mat?.label||m.id,unit:mat?.unit||'',qty:v,price:gp(mat||{id:m.id,price:0}),note});
+    rkSaved.push(m.id);saved++;
+  });
+  if(rkSaved.length) sv('pu_blk',rsBlk);
+
+  if(!saved){ toast('数量を入力してください','w'); return; }
+  sv('pu',rs);
+  clrPu();
+  rdPuList();rdPuBlkList();
+  toast(saved+'件保存しました（うちらく目地'+rkSaved.length+'件）');
+  document.getElementById('pu-dt').focus();
+}
+
+// savePu kept for compat
+function savePu(){ puSaveAll(); }
+
+function clrPu(){
+  PU_QUICK.forEach((_,i)=>{ const e=document.getElementById('pu-q'+i); if(e){e.value='';e.style.borderColor=''} });
+  PU_OTHER.forEach((_,i)=>{ const e=document.getElementById('pu-o'+i); if(e){e.value='';e.style.borderColor=''} });
+  PU_CHIBA.forEach((_,i)=>{ const e=document.getElementById('pu-c'+i); if(e){e.value='';e.style.borderColor=''} });
+  PU_RAKU.forEach((_,i)=>{ const e=document.getElementById('pu-r'+i); if(e){e.value='';e.style.borderColor='#d8b4fe'} });
+  const nt=document.getElementById('pu-nt'); if(nt) nt.value='';
+}
+
+// legacy no-ops
+function puAcInp(){}
+function puAcSel(){}
+function setPuMat(){}
+function updPuPreview(){}
+document.addEventListener('input',e=>{
+  if(e.target.id==='pu-qt'||e.target.id==='pu-pr') updPuPreview();
+});
+
+function rdPuList(){
+  const rs=rr('pu');
+  document.getElementById('pu-cnt').textContent=rs.length+'件';
+  const tb=document.getElementById('pu-list');
+  if(!rs.length){tb.innerHTML='<tr><td colspan="8"><div class="emp">記録がありません</div></td></tr>';return}
+  tb.innerHTML=rs.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`
+    <tr>
+      <td class="mn sm">${r.date}</td><td>${esc(r.label)}</td>
+      <td class="r">${r.qty.toLocaleString()}</td><td>${r.unit}</td>
+      <td class="r">${r.price.toLocaleString()}</td>
+      <td class="r">${(r.qty*r.price).toLocaleString()}</td>
+      <td class="mu sm">${esc(r.note)}</td>
+      <td><button class="btn btn-d btn-xs" onclick="delPu(${r.id})">削除</button></td>
+    </tr>`).join('');
+}
+
+function delPu(id){
+  if(!confirm('削除しますか？'))return;
+  sv('pu',rr('pu').filter(r=>r.id!==id));
+  rdPuList();
+  toast('削除しました');
+}
+function rdPuBlkList(){
+  const rs=rr('pu_blk');
+  const tb=document.getElementById('pu-blk-list');if(!tb)return;
+  document.getElementById('pu-blk-cnt').textContent=rs.length+'件';
+  if(!rs.length){tb.innerHTML='<tr><td colspan="7"><div class="emp" style="padding:20px">らく目地の記録なし</div></td></tr>';return}
+  tb.innerHTML=rs.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`
+    <tr>
+      <td class="mn sm">${r.date}</td><td>${esc(r.label)}</td>
+      <td class="r">${r.qty.toLocaleString()}</td><td>${r.unit}</td>
+      <td class="r">${r.price.toLocaleString()}</td>
+      <td class="r">${(r.qty*r.price).toLocaleString()}</td>
+      <td><button class="btn btn-d btn-xs" onclick="delPuBlk(${r.id})">削除</button></td>
+    </tr>`).join('');
+}
+function delPuBlk(id){if(!confirm('削除しますか？'))return;sv('pu_blk',rr('pu_blk').filter(r=>r.id!==id));rdPuBlkList();toast('削除しました')}
+
+
+/* ═══════════════════════════════════════════
+   DISPOSAL VIEW
+═══════════════════════════════════════════ */
+function rdDs(){
+  const rs=rr('tf');const view=document.getElementById('ds-view');
+  const bids=new Set(BLKS.map(b=>b.id));
+  const rel=rs.filter(r=>Object.keys(r.mats||{}).some(id=>bids.has(id)));
+  if(!rel.length){view.innerHTML=`<div class="card"><div class="emp">ブロック資材の持ち出し記録がありません</div></div>`;return}
+  const[y,m]=month.split('-');const wr=parseInt(y)-2018;
+  let html=`<div class="card"><div style="text-align:center;margin-bottom:14px">
+    <div style="font-size:15px;font-weight:700">≪ ヒューマンヤード 松戸支店 ブロック在庫 ≫</div>
+    <div class="mu sm">令和 ${wr} 年 ${parseInt(m)} 月 分</div>
+  </div>`;
+  BLKS.forEach(blk=>{
+    const rows=rel.filter(r=>(r.mats?.[blk.id]||0)>0);if(!rows.length)return;
+    const total=rows.reduce((s,r)=>s+(r.mats?.[blk.id]||0),0);
+    const price=gp(blk);
+    html+=`<div style="margin-bottom:16px">
+      <div class="ds-hdr">${esc(blk.label)}（${blk.unit} / 単価 ¥${price}）</div>
+      <div class="rw">
+        <table class="rt">
+          <thead><tr><th>品名</th><th>現場名</th><th>現場番号</th><th class="r">数量</th><th>単位</th><th class="r">単価</th><th class="r">金額</th><th>日付</th></tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr>
+              <td>${esc(blk.label)}</td><td>${esc(r.name)}</td>
+              <td class="mn mu sm">${esc(r.code)}</td>
+              <td class="r">${r.mats[blk.id]}</td><td>${blk.unit}</td>
+              <td class="r">${price.toLocaleString()}</td>
+              <td class="r">${(r.mats[blk.id]*price).toLocaleString()}</td>
+              <td class="mn mu sm">${r.date}</td>
+            </tr>`).join('')}
+            <tr style="background:#eff6ff;font-weight:700">
+              <td colspan="3" style="text-align:right">合 計</td>
+              <td class="r">${total}</td><td>${blk.unit}</td>
+              <td class="r">${price.toLocaleString()}</td>
+              <td class="r">${(total*price).toLocaleString()}</td><td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div></div>`;
+  });
+  html+='</div>';view.innerHTML=html;
+}
+
+/* ═══════════════════════════════════════════
+   SUMMARY
+═══════════════════════════════════════════ */
+function cUse(id){return rr('tf').reduce((s,r)=>s+(r.mats?.[id]||0),0)}
+function cPur(id){return rr('pu').filter(r=>r.matId===id).reduce((s,r)=>s+r.qty,0)}
+
+function rdSm(){
+  updMthUI();const d=sd();
+  document.getElementById('sm-main').innerHTML=MATS.map(m=>smRow(m,d)).join('');
+  document.getElementById('sm-blk').innerHTML=BLKS.map(m=>smRow(m,d)).join('');
+}
+
+function smRow(m,d){
+  const r=d[m.id]||{};const prev=+r.prev||0;const pur=cPur(m.id);
+  const use=cUse(m.id);const gai=+r.gai||0;
+  const books=prev+pur-use-gai;
+  const act=r.act!=null?+r.act:NaN;
+  const diff=isNaN(act)?'—':books-act;
+  const dc=typeof diff==='number'?diff>0?'pos':diff<0?'neg':'':'';
+  return`<tr>
+    <td>${esc(m.label)}</td><td class="c">${m.unit}</td>
+    <td class="r sm">${m.price?'¥'+m.price.toLocaleString():'—'}</td>
+    <td class="c"><input class="sin" type="number" value="${r.prev??''}" placeholder="0"
+      onchange="updS('${m.id}','prev',this.value)"></td>
+    <td class="c" style="color:${pur?'var(--pri)':'var(--muted2)'}">${pur||'—'}</td>
+    <td class="c" style="color:${use?'var(--accent)':'var(--muted2)'}">${use||'—'}</td>
+    <td class="c"><input class="sin" type="number" value="${r.gai??''}" placeholder="0"
+      onchange="updS('${m.id}','gai',this.value)"></td>
+    <td class="calc">${prev||pur||use||gai?books:'—'}</td>
+    <td class="c"><input class="sin" type="number" value="${r.act??''}" placeholder="0"
+      onchange="updS('${m.id}','act',this.value)"></td>
+    <td class="c ${dc}">${typeof diff==='number'?diff:'—'}</td>
+  </tr>`;
+}
+
+function smExportCSV(){
+  var d=sd();
+  function qv(v){var s=String(v==null?'':v);return '"'+s.split('"').join('""')+'"';}
+  var rows=[['id','label','unit','price','prev','gai','act'].map(qv).join(',')];
+  ALL.forEach(function(m){
+    var r=d[m.id]||{};
+    var prev=r.prev!=null?r.prev:'';
+    var gai=r.gai!=null?r.gai:'';
+    var act=r.act!=null?r.act:'';
+    rows.push([m.id,m.label,m.unit,m.price,prev,gai,act].map(qv).join(','));
+  });
+  var csv=rows.join('\n');
+  var b=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='\u5b9f\u5728\u5eab_'+month+'.csv';
+  a.click();
+  toast('CSV\u3092\u4fdd\u5b58\u3057\u307e\u3057\u305f');
+}
+
+function smImportCSV(ev){
+  var f=ev.target.files[0];if(!f)return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var text=e.target.result.replace(/^\uFEFF/,'');
+      var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+      if(lines.length<2){toast('データがありません','w');return;}
+      var d=sd();
+      var cnt=0;
+      lines.slice(1).forEach(function(line){
+        var cols=[];
+        var cur='',inQ=false;
+        for(var ci=0;ci<line.length;ci++){
+          var ch=line[ci];
+          if(ch=='"'&&!inQ){inQ=true;}
+          else if(ch=='"'&&inQ&&line[ci+1]=='"'){cur+='"';ci++;}
+          else if(ch=='"'&&inQ){inQ=false;}
+          else if(ch==','&&!inQ){cols.push(cur);cur='';}
+          else{cur+=ch;}
+        }
+        cols.push(cur);
+        var id=cols[0];if(!id)return;
+        if(!d[id])d[id]={};
+        if(cols[4]!==undefined&&cols[4]!=='')d[id].prev=parseFloat(cols[4])||0;
+        if(cols[5]!==undefined&&cols[5]!=='')d[id].gai=parseFloat(cols[5])||0;
+        if(cols[6]!==undefined&&cols[6]!=='')d[id].act=parseFloat(cols[6])||0;
+        cnt++;
+      });
+      svs(d);rdSm();
+      toast(cnt+'件の実在庫データを読み込みました');
+    }catch(err){toast('CSV読み込みエラー: '+err.message,'e');}
+  };
+  reader.readAsText(f,'UTF-8');
+  ev.target.value='';
+}
+
+function updS(id,f,v){
+  const d=sd();if(!d[id])d[id]={};
+  d[id][f]=v===''?undefined:+v||0;svs(d);rdSm();
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS
+═══════════════════════════════════════════ */
+function setMth(){
+  const v=document.getElementById('cfg-m').value;if(!v)return;
+  month=v;localStorage.setItem('hy_m',month);
+  updMthUI();rdTfList();rdPuList();rdDs();rdSm();toast(`${month} に切り替えました`);
+}
+
+function closeMth(){
+  if(!confirm(`${month} を締めて翌月へ繰り越しますか？`))return;
+  const d=sd();const[y,m]=month.split('-').map(Number);
+  const nd=new Date(y,m,1);const nm=`${nd.getFullYear()}-${('0'+(nd.getMonth()+1)).slice(-2)}`;
+  const nd2={};ALL.forEach(mt=>{const a=d[mt.id]?.act;nd2[mt.id]={prev:a??0}});
+  localStorage.setItem(`hy_s_${nm}`,JSON.stringify(nd2));
+  month=nm;localStorage.setItem('hy_m',month);
+  document.getElementById('cfg-m').value=month;
+  updMthUI();rdTfList();rdPuList();rdDs();rdSm();toast(`${nm} へ繰り越しました`);
+}
+
+/* ── Site master: compact chunked storage for 50k+ records ──
+   Stored as TSV chunks across multiple localStorage keys.
+   ~50k × 60 bytes ≈ 3MB, chunked at 5000 records per key.
+*/
+const SITE_SEP = '\x1f';
+const SITE_ROW = '\x1e';
+const SITE_CHUNK = 5000;
+
+function saveSites(arr){
+  for(let i=0;i<20;i++) localStorage.removeItem('hy_sites_'+i);
+  const rows=arr.map(s=>[s.code,s.name,s.client||'',s.manager||'',s.base||'',s.completeDate||''].join(SITE_SEP));
+  let chunk=0;
+  for(let i=0;i<rows.length;i+=SITE_CHUNK){
+    try{ localStorage.setItem('hy_sites_'+chunk, rows.slice(i,i+SITE_CHUNK).join(SITE_ROW)); }
+    catch(e){ console.warn('localStorage full at chunk',chunk); break; }
+    chunk++;
+  }
+  localStorage.setItem('hy_sites_count', String(arr.length));
+  localStorage.removeItem('hy_sites');
+}
+
+function loadSites(){
+  if(localStorage.getItem('hy_sites_count')!==null){
+    const arr=[];
+    for(let i=0;i<20;i++){
+      const part=localStorage.getItem('hy_sites_'+i);
+      if(!part) break;
+      part.split(SITE_ROW).forEach(row=>{
+        if(!row) return;
+        const f=row.split(SITE_SEP);
+        if(f[0]) arr.push({code:f[0],name:f[1]||'',client:f[2]||'',manager:f[3]||'',base:f[4]||'',completeDate:f[5]||''});
+      });
+    }
+    return arr;
+  }
+  const old=localStorage.getItem('hy_sites');
+  return old?JSON.parse(old):[];
+}
+
+function sfLoad(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  toast('読み込み中...');
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const buf=e.target.result;
+      const bytes=new Uint8Array(buf);
+      let text;
+      // BOM付きUTF-16: TextDecoder('utf-16')はBOMを自動処理する
+      if((bytes[0]===0xFF&&bytes[1]===0xFE)||(bytes[0]===0xFE&&bytes[1]===0xFF)){
+        text=new TextDecoder('utf-16').decode(buf);
+      } else {
+        // BOMなし: UTF-8またはShift-JIS試行
+        try{ text=new TextDecoder('utf-8').decode(buf); }
+        catch(e2){ text=new TextDecoder('shift-jis').decode(buf); }
+      }
+      // 残存BOM除去
+      text=text.replace(/^\uFEFF/,'');
+      impSites(text);
+    }catch(err){ toast('読み込みエラー: '+err.message,'e'); }
+  };
+  reader.onerror=()=>toast('ファイルを開けませんでした','e');
+  reader.readAsArrayBuffer(f);
+}
+
+function impSites(text){
+  if(!text?.trim()){toast('データがありません','w');return}
+  const t=text.replace(/^\uFEFF/,'');
+  const rawLines=t.split(/\r?\n/);
+  // Filter out empty lines but keep index
+  const nonEmpty = rawLines.filter((l,i)=>i<2||l.trim());
+  if(nonEmpty.length<3){toast('データ行がありません（'+rawLines.length+'行検出）','e');return}
+  const idxRow=nonEmpty[1].split('\t');
+  const cmap={};
+  idxRow.forEach((c,i)=>{const m=c.trim().match(/^<(\d+)>$/);if(m)cmap[m[1]]=i});
+  const c1=cmap['00001'],c3=cmap['00003'];
+  const c19=cmap['00019'],c22=cmap['00022'],c23=cmap['00023'],c24=cmap['00024'],c27=cmap['00027'];
+  if(c1==null||c3==null){toast('現場コード列<00001>が見つかりません。インデックス行を確認してください','e');return}
+  const total=nonEmpty.length-2;
+  const prog=document.getElementById('s-progress');
+  if(prog){prog.style.display='block';prog.textContent='解析中... 0/'+total+'件'}
+  const existMap=new Map(sites.map(s=>[s.code,s]));
+  let added=0;
+  function processChunk(start){
+    const end=Math.min(start+3000,nonEmpty.length);
+    for(let i=start;i<end;i++){
+      const line=nonEmpty[i]; if(!line.trim()) continue;
+      const cols=line.split('\t');
+      const code=(cols[c1]||'').trim(); if(!code) continue;
+      const name=(cols[c3]||'').trim();
+      const craw=c19!=null?(cols[c19+1]||'').trim():'';
+      const con=c23!=null?(cols[c23+1]||'').trim():'';
+      const client=craw||con;
+      const manager=c24!=null?(cols[c24+1]||'').trim():'';
+      const base=c27!=null?(cols[c27+1]||'').trim():'';
+      const cd=c22!=null?(cols[c22]||'').trim():'';
+      existMap.set(code,{code,name,client,manager,base,completeDate:cd});
+      added++;
+    }
+    if(prog) prog.textContent='解析中... '+Math.min(end-2,total)+'/'+total+'件';
+    if(end<nonEmpty.length){
+      setTimeout(()=>processChunk(end),0);
+    } else {
+      sites=[...existMap.values()];
+      saveSites(sites);
+      if(prog){prog.textContent='完了: '+sites.length.toLocaleString()+'件';setTimeout(()=>prog.style.display='none',3000)}
+      document.getElementById('s-cnt').textContent=sites.length.toLocaleString()+'件';
+      sShowPrev();
+      document.getElementById('sp').value='';
+      toast(added+'件インポート（合計'+sites.length.toLocaleString()+'件）');
+    }
+  }
+  processChunk(2);
+}
+
+function clrSites(){
+  if(!confirm('全現場マスターを削除しますか？'))return;
+  for(let i=0;i<20;i++) localStorage.removeItem('hy_sites_'+i);
+  localStorage.removeItem('hy_sites_count');
+  localStorage.removeItem('hy_sites');
+  sites=[];
+  document.getElementById('s-cnt').textContent='0件';
+  document.getElementById('s-prev').innerHTML='';
+  toast('削除しました');
+}
+
+function sShowPrev(){
+  document.getElementById('s-cnt').textContent=sites.length.toLocaleString()+'件';
+  const area=document.getElementById('s-prev'); if(!area) return;
+  const bf=document.getElementById('bf')?.checked;
+  const pool=bf?sites.filter(s=>!s.base||s.base==='松戸支店'):sites;
+  if(!pool.length){area.innerHTML='<span class="sm mu">現場マスターが未登録です</span>';return}
+  const chips=pool.slice(0,20).map(s=>
+    '<span class="bdg bb" style="margin:2px;cursor:default" title="'+esc(s.client)+' / '+esc(s.manager)+'">'+esc(s.code)+' '+esc(s.name)+'</span>'
+  ).join('');
+  area.innerHTML='<div class="sm mu" style="margin-bottom:4px">'+(bf?'松戸支店':'全拠点')+' 計 <b>'+pool.length.toLocaleString()+'件</b>（先頭20件）</div>'+chips;
+}
+
+function matEditRowHtml(m){
+  return `<tr data-id="${esc(m.id)}">
+    <td class="nm"><input type="text" class="me-label" value="${esc(m.label)}" style="font-size:12px"></td>
+    <td><input type="text" class="me-short" value="${esc(m.short)}" style="font-size:12px;width:90px"></td>
+    <td><input type="text" class="me-unit" value="${esc(m.unit)}" style="font-size:12px;width:54px;text-align:center"></td>
+    <td><input type="number" class="me-price" value="${m.price}" min="0" style="font-size:12px;width:90px;text-align:right;font-family:var(--mono)"></td>
+    <td style="text-align:center;width:44px"><button class="btn btn-d btn-xs" onclick="this.closest('tr').remove()">削除</button></td>
+  </tr>`;
+}
+
+function buildMatEditor(){
+  document.getElementById('mat-edit-main').innerHTML=MATS.map(matEditRowHtml).join('');
+  document.getElementById('mat-edit-blk').innerHTML=BLKS.map(matEditRowHtml).join('');
+}
+
+let matRowSeq=0;
+function addMatRow(cat){
+  const tb=document.getElementById(cat==='blk'?'mat-edit-blk':'mat-edit-main');
+  const tmpId='new_'+Date.now().toString(36)+'_'+(matRowSeq++);
+  tb.insertAdjacentHTML('beforeend',matEditRowHtml({id:tmpId,label:'',short:'',unit:'個',price:0}));
+  const rows=tb.querySelectorAll('tr');
+  rows[rows.length-1].querySelector('.me-label').focus();
+}
+
+function readMatRows(tbId){
+  return [...document.querySelectorAll('#'+tbId+' tr')].map(tr=>{
+    const id=tr.dataset.id;
+    const label=tr.querySelector('.me-label').value.trim();
+    const short=tr.querySelector('.me-short').value.trim();
+    const unit=tr.querySelector('.me-unit').value.trim()||'個';
+    const price=parseFloat(tr.querySelector('.me-price').value)||0;
+    return{id,label,short,unit,price,row:tr,ok:!!(label&&short)};
+  });
+}
+
+function saveMatMaster(){
+  const mainRows=readMatRows('mat-edit-main');
+  const blkRows=readMatRows('mat-edit-blk');
+  const bad=[...mainRows,...blkRows].some(r=>!r.ok);
+  if(bad){ toast('品名と略称は必須です','w'); return; }
+
+  const finalize=(rows)=>rows.map(r=>({
+    id:r.id.startsWith('new_')?('m'+Math.random().toString(36).slice(2,8)):r.id,
+    label:r.label,short:r.short,unit:r.unit,price:r.price
+  }));
+  MATS=finalize(mainRows);
+  BLKS=finalize(blkRows);
+  ALL.length=0;ALL.push(...MATS,...BLKS);
+
+  // 単価もまとめて更新
+  ALL.forEach(m=>{prices[m.id]=m.price});
+  localStorage.setItem('hy_prices',JSON.stringify(prices));
+  localStorage.setItem('hy_mats_custom',JSON.stringify(MATS));
+  localStorage.setItem('hy_blks_custom',JSON.stringify(BLKS));
+
+  buildMatTbls();buildMatEditor();
+  toast('資材マスターを保存しました');
+}
+
+function resetMatMaster(){
+  if(!confirm('資材の品目・単位・単価を既定の状態に戻します。よろしいですか？'))return;
+  localStorage.removeItem('hy_mats_custom');
+  localStorage.removeItem('hy_blks_custom');
+  loadMats();
+  ALL.forEach(m=>{if(prices[m.id]!=null)delete prices[m.id]});
+  localStorage.setItem('hy_prices',JSON.stringify(prices));
+  buildMatTbls();buildMatEditor();
+  toast('既定の資材マスターに戻しました');
+}
+
+function expD(){
+  const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('hy_'))d[k]=localStorage.getItem(k)}
+  const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`matsudo_${month}.json`;a.click();
+}
+
+function impD(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=e=>{
+    try{const d=JSON.parse(e.target.result);Object.entries(d).forEach(([k,v])=>{if(k.startsWith('hy_'))localStorage.setItem(k,v)});init();toast('インポートしました')}
+    catch{toast('インポート失敗','e')}
+  };r.readAsText(f);
+}
+
+function clrAll(){
+  if(!confirm('全データを初期化しますか？'))return;
+  const ks=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('hy_'))ks.push(k)}
+  ks.forEach(k=>localStorage.removeItem(k));sites=[];prices={};workers={};month=nowM();init();toast('初期化しました');
+}
+
+/* ═══════════════════════════════════════════
+   EXCEL EXPORT
+═══════════════════════════════════════════ */
+function chkXlsx(){
+  if(typeof XLSX==='undefined'){toast('SheetJSが読み込まれていません。インターネット接続を確認してください','e');return false}
+  return true;
+}
+
+// ---- 持ち出し ----
+function xlTf(){
+  if(!chkXlsx())return;
+  const rs=rr('tf');
+  const hdr=['日付','工番','現場名','得意先','現場監督','担当者',...ALL.map(m=>m.short+'('+m.unit+')')];
+  const data=[hdr,...rs.sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[
+    r.date,r.code,r.name,r.client||'',r.sp||r.manager||'',r.wk||'',
+    ...ALL.map(m=>r.mats?.[m.id]||0)
+  ])];
+  // Totals row
+  const totals=['合計','','','','','',...ALL.map(m=>rs.reduce((s,r)=>s+(r.mats?.[m.id]||0),0))];
+  data.push(totals);
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  // Column widths
+  ws['!cols']=[{wch:11},{wch:8},{wch:28},{wch:16},{wch:10},{wch:10},...ALL.map(()=>({wch:9}))];
+  // Style header
+  styleXlHdr(ws,hdr.length,0);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'持ち出し');
+  XLSX.writeFile(wb,`持ち出し_${month}.xlsx`);toast('持ち出しExcelを出力しました');
+}
+
+// ---- 購入仕入 ----
+function xlPu(){
+  if(!chkXlsx())return;
+  const rs=rr('pu');
+  const hdr=['日付','品名','数量','単位','単価(税別)','金額','備考'];
+  const data=[hdr,...rs.sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[
+    r.date,r.label,r.qty,r.unit,r.price,r.qty*r.price,r.note||''
+  ])];
+  const total=rs.reduce((s,r)=>s+r.qty*r.price,0);
+  data.push(['合計','','','','',total,'']);
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:11},{wch:36},{wch:8},{wch:6},{wch:10},{wch:12},{wch:20}];
+  styleXlHdr(ws,hdr.length,0);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'購入仕入');
+  XLSX.writeFile(wb,`購入仕入_${month}.xlsx`);toast('購入仕入Excelを出力しました');
+}
+
+// ---- 現金在庫処分 ----
+function xlDs(){
+  if(!chkXlsx())return;
+  const rs=rr('tf');const bids=new Set(BLKS.map(b=>b.id));
+  const rel=rs.filter(r=>Object.keys(r.mats||{}).some(id=>bids.has(id)));
+  const hdr=['品名','現場名','現場番号','数量','単位','単価','金額','日付'];
+  const data=[hdr];
+  BLKS.forEach(blk=>{
+    rel.forEach(r=>{
+      const q=r.mats?.[blk.id]||0;if(!q)return;
+      const price=gp(blk);
+      data.push([blk.label,r.name,r.code,q,blk.unit,price,q*price,r.date]);
+    });
+    // subtotal
+    const tot=rel.reduce((s,r)=>s+(r.mats?.[blk.id]||0),0);
+    if(tot>0)data.push([blk.label+' 小計','','',tot,blk.unit,gp(blk),tot*gp(blk),'']);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:26},{wch:28},{wch:8},{wch:6},{wch:5},{wch:8},{wch:10},{wch:11}];
+  styleXlHdr(ws,hdr.length,0);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'現金在庫処分');
+  XLSX.writeFile(wb,`現金在庫処分_${month}.xlsx`);toast('現金在庫処分Excelを出力しました');
+}
+
+// ---- 支店長提出用 ----
+function xlSm(){
+  if(!chkXlsx())return;
+  const d=sd();
+  const[y,m]=month.split('-');const wr=parseInt(y)-2018;
+  const hdr=['在庫品','単位','単価','前月実在庫','仕入れ数','使用数','外注使用分','書類上在庫','実在庫','差'];
+  const data=[[`在庫一覧表　ヒューマンヤード 松戸支店　令和${wr}年${parseInt(m)}月末〆`]];
+  data.push([]);data.push(['■ 一般資材（新単価松戸支店）']);data.push(hdr);
+  const mainStart=data.length; // この後に続くMATSの行が始まるaoa配列インデックス
+  MATS.forEach(m=>{
+    const r=d[m.id]||{};const prev=+r.prev||0;const pur=cPur(m.id);
+    const use=cUse(m.id);const gai=+r.gai||0;const books=prev+pur-use-gai;
+    const act=r.act!=null?+r.act:'';const diff=act!==''?books-act:books;
+    data.push([m.label,m.unit,m.price||0,prev||'',pur||'',use||'',gai||'',books,act,diff]);
+  });
+  data.push([]);data.push(['■ ブロック資材']);data.push(hdr);
+  const blkStart=data.length;
+  BLKS.forEach(m=>{
+    const r=d[m.id]||{};const prev=+r.prev||0;const pur=cPur(m.id);
+    const use=cUse(m.id);const gai=+r.gai||0;const books=prev+pur-use-gai;
+    const act=r.act!=null?+r.act:'';const diff=act!==''?books-act:books;
+    data.push([m.label,m.unit,m.price||0,prev||'',pur||'',use||'',gai||'',books,act,diff]);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(data);
+  ws['!cols']=[{wch:36},{wch:6},{wch:8},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:6}];
+  // 書類上在庫（H列）＝前月実在庫(D)＋仕入れ数(E)－使用数(F)－外注使用分(G)
+  // 差（J列）＝書類上在庫(H)－実在庫(I)
+  // を実際のExcel数式として埋め込む（後でセルを修正しても自動で再計算される）
+  setStockFormulas(ws,mainStart,MATS.length);
+  setStockFormulas(ws,blkStart,BLKS.length);
+  // style header rows (row 3 and row at ブロック section)
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'支店長提出用');
+  XLSX.writeFile(wb,`支店長提出用_${month}.xlsx`);toast('支店長提出用Excelを出力しました');
+}
+
+// 在庫一覧表の「書類上在庫」「差」をExcel数式に変換する。
+// aoaStartIndex は、aoa_to_sheet に渡した二次元配列における対象データの開始インデックス（0始まり）。
+// 列構成: A在庫品 B単位 C単価 D前月実在庫 E仕入れ数 F使用数 G外注使用分 H書類上在庫 I実在庫 J差
+function setStockFormulas(ws,aoaStartIndex,count){
+  for(let i=0;i<count;i++){
+    const excelRow=aoaStartIndex+i+1; // aoa配列はExcel行番号-1なので+1で1始まりに変換
+    const hAddr='H'+excelRow,jAddr='J'+excelRow;
+    if(ws[hAddr])ws[hAddr].f=`D${excelRow}+E${excelRow}-F${excelRow}-G${excelRow}`;
+    if(ws[jAddr])ws[jAddr].f=`H${excelRow}-I${excelRow}`;
+  }
+}
+
+// ---- 全シート一括 ----
+function xlAll(){
+  if(!chkXlsx())return;
+  const wb=XLSX.utils.book_new();
+
+  // Sheet1: 持ち出し
+  const rs=rr('tf');
+  const h1=['日付','工番','現場名','得意先','現場監督','担当者',...ALL.map(m=>m.short+'('+m.unit+')')];
+  const d1=[h1,...rs.sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[
+    r.date,r.code,r.name,r.client||'',r.sp||r.manager||'',r.wk||'',
+    ...ALL.map(m=>r.mats?.[m.id]||0)
+  ])];
+  d1.push(['合計','','','','','',...ALL.map(m=>rs.reduce((s,r)=>s+(r.mats?.[m.id]||0),0))]);
+  const ws1=XLSX.utils.aoa_to_sheet(d1);ws1['!cols']=[{wch:11},{wch:8},{wch:28},{wch:16},{wch:10},{wch:10},...ALL.map(()=>({wch:9}))];
+  XLSX.utils.book_append_sheet(wb,ws1,'持ち出し');
+
+  // Sheet2: 購入仕入
+  const rp=rr('pu');
+  const h2=['日付','品名','数量','単位','単価(税別)','金額','備考'];
+  const d2=[h2,...rp.sort((a,b)=>a.date.localeCompare(b.date)).map(r=>[r.date,r.label,r.qty,r.unit,r.price,r.qty*r.price,r.note||''])];
+  d2.push(['合計','','','','',rp.reduce((s,r)=>s+r.qty*r.price,0),'']);
+  const ws2=XLSX.utils.aoa_to_sheet(d2);ws2['!cols']=[{wch:11},{wch:36},{wch:8},{wch:6},{wch:10},{wch:12},{wch:20}];
+  XLSX.utils.book_append_sheet(wb,ws2,'購入仕入');
+
+  // Sheet3: 現金在庫処分
+  const rt=rr('tf');const bids=new Set(BLKS.map(b=>b.id));
+  const rel=rt.filter(r=>Object.keys(r.mats||{}).some(id=>bids.has(id)));
+  const h3=['品名','現場名','現場番号','数量','単位','単価','金額','日付'];
+  const d3=[h3];
+  BLKS.forEach(blk=>{
+    rel.forEach(r=>{const q=r.mats?.[blk.id]||0;if(!q)return;const p=gp(blk);d3.push([blk.label,r.name,r.code,q,blk.unit,p,q*p,r.date])});
+    const tot=rel.reduce((s,r)=>s+(r.mats?.[blk.id]||0),0);
+    if(tot>0)d3.push([blk.label+' 小計','','',tot,blk.unit,gp(blk),tot*gp(blk),'']);
+  });
+  const ws3=XLSX.utils.aoa_to_sheet(d3);ws3['!cols']=[{wch:26},{wch:28},{wch:8},{wch:6},{wch:5},{wch:8},{wch:10},{wch:11}];
+  XLSX.utils.book_append_sheet(wb,ws3,'現金在庫処分');
+
+  // Sheet4: 支店長提出用
+  const[yy,mm]=month.split('-');const wwr=parseInt(yy)-2018;
+  const d=sd();
+  const h4=['在庫品','単位','単価','前月実在庫','仕入れ数','使用数','外注使用分','書類上在庫','実在庫','差'];
+  const d4=[[`在庫一覧表　ヒューマンヤード 松戸支店　令和${wwr}年${parseInt(mm)}月末〆`],[],['■ 一般資材'],h4];
+  const mainStart4=d4.length;
+  MATS.forEach(m=>{
+    const r=d[m.id]||{};const prev=+r.prev||0;const pur=cPur(m.id);
+    const use=cUse(m.id);const gai=+r.gai||0;const books=prev+pur-use-gai;
+    const act=r.act!=null?+r.act:'';const diff=act!==''?books-act:books;
+    d4.push([m.label,m.unit,m.price||0,prev||'',pur||'',use||'',gai||'',books,act,diff]);
+  });
+  d4.push([],['■ ブロック資材'],h4);
+  const blkStart4=d4.length;
+  BLKS.forEach(m=>{
+    const r=d[m.id]||{};const prev=+r.prev||0;const pur=cPur(m.id);
+    const use=cUse(m.id);const gai=+r.gai||0;const books=prev+pur-use-gai;
+    const act=r.act!=null?+r.act:'';const diff=act!==''?books-act:books;
+    d4.push([m.label,m.unit,m.price||0,prev||'',pur||'',use||'',gai||'',books,act,diff]);
+  });
+  const ws4=XLSX.utils.aoa_to_sheet(d4);ws4['!cols']=[{wch:36},{wch:6},{wch:8},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:8},{wch:6}];
+  setStockFormulas(ws4,mainStart4,MATS.length);
+  setStockFormulas(ws4,blkStart4,BLKS.length);
+  XLSX.utils.book_append_sheet(wb,ws4,'支店長提出用');
+
+  XLSX.writeFile(wb,`松戸支店_資材管理_${month}.xlsx`);
+  toast('全シートExcelを出力しました');
+}
+
+// Style helper (bold header row)
+function styleXlHdr(ws,cols,row){
+  for(let c=0;c<cols;c++){
+    const addr=XLSX.utils.encode_cell({r:row,c});
+    if(!ws[addr])continue;
+    ws[addr].s={font:{bold:true},fill:{fgColor:{rgb:'1E3A8A'}},font:{bold:true,color:{rgb:'FFFFFF'}}};
+  }
+}
+
+/* ═══════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════ */
+function esc(s){
+  if(s==null)return'';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg,type='ok'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className=`toast ${type} on`;
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),3000);
+}
+
+/* ═══════════════════════════════════════════
+   START
+═══════════════════════════════════════════ */
+init();
+</script>
+</body>
+</html>
