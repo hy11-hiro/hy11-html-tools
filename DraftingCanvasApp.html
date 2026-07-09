@@ -88,19 +88,28 @@
             carport_1:  { label: 'カーポート1台',  category: '構造物', w: 2750, h: 5000 },
             carport_2:  { label: 'カーポート2台',  category: '構造物', w: 5500, h: 5000 },
             garage:     { label: 'ガレージ',       category: '構造物', w: 3000, h: 5500 },
+            shed:       { label: '物置',           category: '構造物', w: 1500, h: 900  },
+            wheel_stop: { label: '車止め',         category: '構造物', w: 600,  h: 150  },
+            trash_area: { label: 'ゴミ置き場',     category: '構造物', w: 1200, h: 900  },
+            retaining_wall: { label: '擁壁・土留め', category: '構造物', w: 1000, h: 250 },
             // 乗り物
             car:        { label: '普通車',          category: '乗り物', w: 1800, h: 4500 },
             kei:        { label: '軽自動車',        category: '乗り物', w: 1480, h: 3400 },
             bicycle:    { label: '自転車',          category: '乗り物', w: 600,  h: 1800 },
+            bike_rack:  { label: '駐輪スペース',    category: '乗り物', w: 1800, h: 600  },
             // 植栽
             tree_S:     { label: '低木（小）',      category: '植栽', r: 400  },
             tree_M:     { label: '中木（中）',      category: '植栽', r: 750  },
             tree_L:     { label: '高木（大）',      category: '植栽', r: 1500 },
+            tree_conifer: { label: '針葉樹',        category: '植栽', r: 900, isConifer: true },
             hedge:      { label: '生垣',            category: '植栽', w: 500,  h: 2000 },
             // 設備
             post:       { label: '郵便ポスト',      category: '設備', w: 300,  h: 400  },
             ac:         { label: 'エアコン室外機',  category: '設備', w: 900,  h: 300  },
             tap:        { label: '立水栓',          category: '設備', w: 200,  h: 200  },
+            hose_bib:   { label: '散水栓',          category: '設備', r: 150, iconChar: '散' },
+            clothesline:{ label: '物干し',          category: '設備', w: 150,  h: 1800 },
+            nameplate:  { label: '表札・インターホン', category: '設備', w: 150, h: 300 },
             light_post: { label: 'ポールライト',    category: '設備', r: 200  , isLight: true },
             light_wall: { label: '壁付ライト',      category: '設備', w: 200,  h: 150  , isLight: true },
             // 敷地・外構記号（国交省「建築工事設計図書作成基準」別表1・別表2 準拠）
@@ -117,6 +126,15 @@
         };
 
         // 外構材料パターン定義
+        // 線種定義（実線・破線・点線・一点鎖線・二点鎖線）単位はmm
+        const LINE_STYLES = {
+            solid:        { label: '実線',   dash: [] },
+            dashed:       { label: '破線',   dash: [3, 1.5] },
+            dotted:       { label: '点線',   dash: [0.4, 1] },
+            dash_dot:     { label: '一点鎖線', dash: [4, 1, 0.5, 1] },
+            dash_dot_dot: { label: '二点鎖線', dash: [4, 1, 0.5, 1, 0.5, 1] },
+        };
+
         const MATERIALS = {
             // 基本
             none:          { label: 'なし',               color: null,      pattern: null,        category: '基本' },
@@ -578,6 +596,7 @@
             const [drawingScale, setDrawingScale] = useState(100);
             const [unit, setUnit] = useState('mm');
             const [strokeWidth, setStrokeWidth] = useState(0.3);
+            const [strokeStyleType, setStrokeStyleType] = useState('solid');
             const [strokeColor, setStrokeColor] = useState('#000000');
 
             const [gridConfig, setGridConfig] = useState({ color: '#333333', opacity: 0.5, isoAngle: 30, spacing: 10, showSubGrid: false, subDivisions: 5, visible: true, showFrontGrid: true });
@@ -593,6 +612,7 @@
             const [fenceType, setFenceType] = useState('none');
             const [fenceHeight, setFenceHeight] = useState(1200);
             const [selectedSymbol, setSelectedSymbol] = useState('tree_M');
+            const [symbolScale, setSymbolScale] = useState(1);
             const [regPolySides, setRegPolySides] = useState(6);  // 正多角形の辺数
             const [layerVisibility, setLayerVisibility] = useState({
                 drawing: true,
@@ -609,6 +629,7 @@
             };
             const hideTip = () => setTooltip(null);
             const [showSurveyModal, setShowSurveyModal] = useState(false);
+            const [showHelpModal, setShowHelpModal] = useState(false);
             const [snapEnabled, setSnapEnabled] = useState(true);
             const [cubeSize, setCubeSize] = useState(5);
 
@@ -636,6 +657,9 @@
                     // 測量慣行：mm単位で切り捨てて3桁表示
                     const floored = Math.floor(valMM);
                     return (floored / 1000).toFixed(3) + 'm';
+                }
+                if (unit === 'mm_nolabel') {
+                    return String(Math.floor(valMM));
                 }
                 return Math.floor(valMM) + 'mm';
             }, [unit]);
@@ -1071,9 +1095,10 @@
                 ctx.translate(p1.x, p1.y);
                 ctx.rotate(rotation);
                 const lw = ent.lineWidth || 0.25;
+                const symScale = ent.scale || 1;
 
                 if (sym.r) {
-                    const r = sym.r / s;
+                    const r = (sym.r * symScale) / s;
                     if (sym.isCompass) {
                         // 方位記号: 円 + 北を指す矢印 + N
                         ctx.strokeStyle = '#000'; ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = lw * 1.2;
@@ -1104,6 +1129,20 @@
                         ctx.beginPath(); ctx.arc(0,0,r*0.4,0,Math.PI*2); ctx.stroke();
                         ctx.lineWidth = lw * 0.6;
                         for (let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(a)*r*0.5,Math.sin(a)*r*0.5);ctx.lineTo(Math.cos(a)*r*0.9,Math.sin(a)*r*0.9);ctx.stroke();}
+                    } else if (sym.isConifer) {
+                        // 針葉樹: 円＋放射状のギザギザ（星形）で常緑針葉樹を表現
+                        ctx.strokeStyle='#00441b'; ctx.fillStyle='rgba(0,80,30,0.15)'; ctx.lineWidth=lw;
+                        ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+                        ctx.strokeStyle='#00441b'; ctx.lineWidth=lw*0.8;
+                        const spikes = 10;
+                        ctx.beginPath();
+                        for (let i=0;i<spikes*2;i++){
+                            const a = (i/(spikes*2))*Math.PI*2;
+                            const rr = i%2===0 ? r*0.95 : r*0.55;
+                            const px = Math.cos(a)*rr, py = Math.sin(a)*rr;
+                            if (i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+                        }
+                        ctx.closePath(); ctx.stroke();
                     } else {
                         ctx.strokeStyle='#006600'; ctx.fillStyle='rgba(0,120,0,0.12)'; ctx.lineWidth=lw;
                         ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
@@ -1117,7 +1156,7 @@
                     ctx.restore(); return;
                 }
 
-                const w=sym.w/s, h=sym.h/s, hw=w/2, hh=h/2;
+                const w=(sym.w*symScale)/s, h=(sym.h*symScale)/s, hw=w/2, hh=h/2;
                 ctx.lineWidth=lw;
 
                 if (symbolType==='monchuu'||symbolType==='monchuu_L') {
@@ -1275,6 +1314,61 @@
                     ctx.fillStyle='#cc6600'; ctx.font=`bold ${h*0.5}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
                     ctx.fillText('G', 0, 0);
 
+                } else if (symbolType==='shed') {
+                    // 物置: 矩形＋切妻屋根線＋扉線
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw;
+                    ctx.fillStyle='rgba(200,200,200,0.15)'; ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.7;
+                    ctx.beginPath(); ctx.moveTo(-hw,0); ctx.lineTo(0,-hh*0.7); ctx.lineTo(hw,0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0,hh*0.15); ctx.lineTo(0,hh); ctx.stroke();
+
+                } else if (symbolType==='wheel_stop') {
+                    // 車止め: 塗りつぶした角丸長方形
+                    ctx.strokeStyle='#333'; ctx.fillStyle='#666'; ctx.lineWidth=lw;
+                    const rad = Math.min(hh, w*0.15);
+                    ctx.beginPath();
+                    ctx.moveTo(-hw+rad,-hh); ctx.lineTo(hw-rad,-hh); ctx.quadraticCurveTo(hw,-hh,hw,-hh+rad);
+                    ctx.lineTo(hw,hh-rad); ctx.quadraticCurveTo(hw,hh,hw-rad,hh);
+                    ctx.lineTo(-hw+rad,hh); ctx.quadraticCurveTo(-hw,hh,-hw,hh-rad);
+                    ctx.lineTo(-hw,-hh+rad); ctx.quadraticCurveTo(-hw,-hh,-hw+rad,-hh);
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+
+                } else if (symbolType==='trash_area') {
+                    // ゴミ置き場: 枠＋斜線ハッチ
+                    ctx.strokeStyle='#555'; ctx.lineWidth=lw;
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.5; ctx.strokeStyle='rgba(85,85,85,0.6)';
+                    for (let gx=-hw+h*0.3; gx<hw; gx+=h*0.45) { ctx.beginPath(); ctx.moveTo(Math.max(-hw,gx-h), -hh); ctx.lineTo(Math.min(hw,gx), hh); ctx.stroke(); }
+
+                } else if (symbolType==='retaining_wall') {
+                    // 擁壁・土留め: 帯＋片側ハッチ（断面表記の簡易版）
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw;
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.6;
+                    for (let gx=-hw; gx<hw; gx+=h*0.6) { ctx.beginPath(); ctx.moveTo(gx,-hh); ctx.lineTo(gx-h*0.5,hh); ctx.stroke(); }
+
+                } else if (symbolType==='bike_rack') {
+                    // 駐輪スペース: 枠＋区画の縦線
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw;
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.6;
+                    for (let gx=-hw+w*0.16; gx<hw; gx+=w*0.16) { ctx.beginPath(); ctx.moveTo(gx,-hh); ctx.lineTo(gx,hh); ctx.stroke(); }
+
+                } else if (symbolType==='clothesline') {
+                    // 物干し: 支柱2本＋物干し竿
+                    ctx.strokeStyle='#555'; ctx.lineWidth=lw*1.2;
+                    ctx.beginPath(); ctx.arc(0,-hh*0.85,w*0.4,0,Math.PI*2); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0, hh*0.85,w*0.4,0,Math.PI*2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0,-hh*0.85); ctx.lineTo(0,hh*0.85); ctx.stroke();
+
+                } else if (symbolType==='nameplate') {
+                    // 表札・インターホン: 縦長の矩形＋横線2本
+                    ctx.strokeStyle='#444'; ctx.fillStyle='rgba(200,200,200,0.2)'; ctx.lineWidth=lw;
+                    ctx.fillRect(-hw,-hh,w,h); ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.5;
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh*0.2); ctx.lineTo(hw,-hh*0.2); ctx.stroke();
+                    ctx.beginPath(); ctx.arc(0,hh*0.5,hh*0.18,0,Math.PI*2); ctx.stroke();
+
                 } else {
                     ctx.strokeStyle='#333'; ctx.lineWidth=lw; ctx.strokeRect(-hw,-hh,w,h);
                 }
@@ -1333,16 +1427,38 @@
                 if (!p) return;
                 const w = size.width;
                 const h = size.height;
-                const margin = 40; 
-                const paperW_px = p.width * MM_TO_PX;
-                const paperH_px = p.height * MM_TO_PX;
-                let fitScale = Math.min((w - margin*2) / paperW_px, (h - margin*2) / paperH_px);
+                const margin = 40;
+
+                // 用紙範囲
+                let minX = 0, minY = 0, maxX = p.width, maxY = p.height;
+
+                // 図形が用紙の外にはみ出している場合も含めてフィットさせる
+                entities.forEach(ent => {
+                    try {
+                        const pts = [];
+                        if (ent.p1) pts.push(ent.p1);
+                        if (ent.p2) pts.push(ent.p2);
+                        if (ent.c && ent.r != null) { pts.push({x: ent.c.x-ent.r, y: ent.c.y-ent.r}, {x: ent.c.x+ent.r, y: ent.c.y+ent.r}); }
+                        if (ent.pts) pts.push(...ent.pts);
+                        if (ent.type === TOOLS.RECT && ent.p1) pts.push({x: ent.p1.x+ent.w, y: ent.p1.y+ent.h});
+                        pts.forEach(pt => {
+                            if (pt && isFinite(pt.x) && isFinite(pt.y)) {
+                                minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x);
+                                minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y);
+                            }
+                        });
+                    } catch (e) {}
+                });
+
+                const boundsW_px = (maxX - minX) * MM_TO_PX;
+                const boundsH_px = (maxY - minY) * MM_TO_PX;
+                let fitScale = Math.min((w - margin*2) / boundsW_px, (h - margin*2) / boundsH_px);
                 if (!isFinite(fitScale) || fitScale <= 0) fitScale = 0.5;
-                const offsetX = (w - paperW_px * fitScale) / 2;
-                const offsetY = (h - paperH_px * fitScale) / 2;
+                const offsetX = (w - (maxX + minX) * MM_TO_PX * fitScale) / 2;
+                const offsetY = (h - (maxY + minY) * MM_TO_PX * fitScale) / 2;
                 viewRef.current = { scale: fitScale, offsetX: offsetX, offsetY: offsetY };
                 setForceUpdate(prev => prev + 1);
-            }, [paper, size]);
+            }, [paper, size, entities]);
 
             useEffect(() => {
                 if (window.lucide) { try { window.lucide.createIcons(); } catch(e) { console.warn('lucide createIcons failed', e); } }
@@ -1416,7 +1532,7 @@
             };
 
             const addEntity = (entity) => {
-                const newEnts = [...entities, { ...entity, id: Date.now(), layer: 'drawing', lineWidth: strokeWidth, color: strokeColor }];
+                const newEnts = [...entities, { ...entity, id: Date.now(), layer: 'drawing', lineWidth: strokeWidth, lineStyle: strokeStyleType, color: strokeColor }];
                 setEntities(newEnts);
                 pushHistory(newEnts);
                 setTempPoints([]);
@@ -1778,9 +1894,9 @@
                         drawGaikoSymbol(ctx, ent, drawingScale);
                         return;
                     }
-                    if (ent.type === TOOLS.LINE) { ctx.moveTo(ent.p1.x, ent.p1.y); ctx.lineTo(ent.p2.x, ent.p2.y); ctx.stroke(); }
-                    else if (ent.type === TOOLS.RECT) { ctx.rect(ent.p1.x, ent.p1.y, ent.w, ent.h); ctx.stroke(); }
-                    else if (ent.type === TOOLS.CIRCLE) { ctx.arc(ent.c.x, ent.c.y, ent.r, 0, Math.PI * 2); ctx.stroke(); }
+                    if (ent.type === TOOLS.LINE) { ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash); ctx.moveTo(ent.p1.x, ent.p1.y); ctx.lineTo(ent.p2.x, ent.p2.y); ctx.stroke(); ctx.setLineDash([]); }
+                    else if (ent.type === TOOLS.RECT) { ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash); ctx.rect(ent.p1.x, ent.p1.y, ent.w, ent.h); ctx.stroke(); ctx.setLineDash([]); }
+                    else if (ent.type === TOOLS.CIRCLE) { ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash); ctx.arc(ent.c.x, ent.c.y, ent.r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
                     else if (ent.type === TOOLS.POLYGON) {
                         if (!ent.pts || ent.pts.length < 2) return;
                         // 塗り（白黒モード時は色を付けず、ハッチングのみで表現）
@@ -1810,7 +1926,9 @@
                         ctx.moveTo(ent.pts[0].x, ent.pts[0].y);
                         for (let i = 1; i < ent.pts.length; i++) ctx.lineTo(ent.pts[i].x, ent.pts[i].y);
                         ctx.closePath();
+                        ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash);
                         ctx.stroke();
+                        ctx.setLineDash([]);
                         // 頂点マーカー
                         ent.pts.forEach(pt => {
                             ctx.beginPath(); ctx.arc(pt.x, pt.y, 0.5, 0, Math.PI*2);
@@ -1992,13 +2110,15 @@
                     }
                     
                     if (ent.type === TOOLS.DIM) {
-                        ctx.fillStyle = color; ctx.font = `${dimFontSize}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+                        const dfs = ent.fontSize != null ? ent.fontSize : dimFontSize;
+                        const dto = ent.textOffset != null ? ent.textOffset : dimTextOffset;
+                        ctx.fillStyle = color; ctx.font = `${dfs}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                         const mid = Geo.mid(ent.p1, ent.p2);
                         const dimText = formatDim(Geo.dist(ent.p1, ent.p2) * drawingScale);
                         ctx.save(); ctx.translate(mid.x, mid.y);
                         const ang = Math.atan2(ent.p2.y - ent.p1.y, ent.p2.x - ent.p1.x);
                         ctx.rotate( (ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang );
-                        ctx.fillText(dimText, 0, -dimTextOffset); ctx.restore();
+                        ctx.fillText(dimText, 0, -dto); ctx.restore();
                     }
                     } catch(e) { console.warn('entity render error', ent.type, e); }
                 });
@@ -2237,17 +2357,26 @@
 
             const calculateSnap = (rawPos, shiftKey) => {
                 let bestSnap = null;
+                let bestDist = Infinity;
 
                 // ── グリッドスナップ（snapEnabled=true かつグリッド表示中のみ）──
                 if (snapEnabled && gridConfig.visible) {
-                    let minDist = 10 / viewRef.current.scale;
+                    let minDist = 13 / viewRef.current.scale;
                     const majorStep = gridConfig.spacing || 10;
-                    const step = gridConfig.showSubGrid ? (majorStep / Math.max(2, gridConfig.subDivisions || 5)) : majorStep;
+                    let step = gridConfig.showSubGrid ? (majorStep / Math.max(2, gridConfig.subDivisions || 5)) : majorStep;
+                    // ズームインして画面上のマス目が広がった時、自動でさらに細分化してスナップ精度を上げる
+                    // （例：2cm間隔のグリッドでも、拡大すれば1cmや0.5cm単位の点にスナップできるようになる）
+                    const scalePxPerStep = step * viewRef.current.scale * MM_TO_PX;
+                    if (scalePxPerStep > 45) {
+                        const extraDiv = Math.min(32, Math.pow(2, Math.floor(Math.log2(scalePxPerStep / 45))));
+                        step = step / extraDiv;
+                    }
 
                     if (gridMode === GRID_MODES.ORTHO) {
                         const gx = Math.round(rawPos.x / step) * step;
                         const gy = Math.round(rawPos.y / step) * step;
-                        if (Geo.dist(rawPos, {x: gx, y: gy}) < minDist) bestSnap = { x: gx, y: gy };
+                        const d = Geo.dist(rawPos, {x: gx, y: gy});
+                        if (d < minDist && d < bestDist) { bestSnap = { x: gx, y: gy }; bestDist = d; }
                     } else if (gridMode === GRID_MODES.ISO) {
                         const angle = (gridConfig.isoAngle * Math.PI) / 180;
                         const tanAngle = Math.tan(angle);
@@ -2255,7 +2384,8 @@
                         const kv = Math.round((rawPos.y + tanAngle * rawPos.x) / step) * step;
                         const snapX = (kv - ku) / (2 * tanAngle);
                         const snapY = (ku + kv) / 2;
-                        if (Geo.dist(rawPos, {x: snapX, y: snapY}) < minDist) bestSnap = { x: snapX, y: snapY };
+                        const d = Geo.dist(rawPos, {x: snapX, y: snapY});
+                        if (d < minDist && d < bestDist) { bestSnap = { x: snapX, y: snapY }; bestDist = d; }
                     } else if (gridMode === GRID_MODES.PERSP_1) {
                         const refY = PAPERS[paper].height;
                         const denomRef = refY - vp1.y;
@@ -2269,18 +2399,20 @@
                             const c1 = { x: snapXconv, y: gy };
                             const c2 = { x: Math.round(rawPos.x / step) * step, y: gy };
                             const d1 = Geo.dist(rawPos, c1), d2 = Geo.dist(rawPos, c2);
+                            const d = Math.min(d1, d2);
                             const best = d1 < d2 ? c1 : c2;
-                            if (Math.min(d1, d2) < minDist) bestSnap = best;
+                            if (d < minDist && d < bestDist) { bestSnap = best; bestDist = d; }
                         } else {
                             const gx = Math.round(rawPos.x / step) * step;
                             const gy = Math.round(rawPos.y / step) * step;
-                            if (Geo.dist(rawPos, {x: gx, y: gy}) < minDist) bestSnap = {x: gx, y: gy};
+                            const d = Geo.dist(rawPos, {x: gx, y: gy});
+                            if (d < minDist && d < bestDist) { bestSnap = {x: gx, y: gy}; bestDist = d; }
                         }
                     }
                 }
 
-                // ── エンドポイント/中点スナップ（snapEnabled に関わらず常時有効）──
-                let minDistEnt = 8 / viewRef.current.scale;
+                // ── エンドポイント/中点スナップ（snapEnabled に関わらず常時有効、グリッドスナップより近ければ優先）──
+                let minDistEnt = 10 / viewRef.current.scale;
                 entities.forEach(ent => {
                     const checkPts = [];
                     if (ent.type === TOOLS.LINE || ent.type === TOOLS.DIM) checkPts.push(ent.p1, ent.p2, Geo.mid(ent.p1, ent.p2));
@@ -2288,7 +2420,7 @@
                     else if (ent.type === 'text_label') checkPts.push(ent.p1);
                     checkPts.forEach(pt => {
                         const d = Geo.dist(rawPos, pt);
-                        if (d < minDistEnt) { bestSnap = pt; minDistEnt = d; }
+                        if (d < minDistEnt && d < bestDist) { bestSnap = pt; bestDist = d; }
                     });
                 });
 
@@ -2353,7 +2485,7 @@
                                 type: TOOLS.POLYGON,
                                 pts: pts2,
                                 material: selectedMaterial,
-                                color: strokeColor, lineWidth: strokeWidth, layer: 'drawing'
+                                color: strokeColor, lineWidth: strokeWidth, lineStyle: strokeStyleType, layer: 'drawing'
                             };
                             const next = [...entities, newEnt];
                             setEntities(next); pushHistory(next);
@@ -2372,6 +2504,7 @@
                             symbolType: selectedSymbol,
                             p1: { x: pt.x, y: pt.y },
                             rotation: 0,
+                            scale: symbolScale,
                             color: sym.r ? '#006600' : '#333333',
                             lineWidth: strokeWidth,
                             layer: 'symbol'
@@ -2418,6 +2551,7 @@
                                 material: selectedMaterial,
                                 color: strokeColor,
                                 lineWidth: strokeWidth,
+                                lineStyle: strokeStyleType,
                                 layer: 'drawing'
                             };
                             const next = [...entities, newEnt];
@@ -2435,6 +2569,7 @@
                                     material: selectedMaterial,
                                     color: strokeColor,
                                     lineWidth: strokeWidth,
+                                    lineStyle: strokeStyleType,
                                     layer: 'drawing'
                                 };
                                 const next = [...entities, newEnt];
@@ -2503,7 +2638,7 @@
                             if (tool === TOOLS.LINE) newEnt = { type: TOOLS.LINE, p1: start, p2: pt };
                             else if (tool === TOOLS.RECT) newEnt = { type: TOOLS.RECT, p1: start, w: pt.x - start.x, h: pt.y - start.y };
                             else if (tool === TOOLS.CIRCLE) newEnt = { type: TOOLS.CIRCLE, c: start, r: Geo.dist(start, pt) };
-                            else if (tool === TOOLS.DIM) newEnt = { type: TOOLS.DIM, p1: start, p2: pt };
+                            else if (tool === TOOLS.DIM) newEnt = { type: TOOLS.DIM, p1: start, p2: pt, fontSize: dimFontSize, textOffset: dimTextOffset };
                             else if (tool === TOOLS.BLOCK_WALL) {
                                 const walls = createBlockWallEntities(start, pt, blockThickness, blockPosition, strokeColor, strokeWidth, fenceType, fenceHeight);
                                 const next = [...entities, ...walls];
@@ -2623,17 +2758,55 @@
                 setSelVersion(v => v + 1);
             };
 
+            // ── 選択中の線分・図形（線種変更用） ──
+            const LINE_STYLE_TYPES = [TOOLS.LINE, TOOLS.RECT, TOOLS.CIRCLE, TOOLS.POLYGON];
+            const selectedLineEntities = (tool === TOOLS.SELECT && selectedIds.current.size >= 1)
+                ? entities.filter(e => selectedIds.current.has(e.id) && LINE_STYLE_TYPES.includes(e.type))
+                : [];
+
+            const updateSelectedLineStyle = (newStyle) => {
+                if (selectedLineEntities.length === 0) return;
+                const idSet = new Set(selectedLineEntities.map(e => e.id));
+                const next = entities.map(e => idSet.has(e.id) ? { ...e, lineStyle: newStyle } : e);
+                setEntities(next); pushHistory(next);
+            };
+
+            // ── 選択中の外構シンボル（大きさ変更用） ──
+            const selectedSymbolEntity = (tool === TOOLS.SELECT && selectedIds.current.size === 1)
+                ? entities.find(e => selectedIds.current.has(e.id) && e.type === 'symbol') || null
+                : null;
+
+            const updateSelectedSymbolScale = (newScale, commit = true) => {
+                if (!selectedSymbolEntity) return;
+                const next = entities.map(e => e.id === selectedSymbolEntity.id ? { ...e, scale: newScale } : e);
+                setEntities(next);
+                if (commit) pushHistory(next);
+            };
+
+            // ── 選択中の寸法（文字サイズ・上下位置を個別設定） ──
+            const selectedDimEntity = (tool === TOOLS.SELECT && selectedIds.current.size === 1)
+                ? entities.find(e => selectedIds.current.has(e.id) && e.type === TOOLS.DIM) || null
+                : null;
+
+            const updateSelectedDim = (patch, commit = true) => {
+                if (!selectedDimEntity) return;
+                const next = entities.map(e => e.id === selectedDimEntity.id ? { ...e, ...patch } : e);
+                setEntities(next);
+                if (commit) pushHistory(next);
+            };
+
             return (
                 <div className="w-full h-screen flex flex-col bg-[#2d2d2d]">
                     <div className="h-14 bg-gray-900 border-b border-gray-700 flex items-center px-4 space-x-4 flex-shrink-0">
-                        <div className="text-xl font-bold text-white flex items-center"><i data-lucide="pen-tool" className="mr-2"></i> Drafting</div>
+                        <div className="text-xl font-bold text-white flex items-center cursor-pointer hover:text-blue-300 transition-colors" onClick={() => setShowHelpModal(true)} title="このツールについて"><i data-lucide="pen-tool" className="mr-2"></i> Drafting</div>
                         <div className="h-8 w-px bg-gray-700 mx-2"></div>
                         <select className="bg-white text-black text-sm border border-gray-400 rounded p-1" value={paper} onChange={(e) => setPaper(e.target.value)}>{Object.entries(PAPERS).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}</select>
                         
                         <div className="flex items-center text-white text-xs space-x-2 bg-gray-800 p-1 rounded border border-gray-600">
                             <select value={drawingScale} onChange={(e)=>setDrawingScale(Number(e.target.value))} className="border-0 bg-white text-black py-0">{SCALES.map(s => (<option key={s.val} value={s.val}>{s.label}</option>))}</select>
-                            <select value={unit} onChange={(e)=>setUnit(e.target.value)} className="border-0 bg-white text-black py-0"><option value="mm">mm</option><option value="m">m</option></select>
+                            <select value={unit} onChange={(e)=>setUnit(e.target.value)} className="border-0 bg-white text-black py-0"><option value="mm">mm</option><option value="mm_nolabel">mm（単位非表示）</option><option value="m">m</option></select>
                             <select value={strokeWidth} onChange={(e)=>setStrokeWidth(Number(e.target.value))} className="border-0 bg-white text-black py-0">{LINE_WIDTHS.map(w => (<option key={w.val} value={w.val}>{w.label}</option>))}</select>
+                            <select value={strokeStyleType} onChange={(e)=>setStrokeStyleType(e.target.value)} className="border-0 bg-white text-black py-0">{Object.entries(LINE_STYLES).map(([k, s]) => (<option key={k} value={k}>{s.label}</option>))}</select>
                             <input type="color" value={strokeColor} onChange={(e)=>setStrokeColor(e.target.value)} className="w-5 h-5 rounded border-0 p-0 bg-transparent"/>
                         </div>
 
@@ -2669,7 +2842,10 @@
                             <i data-lucide="table" className="w-4 h-4 mr-1"></i> 測量入力
                         </button>
 
-                        <button onClick={fitViewToScreen} className="bg-gray-800 border border-gray-600 p-1 rounded hover:bg-gray-700 ml-2"><i data-lucide="house" className="w-5 h-5 text-gray-300"></i></button>
+                        <button onClick={fitViewToScreen} onMouseEnter={(e) => showTip(e, 'フィット（図面全体を画面に合わせる）')} onMouseLeave={hideTip} className="bg-gray-800 border border-gray-600 px-2 py-1 rounded hover:bg-gray-700 ml-2 flex items-center gap-1 text-gray-300 text-xs">
+                            <i data-lucide="scan" className="w-4 h-4"></i>
+                            <span>フィット</span>
+                        </button>
 
                         {/* スナップ ON/OFF トグル */}
                         <button
@@ -2717,7 +2893,7 @@
                                     <div className="flex flex-col items-center gap-0.5">
                                         <span className="text-xs text-blue-300">{dimFontSize}</span>
                                         <input type="range" min="1" max="10" step="0.5" value={dimFontSize}
-                                            onMouseEnter={(e) => showTip(e, '寸法文字サイズ')} onMouseLeave={hideTip}
+                                            onMouseEnter={(e) => showTip(e, '新しく描く寸法の文字サイズ（初期値）')} onMouseLeave={hideTip}
                                             onChange={e => setDimFontSize(parseFloat(e.target.value))}
                                             className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
                                         <span className="text-xs text-gray-500 leading-tight text-center">文字<br/>サイズ</span>
@@ -2725,7 +2901,7 @@
                                     <div className="flex flex-col items-center gap-0.5">
                                         <span className="text-xs text-blue-300">{dimTextOffset}</span>
                                         <input type="range" min="-2" max="5" step="0.1" value={dimTextOffset}
-                                            onMouseEnter={(e) => showTip(e, '寸法線からの文字の高さ（上下位置）')} onMouseLeave={hideTip}
+                                            onMouseEnter={(e) => showTip(e, '新しく描く寸法の上下位置（初期値）')} onMouseLeave={hideTip}
                                             onChange={e => setDimTextOffset(parseFloat(e.target.value))}
                                             className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
                                         <span className="text-xs text-gray-500 leading-tight text-center">上下<br/>位置</span>
@@ -2749,7 +2925,10 @@
                             )}
                             {/* 外構ツール区切り */}
                             <div className="w-8 border-t border-gray-600 my-1"></div>
-                            {[
+                            <button onClick={() => setShowGaikoPanel(p => !p)} onMouseEnter={(e) => showTip(e, '外構設定')} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${showGaikoPanel ? 'bg-green-800 text-white' : 'text-green-400'}`}>
+                                <i data-lucide="settings-2"></i>
+                            </button>
+                            {showGaikoPanel && [
                                 {id:TOOLS.POLYGON,    i:'pentagon',        l:'多角形（塗り）クリックで頂点追加'},
                                 {id:TOOLS.REG_POLY,   i:'hexagon',         l:'正多角形（辺数指定）'},
                                 {id:TOOLS.BLOCK_WALL, i:'layout-template', l:'ブロック壁'},
@@ -2759,9 +2938,17 @@
                                     <i data-lucide={t.i}></i>
                                 </button>
                             ))}
-                            <button onClick={() => setShowGaikoPanel(p => !p)} onMouseEnter={(e) => showTip(e, '外構設定')} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${showGaikoPanel ? 'bg-green-800 text-white' : 'text-green-400'}`}>
-                                <i data-lucide="settings-2"></i>
-                            </button>
+                            {/* シンボルツール: 配置前の大きさ設定 */}
+                            {tool === TOOLS.SYMBOL && (
+                                <div className="w-10 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-green-300">{symbolScale.toFixed(1)}x</span>
+                                    <input type="range" min="0.2" max="3" step="0.1" value={symbolScale}
+                                        onMouseEnter={(e) => showTip(e, 'シンボルの大きさ（倍率）')} onMouseLeave={hideTip}
+                                        onChange={e => setSymbolScale(parseFloat(e.target.value))}
+                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                    <span className="text-xs text-gray-500">倍率</span>
+                                </div>
+                            )}
                             {/* 正多角形: 辺数選択 */}
                             {tool === TOOLS.REG_POLY && (
                                 <div className="w-10 flex flex-col items-center gap-0.5">
@@ -2857,6 +3044,62 @@
                                         </div>
                                     </div>
                                     <div className="text-xs text-gray-500">キャンバス上でドラッグして移動できます</div>
+                                </div>
+                            )}
+
+                            {/* ── 線種変更パネル（線分・矩形・円・多角形を選択中に表示） ── */}
+                            {!selectedTextEntity && selectedLineEntities.length > 0 && (
+                                <div className="fixed bottom-4 right-4 panel w-56 z-50 text-sm select-none">
+                                    <div className="font-bold text-blue-400 flex items-center gap-2 mb-2">
+                                        <i data-lucide="minus" className="w-4 h-4"></i>
+                                        線種変更（選択中 {selectedLineEntities.length}件）
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-1">
+                                        {Object.entries(LINE_STYLES).map(([k, s]) => (
+                                            <button key={k}
+                                                onClick={() => updateSelectedLineStyle(k)}
+                                                className={`px-2 py-1 rounded text-xs border text-left ${selectedLineEntities.every(e => (e.lineStyle||'solid') === k) ? 'border-blue-400 bg-blue-900 text-blue-200' : 'border-gray-600 bg-gray-800 text-gray-300 hover:bg-gray-700'}`}>
+                                                {s.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── シンボル大きさ変更パネル（外構シンボルを選択中に表示） ── */}
+                            {selectedSymbolEntity && (
+                                <div className="fixed bottom-4 right-4 panel w-56 z-50 text-sm select-none">
+                                    <div className="font-bold text-green-400 flex items-center gap-2 mb-2">
+                                        <i data-lucide="trees" className="w-4 h-4"></i>
+                                        シンボルの大きさ
+                                    </div>
+                                    <div className="text-xs text-gray-300 mb-1">{GAIKO_SYMBOLS[selectedSymbolEntity.symbolType]?.label} — {(selectedSymbolEntity.scale || 1).toFixed(1)}倍</div>
+                                    <input type="range" min="0.2" max="3" step="0.1" value={selectedSymbolEntity.scale || 1}
+                                        onChange={(e) => updateSelectedSymbolScale(parseFloat(e.target.value), false)}
+                                        onMouseUp={(e) => updateSelectedSymbolScale(parseFloat(e.target.value), true)}
+                                        className="w-full" />
+                                </div>
+                            )}
+
+                            {/* ── 寸法の個別設定パネル（寸法を選択中に表示） ── */}
+                            {selectedDimEntity && (
+                                <div className="fixed bottom-4 right-4 panel w-56 z-50 text-sm select-none">
+                                    <div className="font-bold text-blue-400 flex items-center gap-2 mb-2">
+                                        <i data-lucide="ruler" className="w-4 h-4"></i>
+                                        この寸法だけ設定
+                                    </div>
+                                    <label className="block text-xs text-gray-300 mb-1">文字サイズ: {selectedDimEntity.fontSize != null ? selectedDimEntity.fontSize : dimFontSize}</label>
+                                    <input type="range" min="1" max="10" step="0.5"
+                                        value={selectedDimEntity.fontSize != null ? selectedDimEntity.fontSize : dimFontSize}
+                                        onChange={(e) => updateSelectedDim({ fontSize: parseFloat(e.target.value) }, false)}
+                                        onMouseUp={(e) => updateSelectedDim({ fontSize: parseFloat(e.target.value) }, true)}
+                                        className="w-full mb-2" />
+                                    <label className="block text-xs text-gray-300 mb-1">上下位置: {selectedDimEntity.textOffset != null ? selectedDimEntity.textOffset : dimTextOffset}</label>
+                                    <input type="range" min="-2" max="5" step="0.1"
+                                        value={selectedDimEntity.textOffset != null ? selectedDimEntity.textOffset : dimTextOffset}
+                                        onChange={(e) => updateSelectedDim({ textOffset: parseFloat(e.target.value) }, false)}
+                                        onMouseUp={(e) => updateSelectedDim({ textOffset: parseFloat(e.target.value) }, true)}
+                                        className="w-full" />
                                 </div>
                             )}
 
@@ -2995,6 +3238,74 @@
                         onClose={() => setShowSurveyModal(false)} 
                         onImport={importSurveyData}
                     />
+
+                    {/* ── ヘルプ／このツールについて モーダル ── */}
+                    {showHelpModal && (
+                        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4" onClick={() => setShowHelpModal(false)}>
+                            <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto text-gray-200" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex justify-between items-center px-5 py-3 border-b border-gray-700 sticky top-0 bg-gray-800">
+                                    <div className="flex items-center gap-2 text-lg font-bold text-white">
+                                        <i data-lucide="pen-tool"></i> Drafting について
+                                    </div>
+                                    <button onClick={() => setShowHelpModal(false)} className="text-gray-400 hover:text-white p-1">
+                                        <i data-lucide="x" className="w-5 h-5"></i>
+                                    </button>
+                                </div>
+                                <div className="px-5 py-4 text-sm space-y-4">
+                                    <p className="text-gray-300">建築・外構図面をブラウザ上で作成するための製図ツールです。直交／アイソメ／1点透視／2点透視のグリッドに対応し、寸法・材料ハッチング・外構シンボルなどを使って図面を仕上げられます。</p>
+
+                                    <div>
+                                        <div className="font-bold text-blue-400 mb-1">基本ツール</div>
+                                        <ul className="list-disc list-inside space-y-0.5 text-gray-300">
+                                            <li>選択：図形の移動・削除、プロパティ変更</li>
+                                            <li>線分／矩形／円：基本図形の作成</li>
+                                            <li>寸法：距離を自動計算して表示。文字サイズ・上下位置は個別に調整可能</li>
+                                            <li>文字：クリックで自由にテキストを配置、向き（回転）も変更可能</li>
+                                            <li>消しゴム：クリックした図形を削除</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <div className="font-bold text-green-400 mb-1">外構ツール（左アイコン列の「外構設定」から表示）</div>
+                                        <ul className="list-disc list-inside space-y-0.5 text-gray-300">
+                                            <li>多角形（塗り）：頂点をクリックして囲み、コンクリート・地盤・砂利・タイルなどの材料ハッチングで塗り分け</li>
+                                            <li>正多角形：辺数を指定して配置</li>
+                                            <li>ブロック壁：厚み・段数を指定して連続描画</li>
+                                            <li>外構シンボル：植栽・方位記号・排水桝・境界標など。大きさは倍率で調整可能</li>
+                                            <li>白黒モード：材料の色塗りをやめ、JIS製図に準じたハッチングのみの表示に切り替え</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <div className="font-bold text-purple-400 mb-1">線種・単位</div>
+                                        <ul className="list-disc list-inside space-y-0.5 text-gray-300">
+                                            <li>実線・破線・点線・一点鎖線・二点鎖線を切り替えて描画可能</li>
+                                            <li>単位はmm／mm（単位非表示）／mから選択可能</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <div className="font-bold text-yellow-400 mb-1">ショートカット</div>
+                                        <ul className="list-disc list-inside space-y-0.5 text-gray-300">
+                                            <li><span className="font-mono bg-gray-700 px-1 rounded">S</span>：スナップON/OFF切り替え</li>
+                                            <li><span className="font-mono bg-gray-700 px-1 rounded">Shift</span>（描画中）：15°単位で角度を拘束</li>
+                                            <li><span className="font-mono bg-gray-700 px-1 rounded">Delete</span> / <span className="font-mono bg-gray-700 px-1 rounded">Backspace</span>：選択中の図形を削除</li>
+                                            <li><span className="font-mono bg-gray-700 px-1 rounded">Esc</span>：描画中の操作をキャンセル</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <div className="font-bold text-cyan-400 mb-1">その他</div>
+                                        <ul className="list-disc list-inside space-y-0.5 text-gray-300">
+                                            <li>「フィット」ボタン：図面全体が画面に収まる位置・拡大率に戻す</li>
+                                            <li>「測量入力」：座標データの一括入力・取り込み</li>
+                                            <li>グリッド設定：間隔やサブグリッドの細分化数を調整可能。拡大するとスナップも自動的に細かくなります</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
