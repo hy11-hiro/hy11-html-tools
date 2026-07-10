@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v85</title>
+    <title>G-Ledger | 現場原価管理台帳システム v86</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v85</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v86</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -95,7 +95,7 @@
         <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm z-10 flex-shrink-0">
             <h2 id="page-title" class="text-xl font-bold text-slate-700">現場照会・分析</h2>
             <div class="flex items-center gap-4">
-                <div id="header-period" class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded border border-slate-300 hidden"><i class="fa-regular fa-clock mr-1"></i> データ期間: <span id="period-text"></span></div>
+                <div id="header-period" class="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded border border-slate-300 hidden"><i class="fa-regular fa-clock mr-1"></i> データ期間: <span id="period-text"></span><span id="header-imported-at" class="ml-2 pl-2 border-l border-slate-300 text-slate-500 font-normal hidden"><i class="fa-solid fa-file-import mr-1"></i>最終取込: <span id="imported-at-text"></span></span></div>
                 <div class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm border border-blue-100"><i class="fa-solid fa-shield-halved mr-1"></i> ローカルセキュアモード</div>
             </div>
         </header>
@@ -2387,6 +2387,20 @@
         const elDPurchase = document.getElementById('db-date-purchase');   if (elDPurchase)   elDPurchase.textContent   = fmtDate(mPurchase);
         const elDSales    = document.getElementById('db-date-sales');      if (elDSales)      elDSales.textContent      = fmtDate(mSales);
         const elDCollection = document.getElementById('db-date-collection'); if (elDCollection) elDCollection.textContent = fmtDate(mCollection);
+
+        // ヘッダーに「最終取込」を常時表示（5種のデータのうち最も新しい取込日時を表示）
+        // nowStr は "YYYY/MM/DD HH:mm" 形式（0埋め固定長）で保存されているため、文字列比較で新旧判定できる
+        const importedAtValues = [mCost, mMaster, mPurchase, mSales, mCollection]
+            .map(m => m?.value).filter(Boolean);
+        const headerImportedAt = document.getElementById('header-imported-at');
+        const importedAtText = document.getElementById('imported-at-text');
+        if (importedAtValues.length > 0) {
+            const latest = importedAtValues.reduce((a, b) => (b > a ? b : a));
+            if (importedAtText) importedAtText.textContent = latest;
+            if (headerImportedAt) headerImportedAt.classList.remove('hidden');
+        } else if (headerImportedAt) {
+            headerImportedAt.classList.add('hidden');
+        }
 
         const meta = await db.meta.get('period');
         if(meta && meta.value) { 
