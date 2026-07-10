@@ -221,8 +221,8 @@
                             <thead class="table-light"><tr><th>列番号</th><th>列名</th><th>計算方法・値</th></tr></thead>
                             <tbody>
                                 <tr><td>27列目 (AA)</td><td>金額</td><td>入力値そのまま（<strong>税込金額</strong>）</td></tr>
-                                <tr><td>31列目 (AE)</td><td>粗利</td><td>得意先マスタ DI列（消費税計算区分）に従い端数処理<br><code>0:切り捨て(floor)</code> / <code>1:切り上げ(ceil)</code> / <code>2:四捨五入(round)</code><br>マスタ未設定の場合は四捨五入 ⚠️ 実態は税抜金額</td></tr>
-                                <tr><td>36列目 (AJ)</td><td>内消費税等</td><td><code>金額 − 粗利(税抜)</code>　→ 消費税額</td></tr>
+                                <tr><td>31列目 (AE)</td><td>粗利</td><td><code>金額 − 内消費税等</code>　⚠️ 実態は税抜金額</td></tr>
+                                <tr><td>36列目 (AJ)</td><td>内消費税等</td><td>得意先マスタ DI列（消費税計算区分）に従い端数処理<br><code>消費税 = 端数処理(金額 × 10 ÷ 110)</code><br><code>0:切り捨て(floor)</code> / <code>1:切り上げ(ceil)</code> / <code>2:四捨五入(round)</code><br>マスタ未設定の場合は四捨五入</td></tr>
                                 <tr><td>35列目 (AI)</td><td>消費税率</td><td>固定値 <code>"10"</code></td></tr>
                                 <tr><td>33列目 (AG)</td><td>課税区分</td><td>固定値 <code>"1"</code></td></tr>
                                 <tr><td>28列目 (AB)</td><td>原単価</td><td>固定値 <code>"0"</code></td></tr>
@@ -1198,7 +1198,7 @@ function addGridRow() {
             const custData = M_CUST.find(c => c.c === custCode);
             const taxRoundType = parseInt(custData?.taxRound ?? "2");
             const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
-            taxExIn.value = roundFn(amt / 1.1).toLocaleString();
+            taxExIn.value = (amt - roundFn(amt * 10 / 110)).toLocaleString();
         } else {
             taxExIn.value = "";
         }
@@ -1276,8 +1276,8 @@ function executeTransfer() {
         const amount = parseInt(tr.querySelector('.amount-col').value);
         const job = tr.querySelector('.job-code').value;     
         const sub = tr.querySelector('.sub-code').value;     
-        const taxEx = roundFn(amount / 1.1);
-        const tax = amount - taxEx;
+        const tax = roundFn(amount * 10 / 110);
+        const taxEx = amount - tax;
 
         let row = new Array(136).fill(""); 
         row[0] = dateStr; row[2] = currentSeq; row[3] = "0"; row[4] = "1";
@@ -1380,9 +1380,10 @@ function showPreviewTable() {
                     const custData = M_CUST.find(c => c.c === custCode);
                     const taxRoundType = parseInt(custData?.taxRound ?? "2");
                     const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
-                    const taxEx = roundFn(amount / 1.1);
+                    const tax = roundFn(amount * 10 / 110);
+                    const taxEx = amount - tax;
                     exportData[idx][30] = String(taxEx);        // 粗利
-                    exportData[idx][35] = String(amount - taxEx); // 内消費税等
+                    exportData[idx][35] = String(tax); // 内消費税等
                     showPreviewTable(); // 粗利・内消費税等セルの表示を更新するため再描画
                 }
                 updateSummary();
