@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>資材管理システム — 松戸支店</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#f2f3f6;
+  --bg:#eef0f5;
   --white:#ffffff;
   --bd:#d7dae2;
   --bd2:#e7e9ee;
@@ -20,17 +20,23 @@
   --pri-l:#eef1f6;
   --pri-bd:#c7d2e2;
   --accent:#5b6478;
+  --act:#c2570d;
+  --act-h:#a3480a;
+  --act-l:#fdf1e6;
+  --act-bd:#f0c79b;
   --grn:#15803d;
   --grn-l:#f1f7f3;
   --red:#b91c1c;
   --red-l:#fbf1f1;
+  --field-bg:#f5f7fb;
   --shadow:0 1px 2px rgba(20,24,38,.06);
-  --shadow-md:0 3px 10px rgba(20,24,38,.08);
+  --shadow-md:0 4px 14px rgba(20,24,38,.10);
   --r:5px;
-  --mono:'IBM Plex Mono',monospace;
+  --mono:'Space Grotesk','Noto Sans JP',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+.mn,.numpad,.mono,input,td.r,td.pr,.bdg{font-variant-numeric:tabular-nums}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:#c0c8d8;border-radius:3px}
 
@@ -40,6 +46,9 @@ html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:var(--bg)
   position:sticky;top:0;z-index:100;box-shadow:0 1px 0 rgba(0,0,0,.08)}
 .hdr-l{display:flex;flex-direction:column;gap:1px}
 .hdr-t{font-weight:700;font-size:14px;letter-spacing:.3px}
+.hdr-t-btn{background:none;border:none;color:#fff;cursor:pointer;text-align:left;
+  padding:0;font-family:'Noto Sans JP',sans-serif;border-bottom:1px dashed transparent}
+.hdr-t-btn:hover{border-bottom-color:rgba(255,255,255,.6)}
 .hdr-s{font-size:11px;opacity:.65}
 .mth-btn{background:transparent;border:1px solid rgba(255,255,255,.35);
   color:#fff;padding:5px 16px;border-radius:3px;font-size:12px;font-family:var(--mono);
@@ -61,11 +70,14 @@ html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:var(--bg)
 .pg.on{display:block}
 
 /* CARD */
-.card{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);
+.card{background:var(--white);border:1px solid var(--bd);border-left:3px solid var(--pri);
+  border-radius:var(--r);
   padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
 .ct{font-size:12px;font-weight:700;
   color:var(--text);text-transform:uppercase;letter-spacing:.8px;margin-bottom:14px;
-  padding-bottom:8px;border-bottom:1px solid var(--bd2)}
+  padding-bottom:8px;border-bottom:2px solid var(--pri);
+  display:flex;align-items:center;gap:7px}
+.ct::before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--act)}
 
 /* FORM LAYOUT */
 .row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px}
@@ -79,19 +91,19 @@ html,body{height:100%;font-family:'Noto Sans JP',sans-serif;background:var(--bg)
 
 /* INPUTS */
 input,select,textarea{
-  border:1.5px solid var(--bd);background:var(--white);
+  border:1.5px solid var(--bd);background:var(--field-bg);
   color:var(--text);padding:8px 10px;border-radius:6px;
   font-size:14px;font-family:'Noto Sans JP',sans-serif;width:100%;
-  transition:border .15s,box-shadow .15s}
+  transition:border .15s,box-shadow .15s,background .15s}
 input:focus,select:focus,textarea:focus{
-  outline:none;border-color:var(--pri);box-shadow:0 0 0 3px rgba(29,78,216,.1)}
-input[readonly]{background:#f6f8fc;color:var(--muted);cursor:default}
-input.numpad{font-family:var(--mono);font-size:15px;letter-spacing:.5px}
-textarea{resize:vertical;min-height:140px;font-size:13px;line-height:1.6}
+  outline:none;background:var(--white);border-color:var(--act);box-shadow:0 0 0 3px var(--act-l)}
+input[readonly]{background:#eef0f4;color:var(--muted);cursor:default}
+input.numpad{font-family:var(--mono);font-size:15px;letter-spacing:.3px;font-weight:600}
+textarea{resize:vertical;min-height:140px;font-size:13px;line-height:1.6;background:var(--white)}
 select option{background:var(--white)}
 
 /* NUMPAD HIGHLIGHT */
-input:focus.numpad{background:var(--pri-l);border-color:var(--pri)}
+input:focus.numpad{background:var(--act-l);border-color:var(--act)}
 
 /* AUTOCOMPLETE */
 .acw{position:relative}
@@ -129,20 +141,20 @@ input:focus.numpad{background:var(--pri-l);border-color:var(--pri)}
 .mt thead th.r{text-align:right}
 .mt tbody tr{border-bottom:1px solid var(--bd2)}
 .mt tbody tr:hover{background:#fafbff}
-.mt tbody tr.has-val{background:#fffbeb}
+.mt tbody tr.has-val{background:var(--act-l)}
 .mt td{padding:3px 6px;vertical-align:middle}
 .mt td.nm{font-size:14px;padding-left:8px;min-width:180px}
 .mt td.un{font-size:12.5px;color:var(--muted);text-align:center;width:40px}
 .mt td.pr{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right;width:70px}
 .mt td.qi{text-align:right;width:100px}
 .mt td.qi input{width:90px;text-align:right;padding:5px 8px;font-family:var(--mono);font-size:15px;border-radius:4px}
-.mt td.qi input.has{border-color:var(--pri);background:var(--pri-l);color:var(--pri);font-weight:700}
+.mt td.qi input.has{border-color:var(--act);background:var(--act-l);color:var(--act-h);font-weight:700}
 
 /* BUTTONS */
 .btn{padding:7px 16px;border:none;border-radius:6px;font-size:13px;
   font-family:'Noto Sans JP',sans-serif;font-weight:700;cursor:pointer;
   transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
-.btn-p{background:var(--pri);color:#fff}.btn-p:hover{background:var(--pri-h)}
+.btn-p{background:var(--act);color:#fff;box-shadow:0 1px 3px rgba(194,87,13,.3)}.btn-p:hover{background:var(--act-h)}
 .btn-g{background:var(--grn);color:#fff}.btn-g:hover{filter:brightness(1.08)}
 .btn-o{background:var(--white);color:var(--text);border:1.5px solid var(--bd)}.btn-o:hover{border-color:var(--pri);color:var(--pri)}
 .btn-d{background:var(--white);color:var(--red);border:1.5px solid var(--bd)}.btn-d:hover{background:var(--red-l);border-color:var(--red)}
@@ -204,7 +216,7 @@ input:focus.numpad{background:var(--pri-l);border-color:var(--pri)}
 .mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
 .mu{color:var(--muted)}.sm{font-size:12px}.mn{font-family:var(--mono)}
 .sep{font-size:11.5px;font-weight:700;color:#4b5566;text-transform:uppercase;
-  letter-spacing:.5px;border-bottom:1.5px solid var(--bd2);padding-bottom:5px;margin:14px 0 8px}
+  letter-spacing:.5px;border-bottom:2px solid var(--act);padding-bottom:5px;margin:14px 0 8px}
 hr{border:none;border-top:1px solid var(--bd);margin:14px 0}
 
 /* PRICE GRID */
@@ -245,16 +257,53 @@ hr{border:none;border-top:1px solid var(--bd);margin:14px 0}
 .pu-lbl.sm{font-size:11px}
 .pu-qty{width:70px!important;text-align:right!important;font-family:var(--mono)!important;
   font-size:13px!important;padding:4px 6px!important;border-radius:3px!important}
-.pu-qty:focus{background:#fffbeb!important;border-color:var(--accent)!important}
+.pu-qty:focus{background:var(--act-l)!important;border-color:var(--act)!important}
 
 /* PRINT */
 @media print{
-  .hdr,.tabs,.np,.no-p,.btn{display:none!important}
+  .hdr,.tabs,.np,.no-p,.btn,.help-overlay{display:none!important}
   .pg{display:block!important;padding:0}
   body{background:#fff;font-size:11px}
   .card{box-shadow:none;border-color:#ccc}
   .smt thead th{background:var(--pri);color:#fff;-webkit-print-color-adjust:exact}
 }
+
+/* HELP MODAL */
+.help-overlay{display:none;position:fixed;inset:0;background:rgba(20,24,38,.55);
+  z-index:1000;padding:24px;overflow-y:auto}
+.help-overlay.on{display:block}
+.help-panel{background:var(--white);max-width:820px;margin:0 auto;border-radius:8px;
+  box-shadow:var(--shadow-md);overflow:hidden}
+.help-hdr{background:var(--pri);color:#fff;padding:16px 22px;
+  display:flex;align-items:center;justify-content:space-between;position:sticky;top:0}
+.help-hdr-t{font-size:16px;font-weight:700}
+.help-hdr-s{font-size:11px;opacity:.7;margin-top:2px}
+.help-close{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.35);
+  color:#fff;border-radius:4px;padding:5px 14px;font-size:12px;cursor:pointer;font-weight:700}
+.help-close:hover{background:rgba(255,255,255,.28)}
+.help-body{padding:22px 26px 34px}
+.help-toc{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:22px;
+  background:var(--field-bg);border:1px solid var(--bd);border-radius:6px;padding:14px 16px}
+.help-toc a{font-size:12.5px;color:var(--pri);text-decoration:none;font-weight:600;
+  padding:3px 0;display:block}
+.help-toc a:hover{text-decoration:underline}
+.help-h1{font-size:16px;font-weight:700;color:var(--pri);margin:26px 0 10px;
+  padding-bottom:6px;border-bottom:2px solid var(--act);scroll-margin-top:70px}
+.help-h1:first-of-type{margin-top:0}
+.help-h2{font-size:13px;font-weight:700;color:var(--text);margin:16px 0 8px;
+  display:flex;align-items:center;gap:6px}
+.help-h2::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--act)}
+.help-p{font-size:12.5px;line-height:1.85;color:var(--text);margin-bottom:10px}
+.help-ul{margin:0 0 12px 22px;font-size:12.5px;line-height:1.85;color:var(--text)}
+.help-note{background:var(--pri-l);border-left:3px solid var(--pri);border-radius:0 5px 5px 0;
+  padding:8px 12px;font-size:12px;color:var(--text);margin-bottom:14px;line-height:1.75}
+.help-warn{background:#fdecec;border-left:3px solid var(--red);border-radius:0 5px 5px 0;
+  padding:8px 12px;font-size:12px;color:#7a1414;margin-bottom:14px;line-height:1.75;font-weight:600}
+.help-tbl{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:12px}
+.help-tbl th{background:var(--pri);color:#fff;padding:6px 10px;text-align:left;font-weight:700}
+.help-tbl td{padding:6px 10px;border:1px solid var(--bd2);vertical-align:top}
+.help-tbl tr:nth-child(even) td{background:var(--field-bg)}
+.help-qa{font-size:12.5px;font-weight:700;color:var(--pri);margin:12px 0 4px}
 </style>
 </head>
 <body>
@@ -262,7 +311,7 @@ hr{border:none;border-top:1px solid var(--bd);margin:14px 0}
 <!-- HEADER -->
 <header class="hdr">
   <div class="hdr-l">
-    <div class="hdr-t">資材管理システム</div>
+    <button class="hdr-t hdr-t-btn" onclick="openHelp()" title="使い方マニュアルを表示">資材管理システム</button>
     <div class="hdr-s">ヒューマンヤード 松戸支店</div>
   </div>
   <button class="mth-btn" id="mthBtn" onclick="goPage('settings')">----年--月</button>
@@ -386,6 +435,7 @@ hr{border:none;border-top:1px solid var(--bd);margin:14px 0}
   <div class="flex">
     <input type="text" id="tf-q" placeholder="工番・現場名で検索" style="width:190px;font-size:12px" oninput="rdTfList()">
     <button class="btn btn-xl btn-sm" onclick="xlTf()">Excel出力</button>
+    <button class="btn btn-d btn-sm" onclick="delAllTf()" title="今月の持ち出し記録を全件削除します">今月分を一括削除</button>
   </div>
 </div>
 <div class="rw no-p">
@@ -459,14 +509,14 @@ D10 4m　50"></textarea>
   </div>
 
   <!-- 常用3品 block -->
-  <div style="background:var(--pri-l);border:1px solid var(--pri-bd);border-radius:5px;padding:10px 12px;margin-bottom:12px">
-    <div class="lbl" style="margin-bottom:8px;font-size:12px">常用</div>
+  <div style="background:var(--act-l);border:1px solid var(--act-bd);border-radius:5px;padding:10px 12px;margin-bottom:12px">
+    <div class="lbl" style="margin-bottom:8px;font-size:12px;color:var(--act-h)">常用</div>
     <div id="pu-quick-rows"></div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
       <button id="pu-q-btn" tabindex="0"
         onclick="puQuickSave()"
         onkeydown="if(event.key==='Enter'){event.preventDefault();puQuickSave()}"
-        style="background:var(--pri);color:#fff;border:none;border-radius:4px;
+        style="background:var(--act);color:#fff;border:none;border-radius:4px;
           font-size:13px;padding:6px 18px;font-family:'Noto Sans JP',sans-serif;
           font-weight:700;cursor:pointer">Enter ／ 入力</button>
     </div>
@@ -508,7 +558,10 @@ D10 4m　50"></textarea>
 <div style="min-width:0">
   <div class="sh" style="margin-top:0">
     <div class="st">今月の購入記録 <span class="bdg bb" id="pu-cnt">0件</span></div>
-    <button class="btn btn-xl btn-sm" onclick="xlPu()">Excel出力</button>
+    <div class="flex">
+      <button class="btn btn-xl btn-sm" onclick="xlPu()">Excel出力</button>
+      <button class="btn btn-d btn-sm" onclick="delAllPu()" title="今月の購入記録を全件削除します">今月分を一括削除</button>
+    </div>
   </div>
   <div class="rw">
     <table class="rt">
@@ -518,6 +571,7 @@ D10 4m　50"></textarea>
   </div>
   <div class="sh" style="margin-top:16px">
     <div class="st" style="color:#7c3aed">らく目地ブロック記録 <span class="bdg" style="background:#f3f0fb;color:#7c3aed" id="pu-blk-cnt">0件</span></div>
+    <button class="btn btn-d btn-sm" onclick="delAllPuBlk()" title="今月のらく目地ブロック記録を全件削除します">今月分を一括削除</button>
   </div>
   <div class="rw">
     <table class="rt">
@@ -534,11 +588,14 @@ D10 4m　50"></textarea>
 <div class="pg" id="pg-ds">
 <div class="card no-p">
   <div class="ct">現金在庫処分（持ち出しから自動転記）</div>
-  <p class="sm mu">持ち出し入力のブロック資材使用記録が自動的に反映されます。</p>
+  <p class="sm mu">持ち出し入力のブロック資材使用記録が自動的に反映されます。<br>
+    <span style="color:var(--muted2)">※この一覧は持ち出し記録から自動集計された表示です。一括削除は、対象の持ち出し記録から「ブロック資材の数量」のみを取り除きます（一般資材のデータは残ります）。</span>
+  </p>
   <div class="flex mt8">
     <button class="btn btn-o btn-sm" onclick="rdDs()">更新</button>
     <button class="btn btn-o btn-sm" onclick="window.print()">印刷</button>
     <button class="btn btn-xl btn-sm" onclick="xlDs()">Excel出力</button>
+    <button class="btn btn-d btn-sm" onclick="delAllDs()" title="今月のブロック資材の持ち出し数量を一括で取り除きます">今月分を一括削除</button>
   </div>
 </div>
 <div id="ds-view"></div>
@@ -690,6 +747,159 @@ D10 4m　50"></textarea>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+
+<!-- HELP MODAL（使い方マニュアル） -->
+<div class="help-overlay" id="help-overlay" onclick="if(event.target===this)closeHelp()">
+  <div class="help-panel">
+    <div class="help-hdr">
+      <div>
+        <div class="help-hdr-t">資材管理システム 操作マニュアル</div>
+        <div class="help-hdr-s">ヒューマンヤード 松戸支店</div>
+      </div>
+      <button class="help-close" onclick="closeHelp()">閉じる ×</button>
+    </div>
+    <div class="help-body">
+
+      <div class="help-toc">
+        <a href="#help-1">1. このシステムについて</a>
+        <a href="#help-7">7. 支店長提出用</a>
+        <a href="#help-2">2. 画面の基本構成</a>
+        <a href="#help-8">8. 設定</a>
+        <a href="#help-3">3. 持ち出し入力フォーム</a>
+        <a href="#help-9">9. 日付入力のルール</a>
+        <a href="#help-4">4. LINE解析</a>
+        <a href="#help-10">10. データの保存場所とバックアップ</a>
+        <a href="#help-5">5. 購入仕入</a>
+        <a href="#help-11">11. よくある質問</a>
+        <a href="#help-6">6. 現金在庫処分</a>
+      </div>
+
+      <div class="help-h1" id="help-1">1. このシステムについて</div>
+      <p class="help-p">支店における資材の「持ち出し（現場での使用）」「購入仕入」「在庫の集計」を一元管理するブラウザ上のツールです。特別なアプリのインストールは不要で、HTMLファイルをブラウザで開くだけで使用できます。</p>
+      <div class="help-note">データはお使いのブラウザ内（localStorage）に保存されます。別のパソコンやブラウザで開いても、これまでのデータは表示されません。他の端末へ引き継ぐ場合は「設定」タブの「データ管理」からエクスポート／インポートしてください（8章）。</div>
+      <table class="help-tbl">
+        <tr><th>タブ名</th><th>主な用途</th></tr>
+        <tr><td>持ち出し入力</td><td>現場で使用した資材の記録を入力する</td></tr>
+        <tr><td>LINE解析</td><td>LINEの資材報告テキストを自動で読み取り、持ち出し入力へ反映する</td></tr>
+        <tr><td>購入仕入</td><td>資材業者からの仕入れ・購入を記録する</td></tr>
+        <tr><td>現金在庫処分</td><td>ブロック資材の使用状況を自動集計して表示する</td></tr>
+        <tr><td>支店長提出用</td><td>月末の在庫一覧表（書類上在庫・実在庫・差）を作成する</td></tr>
+        <tr><td>設定</td><td>対象月、担当者コード、現場マスター、資材の品目・単価などを管理する</td></tr>
+      </table>
+
+      <div class="help-h1" id="help-2">2. 画面の基本構成</div>
+      <div class="help-h2">ヘッダーと対象月</div>
+      <p class="help-p">画面右上の「〇年〇月」ボタンで、設定タブから対象月を切り替えられます。持ち出し・購入仕入・支店長提出用などのデータは、すべて対象月ごとに独立して保存されます。</p>
+      <div class="help-h2">タブの切り替え</div>
+      <p class="help-p">画面上部のタブをクリックすることで各機能に切り替えられます。このマニュアルは、画面左上の「資材管理システム」というタイトルをクリックするといつでも開けます。</p>
+
+      <div class="help-h1" id="help-3">3. 持ち出し入力フォーム</div>
+      <p class="help-p">現場で使用した資材を、1現場・1回の持ち出しごとに記録します。</p>
+      <ul class="help-ul">
+        <li>「日付」に持ち出した日を入力（20260601、または 6/1 のような省略入力も可。9章参照）</li>
+        <li>「工番」を入力すると、現場マスターが登録されていれば現場名・現場監督名が自動入力される</li>
+        <li>「担当コード」（1〜9）を入力すると担当者名が自動表示される（設定タブで事前登録が必要）</li>
+        <li>「使用数量」に実際に使った資材の数量を入力（空欄は未使用扱い）</li>
+        <li>「保存」ボタン（またはEnterキー）で記録する</li>
+      </ul>
+      <div class="help-note">日付・工番・担当コードの入力欄はEnterキーで次の欄へ自動移動します。資材の数量欄では↑↓キーで資材間を移動できます。使わない資材は「項目を非表示にする」で一時的に隠せます。</div>
+      <div class="help-h2">記録一覧（今月の持ち出し記録）</div>
+      <table class="help-tbl">
+        <tr><th>操作</th><th>説明</th></tr>
+        <tr><td>検索</td><td>工番・現場名の一部で一覧を絞り込む</td></tr>
+        <tr><td>Excel出力</td><td>今月の持ち出し記録をExcelファイルとして書き出す</td></tr>
+        <tr><td>今月分を一括削除</td><td>今月の持ち出し記録を全件削除（2段階の確認あり）</td></tr>
+        <tr><td>個別の削除</td><td>各行の「削除」ボタンでその記録だけを削除</td></tr>
+      </table>
+      <div class="help-warn">「今月分を一括削除」は元に戻せません。実行前に「Excel出力」で控えを保存しておくことをおすすめします。</div>
+
+      <div class="help-h1" id="help-4">4. LINE解析</div>
+      <p class="help-p">LINEで届いた資材報告メッセージをコピー＆貼り付けするだけで自動的に読み取り、持ち出し入力用のデータに変換します。</p>
+      <ul class="help-ul">
+        <li>LINEのメッセージをコピーし、左のテキスト欄に貼り付ける</li>
+        <li>「解析実行」で右側に現場ごとの解析結果が表示される</li>
+        <li>内容を確認し、必要であれば手直しする</li>
+        <li>「フォームに転記」または「全件を持ち出しに追加」で記録として保存する</li>
+      </ul>
+      <div class="help-h2">解析結果の手直し（誤りの修正）</div>
+      <p class="help-p">日付・発言者・工番・現場名は直接書き換え可能、資材はプルダウンで選び直し、数量は直接編集できます。「×」で資材行を削除、「＋ 資材を追加」で追加、「この現場を削除」でグループごと削除できます。</p>
+      <div class="help-note">工番の無い業務連絡（入荷連絡や注意喚起など）は資材として取り込まれず、自動的に無視されます。手直しした内容は転記・一括追加・TSVコピーすべてに反映されます。</div>
+
+      <div class="help-h1" id="help-5">5. 購入仕入</div>
+      <table class="help-tbl">
+        <tr><th>ブロック</th><th>内容</th></tr>
+        <tr><td>常用</td><td>よく使う資材3品目をまとめて入力</td></tr>
+        <tr><td>その他資材</td><td>常用以外の一般資材を一覧から入力</td></tr>
+        <tr><td>千葉中央支店</td><td>千葉中央支店分の仕入れを分けて記録</td></tr>
+        <tr><td>らく目地ブロック</td><td>ブロック資材専用の入力欄（別枠で保存）</td></tr>
+      </table>
+      <p class="help-p">「今月の購入記録」と「らく目地ブロック記録」はそれぞれ別の一覧で表示され、Excel出力・一括削除もそれぞれ独立しています。</p>
+      <div class="help-warn">「今月分を一括削除」ボタンは購入記録用とらく目地ブロック用が別々にあります。押した方の一覧だけが削除されます。</div>
+
+      <div class="help-h1" id="help-6">6. 現金在庫処分</div>
+      <p class="help-p">らく目地ブロックなど「ブロック資材」の持ち出し状況を、資材ごとに自動集計して表示する画面です。</p>
+      <div class="help-note">この画面は独立したデータではなく、「持ち出し入力フォーム」に記録されたデータの中からブロック資材を含む行を自動的に抜き出して表示しているだけです。ここから直接データを入力することはできません。</div>
+      <div class="help-warn">「今月分を一括削除」を実行すると、対象の持ち出し記録から「ブロック資材の数量」だけが取り除かれます。同じ記録内のセメント・砂などの一般資材や、持ち出し記録そのもの（工番・現場名・日付）は削除されません。</div>
+
+      <div class="help-h1" id="help-7">7. 支店長提出用</div>
+      <p class="help-p">月末に支店長へ提出する在庫一覧表を作成します。</p>
+      <table class="help-tbl">
+        <tr><th>項目</th><th>計算式</th></tr>
+        <tr><td>書類上在庫</td><td>前月実在庫 ＋ 仕入れ数 － 使用数 － 外注使用分</td></tr>
+        <tr><td>差</td><td>書類上在庫 － 実在庫</td></tr>
+      </table>
+      <p class="help-p">「前月実在庫」「外注使用分」「実在庫」は手入力、「仕入れ数」「使用数」は自動集計されます。</p>
+      <div class="help-note">Excel出力したファイルでは「書類上在庫」「差」は実際のExcel数式として書き込まれるため、前月実在庫や実在庫の数字を書き換えると自動で再計算されます。</div>
+      <p class="help-p">「月次締め」を押すと、今月の実在庫が翌月の前月実在庫として自動的に引き継がれ、対象月も翌月に切り替わります。「実在庫をCSV保存／読み込み」でデータの引き継ぎもできます。</p>
+
+      <div class="help-h1" id="help-8">8. 設定</div>
+      <ul class="help-ul">
+        <li><b>月次設定</b>：対象月の切替、月次締め</li>
+        <li><b>担当者コード設定</b>：1〜9の番号に担当者名を割り当て、持ち出し入力で自動表示させる</li>
+        <li><b>現場マスター インポート</b>：工番と現場名を対応させるマスターをTXT取り込みまたは貼り付けで登録</li>
+        <li><b>資材マスター設定</b>：品名・略称・単位・単価の編集、資材の追加・削除、既定に戻す（下記参照）</li>
+        <li><b>データ管理</b>：全データのエクスポート／インポート（JSON）、全データ初期化</li>
+      </ul>
+      <div class="help-note">持ち出し入力フォームや購入仕入フォームに表示する資材の品目は、支店ごとに自由にカスタマイズできます。「一般資材」「ブロック資材」をそれぞれ編集し、「資材マスターを保存」で即座に反映されます。LINE解析の自動認識キーワードは別管理のため、独自に追加した資材はLINE解析では自動認識されない場合があります。その場合は解析結果の手直し機能でプルダウンから選び直してください。</div>
+      <div class="help-warn">「全データ初期化」は、すべての月・すべてのデータを完全に削除する最も強力な操作です。実行前には必ず「エクスポート（JSON）」でバックアップを取ってください。</div>
+
+      <div class="help-h1" id="help-9">9. 日付入力のルール</div>
+      <p class="help-p">日付は常に「20260601」のような8桁の数字で統一して保存されます。</p>
+      <table class="help-tbl">
+        <tr><th>入力例</th><th>解釈される内容</th></tr>
+        <tr><td>20260601</td><td>そのまま 2026年6月1日</td></tr>
+        <tr><td>6/1 ／ 6-1</td><td>対象月の年を使って 6月1日 と解釈</td></tr>
+        <tr><td>2026/6/1</td><td>2026年6月1日</td></tr>
+      </table>
+      <div class="help-note">8桁の数字を連続入力すると自動で次の欄に移動します。省略入力はEnterキーまたはフォーカスが外れたタイミングで8桁形式に自動変換されます。</div>
+
+      <div class="help-h1" id="help-10">10. データの保存場所とバックアップ</div>
+      <ul class="help-ul">
+        <li>データはブラウザの localStorage に保存され、同じパソコン・同じブラウザなら自動的に保持されます</li>
+        <li>ブラウザの閲覧データ削除操作を行うと、このシステムのデータも消える場合があります</li>
+        <li>別のパソコン・別のブラウザ・シークレットウィンドウでは、これまでのデータは表示されません</li>
+      </ul>
+      <div class="help-warn">定期的に「データ管理」→「エクスポート（JSON）」でバックアップを取ることを強くおすすめします。特に月末の締め作業の前後は必ずバックアップしてください。</div>
+
+      <div class="help-h1" id="help-11">11. よくある質問・トラブルシューティング</div>
+      <div class="help-qa">Q. 工番を入力しても現場名が自動入力されない</div>
+      <p class="help-p">A. 「設定」タブで現場マスターを取り込んでいるかご確認ください（8章）。</p>
+      <div class="help-qa">Q. 担当コードを入力しても担当者名が表示されない</div>
+      <p class="help-p">A. 「設定」タブの「担当者コード設定」で番号に担当者名が登録されているかご確認ください。</p>
+      <div class="help-qa">Q. LINE解析の結果が実際のメッセージと違う</div>
+      <p class="help-p">A. LINEのメッセージは表記ゆれが多く、完全に自動で読み取れない場合があります。解析結果はその場で手直しできます（4章）。</p>
+      <div class="help-qa">Q. 独自に追加した資材が、LINE解析で自動認識されない</div>
+      <p class="help-p">A. LINE解析の自動キーワード認識は資材マスター設定とは別の仕組みです。解析結果の手直し機能でプルダウンから正しい資材を選び直してください。</p>
+      <div class="help-qa">Q. 誤って記録を削除してしまった</div>
+      <p class="help-p">A. 「元に戻す」機能はありません。定期的な「データ管理」でのバックアップ（エクスポート）と、そこからの「インポート」で復元してください。</p>
+      <div class="help-qa">Q. Excelファイルの「差」の数値を直接書き換えても大丈夫か</div>
+      <p class="help-p">A. 支店長提出用のExcel出力では「書類上在庫」「差」は数式として書き込まれています。前月実在庫や実在庫の数字は書き換えて構いませんが、「差」のセル自体を直接上書きすると数式が壊れますのでご注意ください。</p>
+      <div class="help-qa">Q. 他のパソコンにデータを移したい</div>
+      <p class="help-p">A. 「設定」タブの「データ管理」→「エクスポート（JSON）」でファイルを書き出し、移行先で「インポート（JSON）」から読み込んでください。</p>
+
+    </div>
+  </div>
+</div>
 
 <script>
 /* ═══════════════════════════════════════════
@@ -1185,6 +1395,24 @@ function rdTfList(){
 function delTf(id){
   if(!confirm('削除しますか？'))return;
   sv('tf',rr('tf').filter(r=>r.id!==id));rdTfList();toast('削除しました');
+}
+
+function delAllTf(){
+  const rs=rr('tf');
+  if(!rs.length){toast('削除できる記録がありません','w');return}
+  const ym=(typeof month==='string'&&month.includes('-'))?`${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`:'今月';
+  const ok=confirm(
+    `⚠ 注意：${ym}の持ち出し記録を全件削除します（${rs.length}件）。\n\n`+
+    `この操作は取り消せません。削除する前に、必要であれば先に「Excel出力」で保存しておくことをおすすめします。\n\n`+
+    `本当に全件削除してよろしいですか？`
+  );
+  if(!ok)return;
+  // 二重確認：件数の多い誤操作を防ぐための最終確認
+  const ok2=confirm(`最終確認：${rs.length}件を完全に削除します。よろしいですか？`);
+  if(!ok2)return;
+  sv('tf',[]);
+  rdTfList();
+  toast(`${ym}の持ち出し記録を全件削除しました（${rs.length}件）`,'w');
 }
 
 /* ═══════════════════════════════════════════
@@ -1890,6 +2118,23 @@ function delPu(id){
   rdPuList();
   toast('削除しました');
 }
+
+function delAllPu(){
+  const rs=rr('pu');
+  if(!rs.length){toast('削除できる記録がありません','w');return}
+  const ym=(typeof month==='string'&&month.includes('-'))?`${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`:'今月';
+  const ok=confirm(
+    `⚠ 注意：${ym}の購入記録を全件削除します（${rs.length}件）。\n\n`+
+    `この操作は取り消せません。削除する前に、必要であれば先に「Excel出力」で保存しておくことをおすすめします。\n\n`+
+    `本当に全件削除してよろしいですか？`
+  );
+  if(!ok)return;
+  const ok2=confirm(`最終確認：${rs.length}件を完全に削除します。よろしいですか？`);
+  if(!ok2)return;
+  sv('pu',[]);
+  rdPuList();
+  toast(`${ym}の購入記録を全件削除しました（${rs.length}件）`,'w');
+}
 function rdPuBlkList(){
   const rs=rr('pu_blk');
   const tb=document.getElementById('pu-blk-list');if(!tb)return;
@@ -1905,6 +2150,23 @@ function rdPuBlkList(){
     </tr>`).join('');
 }
 function delPuBlk(id){if(!confirm('削除しますか？'))return;sv('pu_blk',rr('pu_blk').filter(r=>r.id!==id));rdPuBlkList();toast('削除しました')}
+
+function delAllPuBlk(){
+  const rs=rr('pu_blk');
+  if(!rs.length){toast('削除できる記録がありません','w');return}
+  const ym=(typeof month==='string'&&month.includes('-'))?`${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`:'今月';
+  const ok=confirm(
+    `⚠ 注意：${ym}のらく目地ブロック記録を全件削除します（${rs.length}件）。\n\n`+
+    `この操作は取り消せません。削除する前に、必要であれば先にExcel出力で保存しておくことをおすすめします。\n\n`+
+    `本当に全件削除してよろしいですか？`
+  );
+  if(!ok)return;
+  const ok2=confirm(`最終確認：${rs.length}件を完全に削除します。よろしいですか？`);
+  if(!ok2)return;
+  sv('pu_blk',[]);
+  rdPuBlkList();
+  toast(`${ym}のらく目地ブロック記録を全件削除しました（${rs.length}件）`,'w');
+}
 
 
 /* ═══════════════════════════════════════════
@@ -1949,6 +2211,41 @@ function rdDs(){
       </div></div>`;
   });
   html+='</div>';view.innerHTML=html;
+}
+
+// 現金在庫処分は「持ち出し記録（tf）」のうち、ブロック資材を含むものを
+// 抽出して表示しているだけのビューであり、独立したデータではない。
+// そのため「一括削除」は、持ち出し記録そのものを削除するのではなく、
+// 各記録に含まれる“ブロック資材の数量部分だけ”を取り除く形にする。
+// （同じ持ち出し記録に一般資材（セメント・砂など）が混在している場合、
+//   そのデータまで消えてしまわないようにするための安全策）
+function delAllDs(){
+  const rs=rr('tf');
+  const bids=new Set(BLKS.map(b=>b.id));
+  const affected=rs.filter(r=>Object.keys(r.mats||{}).some(id=>bids.has(id)));
+  if(!affected.length){toast('削除できるブロック資材の記録がありません','w');return}
+  const ym=(typeof month==='string'&&month.includes('-'))?`${month.split('-')[0]}年${parseInt(month.split('-')[1])}月`:'今月';
+  const ok=confirm(
+    `⚠ 注意：${ym}の現金在庫処分（ブロック資材の持ち出し記録）を一括削除します（対象 ${affected.length}件）。\n\n`+
+    `※現金在庫処分は「持ち出し記録」から自動集計された一覧のため、\n`+
+    `削除すると対象の持ち出し記録から“ブロック資材（らく目地など）の数量”のみが取り除かれます。\n`+
+    `同じ記録内のセメント・砂などの一般資材のデータは削除されません。\n\n`+
+    `この操作は取り消せません。必要であれば先にExcel出力で保存しておくことをおすすめします。\n\n`+
+    `本当によろしいですか？`
+  );
+  if(!ok)return;
+  const ok2=confirm(`最終確認：${affected.length}件からブロック資材の数量を削除します。よろしいですか？`);
+  if(!ok2)return;
+  const updated=rs.map(r=>{
+    if(!r.mats)return r;
+    const mats={...r.mats};
+    let changed=false;
+    bids.forEach(id=>{ if(id in mats){ delete mats[id]; changed=true; } });
+    return changed?{...r,mats}:r;
+  });
+  sv('tf',updated);
+  rdDs();rdTfList();
+  toast(`${ym}の現金在庫処分を一括削除しました（${affected.length}件）`,'w');
 }
 
 /* ═══════════════════════════════════════════
@@ -2501,6 +2798,21 @@ function toast(msg,type='ok'){
   el.textContent=msg;el.className=`toast ${type} on`;
   clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),3000);
 }
+
+/* ═══════════════════════════════════════════
+   HELP MODAL（使い方マニュアル）
+═══════════════════════════════════════════ */
+function openHelp(){
+  document.getElementById('help-overlay').classList.add('on');
+  document.body.style.overflow='hidden';
+}
+function closeHelp(){
+  document.getElementById('help-overlay').classList.remove('on');
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && document.getElementById('help-overlay').classList.contains('on')) closeHelp();
+});
 
 /* ═══════════════════════════════════════════
    START
