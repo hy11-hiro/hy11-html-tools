@@ -74,7 +74,7 @@
         };
 
         const GRID_MODES = { ORTHO: 'ORTHO', ISO: 'ISO', PERSP_1: 'PERSP_1', PERSP_2: 'PERSP_2' };
-        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text', POLYGON: 'polygon', BLOCK_WALL: 'block_wall', SYMBOL: 'symbol', REG_POLY: 'reg_poly', CUBE: 'cube' };
+        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text', POLYGON: 'polygon', BLOCK_WALL: 'block_wall', SYMBOL: 'symbol', REG_POLY: 'reg_poly', CUBE: 'cube', LEADER: 'leader', MLINE: 'mline', FILLET: 'fillet', CHAMFER: 'chamfer' };
 
         // 外構シンボル定義
         const GAIKO_SYMBOLS = {
@@ -123,6 +123,10 @@
             gas_meter:  { label: 'ガスメーター',    category: '敷地記号', w: 400, h: 280 },
             hydrant:    { label: '屋外消火栓',      category: '敷地記号', r: 250, iconChar: '消' },
             boring:     { label: 'ボーリング位置',  category: '敷地記号', r: 150, iconChar: 'B' },
+            level_mark: { label: 'レベル表示(GL/FL/BM)', category: '敷地記号', w: 300, h: 300, isLevelMark: true },
+            slope_arrow:{ label: '水勾配矢印',      category: '敷地記号', w: 900, h: 200 },
+            fence_mesh: { label: 'フェンス（メッシュ）', category: '構造物', w: 900, h: 150 },
+            fence_board:{ label: 'フェンス（目隠し）',   category: '構造物', w: 900, h: 150 },
         };
 
         // 外構材料パターン定義
@@ -613,6 +617,13 @@
             const [fenceHeight, setFenceHeight] = useState(1200);
             const [selectedSymbol, setSelectedSymbol] = useState('tree_M');
             const [symbolScale, setSymbolScale] = useState(1);
+            const [mlineSpacing, setMlineSpacing] = useState(100);
+            const [mlineLeftCount, setMlineLeftCount] = useState(1);
+            const [mlineRightCount, setMlineRightCount] = useState(1);
+            const [mlineShowCenter, setMlineShowCenter] = useState(true);
+            const [filletRadius, setFilletRadius] = useState(200);
+            const [chamferDist, setChamferDist] = useState(200);
+            const cornerOpFirst = useRef(null); // フィレット/面取りで最初に選んだ線
             const [regPolySides, setRegPolySides] = useState(6);  // 正多角形の辺数
             const [layerVisibility, setLayerVisibility] = useState({
                 drawing: true,
@@ -1369,6 +1380,40 @@
                     ctx.beginPath(); ctx.moveTo(-hw,-hh*0.2); ctx.lineTo(hw,-hh*0.2); ctx.stroke();
                     ctx.beginPath(); ctx.arc(0,hh*0.5,hh*0.18,0,Math.PI*2); ctx.stroke();
 
+                } else if (symbolType==='level_mark') {
+                    // レベル表示: ▽記号＋高さの値（GL/FL/BM等）
+                    ctx.strokeStyle='#000'; ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=lw*1.2;
+                    ctx.beginPath();
+                    ctx.moveTo(-hw*0.55,-hh*0.5); ctx.lineTo(hw*0.55,-hh*0.5); ctx.lineTo(0,hh*0.35); ctx.closePath();
+                    ctx.fill(); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-hw*0.8,-hh*0.5); ctx.lineTo(hw*0.8,-hh*0.5); ctx.stroke();
+                    ctx.rotate(-rotation);
+                    ctx.fillStyle='#000'; ctx.font=`bold ${h*0.45}px sans-serif`; ctx.textAlign='left'; ctx.textBaseline='middle';
+                    ctx.fillText(ent.levelText || '±0', hw*0.9, -hh*0.15);
+                    ctx.restore(); return;
+
+                } else if (symbolType==='slope_arrow') {
+                    // 水勾配矢印: 矢印方向は水下（低い方）を示す
+                    ctx.strokeStyle='#000'; ctx.fillStyle='#000'; ctx.lineWidth=lw*1.1;
+                    ctx.beginPath(); ctx.moveTo(-hw,0); ctx.lineTo(hw*0.75,0); ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(hw,0); ctx.lineTo(hw*0.6,-h*0.22); ctx.lineTo(hw*0.6,h*0.22); ctx.closePath(); ctx.fill();
+
+                } else if (symbolType==='fence_mesh') {
+                    // フェンス（メッシュ）: 横線＋格子状の縦線
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw;
+                    ctx.beginPath(); ctx.moveTo(-hw,-hh); ctx.lineTo(hw,-hh); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(-hw,hh); ctx.lineTo(hw,hh); ctx.stroke();
+                    ctx.lineWidth=lw*0.6;
+                    for (let gx=-hw; gx<=hw; gx+=w*0.12) { ctx.beginPath(); ctx.moveTo(gx,-hh); ctx.lineTo(gx,hh); ctx.stroke(); }
+
+                } else if (symbolType==='fence_board') {
+                    // フェンス（目隠し・板塀）: 隙間なく並ぶ縦板
+                    ctx.strokeStyle='#333'; ctx.lineWidth=lw;
+                    ctx.strokeRect(-hw,-hh,w,h);
+                    ctx.lineWidth=lw*0.5;
+                    for (let gx=-hw+w*0.08; gx<hw; gx+=w*0.08) { ctx.beginPath(); ctx.moveTo(gx,-hh); ctx.lineTo(gx,hh); ctx.stroke(); }
+
                 } else {
                     ctx.strokeStyle='#333'; ctx.lineWidth=lw; ctx.strokeRect(-hw,-hh,w,h);
                 }
@@ -1670,6 +1715,160 @@
                 pushHistory([...entities, ...newEntities]);
             };
 
+            // ── 多重線のオフセット配列を計算（中心線あり/なし、左右の本数を指定可能）──
+            const computeMlineOffsets = (spacing, leftCount, rightCount, showCenter) => {
+                const offsets = [];
+                if (showCenter) offsets.push(0);
+                for (let i = 1; i <= rightCount; i++) offsets.push(i * spacing);
+                for (let i = 1; i <= leftCount; i++) offsets.push(-i * spacing);
+                return offsets;
+            };
+
+            // ── 角（頂点）付近のクリックから、隣接する2辺を自動検出 ──
+            const findCornerAt = (pos) => {
+                const threshold = 10 / viewRef.current.scale;
+
+                // 1. 既存の線分同士で端点が近接している（＝角を成している）箇所を探す
+                const lines = entities.filter(e => e.type === TOOLS.LINE);
+                for (let i = 0; i < lines.length; i++) {
+                    for (let j = i + 1; j < lines.length; j++) {
+                        const a = lines[i], b = lines[j];
+                        const pairs = [[a.p1,b.p1],[a.p1,b.p2],[a.p2,b.p1],[a.p2,b.p2]];
+                        for (const [pa, pb] of pairs) {
+                            if (Geo.dist(pa, pb) < 1 && Geo.dist(pos, pa) < threshold) return [a, b];
+                        }
+                    }
+                }
+
+                // 2. 矩形の頂点付近をクリックした場合は、その場で分解して隣接2辺を返す
+                for (const ent of entities) {
+                    if (ent.type !== TOOLS.RECT) continue;
+                    const p1 = ent.p1, p2 = {x:ent.p1.x+ent.w, y:ent.p1.y}, p3 = {x:ent.p1.x+ent.w, y:ent.p1.y+ent.h}, p4 = {x:ent.p1.x, y:ent.p1.y+ent.h};
+                    const corners = [p1, p2, p3, p4];
+                    for (let k = 0; k < 4; k++) {
+                        if (Geo.dist(pos, corners[k]) < threshold) {
+                            const edgePts = [[p1,p2],[p2,p3],[p3,p4],[p4,p1]];
+                            const newLines = edgePts.map((edge) => ({
+                                id: Date.now() + Math.random() * 999,
+                                type: TOOLS.LINE, p1: edge[0], p2: edge[1],
+                                color: ent.color || strokeColor, lineWidth: ent.lineWidth || strokeWidth, lineStyle: ent.lineStyle, layer: 'drawing'
+                            }));
+                            const next = entities.filter(e => e.id !== ent.id).concat(newLines);
+                            setEntities(next); pushHistory(next);
+                            return [newLines[(k+3)%4], newLines[k]];
+                        }
+                    }
+                }
+                return null;
+            };
+
+            const findLineEntityAt = (pos) => {
+                const threshold = 6 / viewRef.current.scale;
+                let best = null, bestDist = Infinity, bestIsRect = false, bestEdgeIndex = -1;
+                entities.forEach(ent => {
+                    if (ent.type === TOOLS.LINE) {
+                        const d = Geo.distToSegment(pos, ent.p1, ent.p2);
+                        if (d < threshold && d < bestDist) { best = ent; bestDist = d; bestIsRect = false; }
+                    } else if (ent.type === TOOLS.RECT) {
+                        const p1 = ent.p1, p2 = {x:ent.p1.x+ent.w, y:ent.p1.y}, p3 = {x:ent.p1.x+ent.w, y:ent.p1.y+ent.h}, p4 = {x:ent.p1.x, y:ent.p1.y+ent.h};
+                        const edges = [[p1,p2],[p2,p3],[p3,p4],[p4,p1]];
+                        edges.forEach((edge, idx) => {
+                            const d = Geo.distToSegment(pos, edge[0], edge[1]);
+                            if (d < threshold && d < bestDist) { best = ent; bestDist = d; bestIsRect = true; bestEdgeIndex = idx; }
+                        });
+                    }
+                });
+                if (!best) return null;
+                if (!bestIsRect) return best;
+                // 矩形の辺をクリックした場合は、その場で矩形を4本の線分に分解してから該当の辺を返す
+                const ent = best;
+                const p1 = ent.p1, p2 = {x:ent.p1.x+ent.w, y:ent.p1.y}, p3 = {x:ent.p1.x+ent.w, y:ent.p1.y+ent.h}, p4 = {x:ent.p1.x, y:ent.p1.y+ent.h};
+                const edgePts = [[p1,p2],[p2,p3],[p3,p4],[p4,p1]];
+                const newLines = edgePts.map((edge) => ({
+                    id: Date.now() + Math.random() * 999,
+                    type: TOOLS.LINE, p1: edge[0], p2: edge[1],
+                    color: ent.color || strokeColor, lineWidth: ent.lineWidth || strokeWidth, lineStyle: ent.lineStyle, layer: 'drawing'
+                }));
+                const next = entities.filter(e => e.id !== ent.id).concat(newLines);
+                setEntities(next); pushHistory(next);
+                return newLines[bestEdgeIndex];
+            };
+
+            // ── フィレット（角丸め）／面取り 計算 ──
+            const computeCornerOp = (lineA, lineB, mode, amount) => {
+                // 2直線（無限直線として）の交点を求める
+                const x1=lineA.p1.x, y1=lineA.p1.y, x2=lineA.p2.x, y2=lineA.p2.y;
+                const x3=lineB.p1.x, y3=lineB.p1.y, x4=lineB.p2.x, y4=lineB.p2.y;
+                const denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+                if (Math.abs(denom) < 1e-9) return { error: 'parallel' }; // 平行線は処理不可
+
+                const t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / denom;
+                const I = { x: x1 + t*(x2-x1), y: y1 + t*(y2-y1) };
+
+                // 各線について、交点Iから遠い方の端点（残す側）を特定
+                const farA = Geo.dist(I, lineA.p1) > Geo.dist(I, lineA.p2) ? lineA.p1 : lineA.p2;
+                const nearAKey = farA === lineA.p1 ? 'p2' : 'p1';
+                const farB = Geo.dist(I, lineB.p1) > Geo.dist(I, lineB.p2) ? lineB.p1 : lineB.p2;
+                const nearBKey = farB === lineB.p1 ? 'p2' : 'p1';
+
+                const dA = Geo.dist(I, farA), dB = Geo.dist(I, farB);
+                if (dA < 1e-6 || dB < 1e-6) return { error: 'parallel' };
+                const uA = { x: (farA.x-I.x)/dA, y: (farA.y-I.y)/dA };
+                const uB = { x: (farB.x-I.x)/dB, y: (farB.y-I.y)/dB };
+
+                const dot = Math.max(-1, Math.min(1, uA.x*uB.x + uA.y*uB.y));
+                const theta = Math.acos(dot);
+                if (theta < 1e-4 || theta > Math.PI - 1e-4) return { error: 'parallel' }; // ほぼ平行/一直線
+
+                if (mode === 'chamfer') {
+                    const d = Math.min(amount, dA - 0.01, dB - 0.01);
+                    if (d <= 0) return { error: 'too_large' };
+                    const P1 = { x: I.x + uA.x*d, y: I.y + uA.y*d };
+                    const P2 = { x: I.x + uB.x*d, y: I.y + uB.y*d };
+                    return { nearAKey, nearBKey, trimA: P1, trimB: P2, extra: { type: TOOLS.LINE, p1: P1, p2: P2 } };
+                } else {
+                    // fillet
+                    const halfTheta = theta / 2;
+                    const d = amount / Math.tan(halfTheta);
+                    const dMax = Math.min(dA, dB) - 0.01;
+                    if (d <= 0 || d > dMax) return { error: 'too_large' };
+                    const T1 = { x: I.x + uA.x*d, y: I.y + uA.y*d };
+                    const T2 = { x: I.x + uB.x*d, y: I.y + uB.y*d };
+                    const bisLen = Math.sqrt((uA.x+uB.x)**2 + (uA.y+uB.y)**2);
+                    if (bisLen < 1e-6) return { error: 'parallel' };
+                    const bx = (uA.x+uB.x)/bisLen, by = (uA.y+uB.y)/bisLen;
+                    const centerDist = amount / Math.sin(halfTheta);
+                    const O = { x: I.x + bx*centerDist, y: I.y + by*centerDist };
+                    let a1 = Math.atan2(T1.y-O.y, T1.x-O.x);
+                    let a2 = Math.atan2(T2.y-O.y, T2.x-O.x);
+                    // 短い方の弧（中心角 = π-theta）になるよう回転方向を選ぶ
+                    let diff = a2 - a1;
+                    while (diff <= -Math.PI) diff += Math.PI*2;
+                    while (diff > Math.PI) diff -= Math.PI*2;
+                    const anticlockwise = diff < 0;
+                    return { nearAKey, nearBKey, trimA: T1, trimB: T2, extra: { type: TOOLS.CIRCLE, isArc: true, c: O, r: amount, startAngle: a1, endAngle: a2, anticlockwise } };
+                }
+            };
+
+            const applyCornerOp = (lineA, lineB, mode, amount) => {
+                const result = computeCornerOp(lineA, lineB, mode, amount);
+                if (!result || result.error) {
+                    const label = mode === 'fillet' ? '角丸め' : '面取り';
+                    const msg = result && result.error === 'too_large'
+                        ? `${label}できません。半径/距離が線の長さに対して大きすぎます。値を小さくしてください。`
+                        : `${label}できません。選んだ2本の線が平行（向かい合う辺同士など）です。角を挟んで隣り合う2辺を選んでください。`;
+                    window.alert(msg);
+                    return;
+                }
+                const next = entities.map(e => {
+                    if (e.id === lineA.id) return { ...e, [result.nearAKey]: result.trimA };
+                    if (e.id === lineB.id) return { ...e, [result.nearBKey]: result.trimB };
+                    return e;
+                });
+                next.push({ ...result.extra, id: Date.now() + Math.random()*999, color: lineA.color || strokeColor, lineWidth: lineA.lineWidth || strokeWidth, layer: 'drawing' });
+                setEntities(next); pushHistory(next);
+            };
+
             const eraseEntityAt = (pos) => {
                 const threshold = 5 / viewRef.current.scale;
                 const remaining = entities.filter(ent => {
@@ -1686,6 +1885,8 @@
                         if (Geo.distToSegment(pos, p1, p2) < threshold || Geo.distToSegment(pos, p2, p3) < threshold || Geo.distToSegment(pos, p3, p4) < threshold || Geo.distToSegment(pos, p4, p1) < threshold) hit = true;
                     } else if (ent.type === 'text_label') {
                          if (Geo.dist(pos, ent.p1) < threshold) hit = true;
+                    } else if (ent.type === 'mline' || ent.type === 'leader') {
+                         if (ent.p1 && ent.p2 && Geo.distToSegment(pos, ent.p1, ent.p2) < threshold) hit = true;
                     }
                     return !hit; 
                 });
@@ -1896,7 +2097,49 @@
                     }
                     if (ent.type === TOOLS.LINE) { ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash); ctx.moveTo(ent.p1.x, ent.p1.y); ctx.lineTo(ent.p2.x, ent.p2.y); ctx.stroke(); ctx.setLineDash([]); }
                     else if (ent.type === TOOLS.RECT) { ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash); ctx.rect(ent.p1.x, ent.p1.y, ent.w, ent.h); ctx.stroke(); ctx.setLineDash([]); }
-                    else if (ent.type === TOOLS.CIRCLE) { ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash); ctx.arc(ent.c.x, ent.c.y, ent.r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+                    else if (ent.type === TOOLS.CIRCLE) { ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash); ent.isArc ? ctx.arc(ent.c.x, ent.c.y, ent.r, ent.startAngle, ent.endAngle, ent.anticlockwise) : ctx.arc(ent.c.x, ent.c.y, ent.r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]); }
+                    else if (ent.type === 'mline') {
+                        // 多重線: 中心線に対して指定した左右の本数・間隔で平行線を描画
+                        const dx = ent.p2.x - ent.p1.x, dy = ent.p2.y - ent.p1.y;
+                        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                        const nx = -dy/len, ny = dx/len;
+                        const offsets = ent.offsets || computeMlineOffsets(ent.spacing || 100, ent.leftCount != null ? ent.leftCount : 1, ent.rightCount != null ? ent.rightCount : 1, ent.showCenter !== false);
+                        ctx.setLineDash((LINE_STYLES[ent.lineStyle]||LINE_STYLES.solid).dash);
+                        offsets.forEach(off => {
+                            ctx.beginPath();
+                            ctx.moveTo(ent.p1.x + nx*off, ent.p1.y + ny*off);
+                            ctx.lineTo(ent.p2.x + nx*off, ent.p2.y + ny*off);
+                            ctx.stroke();
+                        });
+                        ctx.setLineDash([]);
+                    }
+                    else if (ent.type === 'leader') {
+                        // 引き出し線: 矢印(p1)→折れ点(p2)→水平の引き出し線→文字
+                        ctx.lineWidth = ent.lineWidth || 0.3;
+                        const dirX = ent.p2.x >= ent.p1.x ? 1 : -1;
+                        const tailLen = 6;
+                        const tailEnd = { x: ent.p2.x + dirX*tailLen, y: ent.p2.y };
+                        ctx.beginPath();
+                        ctx.moveTo(ent.p1.x, ent.p1.y);
+                        ctx.lineTo(ent.p2.x, ent.p2.y);
+                        ctx.lineTo(tailEnd.x, tailEnd.y);
+                        ctx.stroke();
+                        // 矢印（矢じり）
+                        const ang = Math.atan2(ent.p2.y - ent.p1.y, ent.p2.x - ent.p1.x);
+                        const alen = 2.2, awid = 0.8;
+                        ctx.beginPath();
+                        ctx.moveTo(ent.p1.x, ent.p1.y);
+                        ctx.lineTo(ent.p1.x + Math.cos(ang+Math.PI-0.3)*alen, ent.p1.y + Math.sin(ang+Math.PI-0.3)*alen);
+                        ctx.lineTo(ent.p1.x + Math.cos(ang+Math.PI+0.3)*alen, ent.p1.y + Math.sin(ang+Math.PI+0.3)*alen);
+                        ctx.closePath(); ctx.fillStyle = ent.color || '#000000'; ctx.fill();
+                        // 文字
+                        const fs = ent.fontSize || 3;
+                        ctx.fillStyle = ent.color || '#000000';
+                        ctx.font = `${fs}px sans-serif`;
+                        ctx.textAlign = dirX > 0 ? 'left' : 'right';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(ent.text || '', tailEnd.x + dirX*0.8, tailEnd.y - 0.5);
+                    }
                     else if (ent.type === TOOLS.POLYGON) {
                         if (!ent.pts || ent.pts.length < 2) return;
                         // 塗り（白黒モード時は色を付けず、ハッチングのみで表現）
@@ -2498,6 +2741,11 @@
                     if (tool === TOOLS.SYMBOL) {
                         const sym = GAIKO_SYMBOLS[selectedSymbol];
                         if (!sym) return;
+                        let levelText = null;
+                        if (sym.isLevelMark) {
+                            levelText = window.prompt('高さの値を入力してください（例: ±0, GL+200, BM-350）', '±0');
+                            if (levelText === null) return; // キャンセル
+                        }
                         const newEnt = {
                             id: Date.now() + Math.random() * 999,
                             type: 'symbol',
@@ -2505,12 +2753,67 @@
                             p1: { x: pt.x, y: pt.y },
                             rotation: 0,
                             scale: symbolScale,
+                            levelText: levelText,
                             color: sym.r ? '#006600' : '#333333',
                             lineWidth: strokeWidth,
                             layer: 'symbol'
                         };
                         const next = [...entities, newEnt];
                         setEntities(next); pushHistory(next);
+                        return;
+                    }
+
+                    // ── 引き出し線ツール: 1クリック目=矢印位置、2クリック目=文字位置 ──
+                    if (tool === TOOLS.LEADER) {
+                        if (tempPoints.length === 0) { setTempPoints([pt]); return; }
+                        const anchor = tempPoints[0];
+                        const inputText = window.prompt('引き出し線の文字を入力してください', '');
+                        setTempPoints([]);
+                        if (inputText && inputText.trim() !== '') {
+                            const newEnt = {
+                                id: Date.now() + Math.random() * 999,
+                                type: 'leader',
+                                p1: anchor,
+                                p2: pt,
+                                text: inputText,
+                                fontSize: textFontSize,
+                                color: strokeColor,
+                                lineWidth: strokeWidth,
+                                layer: 'annotation'
+                            };
+                            const next = [...entities, newEnt];
+                            setEntities(next); pushHistory(next);
+                        }
+                        return;
+                    }
+
+                    // ── フィレット（角丸め）／面取りツール: 線を2本クリックして選択 ──
+                    if (tool === TOOLS.FILLET || tool === TOOLS.CHAMFER) {
+                        const mode = tool === TOOLS.FILLET ? 'fillet' : 'chamfer';
+                        const amount = tool === TOOLS.FILLET ? filletRadius : chamferDist;
+
+                        // 角（頂点）を1回クリックした場合はワンクリックで確定
+                        if (!cornerOpFirst.current) {
+                            const cornerPair = findCornerAt(pt);
+                            if (cornerPair) {
+                                applyCornerOp(cornerPair[0], cornerPair[1], mode, amount);
+                                return;
+                            }
+                        }
+
+                        // それ以外は従来通り、2本の線を個別にクリックして選択
+                        const picked = findLineEntityAt(pt);
+                        if (!picked) return;
+                        if (!cornerOpFirst.current) {
+                            cornerOpFirst.current = picked;
+                            selectedIds.current = new Set([picked.id]);
+                            setSelVersion(v => v + 1);
+                        } else if (cornerOpFirst.current.id !== picked.id) {
+                            applyCornerOp(cornerOpFirst.current, picked, mode, amount);
+                            cornerOpFirst.current = null;
+                            selectedIds.current = new Set();
+                            setSelVersion(v => v + 1);
+                        }
                         return;
                     }
 
@@ -2613,6 +2916,16 @@
                                 hit=Geo.dist(pt,ent.p1)<r3+hitRadius;
                             } else if (ent.type === 'text_label') {
                                 hit=Geo.dist(pt,ent.p1)<hitRadius*4;
+                            } else if (ent.type === 'mline') {
+                                if (ent.p1 && ent.p2) {
+                                    const ddx=ent.p2.x-ent.p1.x, ddy=ent.p2.y-ent.p1.y;
+                                    const lenSq=ddx*ddx+ddy*ddy;
+                                    const offs = ent.offsets || computeMlineOffsets(ent.spacing||100, ent.leftCount!=null?ent.leftCount:1, ent.rightCount!=null?ent.rightCount:1, ent.showCenter!==false);
+                                    const maxOff = offs.length ? Math.max(...offs.map(Math.abs)) : 0;
+                                    if (lenSq>0) { const t=Math.max(0,Math.min(1,((pt.x-ent.p1.x)*ddx+(pt.y-ent.p1.y)*ddy)/lenSq)); const nx2=ent.p1.x+t*ddx-pt.x,ny2=ent.p1.y+t*ddy-pt.y; hit=Math.sqrt(nx2*nx2+ny2*ny2)<maxOff+hitRadius; }
+                                }
+                            } else if (ent.type === 'leader') {
+                                hit = Geo.distToSegment(pt, ent.p1, ent.p2) < hitRadius*2 || Geo.dist(pt, ent.p2) < hitRadius*4;
                             }
                             if (hit) { hitId=ent.id; break; }
                         }
@@ -2639,6 +2952,7 @@
                             else if (tool === TOOLS.RECT) newEnt = { type: TOOLS.RECT, p1: start, w: pt.x - start.x, h: pt.y - start.y };
                             else if (tool === TOOLS.CIRCLE) newEnt = { type: TOOLS.CIRCLE, c: start, r: Geo.dist(start, pt) };
                             else if (tool === TOOLS.DIM) newEnt = { type: TOOLS.DIM, p1: start, p2: pt, fontSize: dimFontSize, textOffset: dimTextOffset };
+                            else if (tool === TOOLS.MLINE) newEnt = { type: 'mline', p1: start, p2: pt, spacing: mlineSpacing, leftCount: mlineLeftCount, rightCount: mlineRightCount, showCenter: mlineShowCenter };
                             else if (tool === TOOLS.BLOCK_WALL) {
                                 const walls = createBlockWallEntities(start, pt, blockThickness, blockPosition, strokeColor, strokeWidth, fenceType, fenceHeight);
                                 const next = [...entities, ...walls];
@@ -2783,6 +3097,13 @@
                 if (commit) pushHistory(next);
             };
 
+            const updateSelectedSymbolLevelText = (newText, commit = true) => {
+                if (!selectedSymbolEntity) return;
+                const next = entities.map(e => e.id === selectedSymbolEntity.id ? { ...e, levelText: newText } : e);
+                setEntities(next);
+                if (commit) pushHistory(next);
+            };
+
             // ── 選択中の寸法（文字サイズ・上下位置を個別設定） ──
             const selectedDimEntity = (tool === TOOLS.SELECT && selectedIds.current.size === 1)
                 ? entities.find(e => selectedIds.current.has(e.id) && e.type === TOOLS.DIM) || null
@@ -2871,12 +3192,63 @@
                         <div className="w-14 bg-gray-900 flex flex-col items-center py-3 space-y-1.5 border-r border-gray-700 z-10 flex-shrink-0 overflow-y-auto overflow-x-visible" style={{scrollbarWidth: 'thin'}}>
                             {[ 
                                 {id:TOOLS.SELECT, i:'mouse-pointer-2', l:'選択'}, {id:TOOLS.LINE, i:'minus', l:'線分'}, {id:TOOLS.RECT, i:'square', l:'矩形'}, 
-                                {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.TEXT, i:'type', l:'文字（クリックで配置）'}, {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
+                                {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.TEXT, i:'type', l:'文字（クリックで配置）'},
+                                {id:TOOLS.MLINE, i:'align-justify', l:'多重線（2クリックで配置）'}, {id:TOOLS.LEADER, i:'move-up-right', l:'引き出し線（矢印→文字位置→文字入力）'},
+                                {id:TOOLS.FILLET, i:'spline', l:'角丸め（線を2本クリック）'}, {id:TOOLS.CHAMFER, i:'scissors-line-dashed', l:'面取り（線を2本クリック）'},
+                                {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
                             ].map(t => (
-                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); }} onMouseEnter={(e) => showTip(e, t.l)} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${tool === t.id ? 'active' : 'text-gray-400'}`}>
+                                <button key={t.id} onClick={() => { setTool(t.id); setTempPoints([]); cornerOpFirst.current=null; selectedIds.current=new Set(); setSelVersion(v=>v+1); }} onMouseEnter={(e) => showTip(e, t.l)} onMouseLeave={hideTip} className={`tool-btn w-10 h-10 ${tool === t.id ? 'active' : 'text-gray-400'}`}>
                                     <i data-lucide={t.i}></i>
                                 </button>
                             ))}
+                            {/* 多重線ツール: 間隔・左右本数・中心線設定 */}
+                            {tool === TOOLS.MLINE && (
+                                <div className="flex flex-col items-center gap-1 bg-gray-800 border border-gray-600 rounded px-1.5 py-1.5 w-12">
+                                    <span className="text-xs text-blue-300">{mlineSpacing}mm</span>
+                                    <input type="range" min="1" max="1000" step="1" value={mlineSpacing}
+                                        onMouseEnter={(e) => showTip(e, '線の間隔（1mm〜）')} onMouseLeave={hideTip}
+                                        onChange={e => setMlineSpacing(parseInt(e.target.value))}
+                                        className="w-full" />
+                                    <div className="w-full text-center">
+                                        <label className="text-xs text-gray-400 block">左</label>
+                                        <input type="number" min="0" max="10" value={mlineLeftCount}
+                                            onChange={e => setMlineLeftCount(Math.max(0, parseInt(e.target.value)||0))}
+                                            className="w-full bg-white text-black text-xs text-center rounded" />
+                                    </div>
+                                    <div className="w-full text-center">
+                                        <label className="text-xs text-gray-400 block">右</label>
+                                        <input type="number" min="0" max="10" value={mlineRightCount}
+                                            onChange={e => setMlineRightCount(Math.max(0, parseInt(e.target.value)||0))}
+                                            className="w-full bg-white text-black text-xs text-center rounded" />
+                                    </div>
+                                    <label className="flex items-center gap-1 text-xs text-gray-300 mt-1" onMouseEnter={(e) => showTip(e, 'クリックした基準線自体を描画するか')} onMouseLeave={hideTip}>
+                                        <input type="checkbox" checked={mlineShowCenter} onChange={e => setMlineShowCenter(e.target.checked)} />
+                                        中心線
+                                    </label>
+                                </div>
+                            )}
+                            {/* 角丸めツール: 半径設定 */}
+                            {tool === TOOLS.FILLET && (
+                                <div className="w-10 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-blue-300">{filletRadius}</span>
+                                    <input type="range" min="10" max="2000" step="10" value={filletRadius}
+                                        onMouseEnter={(e) => showTip(e, '角丸めの半径（mm）')} onMouseLeave={hideTip}
+                                        onChange={e => setFilletRadius(parseInt(e.target.value))}
+                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                    <span className="text-xs text-gray-500">半径</span>
+                                </div>
+                            )}
+                            {/* 面取りツール: 距離設定 */}
+                            {tool === TOOLS.CHAMFER && (
+                                <div className="w-10 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-blue-300">{chamferDist}</span>
+                                    <input type="range" min="10" max="2000" step="10" value={chamferDist}
+                                        onMouseEnter={(e) => showTip(e, '面取りの距離（mm）')} onMouseLeave={hideTip}
+                                        onChange={e => setChamferDist(parseInt(e.target.value))}
+                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                    <span className="text-xs text-gray-500">距離</span>
+                                </div>
+                            )}
                             {/* 文字ツール: 配置前のフォントサイズ設定 */}
                             {tool === TOOLS.TEXT && (
                                 <div className="w-10 flex flex-col items-center gap-0.5">
@@ -3078,6 +3450,15 @@
                                         onChange={(e) => updateSelectedSymbolScale(parseFloat(e.target.value), false)}
                                         onMouseUp={(e) => updateSelectedSymbolScale(parseFloat(e.target.value), true)}
                                         className="w-full" />
+                                    {GAIKO_SYMBOLS[selectedSymbolEntity.symbolType]?.isLevelMark && (
+                                        <div className="mt-2">
+                                            <label className="block text-xs text-gray-300 mb-1">高さの値</label>
+                                            <input type="text" value={selectedSymbolEntity.levelText || ''}
+                                                onChange={(e) => updateSelectedSymbolLevelText(e.target.value, false)}
+                                                onBlur={(e) => updateSelectedSymbolLevelText(e.target.value, true)}
+                                                className="w-full bg-white text-black border border-gray-400 rounded p-1 focus:outline-none focus:border-blue-500" />
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -3228,6 +3609,15 @@
                                     <li>⇧ Shift: 角度拘束</li><li>Alt+ドラッグ: VP移動</li>
                                     {tool === TOOLS.POLYGON && <li className="text-green-400">多角形: ダブルクリックで確定</li>}
                                     {tool === TOOLS.BLOCK_WALL && <li className="text-blue-400">ブロック: クリックで連続描画</li>}
+                                    {tool === TOOLS.LEADER && <li className="text-yellow-400">{tempPoints.length === 0 ? '引き出し線: ①矢印の先端をクリック' : '引き出し線: ②文字を置く位置をクリック→文字入力'}</li>}
+                                    {tool === TOOLS.MLINE && <li className="text-yellow-400">{tempPoints.length === 0 ? '多重線: ①始点をクリック' : '多重線: ②終点をクリックして確定'}</li>}
+                                    {(tool === TOOLS.FILLET || tool === TOOLS.CHAMFER) && (
+                                        <li className="text-yellow-400">
+                                            {!cornerOpFirst.current
+                                                ? `${tool === TOOLS.FILLET ? '角丸め' : '面取り'}: 角（頂点）をクリックで即実行、または線を1本目クリック`
+                                                : `${tool === TOOLS.FILLET ? '角丸め' : '面取り'}: 隣り合う2本目の線をクリックすると確定`}
+                                        </li>
+                                    )}
                                 </ul>
                             </div>
                         </div>
