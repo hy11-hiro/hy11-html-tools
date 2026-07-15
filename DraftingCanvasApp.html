@@ -65,6 +65,18 @@
 
         const DPI = 96;
         const MM_TO_PX = DPI / 25.4;
+
+        // ズームインした際、画面上のマス目が広くなりすぎたら自動的に細分化するための実効ステップを計算。
+        // グリッド描画（drawGrid）とスナップ（calculateSnap）の両方でこの関数を使うことで、
+        // 「見えているグリッド」と「スナップできる点」を常に一致させる。
+        const getAdaptiveGridStep = (baseStep, viewScale) => {
+            const pxPerStep = baseStep * viewScale * MM_TO_PX;
+            if (pxPerStep > 45) {
+                const extraDiv = Math.min(32, Math.pow(2, Math.floor(Math.log2(pxPerStep / 45))));
+                return baseStep / extraDiv;
+            }
+            return baseStep;
+        };
         
         const PAPERS = {
             A4_L: { width: 297, height: 210, name: 'A4 横' },
@@ -209,6 +221,21 @@
                 const proj = { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
                 return Geo.dist(p, proj);
             }
+        };
+
+        // 図形1つの外接矩形（ワールド座標mm）を求める。取得できない場合はnull
+        const getEntityBBox = (ent) => {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            const add = (x, y) => { if (isFinite(x) && isFinite(y)) { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); } };
+            try {
+                if (ent.p1) add(ent.p1.x, ent.p1.y);
+                if (ent.p2) add(ent.p2.x, ent.p2.y);
+                if (ent.type === TOOLS.RECT && ent.p1) add(ent.p1.x+ent.w, ent.p1.y+ent.h);
+                if (ent.c && ent.r != null) { add(ent.c.x-ent.r, ent.c.y-ent.r); add(ent.c.x+ent.r, ent.c.y+ent.r); }
+                if (ent.pts) ent.pts.forEach(p => add(p.x, p.y));
+            } catch (e) {}
+            if (!isFinite(minX)) return null;
+            return { minX, minY, maxX, maxY, cx: (minX+maxX)/2, cy: (minY+maxY)/2 };
         };
 
         // --- Survey Modal Component ---
@@ -642,6 +669,7 @@
             const [showSurveyModal, setShowSurveyModal] = useState(false);
             const [showHelpModal, setShowHelpModal] = useState(false);
             const [snapEnabled, setSnapEnabled] = useState(true);
+            const [orthoMode, setOrthoMode] = useState(false);
             const [cubeSize, setCubeSize] = useState(5);
 
             const viewRef = useRef({ scale: 1.0, offsetX: 0, offsetY: 0 }); 
@@ -650,6 +678,7 @@
             const selectedIds  = useRef(new Set());
             const [selVersion, setSelVersion] = useState(0);   // 選択状態の再描画トリガー
             const dragState    = useRef(null);   // { startWorld, origPositions }
+            const smartGuides  = useRef([]);     // ドラッグ中に表示する整列ガイド線 [{type:'v'|'h', pos}]
             const selBoxRef    = useRef(null);   // ラバーバンド選択の矩形
             const lastMouse = useRef({ x: 0, y: 0 });
             
@@ -1537,6 +1566,7 @@
                     const tag = e.target.tagName;
                     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
                     if (e.key === 's' || e.key === 'S') setSnapEnabled(prev => !prev);
+                    if (e.key === 'o' || e.key === 'O') setOrthoMode(prev => !prev);
                     // Delete / Backspace: 選択エンティティを削除
                     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.current.size > 0) {
                         const next = entities.filter(ent => !selectedIds.current.has(ent.id));
@@ -2026,6 +2056,16 @@
                     buildPath(subStep, false);
                     ctx.lineWidth = minorLW; ctx.strokeStyle = gridConfig.color; ctx.globalAlpha = gridConfig.opacity * 0.5; ctx.stroke();
                 }
+
+                // ズームインするとスナップが自動細分化される（getAdaptiveGridStep）ため、
+                // 実際にスナップできる点と見た目のグリッドがずれないよう、細分化された分だけ薄いグリッドを追加描画する。
+                const baseStepForAdaptive = showSub ? subStep : step;
+                const adaptiveStep = getAdaptiveGridStep(baseStepForAdaptive, view.scale);
+                if (adaptiveStep < baseStepForAdaptive - 1e-6) {
+                    buildPath(adaptiveStep, false);
+                    ctx.lineWidth = minorLW * 0.6; ctx.strokeStyle = gridConfig.color; ctx.globalAlpha = gridConfig.opacity * 0.25; ctx.stroke();
+                }
+
                 buildPath(step, true);
                 ctx.lineWidth = majorLW; ctx.strokeStyle = gridConfig.color; ctx.globalAlpha = gridConfig.opacity; ctx.stroke();
 
@@ -2468,9 +2508,9 @@
                         ctx.closePath(); ctx.stroke();
                         // 中心点
                         ctx.fillStyle = strokeColor;
-                        ctx.beginPath(); ctx.arc(center3.x, center3.y, 1/v.scale, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(center3.x, center3.y, 1/(v.scale*MM_TO_PX), 0, Math.PI*2); ctx.fill();
                         // 半径線
-                        ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 0.3/v.scale;
+                        ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 0.3/(v.scale*MM_TO_PX);
                         ctx.beginPath(); ctx.moveTo(center3.x, center3.y); ctx.lineTo(curr3.x, curr3.y); ctx.stroke();
                         ctx.setLineDash([]); ctx.restore();
                     }
@@ -2486,29 +2526,29 @@
                     if (curr2) ctx.lineTo(curr2.x, curr2.y);
                     ctx.stroke();
                     // 始点ハイライト（クローズ可能距離）
-                    if (curr2 && tempPoints.length >= 3 && Geo.dist(curr2, tempPoints[0]) < 3/v.scale) {
-                        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 1/v.scale;
-                        ctx.beginPath(); ctx.arc(tempPoints[0].x, tempPoints[0].y, 2/v.scale, 0, Math.PI*2); ctx.stroke();
+                    if (curr2 && tempPoints.length >= 3 && Geo.dist(curr2, tempPoints[0]) < 3/(v.scale*MM_TO_PX)) {
+                        ctx.strokeStyle = '#00ff00'; ctx.lineWidth = 1/(v.scale*MM_TO_PX);
+                        ctx.beginPath(); ctx.arc(tempPoints[0].x, tempPoints[0].y, 2/(v.scale*MM_TO_PX), 0, Math.PI*2); ctx.stroke();
                     }
                     // 頂点ドット
                     tempPoints.forEach((pt, i) => {
                         ctx.fillStyle = i === 0 ? '#ff4444' : strokeColor;
-                        ctx.beginPath(); ctx.arc(pt.x, pt.y, 1/v.scale, 0, Math.PI*2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(pt.x, pt.y, 1/(v.scale*MM_TO_PX), 0, Math.PI*2); ctx.fill();
                     });
                     ctx.setLineDash([]); ctx.restore();
                 }
 
                 if (tool === TOOLS.ERASER) {
                     const mPos = currentMousePos.current;
-                    ctx.save(); ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 1/v.scale; ctx.beginPath(); ctx.arc(mPos.x, mPos.y, 5/v.scale, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+                    ctx.save(); ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 1/(v.scale*MM_TO_PX); ctx.beginPath(); ctx.arc(mPos.x, mPos.y, 5/(v.scale*MM_TO_PX), 0, Math.PI*2); ctx.stroke(); ctx.restore();
                 }
 
                 // ── 選択ハイライト ──
                 if (tool === TOOLS.SELECT && selectedIds.current.size > 0) {
                     ctx.save();
                     ctx.strokeStyle = '#2299ff';
-                    ctx.lineWidth = 1.5 / v.scale;
-                    ctx.setLineDash([3/v.scale, 2/v.scale]);
+                    ctx.lineWidth = 1.5 / (v.scale * MM_TO_PX);
+                    ctx.setLineDash([3/(v.scale*MM_TO_PX), 2/(v.scale*MM_TO_PX)]);
                     entities.forEach(ent => {
                         if (!selectedIds.current.has(ent.id)) return;
                         // バウンディングボックスを計算して枠を描く
@@ -2518,17 +2558,18 @@
                         if (ent.c)  { xs.push(ent.c.x-ent.r, ent.c.x+ent.r); ys.push(ent.c.y-ent.r, ent.c.y+ent.r); }
                         if (ent.pts) ent.pts.forEach(p => { xs.push(p.x); ys.push(p.y); });
                         if (xs.length === 0) return;
-                        const pad = 2 / v.scale;
+                        const pad = 2 / (v.scale * MM_TO_PX);
                         const bx = Math.min(...xs)-pad, by = Math.min(...ys)-pad;
                         const bw = Math.max(...xs)-bx+pad*2, bh = Math.max(...ys)-by+pad*2;
                         ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.stroke();
                         // ハンドル（四隅）
                         ctx.setLineDash([]);
                         ctx.fillStyle = '#2299ff';
+                        const hs = 3 / (v.scale * MM_TO_PX);
                         [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]].forEach(([hx,hy]) => {
-                            ctx.beginPath(); ctx.rect(hx-3/v.scale, hy-3/v.scale, 6/v.scale, 6/v.scale); ctx.fill();
+                            ctx.beginPath(); ctx.rect(hx-hs, hy-hs, hs*2, hs*2); ctx.fill();
                         });
-                        ctx.setLineDash([3/v.scale, 2/v.scale]);
+                        ctx.setLineDash([3/(v.scale*MM_TO_PX), 2/(v.scale*MM_TO_PX)]);
                     });
                     ctx.setLineDash([]); ctx.restore();
                 }
@@ -2539,8 +2580,8 @@
                     const bx = Math.min(sb.x1,sb.x2), by = Math.min(sb.y1,sb.y2);
                     const bw = Math.abs(sb.x2-sb.x1), bh = Math.abs(sb.y2-sb.y1);
                     ctx.save();
-                    ctx.strokeStyle = '#2299ff'; ctx.lineWidth = 0.5/v.scale;
-                    ctx.setLineDash([2/v.scale,2/v.scale]);
+                    ctx.strokeStyle = '#2299ff'; ctx.lineWidth = 0.5/(v.scale*MM_TO_PX);
+                    ctx.setLineDash([2/(v.scale*MM_TO_PX),2/(v.scale*MM_TO_PX)]);
                     ctx.strokeRect(bx,by,bw,bh);
                     ctx.fillStyle = 'rgba(34,153,255,0.08)';
                     ctx.fillRect(bx,by,bw,bh);
@@ -2578,6 +2619,25 @@
                             ctx.stroke();
                         }
                     }
+
+                    // ── スマートガイド線（ドラッグ中の整列ガイド、PowerPoint/Canva風）──
+                    if (dragState.current && smartGuides.current && smartGuides.current.length > 0) {
+                        ctx.save();
+                        ctx.strokeStyle = '#ff00ff';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([4, 4]);
+                        smartGuides.current.forEach(g => {
+                            if (g.type === 'v') {
+                                const sx = g.pos * v.scale * MM_TO_PX + v.offsetX;
+                                ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); ctx.stroke();
+                            } else {
+                                const sy = g.pos * v.scale * MM_TO_PX + v.offsetY;
+                                ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy); ctx.stroke();
+                            }
+                        });
+                        ctx.setLineDash([]);
+                        ctx.restore();
+                    }
                 }
             }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides, bwFill, dimFontSize, dimTextOffset]);
 
@@ -2609,11 +2669,7 @@
                     let step = gridConfig.showSubGrid ? (majorStep / Math.max(2, gridConfig.subDivisions || 5)) : majorStep;
                     // ズームインして画面上のマス目が広がった時、自動でさらに細分化してスナップ精度を上げる
                     // （例：2cm間隔のグリッドでも、拡大すれば1cmや0.5cm単位の点にスナップできるようになる）
-                    const scalePxPerStep = step * viewRef.current.scale * MM_TO_PX;
-                    if (scalePxPerStep > 45) {
-                        const extraDiv = Math.min(32, Math.pow(2, Math.floor(Math.log2(scalePxPerStep / 45))));
-                        step = step / extraDiv;
-                    }
+                    step = getAdaptiveGridStep(step, viewRef.current.scale);
 
                     if (gridMode === GRID_MODES.ORTHO) {
                         const gx = Math.round(rawPos.x / step) * step;
@@ -2667,13 +2723,16 @@
                     });
                 });
 
-                // ── Shift: 15°角度拘束 ──
-                if (shiftKey && tempPoints.length > 0) {
+                // ── 直交モード（常時ON）／Shift（一時的）: 角度拘束 ──
+                // ※ 矩形(RECT)は対角2点で幅・高さを決めるため、角度拘束の対象から除外
+                //   （角度を0/90度に固定すると幅または高さが0になってしまうため）
+                if ((orthoMode || shiftKey) && tempPoints.length > 0 && tool !== TOOLS.RECT) {
                     const start = tempPoints[0];
                     let curr = bestSnap || rawPos;
                     const dx = curr.x - start.x, dy = curr.y - start.y;
                     const dist = Math.sqrt(dx*dx + dy*dy);
-                    const angle = Math.round(Math.atan2(dy, dx) / (Math.PI/12)) * (Math.PI/12);
+                    const step = orthoMode ? Math.PI/2 : Math.PI/12; // 直交モード:90°刻み／Shift:15°刻み
+                    const angle = Math.round(Math.atan2(dy, dx) / step) * step;
                     bestSnap = { x: start.x + Math.cos(angle) * dist, y: start.y + Math.sin(angle) * dist };
                 }
                 return bestSnap;
@@ -2976,8 +3035,59 @@
                 // ── SELECT: エンティティドラッグ移動 ──
                 if (tool === TOOLS.SELECT && e.buttons === 1 && dragState.current) {
                     const ds = dragState.current;
-                    const dx2 = wPos.x - ds.startWorld.x;
-                    const dy2 = wPos.y - ds.startWorld.y;
+                    let dx2 = wPos.x - ds.startWorld.x;
+                    let dy2 = wPos.y - ds.startWorld.y;
+
+                    // ── スマートガイド（中心・端をパワーポイント/Canva風に整列） ──
+                    if (!e.altKey) {
+                        const p = PAPERS[paper];
+                        // 移動中の選択図形全体の外接矩形（オフセット適用前の元位置＋現在のdx2/dy2）
+                        let selMinX=Infinity, selMinY=Infinity, selMaxX=-Infinity, selMaxY=-Infinity;
+                        Object.values(ds.origPositions).forEach(orig => {
+                            const bb = getEntityBBox(orig);
+                            if (!bb) return;
+                            selMinX=Math.min(selMinX,bb.minX); selMaxX=Math.max(selMaxX,bb.maxX);
+                            selMinY=Math.min(selMinY,bb.minY); selMaxY=Math.max(selMaxY,bb.maxY);
+                        });
+                        if (isFinite(selMinX)) {
+                            const curMinX=selMinX+dx2, curMaxX=selMaxX+dx2, curCx=(curMinX+curMaxX)/2;
+                            const curMinY=selMinY+dy2, curMaxY=selMaxY+dy2, curCy=(curMinY+curMaxY)/2;
+
+                            // 候補となるX/Y値を収集（用紙中心・用紙端、および他の図形の端・中心）
+                            const candX = [0, p.width, p.width/2];
+                            const candY = [0, p.height, p.height/2];
+                            entities.forEach(ent => {
+                                if (selectedIds.current.has(ent.id)) return;
+                                const bb = getEntityBBox(ent);
+                                if (!bb) return;
+                                candX.push(bb.minX, bb.maxX, bb.cx);
+                                candY.push(bb.minY, bb.maxY, bb.cy);
+                            });
+
+                            const thresh = 6 / viewRef.current.scale; // 画面上約6pxに相当するワールド距離
+                            const guides = [];
+                            let bestDx = null, bestDxDist = thresh;
+                            [['minX',curMinX],['maxX',curMaxX],['cx',curCx]].forEach(([key,val]) => {
+                                candX.forEach(c => {
+                                    const d = Math.abs(val - c);
+                                    if (d < bestDxDist) { bestDxDist = d; bestDx = { adjust: c - val, pos: c }; }
+                                });
+                            });
+                            let bestDy = null, bestDyDist = thresh;
+                            [['minY',curMinY],['maxY',curMaxY],['cy',curCy]].forEach(([key,val]) => {
+                                candY.forEach(c => {
+                                    const d = Math.abs(val - c);
+                                    if (d < bestDyDist) { bestDyDist = d; bestDy = { adjust: c - val, pos: c }; }
+                                });
+                            });
+                            if (bestDx) { dx2 += bestDx.adjust; guides.push({ type: 'v', pos: bestDx.pos }); }
+                            if (bestDy) { dy2 += bestDy.adjust; guides.push({ type: 'h', pos: bestDy.pos }); }
+                            smartGuides.current = guides;
+                        }
+                    } else {
+                        smartGuides.current = [];
+                    }
+
                     setEntities(prev => prev.map(ent => {
                         if (!selectedIds.current.has(ent.id)) return ent;
                         const orig = ds.origPositions[ent.id];
@@ -3020,6 +3130,8 @@
                     if (dragState.current) {
                         pushHistory([...entities]);
                         dragState.current = null;
+                        smartGuides.current = [];
+                        setForceUpdate(prev => prev + 1);
                     }
                     // ラバーバンド選択確定
                     if (selBoxRef.current) {
@@ -3150,7 +3262,7 @@
                                     <h4 className="font-bold mb-2 border-b border-gray-500 pb-1">グリッド設定</h4>
                                     <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">カラー</label><input type="color" value={gridConfig.color} onChange={(e) => setGridConfig({...gridConfig, color: e.target.value})} className="w-full h-8"/></div>
                                     <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">不透明度</label><input type="range" min="0.1" max="1" step="0.1" value={gridConfig.opacity} onChange={(e) => setGridConfig({...gridConfig, opacity: parseFloat(e.target.value)})}/></div>
-                                    <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">間隔: {gridConfig.spacing}mm</label><input type="range" min="5" max="100" step="5" value={gridConfig.spacing} onChange={(e) => setGridConfig({...gridConfig, spacing: parseInt(e.target.value)})}/></div>
+                                    <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">間隔（mm）</label><input type="number" min="1" max="5000" step="1" value={gridConfig.spacing} onChange={(e) => setGridConfig({...gridConfig, spacing: Math.max(1, parseFloat(e.target.value)||1)})} className="w-full bg-white text-black border border-gray-400 rounded px-1 py-0.5"/></div>
                                     <div className="mb-2 flex items-center"><input type="checkbox" id="subgrid" checked={gridConfig.showSubGrid} onChange={(e)=>setGridConfig({...gridConfig, showSubGrid: e.target.checked})} className="mr-2"/><label htmlFor="subgrid" className="text-xs text-gray-300">補助線</label></div>
                                     {gridConfig.showSubGrid && <div className="mb-2 flex items-center pl-6"><span className="text-xs text-gray-300 mr-2">分割数:</span><input type="number" min="2" max="20" value={gridConfig.subDivisions} onChange={(e)=>{ const raw = e.target.value; if(raw === '') { setGridConfig({...gridConfig, subDivisions: raw}); return; } const n = parseInt(raw); if(!isNaN(n)) setGridConfig({...gridConfig, subDivisions: n}); }} onBlur={(e)=>{ let n = parseInt(e.target.value); if(isNaN(n)) n = 2; n = Math.max(2, Math.min(20, n)); setGridConfig({...gridConfig, subDivisions: n}); }} className="w-16 bg-white text-black border border-gray-400 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"/></div>}
                                     {gridMode === GRID_MODES.ISO && <div className="mb-2"><label className="block text-xs text-gray-300">ISO角度</label><input type="range" min="15" max="75" step="5" value={gridConfig.isoAngle} onChange={(e)=>setGridConfig({...gridConfig, isoAngle: parseInt(e.target.value)})}/></div>}
@@ -3182,6 +3294,21 @@
                             <span>{snapEnabled ? 'スナップ' : 'フリー'}</span>
                             <span className="opacity-40 text-xs">[S]</span>
                         </button>
+
+                        {/* 直交モード ON/OFF トグル（水平・垂直に固定して真っ直ぐ線を引く） */}
+                        <button
+                            onClick={() => setOrthoMode(prev => !prev)}
+                            title={orthoMode ? '直交モードON（水平・垂直に固定） [O]' : '直交モードOFF（クリックでON、または描画中はShiftで一時的に15°刻み） [O]'}
+                            className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded border text-xs font-bold transition-all ${
+                                orthoMode
+                                    ? 'bg-blue-700 border-blue-500 text-white'
+                                    : 'bg-gray-900 border-gray-600 text-gray-400'
+                            }`}
+                        >
+                            <i data-lucide="move-horizontal" className="w-4 h-4"></i>
+                            <span>直交</span>
+                            <span className="opacity-40 text-xs">[O]</span>
+                        </button>
                         <div className="flex-1"></div>
                         <button onClick={undo} className="tool-btn text-white"><i data-lucide="undo-2"></i></button>
                         <button onClick={() => setEntities([])} className="tool-btn text-red-400"><i data-lucide="trash-2"></i></button>
@@ -3203,12 +3330,12 @@
                             ))}
                             {/* 多重線ツール: 間隔・左右本数・中心線設定 */}
                             {tool === TOOLS.MLINE && (
-                                <div className="flex flex-col items-center gap-1 bg-gray-800 border border-gray-600 rounded px-1.5 py-1.5 w-12">
-                                    <span className="text-xs text-blue-300">{mlineSpacing}mm</span>
-                                    <input type="range" min="1" max="1000" step="1" value={mlineSpacing}
-                                        onMouseEnter={(e) => showTip(e, '線の間隔（1mm〜）')} onMouseLeave={hideTip}
-                                        onChange={e => setMlineSpacing(parseInt(e.target.value))}
-                                        className="w-full" />
+                                <div className="flex flex-col items-center gap-1 bg-gray-800 border border-gray-600 rounded px-1.5 py-1.5 w-14">
+                                    <label className="text-xs text-gray-400">間隔(mm)</label>
+                                    <input type="number" min="1" max="5000" step="1" value={mlineSpacing}
+                                        onMouseEnter={(e) => showTip(e, '線の間隔（1mm〜、直接入力可）')} onMouseLeave={hideTip}
+                                        onChange={e => setMlineSpacing(Math.max(1, parseFloat(e.target.value)||1))}
+                                        className="w-full bg-white text-black text-xs text-center rounded" />
                                     <div className="w-full text-center">
                                         <label className="text-xs text-gray-400 block">左</label>
                                         <input type="number" min="0" max="10" value={mlineLeftCount}
@@ -3229,54 +3356,49 @@
                             )}
                             {/* 角丸めツール: 半径設定 */}
                             {tool === TOOLS.FILLET && (
-                                <div className="w-10 flex flex-col items-center gap-0.5">
-                                    <span className="text-xs text-blue-300">{filletRadius}</span>
-                                    <input type="range" min="10" max="2000" step="10" value={filletRadius}
-                                        onMouseEnter={(e) => showTip(e, '角丸めの半径（mm）')} onMouseLeave={hideTip}
-                                        onChange={e => setFilletRadius(parseInt(e.target.value))}
-                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
-                                    <span className="text-xs text-gray-500">半径</span>
+                                <div className="w-14 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-gray-500">半径(mm)</span>
+                                    <input type="number" min="1" max="10000" step="1" value={filletRadius}
+                                        onMouseEnter={(e) => showTip(e, '角丸めの半径（mm、直接入力可）')} onMouseLeave={hideTip}
+                                        onChange={e => setFilletRadius(Math.max(1, parseFloat(e.target.value)||1))}
+                                        className="w-full bg-white text-black text-xs text-center rounded" />
                                 </div>
                             )}
                             {/* 面取りツール: 距離設定 */}
                             {tool === TOOLS.CHAMFER && (
-                                <div className="w-10 flex flex-col items-center gap-0.5">
-                                    <span className="text-xs text-blue-300">{chamferDist}</span>
-                                    <input type="range" min="10" max="2000" step="10" value={chamferDist}
-                                        onMouseEnter={(e) => showTip(e, '面取りの距離（mm）')} onMouseLeave={hideTip}
-                                        onChange={e => setChamferDist(parseInt(e.target.value))}
-                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
-                                    <span className="text-xs text-gray-500">距離</span>
+                                <div className="w-14 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-gray-500">距離(mm)</span>
+                                    <input type="number" min="1" max="10000" step="1" value={chamferDist}
+                                        onMouseEnter={(e) => showTip(e, '面取りの距離（mm、直接入力可）')} onMouseLeave={hideTip}
+                                        onChange={e => setChamferDist(Math.max(1, parseFloat(e.target.value)||1))}
+                                        className="w-full bg-white text-black text-xs text-center rounded" />
                                 </div>
                             )}
                             {/* 文字ツール: 配置前のフォントサイズ設定 */}
                             {tool === TOOLS.TEXT && (
-                                <div className="w-10 flex flex-col items-center gap-0.5">
-                                    <span className="text-xs text-blue-300">{textFontSize}</span>
-                                    <input type="range" min="1" max="15" step="0.5" value={textFontSize}
-                                        onChange={e => setTextFontSize(parseFloat(e.target.value))}
-                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
-                                    <span className="text-xs text-gray-500">mm</span>
+                                <div className="w-12 flex flex-col items-center gap-0.5">
+                                    <span className="text-xs text-gray-500">文字サイズ(mm)</span>
+                                    <input type="number" min="0.5" max="500" step="0.5" value={textFontSize}
+                                        onChange={e => setTextFontSize(Math.max(0.5, parseFloat(e.target.value)||0.5))}
+                                        className="w-full bg-white text-black text-xs text-center rounded" />
                                 </div>
                             )}
                             {/* 寸法ツール: 文字サイズ・文字位置（上下オフセット）設定 */}
                             {tool === TOOLS.DIM && (
-                                <div className="flex flex-col items-center gap-2 bg-gray-800 border border-gray-600 rounded px-1 py-2">
-                                    <div className="flex flex-col items-center gap-0.5">
-                                        <span className="text-xs text-blue-300">{dimFontSize}</span>
-                                        <input type="range" min="1" max="10" step="0.5" value={dimFontSize}
-                                            onMouseEnter={(e) => showTip(e, '新しく描く寸法の文字サイズ（初期値）')} onMouseLeave={hideTip}
-                                            onChange={e => setDimFontSize(parseFloat(e.target.value))}
-                                            className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                <div className="flex flex-col items-center gap-2 bg-gray-800 border border-gray-600 rounded px-1 py-2 w-14">
+                                    <div className="flex flex-col items-center gap-0.5 w-full">
                                         <span className="text-xs text-gray-500 leading-tight text-center">文字<br/>サイズ</span>
+                                        <input type="number" min="0.5" max="500" step="0.5" value={dimFontSize}
+                                            onMouseEnter={(e) => showTip(e, '新しく描く寸法の文字サイズ（初期値、直接入力可）')} onMouseLeave={hideTip}
+                                            onChange={e => setDimFontSize(Math.max(0.5, parseFloat(e.target.value)||0.5))}
+                                            className="w-full bg-white text-black text-xs text-center rounded" />
                                     </div>
-                                    <div className="flex flex-col items-center gap-0.5">
-                                        <span className="text-xs text-blue-300">{dimTextOffset}</span>
-                                        <input type="range" min="-2" max="5" step="0.1" value={dimTextOffset}
-                                            onMouseEnter={(e) => showTip(e, '新しく描く寸法の上下位置（初期値）')} onMouseLeave={hideTip}
-                                            onChange={e => setDimTextOffset(parseFloat(e.target.value))}
-                                            className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                    <div className="flex flex-col items-center gap-0.5 w-full">
                                         <span className="text-xs text-gray-500 leading-tight text-center">上下<br/>位置</span>
+                                        <input type="number" min="-100" max="100" step="0.1" value={dimTextOffset}
+                                            onMouseEnter={(e) => showTip(e, '新しく描く寸法の上下位置（初期値、直接入力可）')} onMouseLeave={hideTip}
+                                            onChange={e => setDimTextOffset(parseFloat(e.target.value)||0)}
+                                            className="w-full bg-white text-black text-xs text-center rounded" />
                                     </div>
                                 </div>
                             )}
@@ -3312,13 +3434,12 @@
                             ))}
                             {/* シンボルツール: 配置前の大きさ設定 */}
                             {tool === TOOLS.SYMBOL && (
-                                <div className="w-10 flex flex-col items-center gap-0.5">
-                                    <span className="text-xs text-green-300">{symbolScale.toFixed(1)}x</span>
-                                    <input type="range" min="0.2" max="3" step="0.1" value={symbolScale}
-                                        onMouseEnter={(e) => showTip(e, 'シンボルの大きさ（倍率）')} onMouseLeave={hideTip}
-                                        onChange={e => setSymbolScale(parseFloat(e.target.value))}
-                                        className="w-8" style={{writingMode:'vertical-lr', direction:'rtl'}} />
+                                <div className="w-12 flex flex-col items-center gap-0.5">
                                     <span className="text-xs text-gray-500">倍率</span>
+                                    <input type="number" min="0.05" max="50" step="0.05" value={symbolScale}
+                                        onMouseEnter={(e) => showTip(e, 'シンボルの大きさ（倍率、直接入力可）')} onMouseLeave={hideTip}
+                                        onChange={e => setSymbolScale(Math.max(0.05, parseFloat(e.target.value)||0.05))}
+                                        className="w-full bg-white text-black text-xs text-center rounded" />
                                 </div>
                             )}
                             {/* 正多角形: 辺数選択 */}
@@ -3393,11 +3514,10 @@
                                         ))}
                                     </div>
                                     <input
-                                        type="range" min="0" max="359" step="1"
+                                        type="number" min="0" max="359" step="1"
                                         value={selectedTextEntity.rotation || 0}
-                                        onChange={(e) => updateSelectedText({ rotation: parseInt(e.target.value) }, false)}
-                                        onMouseUp={(e) => updateSelectedText({ rotation: parseInt(e.target.value) }, true)}
-                                        className="w-full mb-2"
+                                        onChange={(e) => updateSelectedText({ rotation: parseFloat(e.target.value)||0 }, true)}
+                                        className="w-full mb-2 bg-white text-black border border-gray-400 rounded p-1 text-center"
                                     />
 
                                     <div className="flex items-center gap-2 mb-2">
@@ -3445,11 +3565,11 @@
                                         <i data-lucide="trees" className="w-4 h-4"></i>
                                         シンボルの大きさ
                                     </div>
-                                    <div className="text-xs text-gray-300 mb-1">{GAIKO_SYMBOLS[selectedSymbolEntity.symbolType]?.label} — {(selectedSymbolEntity.scale || 1).toFixed(1)}倍</div>
-                                    <input type="range" min="0.2" max="3" step="0.1" value={selectedSymbolEntity.scale || 1}
-                                        onChange={(e) => updateSelectedSymbolScale(parseFloat(e.target.value), false)}
-                                        onMouseUp={(e) => updateSelectedSymbolScale(parseFloat(e.target.value), true)}
-                                        className="w-full" />
+                                    <div className="text-xs text-gray-300 mb-1">{GAIKO_SYMBOLS[selectedSymbolEntity.symbolType]?.label}</div>
+                                    <label className="block text-xs text-gray-400 mb-1">倍率</label>
+                                    <input type="number" min="0.05" max="50" step="0.05" value={selectedSymbolEntity.scale || 1}
+                                        onChange={(e) => updateSelectedSymbolScale(Math.max(0.05, parseFloat(e.target.value)||0.05), true)}
+                                        className="w-full bg-white text-black border border-gray-400 rounded p-1 text-center" />
                                     {GAIKO_SYMBOLS[selectedSymbolEntity.symbolType]?.isLevelMark && (
                                         <div className="mt-2">
                                             <label className="block text-xs text-gray-300 mb-1">高さの値</label>
@@ -3469,18 +3589,16 @@
                                         <i data-lucide="ruler" className="w-4 h-4"></i>
                                         この寸法だけ設定
                                     </div>
-                                    <label className="block text-xs text-gray-300 mb-1">文字サイズ: {selectedDimEntity.fontSize != null ? selectedDimEntity.fontSize : dimFontSize}</label>
-                                    <input type="range" min="1" max="10" step="0.5"
+                                    <label className="block text-xs text-gray-300 mb-1">文字サイズ</label>
+                                    <input type="number" min="0.5" max="500" step="0.5"
                                         value={selectedDimEntity.fontSize != null ? selectedDimEntity.fontSize : dimFontSize}
-                                        onChange={(e) => updateSelectedDim({ fontSize: parseFloat(e.target.value) }, false)}
-                                        onMouseUp={(e) => updateSelectedDim({ fontSize: parseFloat(e.target.value) }, true)}
-                                        className="w-full mb-2" />
-                                    <label className="block text-xs text-gray-300 mb-1">上下位置: {selectedDimEntity.textOffset != null ? selectedDimEntity.textOffset : dimTextOffset}</label>
-                                    <input type="range" min="-2" max="5" step="0.1"
+                                        onChange={(e) => updateSelectedDim({ fontSize: Math.max(0.5, parseFloat(e.target.value)||0.5) }, true)}
+                                        className="w-full mb-2 bg-white text-black border border-gray-400 rounded p-1 text-center" />
+                                    <label className="block text-xs text-gray-300 mb-1">上下位置</label>
+                                    <input type="number" min="-1000" max="1000" step="0.1"
                                         value={selectedDimEntity.textOffset != null ? selectedDimEntity.textOffset : dimTextOffset}
-                                        onChange={(e) => updateSelectedDim({ textOffset: parseFloat(e.target.value) }, false)}
-                                        onMouseUp={(e) => updateSelectedDim({ textOffset: parseFloat(e.target.value) }, true)}
-                                        className="w-full" />
+                                        onChange={(e) => updateSelectedDim({ textOffset: parseFloat(e.target.value)||0 }, true)}
+                                        className="w-full bg-white text-black border border-gray-400 rounded p-1 text-center" />
                                 </div>
                             )}
 
