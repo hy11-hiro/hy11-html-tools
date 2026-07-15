@@ -25,7 +25,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;background:var(-
 /* Main */
 #main{flex:1;position:relative;overflow:hidden;}
 /* Props bar */
-#pbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--w);border-radius:12px;box-shadow:var(--sh);padding:7px 14px;display:flex;align-items:center;gap:9px;z-index:90;border:1px solid var(--br);min-height:48px;pointer-events:all;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;max-width:calc(100vw - 80px);}
+#pbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--w);border-radius:12px;box-shadow:var(--sh);padding:7px 14px;display:flex;align-items:center;gap:9px;z-index:90;border:1px solid var(--br);min-height:48px;pointer-events:all;flex-wrap:wrap;max-width:min(calc(100vw - 40px), 1400px);row-gap:6px;}
 #pbar::-webkit-scrollbar{display:none;}
 .p-lbl{font-size:10.5px;font-weight:600;color:#bbb;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
 .p-sep{width:1px;height:24px;background:var(--br);flex-shrink:0;}
@@ -513,6 +513,10 @@ body{font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;background:var(-
     <div class="mc-top">
       <button class="mc-cl" onclick="closeTModal()">✕</button>
       <div class="mc-ti">📋 テンプレート</div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#475569;cursor:pointer;margin-left:auto;margin-right:12px;user-select:none;">
+        <input type="checkbox" id="tmpl-keep-existing" checked style="cursor:pointer;width:15px;height:15px;">
+        既存の内容を残して追加する
+      </label>
       <div class="cat-tabs" id="cat-tabs"></div>
     </div>
     <div class="mc-body"><div class="tgrid" id="tgrid"></div></div>
@@ -793,7 +797,9 @@ function mkLineSVG(x1b,y1b,x2b,y2b,color,lw,arrowType,uid,lineStyle,dash,label){
     (dashArr?` stroke-dasharray="${dashArr}"`:``);
   // ラベル（線の中点に表示）
   const lx=(sx1+sx2)/2, ly=(sy1+sy2)/2;
-  const labelEl=label?`<g><rect x="${lx-label.length*3.5-4}" y="${ly-10}" width="${label.length*7+8}" height="18" rx="4" fill="white" opacity="0.85"/><text x="${lx}" y="${ly+5}" text-anchor="middle" font-size="12" font-family="Plus Jakarta Sans,sans-serif" fill="${color}" style="pointer-events:none;user-select:none">${label}</text></g>`:'';
+  // 全角/半角を考慮した文字幅計算（全角は約1.75倍幅）
+  const _labelW = label ? [...label].reduce((w,ch)=>w+(/[^\x00-\xff]/.test(ch)?12:7.2),0) : 0;
+  const labelEl=label?`<g><rect x="${lx-_labelW/2-6}" y="${ly-12}" width="${_labelW+12}" height="22" rx="5" fill="#ffffff" stroke="${color}" stroke-width="1" opacity="0.97"/><text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="12" font-family="Plus Jakarta Sans,sans-serif" font-weight="600" fill="#1e293b" style="pointer-events:none;user-select:none">${label}</text></g>`:'';
   const inner=`${defs}<path d="${pathD}" ${attrs}/><path d="${pathD}" stroke="transparent" stroke-width="${Math.max(lw+6,16)}" fill="none"/>${labelEl}`;
   return{svg:`<svg class="sh-svg" viewBox="0 0 ${vW} ${vH}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;pointer-events:stroke">${inner}</svg>`,vW,vH,pad};
 }
@@ -942,7 +948,7 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
     txtEl.className='sh-text';
     txtEl.contentEditable='true';
     txtEl.setAttribute('data-ph','ダブルクリックで入力');
-    txtEl.style.fontSize=((opts.labelFs||S.labelFs||13)/S.zoom)+'px';
+    txtEl.style.fontSize=((opts.labelFs||S.labelFs||13)*S.zoom)+'px';
     txtEl.style.color=opts.labelColor||'#1a1a1a';
     txtEl.style.fontWeight=opts.labelFw||(opts.bold?'700':S.fw||'400');
     txtEl.style.fontFamily=fontCss(opts.labelFont||S.font||'sans');
@@ -1004,22 +1010,22 @@ var updElPos = function(){
     if(d.type==='shape'&&!d.isLine){
       // ズームに逆比例させて文字サイズを固定（論理サイズ px ÷ zoom = 画面上一定）
       const tx=el.querySelector('.sh-text');
-      if(tx)tx.style.fontSize=((d.labelFs||13)/S.zoom)+'px';
+      if(tx)tx.style.fontSize=((d.labelFs||13)*S.zoom)+'px';
     }
     // 付箋: 図形と同様にサイズをズーム倍にし、文字サイズを逆補正で画面上固定
     if(d.type==='sn'){
       el.style.width=(d.bw*S.zoom)+'px';el.style.height=(d.bh*S.zoom)+'px';
       const ta=el.querySelector('.sn-ta');
-      if(ta)ta.style.fontSize=((d.snFs||15)/S.zoom)+'px';
+      if(ta)ta.style.fontSize=((d.snFs||15)*S.zoom)+'px';
       const rot=d._rot||0;
       el.style.transform=`rotate(${rot}deg)`;
     }
     // テキストボックス: ズームに逆比例させて文字サイズを固定
     if(d.type==='tx'){
       const txEl=el;
-      txEl.style.fontSize=((d.fs||16)/S.zoom)+'px';
+      txEl.style.fontSize=((d.fs||16)*S.zoom)+'px';
       const ta=txEl.querySelector('.txb-ta');
-      if(ta)ta.style.fontSize=((d.fs||16)/S.zoom)+'px';
+      if(ta)ta.style.fontSize=((d.fs||16)*S.zoom)+'px';
     }
     // Re-position line endpoint handles on zoom/pan
     if(d.type==='shape'&&d.isLine){
@@ -1764,7 +1770,7 @@ function selSetLabelFs(s){
   const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
   d.labelFs=s;
   const el=document.getElementById(id);
-  if(el){const t=getLblText(el);if(t)t.style.fontSize=(s/S.zoom)+'px';}
+  if(el){const t=getLblText(el);if(t)t.style.fontSize=(s*S.zoom)+'px';}
   saveHist(); renderSelPbar(id);
 }
 function selSetLabelColor(c){
@@ -1779,8 +1785,8 @@ function selSetTxFs(s){
   d.fs=s;
   const el=document.getElementById(id);
   if(el){
-    el.style.fontSize=(s/S.zoom)+'px';
-    const ta=el.querySelector('.txb-ta');if(ta)ta.style.fontSize=(s/S.zoom)+'px';
+    el.style.fontSize=(s*S.zoom)+'px';
+    const ta=el.querySelector('.txb-ta');if(ta)ta.style.fontSize=(s*S.zoom)+'px';
   }
   saveHist(); renderSelPbar(id);
 }
@@ -1879,7 +1885,7 @@ function addSN(bx,by,opts={}){
 function chSC(id,col){const el=document.getElementById(id);if(el)el.style.backgroundColor=col;const d=S.elems.find(e=>e.id===id);if(d)d.col=col;}
 function chSNFs(id,fs){
   const el=document.getElementById(id);if(!el)return;
-  const ta=el.querySelector('.sn-ta');if(ta)ta.style.fontSize=(fs/S.zoom)+'px';
+  const ta=el.querySelector('.sn-ta');if(ta)ta.style.fontSize=(fs*S.zoom)+'px';
   el.querySelectorAll('.sn-fsb').forEach(b=>b.classList.toggle('sn-fsb-on',parseInt(b.textContent)===fs));
   const d=S.elems.find(e=>e.id===id);if(d)d.snFs=fs;
 }
@@ -1894,7 +1900,7 @@ function addTxb(bx,by,opts={}){
   const col=opts.color||S.color;
   const ff=fontCss(opts.font||S.font||'sans');
   const fw=opts.fw||(opts.bold?'700':'400')||S.fw||'400';
-  wrap.style.fontSize=(fs/S.zoom)+'px';
+  wrap.style.fontSize=(fs*S.zoom)+'px';
   wrap.style.color=col;
   wrap.style.fontFamily=ff;
   wrap.style.fontWeight=fw;
@@ -2591,9 +2597,12 @@ function loadT(id){
     openCalDialog(id);
     return;
   }
-  clearBoardSilent();if(TFN[id])TFN[id]();saveHist();
+  const keepEl=document.getElementById('tmpl-keep-existing');
+  const keep = keepEl ? keepEl.checked : true;
+  if(!keep) clearBoardSilent();
+  if(TFN[id])TFN[id]();saveHist();
   setTool('select');
-  showToast('💡 要素を選択して <b>Ctrl+D</b> で複製 ／ 角をドラッグで拡大縮小');
+  showToast(keep?'✅ テンプレートを追加しました。要素を選択して <b>Ctrl+D</b> で複製':'💡 要素を選択して <b>Ctrl+D</b> で複製 ／ 角をドラッグで拡大縮小');
 }
 
 function openCalDialog(id){
@@ -2612,12 +2621,14 @@ function openCalDialog(id){
     const vals = {};
     cfg.fields.forEach(f=>{ vals[f.id]=document.getElementById(f.id).value; });
     closeCalDialog();
-    clearBoardSilent();
+    const keepEl=document.getElementById('tmpl-keep-existing');
+    const keep = keepEl ? keepEl.checked : true;
+    if(!keep) clearBoardSilent();
     cfg.fn(vals);
     saveHist();
     setTool('select');
     closeTModal();
-    showToast('💡 要素を選択して <b>Ctrl+D</b> で複製 ／ 角をドラッグで拡大縮小');
+    showToast(keep?'✅ テンプレートを追加しました。要素を選択して <b>Ctrl+D</b> で複製':'💡 要素を選択して <b>Ctrl+D</b> で複製 ／ 角をドラッグで拡大縮小');
   };
   dlg.style.display = 'flex';
   // 最初のフィールドにフォーカス
@@ -3320,7 +3331,7 @@ function _msResizeStart(ev){
             const old=el2.querySelector('.sh-svg');if(old)old.remove();
             el2.insertAdjacentHTML('afterbegin',mkSVG(d.sh,d.bw,d.bh,d.color,d.lw,d.fill));
             const tx=el2.querySelector('.sh-text');
-            if(tx)tx.style.fontSize=((d.labelFs||13)/S.zoom)+'px';
+            if(tx)tx.style.fontSize=((d.labelFs||13)*S.zoom)+'px';
           }
         } else if(d.type==='sn'){
           el2.style.width=d.bw+'px'; el2.style.height=d.bh+'px';
@@ -3513,7 +3524,7 @@ function updateGroupBoxes(){
                   const old=el2.querySelector('.sh-svg');if(old)old.remove();
                   el2.insertAdjacentHTML('afterbegin',mkSVG(d.sh,d.bw,d.bh,d.color,d.lw,d.fill));
                   const tx2=el2.querySelector('.sh-text');
-                  if(tx2)tx2.style.fontSize=((d.labelFs||13)/S.zoom)+'px';
+                  if(tx2)tx2.style.fontSize=((d.labelFs||13)*S.zoom)+'px';
                 }
               } else if(d.type==='sn'){
                 el2.style.width=d.bw+'px'; el2.style.height=d.bh+'px';
@@ -4786,79 +4797,99 @@ if(typeof showToast==='undefined'){
   };
   const roomId=new URLSearchParams(location.search).get('room')||'default';
   const myId=Math.random().toString(36).slice(2);
-
-  // ── UI ──
   const mkEl=(tag,css,html='')=>{const e=document.createElement(tag);e.style.cssText=css;e.innerHTML=html;return e;};
 
-  // ステータスバッジ（同期中のみ表示）
+  // ── 同期モードの永続化キー ──
+  const SYNC_KEY='wb_sync_enabled_'+roomId;
+  let syncEnabled = localStorage.getItem(SYNC_KEY)==='1';
+
+  // ── ステータス表示（同期中のみ使う）──
   const statusEl=mkEl('div','position:fixed;bottom:44px;right:12px;font-size:11px;padding:3px 9px;border-radius:10px;background:rgba(255,255,255,.93);border:1px solid #ddd;z-index:9999;pointer-events:none;transition:opacity .3s;display:none');
   document.body.appendChild(statusEl);
-  const setStatus=(t,c='#555')=>{statusEl.textContent=t;statusEl.style.color=c;statusEl.style.display='block';};
-  const hideStatus=()=>{statusEl.style.display='none';};
+  const setStatus=(t,c='#555')=>{statusEl.style.display='block';statusEl.textContent=t;statusEl.style.color=c;};
 
-  // 同期トグルバッジ
-  const badgeEl=mkEl('div',
-    'position:fixed;bottom:12px;right:12px;font-size:11px;padding:4px 12px;border-radius:10px;background:#888;color:#fff;z-index:9999;cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;transition:background .2s;',
-    '<span id="sync-icon">☁</span><span id="sync-label">同期OFF</span><span style="opacity:.6;font-size:10px" id="sync-room"></span>'
-  );
-  badgeEl.title='クリックで同期ON/OFF';
+  // ── モードバッジ（クリックでON/OFF切替）──
+  const badgeEl=mkEl('div','position:fixed;bottom:12px;right:12px;font-size:11px;padding:3px 12px;border-radius:10px;z-index:9999;cursor:pointer;user-select:none;transition:background .2s');
   document.body.appendChild(badgeEl);
 
-  // ── SDK ロード（バックグラウンドで先にロードだけしておく）──
-  let db,stg,dbRef,dbSet,dbOnValue,dbOff,stgRef,stgUpload,stgGetUrl;
-  let sdkReady=false;
-  const sdkPromise=(async()=>{
-    try{
-      const [aM,dM,sM]=await Promise.all([
-        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
-        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'),
-        import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'),
-      ]);
-      const app=aM.initializeApp(FIREBASE_CONFIG,'wb-'+Math.random());
-      db=dM.getDatabase(app);stg=sM.getStorage(app);
-      dbRef=dM.ref;dbSet=dM.set;dbOnValue=dM.onValue;dbOff=dM.off;
-      stgRef=sM.ref;stgUpload=sM.uploadBytes;stgGetUrl=sM.getDownloadURL;
-      sdkReady=true;
-    }catch(e){console.error('Firebase SDK load error:',e);sdkReady=false;}
-  })();
-
-  // ── 同期状態管理 ──
-  let syncEnabled=false;
-  let pushTimer=null,isSyncing=false;
-  let uploadingCount=0;
-  let unsubscribe=null; // onValue の購読解除関数
-
-  function updateBadge(){
-    const icon=document.getElementById('sync-icon');
-    const label=document.getElementById('sync-label');
-    const room=document.getElementById('sync-room');
+  function renderBadge(){
     if(syncEnabled){
-      badgeEl.style.background='#4f46e5';
-      if(icon)icon.textContent='☁';
-      if(label)label.textContent='同期ON';
-      if(room)room.textContent='ルーム: '+roomId;
-      badgeEl.title='クリックで同期OFF / 長押しでURL共有';
-    }else{
-      badgeEl.style.background='#888';
-      if(icon)icon.textContent='⊘';
-      if(label)label.textContent='同期OFF';
-      if(room)room.textContent='';
-      badgeEl.title='クリックで同期ON';
-      hideStatus();
+      badgeEl.style.background='#4f46e5';badgeEl.style.color='#fff';
+      badgeEl.textContent='🔗 同期ON（ルーム: '+roomId+'）クリックでオフに';
+      badgeEl.title='クリックでオフライン（非同期）に戻す';
+    } else {
+      badgeEl.style.background='#64748b';badgeEl.style.color='#fff';
+      badgeEl.textContent='🔌 オフライン（クリックで共同編集を開始）';
+      badgeEl.title='クリックすると他の人とリアルタイム共有できます';
+      statusEl.style.display='none';
     }
   }
-  updateBadge();
+  renderBadge();
 
-  // ── 圧縮 ──
-  async function compressImage(file,base64){
+  let syncStarted=false;
+  let stopSyncFn=null;
+
+  badgeEl.addEventListener('click',()=>{
+    if(!syncEnabled){
+      // OFF→ON: 確認してから開始
+      if(confirm('この端末をルーム「'+roomId+'」で他の人と共有します。\n以後、編集内容がリアルタイムで同期されます。よろしいですか？')){
+        syncEnabled=true;
+        localStorage.setItem(SYNC_KEY,'1');
+        renderBadge();
+        if(!syncStarted){ startSync(); syncStarted=true; }
+      }
+    } else {
+      // ON→OFF: 同期を停止（ページをリロードして完全に切断）
+      if(confirm('同期をオフにします（このページを再読み込みします）。よろしいですか？')){
+        localStorage.setItem(SYNC_KEY,'0');
+        location.reload();
+      }
+    }
+  });
+
+  // URLで共有したい場合のためのURLコピー機能（バッジ右クリック or 別ボタン）
+  badgeEl.addEventListener('contextmenu',e=>{
+    e.preventDefault();
+    const url=location.origin+location.pathname+'?room='+encodeURIComponent(roomId);
+    navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました: '+url));
+  });
+
+  // ページロード時に前回同期ONだった場合は自動再開
+  if(syncEnabled){ startSync(); syncStarted=true; }
+
+  async function startSync(){
+  setStatus('⏳ 接続中…');
+
+  // ── SDK ロード ──
+  let db,stg,dbRef,dbSet,dbOnValue,stgRef,stgUpload,stgGetUrl;
+  try{
+    const [aM,dM,sM]=await Promise.all([
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js'),
+      import('https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js'),
+    ]);
+    const app=aM.initializeApp(FIREBASE_CONFIG,'wb-'+Math.random());
+    db=dM.getDatabase(app);stg=sM.getStorage(app);
+    dbRef=dM.ref;dbSet=dM.set;dbOnValue=dM.onValue;
+    stgRef=sM.ref;stgUpload=sM.uploadBytes;stgGetUrl=sM.getDownloadURL;
+  }catch(e){setStatus('❌ 接続失敗','red');console.error(e);return;}
+
+  const boardRef=dbRef(db,'boards/'+roomId);
+  let pushTimer=null,isSyncing=false;
+
+  // ── 画像アップロード（バックグラウンド・ローカル即時表示済み）──
+  // ── 画像圧縮してからアップロード ──
+  async function compressImage(file, base64){
     return new Promise(resolve=>{
       const img=new Image();
       img.onload=()=>{
-        const MAX=1200,Q=0.75;
-        let w=img.naturalWidth,h=img.naturalHeight;
+        // 最大1200px・JPEG品質0.75で圧縮（元の1/10〜1/30程度になる）
+        const MAX=1200, Q=0.75;
+        let w=img.naturalWidth, h=img.naturalHeight;
         if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}
         if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}
-        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+        const cv=document.createElement('canvas');
+        cv.width=w; cv.height=h;
         cv.getContext('2d').drawImage(img,0,0,w,h);
         cv.toBlob(blob=>resolve(blob),'image/jpeg',Q);
       };
@@ -4867,40 +4898,37 @@ if(typeof showToast==='undefined'){
     });
   }
 
-  // ── 画像アップロード（同期OFFなら即コールバックでローカルのみ）──
   window._fbUploadImg=async(file,base64,cb)=>{
-    if(!syncEnabled||!sdkReady){cb(base64);return;}
-    uploadingCount++;
-    const startTime=Date.now();
-    let timerInterval=setInterval(()=>{
-      const sec=((Date.now()-startTime)/1000).toFixed(1);
-      setStatus(`⬆ アップロード中… ${sec}秒 (${uploadingCount}件)`,'#ca8a04');
-    },200);
     try{
+      // アップロード開始時間を記録してカウントアップ表示
+      const startTime=Date.now();
+      let timerInterval=setInterval(()=>{
+        const sec=((Date.now()-startTime)/1000).toFixed(1);
+        setStatus(`⬆ アップロード中… ${sec}秒経過`, '#ca8a04');
+      }, 200);
+
+      // Canvas で圧縮
       const blob=await compressImage(file,base64);
       const uploadTarget=blob||file;
       const path=`rooms/${roomId}/images/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
       const snap=await stgUpload(stgRef(stg,path),uploadTarget,{contentType:'image/jpeg'});
       const url=await stgGetUrl(snap.ref);
+
       clearInterval(timerInterval);
+      const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+      setStatus(`☁ 画像同期完了（${elapsed}秒）`, '#16a34a');
+      setTimeout(()=>setStatus('☁ 同期済み','#16a34a'), 2500);
       cb(url);
     }catch(e){
       console.error('Storage upload error:',e);
-      clearInterval(timerInterval);
+      setStatus('⚠ 画像: ローカルのみ（Storage失敗）','#ca8a04');
       cb(base64);
-    }finally{
-      uploadingCount=Math.max(0,uploadingCount-1);
-      if(uploadingCount===0){
-        const elapsed=((Date.now()-startTime)/1000).toFixed(1);
-        setStatus(`☁ 画像完了（${elapsed}秒）`,'#16a34a');
-        setTimeout(()=>{if(syncEnabled)setStatus('☁ 同期済み','#16a34a');},2500);
-      }
     }
   };
 
-  // ── 送信 ──
+  // ── 送信（100msスロットル）──
   function push(){
-    if(!syncEnabled||!sdkReady||isSyncing)return;
+    if(isSyncing)return;
     clearTimeout(pushTimer);
     pushTimer=setTimeout(async()=>{
       try{
@@ -4909,115 +4937,53 @@ if(typeof showToast==='undefined'){
           const isUrl=e.src&&(e.src.startsWith('http://')||e.src.startsWith('https://'));
           return{...e,src:isUrl?e.src:null,_localOnly:!isUrl};
         });
-        await dbSet(dbRef(db,'boards/'+roomId),{paths:S.paths,elems,sessionId:myId,ts:Date.now()});
-        if(uploadingCount===0&&syncEnabled)setStatus('☁ 同期済み','#16a34a');
+        await dbSet(boardRef,{paths:S.paths,elems,sessionId:myId,ts:Date.now()});
+        setStatus('☁ 同期済み','#16a34a');
       }catch(e){setStatus('❌ 送信エラー','red');}
     },100);
   }
 
-  // ── 受信購読 開始／停止 ──
-  function startReceive(){
-    if(unsubscribe)return;
-    const boardRef=dbRef(db,'boards/'+roomId);
-    const handler=snap=>{
-      if(!syncEnabled)return;
-      const data=snap.val();
-      if(!data){setStatus('🟡 新規ルーム','#ca8a04');return;}
-      if(data.sessionId===myId)return;
-      setStatus('⬇ 受信中…','#2563eb');
-      isSyncing=true;
-      try{
-        const localImgIds=new Set(
-          S.elems.filter(e=>e.type==='img'&&e.src&&e.src.startsWith('data:')).map(e=>e.id)
-        );
-        const incomingElems=(data.elems||[]).filter(e=>!(e.type==='img'&&e._localOnly));
-        incomingElems.forEach(e=>{
-          if(e.type==='img'&&localImgIds.has(e.id)){
-            const local=S.elems.find(l=>l.id===e.id);
-            if(local)e.src=local.src;
-          }
-        });
-        const s={paths:data.paths||[],elems:incomingElems};
-        _restoreSnap(s);
-        S.hist=S.hist.slice(0,S.hidx+1);
-        S.hist.push({paths:JSON.parse(JSON.stringify(s.paths)),elems:JSON.parse(JSON.stringify(s.elems))});
-        if(S.hist.length>80)S.hist.shift();
-        S.hidx=S.hist.length-1;
-      }catch(e){console.error(e);}
-      isSyncing=false;
-      setStatus('☁ 同期済み','#16a34a');
-    };
-    dbOnValue(boardRef,handler);
-    unsubscribe=()=>dbOff(boardRef,'value',handler);
-  }
-
-  function stopReceive(){
-    if(unsubscribe){unsubscribe();unsubscribe=null;}
-    clearTimeout(pushTimer);
+  // ── 受信 ──
+  dbOnValue(boardRef,snap=>{
+    const data=snap.val();
+    if(!data){setStatus('🟡 新規ルーム','#ca8a04');return;}
+    if(data.sessionId===myId)return;
+    setStatus('⬇ 受信中…','#2563eb');
+    isSyncing=true;
+    try{
+      // ローカルでアップロード中の画像IDを記録（受信で上書きしない）
+      const localImgIds=new Set(
+        S.elems.filter(e=>e.type==='img'&&e.src&&e.src.startsWith('data:')).map(e=>e.id)
+      );
+      const incomingElems=(data.elems||[]).filter(e=>!(e.type==='img'&&e._localOnly));
+      // ローカル中の画像は受信データより自分のsrcを優先
+      incomingElems.forEach(e=>{
+        if(e.type==='img'&&localImgIds.has(e.id)){
+          const local=S.elems.find(l=>l.id===e.id);
+          if(local)e.src=local.src;
+        }
+      });
+      const s={paths:data.paths||[], elems:incomingElems};
+      _restoreSnap(s);
+      S.hist=S.hist.slice(0,S.hidx+1);
+      S.hist.push({paths:JSON.parse(JSON.stringify(s.paths)),elems:JSON.parse(JSON.stringify(s.elems))});
+      if(S.hist.length>80)S.hist.shift();
+      S.hidx=S.hist.length-1;
+    }catch(e){console.error(e);}
     isSyncing=false;
-  }
-
-  // ── 同期ON/OFFトグル ──
-  async function toggleSync(){
-    if(!syncEnabled){
-      // ONにする
-      if(!sdkReady){
-        setStatus('⏳ 接続中…');
-        await sdkPromise;
-        if(!sdkReady){setStatus('❌ 接続失敗','red');return;}
-      }
-      syncEnabled=true;
-      updateBadge();
-      setStatus('⏳ 接続中…');
-      startReceive();
-      push(); // 今の状態を即送信
-      setStatus('☁ 同期済み','#16a34a');
-      showToast('☁ 同期ON　ルーム: '+roomId);
-    }else{
-      // OFFにする
-      syncEnabled=false;
-      stopReceive();
-      updateBadge();
-      showToast('⊘ 同期OFF　ローカルモード');
-    }
-  }
-
-  // バッジ：クリックでトグル、長押しでURL共有
-  let pressTimer=null;
-  badgeEl.addEventListener('mousedown',()=>{
-    pressTimer=setTimeout(()=>{
-      pressTimer=null;
-      if(syncEnabled){
-        const url=location.origin+location.pathname+'?room='+encodeURIComponent(roomId);
-        navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
-      }
-    },600);
-  });
-  badgeEl.addEventListener('mouseup',()=>{
-    if(pressTimer){clearTimeout(pressTimer);pressTimer=null;toggleSync();}
-  });
-  badgeEl.addEventListener('mouseleave',()=>{if(pressTimer){clearTimeout(pressTimer);pressTimer=null;}});
-  // タッチ対応
-  badgeEl.addEventListener('touchstart',e=>{e.preventDefault();
-    pressTimer=setTimeout(()=>{
-      pressTimer=null;
-      if(syncEnabled){
-        const url=location.origin+location.pathname+'?room='+encodeURIComponent(roomId);
-        navigator.clipboard.writeText(url).then(()=>showToast('🔗 共有URLをコピーしました'));
-      }
-    },600);
-  });
-  badgeEl.addEventListener('touchend',e=>{e.preventDefault();
-    if(pressTimer){clearTimeout(pressTimer);pressTimer=null;toggleSync();}
+    setStatus('☁ 同期済み','#16a34a');
   });
 
-  // ── saveHist / redrawPen フック ──
+  // フック
   const _sh=saveHist;
   window.saveHist=()=>{_sh();push();};
   const _rp=redrawPen;
   let penTimer=null;
-  window.redrawPen=()=>{_rp();if(syncEnabled&&!isSyncing){clearTimeout(penTimer);penTimer=setTimeout(push,300);}};
+  window.redrawPen=()=>{_rp();if(!isSyncing){clearTimeout(penTimer);penTimer=setTimeout(push,300);}};
 
+  setStatus('☁ 同期済み','#16a34a');
+  showToast('🔗 同期ON　ルーム: '+roomId+'　（右下バッジをクリックで共有URL）');
+  } // ← startSync 終了
 })();
 
 </script>
