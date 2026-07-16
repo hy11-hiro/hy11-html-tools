@@ -86,7 +86,7 @@
         };
 
         const GRID_MODES = { ORTHO: 'ORTHO', ISO: 'ISO', PERSP_1: 'PERSP_1', PERSP_2: 'PERSP_2' };
-        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text', POLYGON: 'polygon', BLOCK_WALL: 'block_wall', SYMBOL: 'symbol', REG_POLY: 'reg_poly', CUBE: 'cube', LEADER: 'leader', MLINE: 'mline', FILLET: 'fillet', CHAMFER: 'chamfer' };
+        const TOOLS = { SELECT: 'select', LINE: 'line', RECT: 'rect', CIRCLE: 'circle', ARC: 'arc', DIM: 'dimension', ERASER: 'eraser', TEXT: 'text', POLYGON: 'polygon', BLOCK_WALL: 'block_wall', SYMBOL: 'symbol', REG_POLY: 'reg_poly', CUBE: 'cube', LEADER: 'leader', MLINE: 'mline', FILLET: 'fillet', CHAMFER: 'chamfer' };
 
         // 外構シンボル定義
         const GAIKO_SYMBOLS = {
@@ -2431,6 +2431,28 @@
                         ctx.arc(start.x, start.y, r, 0, Math.PI * 2); ctx.moveTo(start.x, start.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
                         const txtR = formatDim(r*drawingScale);
                         ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; const mid = Geo.mid(start, curr); ctx.fillText(`R${txtR}`, mid.x, mid.y); ctx.restore();
+                    } else if (tool === TOOLS.ARC) {
+                        const center = tempPoints[0];
+                        if (tempPoints.length === 1) {
+                            // 半径・開始角を決めている段階：中心から現在点までのガイド線＋薄い円
+                            const r = Geo.dist(center, curr);
+                            ctx.arc(center.x, center.y, r, 0, Math.PI * 2);
+                            ctx.moveTo(center.x, center.y); ctx.lineTo(curr.x, curr.y);
+                            ctx.stroke();
+                            ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; ctx.fillText(`R${formatDim(r*drawingScale)}`, curr.x+2, curr.y+5); ctx.restore();
+                        } else {
+                            // 終了角を決めている段階：実際に描かれる弧をプレビュー
+                            const startPt = tempPoints[1];
+                            const r = Geo.dist(center, startPt);
+                            const startAngle = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+                            const endAngle = Math.atan2(curr.y - center.y, curr.x - center.x);
+                            const cross = (startPt.x - center.x) * (curr.y - center.y) - (startPt.y - center.y) * (curr.x - center.x);
+                            ctx.arc(center.x, center.y, r, startAngle, endAngle, cross < 0);
+                            ctx.stroke();
+                            ctx.save(); ctx.fillStyle = '#666'; ctx.lineWidth = 0.15; ctx.setLineDash([1,1]);
+                            ctx.beginPath(); ctx.moveTo(center.x, center.y); ctx.lineTo(startPt.x, startPt.y); ctx.moveTo(center.x, center.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
+                            ctx.restore();
+                        }
                     } else if (tool === TOOLS.BLOCK_WALL) {
                         // ブロック壁プレビュー
                         const thickPaper = blockThickness / drawingScale;
@@ -2881,6 +2903,32 @@
                         };
                         const next = [...entities, newEnt];
                         setEntities(next); pushHistory(next);
+                        return;
+                    }
+
+                    // ── 円弧（アーク）ツール: 1クリック目=中心、2クリック目=開始点（半径確定）、3クリック目=終了点 ──
+                    if (tool === TOOLS.ARC) {
+                        if (tempPoints.length === 0) { setTempPoints([pt]); return; }
+                        if (tempPoints.length === 1) { setTempPoints([tempPoints[0], pt]); return; }
+                        const center = tempPoints[0];
+                        const startPt = tempPoints[1];
+                        const r = Geo.dist(center, startPt);
+                        const startAngle = Math.atan2(startPt.y - center.y, startPt.x - center.x);
+                        const endAngle = Math.atan2(pt.y - center.y, pt.x - center.x);
+                        // 開始点から現在点への回転方向（外積の符号）をそのまま弧の向きに使うことで、
+                        // マウスを動かした方向へ自然に弧が伸びる（半円はもちろん、180°を超える弧も描ける）
+                        const cross = (startPt.x - center.x) * (pt.y - center.y) - (startPt.y - center.y) * (pt.x - center.x);
+                        const anticlockwise = cross < 0;
+                        const newEnt = {
+                            id: Date.now() + Math.random() * 999,
+                            type: TOOLS.CIRCLE,
+                            isArc: true,
+                            c: center, r, startAngle, endAngle, anticlockwise,
+                            color: strokeColor, lineWidth: strokeWidth, lineStyle: strokeStyleType, layer: 'drawing'
+                        };
+                        const next = [...entities, newEnt];
+                        setEntities(next); pushHistory(next);
+                        setTempPoints([]);
                         return;
                     }
 
@@ -3399,7 +3447,7 @@
                         <div className="w-14 bg-gray-900 flex flex-col items-center py-3 space-y-1.5 border-r border-gray-700 z-10 flex-shrink-0 overflow-y-auto overflow-x-visible" style={{scrollbarWidth: 'thin'}}>
                             {[ 
                                 {id:TOOLS.SELECT, i:'mouse-pointer-2', l:'選択'}, {id:TOOLS.LINE, i:'minus', l:'線分'}, {id:TOOLS.RECT, i:'square', l:'矩形'}, 
-                                {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.TEXT, i:'type', l:'文字（クリックで配置）'},
+                                {id:TOOLS.CIRCLE, i:'circle', l:'円'}, {id:TOOLS.ARC, i:'circle-dashed', l:'円弧（①中心→②開始点→③終了点）'}, {id:TOOLS.DIM, i:'ruler', l:'寸法'}, {id:TOOLS.TEXT, i:'type', l:'文字（クリックで配置）'},
                                 {id:TOOLS.MLINE, i:'align-justify', l:'多重線（2クリックで配置）'}, {id:TOOLS.LEADER, i:'move-up-right', l:'引き出し線（矢印→文字位置→文字入力）'},
                                 {id:TOOLS.FILLET, i:'spline', l:'角丸め（線を2本クリック）'}, {id:TOOLS.CHAMFER, i:'scissors-line-dashed', l:'面取り（線を2本クリック）'},
                                 {id:TOOLS.ERASER, i:'eraser', l:'消しゴム'} 
@@ -3809,6 +3857,7 @@
                                     {tool === TOOLS.BLOCK_WALL && <li className="text-blue-400">ブロック: クリックで連続描画</li>}
                                     {tool === TOOLS.LEADER && <li className="text-yellow-400">{tempPoints.length === 0 ? '引き出し線: ①矢印の先端をクリック' : '引き出し線: ②文字を置く位置をクリック→文字入力'}</li>}
                                     {tool === TOOLS.MLINE && <li className="text-yellow-400">{tempPoints.length === 0 ? '多重線: ①始点をクリック' : '多重線: ②終点をクリックして確定'}</li>}
+                                    {tool === TOOLS.ARC && <li className="text-yellow-400">{tempPoints.length === 0 ? '円弧: ①中心をクリック' : tempPoints.length === 1 ? '円弧: ②開始点をクリック（半径が決まります）' : '円弧: ③終了点をクリックして確定（動かした方向に弧が伸びます）'}</li>}
                                     {(tool === TOOLS.FILLET || tool === TOOLS.CHAMFER) && (
                                         <li className="text-yellow-400">
                                             {!cornerOpFirst.current
@@ -3840,15 +3889,18 @@
                                     </button>
                                 </div>
                                 <div className="px-5 py-4 text-sm space-y-4">
-                                    <p className="text-gray-300">建築・外構図面をブラウザ上で作成するための製図ツールです。直交／アイソメ／1点透視／2点透視のグリッドに対応し、寸法・材料ハッチング・外構シンボルなどを使って図面を仕上げられます。</p>
+                                    <p className="text-gray-300">建築・外構図面をブラウザ上で作成するための製図ツールです。直交／アイソメ／1点透視／2点透視のグリッドに対応し、寸法・線種・材料ハッチング・外構シンボルなどを使って図面を仕上げられます。</p>
 
                                     <div>
                                         <div className="font-bold text-blue-400 mb-1">基本ツール</div>
                                         <ul className="list-disc list-inside space-y-0.5 text-gray-300">
-                                            <li>選択：図形の移動・削除、プロパティ変更</li>
+                                            <li>選択：図形の移動・削除、プロパティ変更。ドラッグ中は中心・他図形との整列を示すピンクのガイド線が出ます（位置を強制はしません）</li>
                                             <li>線分／矩形／円：基本図形の作成</li>
                                             <li>寸法：距離を自動計算して表示。文字サイズ・上下位置は個別に調整可能</li>
-                                            <li>文字：クリックで自由にテキストを配置、向き（回転）も変更可能</li>
+                                            <li>文字：クリックで自由にテキストを配置、向き（回転）・サイズ・色を変更可能</li>
+                                            <li>多重線：2クリックで平行線をまとめて描画。間隔（1mm〜）、中心線から左右何本引くか、中心線自体を表示するかを個別に設定可能</li>
+                                            <li>引き出し線：①矢印の先端→②文字の位置の順にクリックし、文字を入力。矢印＋折れ線＋水平の引き出し線＋文字、という形式で描画</li>
+                                            <li>角丸め／面取り：角（頂点）を1回クリックするだけで、隣接する2辺を自動検出して丸め・面取り。矩形の辺もクリックすると自動的に線分に分解されて対応。半径・距離は数値入力で指定</li>
                                             <li>消しゴム：クリックした図形を削除</li>
                                         </ul>
                                     </div>
@@ -3856,19 +3908,29 @@
                                     <div>
                                         <div className="font-bold text-green-400 mb-1">外構ツール（左アイコン列の「外構設定」から表示）</div>
                                         <ul className="list-disc list-inside space-y-0.5 text-gray-300">
-                                            <li>多角形（塗り）：頂点をクリックして囲み、コンクリート・地盤・砂利・タイルなどの材料ハッチングで塗り分け</li>
+                                            <li>多角形（塗り）：頂点をクリックして囲み、コンクリート・地盤・砂利・砕石・タイル・芝など20種類の材料ハッチングで塗り分け</li>
                                             <li>正多角形：辺数を指定して配置</li>
-                                            <li>ブロック壁：厚み・段数を指定して連続描画</li>
-                                            <li>外構シンボル：植栽・方位記号・排水桝・境界標など。大きさは倍率で調整可能</li>
-                                            <li>白黒モード：材料の色塗りをやめ、JIS製図に準じたハッチングのみの表示に切り替え</li>
+                                            <li>ブロック壁：厚み・段数を指定して連続描画、フェンス追加も可能</li>
+                                            <li>外構シンボル：門柱・カーポート・車・植栽（広葉樹／針葉樹）・郵便ポスト・エアコン室外機・物置・車止め・ゴミ置き場・擁壁・フェンス・方位記号・敷地境界標・ベンチマーク・排水桝（雨水／汚水）・量水器・ガスメーター・屋外消火栓・レベル表示（GL/FL/BM、高さの数値を入力可能）・水勾配矢印など約50種類。大きさは倍率（配置前・配置後どちらも数値入力可）で調整可能</li>
+                                            <li>白黒モード：材料の色塗りをやめ、国交省「建築工事設計図書作成基準」に準じたハッチングのみの表示に切り替え（実際の図面に近い見た目になります）</li>
                                         </ul>
                                     </div>
 
                                     <div>
                                         <div className="font-bold text-purple-400 mb-1">線種・単位</div>
                                         <ul className="list-disc list-inside space-y-0.5 text-gray-300">
-                                            <li>実線・破線・点線・一点鎖線・二点鎖線を切り替えて描画可能</li>
+                                            <li>実線・破線・点線・一点鎖線・二点鎖線を切り替えて描画可能。既存の線分・矩形・円・多角形を選択して後から変更することもできます</li>
                                             <li>単位はmm／mm（単位非表示）／mから選択可能</li>
+                                            <li>文字サイズ・線の間隔・角丸めの半径など、寸法に関わる数値はすべてキーボードで直接入力できます（1mm単位はもちろん、0.5mmなど細かい値も指定可）</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <div className="font-bold text-orange-400 mb-1">補助機能（まっすぐ・きれいに描くための支援）</div>
+                                        <ul className="list-disc list-inside space-y-0.5 text-gray-300">
+                                            <li>直交モード：ONにすると線分・寸法・多重線などが水平・垂直方向にだけ固定されます（矩形には影響しません）</li>
+                                            <li>アライメント・トラッキングガイド：描画中にカーソルが既存図形の点と水平・垂直に揃うと、水色の点線ガイドと丸印が表示されます。離れた図形とも位置を揃えられます</li>
+                                            <li>グリッド設定：間隔やサブグリッドの細分化数を調整可能。拡大すると、見た目のグリッドとスナップできる点の両方が自動的に細かくなります</li>
                                         </ul>
                                     </div>
 
@@ -3876,7 +3938,9 @@
                                         <div className="font-bold text-yellow-400 mb-1">ショートカット</div>
                                         <ul className="list-disc list-inside space-y-0.5 text-gray-300">
                                             <li><span className="font-mono bg-gray-700 px-1 rounded">S</span>：スナップON/OFF切り替え</li>
-                                            <li><span className="font-mono bg-gray-700 px-1 rounded">Shift</span>（描画中）：15°単位で角度を拘束</li>
+                                            <li><span className="font-mono bg-gray-700 px-1 rounded">O</span>：直交モードON/OFF切り替え</li>
+                                            <li><span className="font-mono bg-gray-700 px-1 rounded">G</span>：アライメント・トラッキングガイドON/OFF切り替え</li>
+                                            <li><span className="font-mono bg-gray-700 px-1 rounded">Shift</span>（描画中、直交モードOFF時）：15°単位で角度を拘束</li>
                                             <li><span className="font-mono bg-gray-700 px-1 rounded">Delete</span> / <span className="font-mono bg-gray-700 px-1 rounded">Backspace</span>：選択中の図形を削除</li>
                                             <li><span className="font-mono bg-gray-700 px-1 rounded">Esc</span>：描画中の操作をキャンセル</li>
                                         </ul>
@@ -3885,9 +3949,8 @@
                                     <div>
                                         <div className="font-bold text-cyan-400 mb-1">その他</div>
                                         <ul className="list-disc list-inside space-y-0.5 text-gray-300">
-                                            <li>「フィット」ボタン：図面全体が画面に収まる位置・拡大率に戻す</li>
+                                            <li>「フィット」ボタン：用紙だけでなく、描かれている図形もすべて含めて画面に収まる位置・拡大率に戻す</li>
                                             <li>「測量入力」：座標データの一括入力・取り込み</li>
-                                            <li>グリッド設定：間隔やサブグリッドの細分化数を調整可能。拡大するとスナップも自動的に細かくなります</li>
                                         </ul>
                                     </div>
                                 </div>
