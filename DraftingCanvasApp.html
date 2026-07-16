@@ -670,6 +670,7 @@
             const [showHelpModal, setShowHelpModal] = useState(false);
             const [snapEnabled, setSnapEnabled] = useState(true);
             const [orthoMode, setOrthoMode] = useState(false);
+            const [alignGuideEnabled, setAlignGuideEnabled] = useState(true);
             const [cubeSize, setCubeSize] = useState(5);
 
             const viewRef = useRef({ scale: 1.0, offsetX: 0, offsetY: 0 }); 
@@ -679,6 +680,7 @@
             const [selVersion, setSelVersion] = useState(0);   // 選択状態の再描画トリガー
             const dragState    = useRef(null);   // { startWorld, origPositions }
             const smartGuides  = useRef([]);     // ドラッグ中に表示する整列ガイド線 [{type:'v'|'h', pos}]
+            const alignGuideRef = useRef(null);  // 描画中に既存図形の点と水平・垂直に揃った際のトラッキングガイド { h: pt|null, v: pt|null }
             const selBoxRef    = useRef(null);   // ラバーバンド選択の矩形
             const lastMouse = useRef({ x: 0, y: 0 });
             
@@ -1567,6 +1569,7 @@
                     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
                     if (e.key === 's' || e.key === 'S') setSnapEnabled(prev => !prev);
                     if (e.key === 'o' || e.key === 'O') setOrthoMode(prev => !prev);
+                    if (e.key === 'g' || e.key === 'G') setAlignGuideEnabled(prev => !prev);
                     // Delete / Backspace: 選択エンティティを削除
                     if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.current.size > 0) {
                         const next = entities.filter(ent => !selectedIds.current.has(ent.id));
@@ -2638,6 +2641,34 @@
                         ctx.setLineDash([]);
                         ctx.restore();
                     }
+
+                    // ── アライメント・トラッキングガイド（描画中に既存の点と水平・垂直に揃った時の目印）──
+                    if (!dragState.current && tool !== TOOLS.SELECT && tool !== TOOLS.ERASER && alignGuideRef.current && (alignGuideRef.current.h || alignGuideRef.current.v)) {
+                        ctx.save();
+                        ctx.strokeStyle = '#00c8ff';
+                        ctx.fillStyle = '#00c8ff';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([5, 4]);
+                        const ag = alignGuideRef.current;
+                        if (ag.h) {
+                            const sy = ag.h.y * v.scale * MM_TO_PX + v.offsetY;
+                            ctx.beginPath(); ctx.moveTo(0, sy); ctx.lineTo(canvas.width, sy); ctx.stroke();
+                            const shx = ag.h.x * v.scale * MM_TO_PX + v.offsetX;
+                            ctx.setLineDash([]);
+                            ctx.beginPath(); ctx.arc(shx, sy, 4, 0, Math.PI*2); ctx.stroke();
+                            ctx.setLineDash([5, 4]);
+                        }
+                        if (ag.v) {
+                            const sx = ag.v.x * v.scale * MM_TO_PX + v.offsetX;
+                            ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, canvas.height); ctx.stroke();
+                            const svy = ag.v.y * v.scale * MM_TO_PX + v.offsetY;
+                            ctx.setLineDash([]);
+                            ctx.beginPath(); ctx.arc(sx, svy, 4, 0, Math.PI*2); ctx.stroke();
+                            ctx.setLineDash([5, 4]);
+                        }
+                        ctx.setLineDash([]);
+                        ctx.restore();
+                    }
                 }
             }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides, bwFill, dimFontSize, dimTextOffset]);
 
@@ -2722,6 +2753,37 @@
                         if (d < minDistEnt && d < bestDist) { bestSnap = pt; bestDist = d; }
                     });
                 });
+
+                // ── 既存図形の点との水平・垂直アライメント（トラッキングガイド）──
+                // グリッド/端点スナップとは別に、離れた位置にある既存の点と水平・垂直に揃った時に
+                // ガイド線を表示する（AutoCAD等の「オブジェクトスナップトラッキング」に近い機能）
+                alignGuideRef.current = null;
+                if (snapEnabled && alignGuideEnabled) {
+                    const trackThresh = 6 / (viewRef.current.scale * MM_TO_PX);
+                    let bestH = null, bestHDist = trackThresh;
+                    let bestV = null, bestVDist = trackThresh;
+                    entities.forEach(ent => {
+                        const pts = [];
+                        if (ent.p1) pts.push(ent.p1);
+                        if (ent.p2) pts.push(ent.p2);
+                        if (ent.type === TOOLS.RECT && ent.p1) pts.push({x:ent.p1.x+ent.w, y:ent.p1.y}, {x:ent.p1.x, y:ent.p1.y+ent.h}, {x:ent.p1.x+ent.w, y:ent.p1.y+ent.h});
+                        if (ent.c) pts.push(ent.c);
+                        if (ent.pts) pts.push(...ent.pts);
+                        pts.forEach(p => {
+                            const dy = Math.abs(rawPos.y - p.y);
+                            if (dy < bestHDist) { bestHDist = dy; bestH = p; }
+                            const dx = Math.abs(rawPos.x - p.x);
+                            if (dx < bestVDist) { bestVDist = dx; bestV = p; }
+                        });
+                    });
+                    if (bestH || bestV) {
+                        alignGuideRef.current = { h: bestH, v: bestV };
+                        // 既にグリッド/端点スナップが見つかっている場合はそちらを優先し、トラッキングは見た目のみ
+                        if (!bestSnap) {
+                            bestSnap = { x: bestV ? bestV.x : rawPos.x, y: bestH ? bestH.y : rawPos.y };
+                        }
+                    }
+                }
 
                 // ── 直交モード（常時ON）／Shift（一時的）: 角度拘束 ──
                 // ※ 矩形(RECT)は対角2点で幅・高さを決めるため、角度拘束の対象から除外
@@ -3064,7 +3126,7 @@
                                 candY.push(bb.minY, bb.maxY, bb.cy);
                             });
 
-                            const thresh = 6 / viewRef.current.scale; // 画面上約6pxに相当するワールド距離
+                            const thresh = 6 / (viewRef.current.scale * MM_TO_PX); // 画面上約6pxに相当するワールド距離
                             const guides = [];
                             let bestDx = null, bestDxDist = thresh;
                             [['minX',curMinX],['maxX',curMaxX],['cx',curCx]].forEach(([key,val]) => {
@@ -3080,8 +3142,11 @@
                                     if (d < bestDyDist) { bestDyDist = d; bestDy = { adjust: c - val, pos: c }; }
                                 });
                             });
-                            if (bestDx) { dx2 += bestDx.adjust; guides.push({ type: 'v', pos: bestDx.pos }); }
-                            if (bestDy) { dy2 += bestDy.adjust; guides.push({ type: 'h', pos: bestDy.pos }); }
+                            // ※ 強制的に位置を吸着させると、グリッド配置など思い通りの位置に置けなくなるため、
+                            //   ガイド線はあくまで「ここが中心/端ですよ」という視覚的な目印として表示するのみとし、
+                            //   図形の位置（dx2/dy2）は一切変更しない。
+                            if (bestDx) { guides.push({ type: 'v', pos: bestDx.pos }); }
+                            if (bestDy) { guides.push({ type: 'h', pos: bestDy.pos }); }
                             smartGuides.current = guides;
                         }
                     } else {
@@ -3308,6 +3373,21 @@
                             <i data-lucide="move-horizontal" className="w-4 h-4"></i>
                             <span>直交</span>
                             <span className="opacity-40 text-xs">[O]</span>
+                        </button>
+
+                        {/* アライメント・トラッキングガイド ON/OFF トグル */}
+                        <button
+                            onClick={() => setAlignGuideEnabled(prev => !prev)}
+                            title={alignGuideEnabled ? 'アライメントガイドON（既存図形との水平・垂直の目印を表示） [G]' : 'アライメントガイドOFF [G]'}
+                            className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded border text-xs font-bold transition-all ${
+                                alignGuideEnabled
+                                    ? 'bg-cyan-700 border-cyan-500 text-white'
+                                    : 'bg-gray-900 border-gray-600 text-gray-400'
+                            }`}
+                        >
+                            <i data-lucide="crosshair" className="w-4 h-4"></i>
+                            <span>ガイド</span>
+                            <span className="opacity-40 text-xs">[G]</span>
                         </button>
                         <div className="flex-1"></div>
                         <button onClick={undo} className="tool-btn text-white"><i data-lucide="undo-2"></i></button>
