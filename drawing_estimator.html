@@ -280,6 +280,8 @@
             transition:all .15s;
         }
         .tl-dir-btn:hover { background:rgba(79,142,247,0.25); border-color:var(--accent); color:#fff; }
+        .tl-part-row:hover { background:rgba(255,255,255,0.04); }
+        .tl-part-row.dragging { opacity:0.4; }
         .chart-sub-tab {
             color: var(--text-dim);
             border-bottom: 2px solid transparent;
@@ -575,7 +577,7 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
                 <i class="fas fa-database mr-1 text-xs"></i> 部材マスタ
             </button>
             <button class="nav-btn h-full px-4 text-sm" data-view="chart">
-                <i class="fas fa-chart-pie mr-1 text-xs"></i> グラフ
+                <i class="fas fa-chart-pie mr-1 text-xs"></i> グラフ・計算
             </button>
             <button class="nav-btn h-full px-4 text-sm" data-view="level">
                 <i class="fas fa-ruler-vertical mr-1 text-xs"></i> レベルツール
@@ -600,7 +602,7 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
         <div class="flex rounded overflow-hidden border border-cad-border">
             <label class="cursor-pointer hover:bg-white/5 px-3 py-1 text-sm text-white border-r border-cad-border flex items-center gap-1" title="図面読込">
                 <i class="fas fa-folder-open text-xs"></i> 読込
-                <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden">
+                <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden" multiple>
             </label>
             <button id="rotateLeftBtn" class="hover:bg-white/5 px-2 py-1 text-white border-r border-cad-border" title="左90度回転"><i class="fas fa-undo text-xs"></i></button>
             <button id="rotateRightBtn" class="hover:bg-white/5 px-2 py-1 text-white" title="右90度回転"><i class="fas fa-redo text-xs"></i></button>
@@ -1008,6 +1010,7 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
                             <th>タイプ</th>
                             <th>単位</th>
                             <th class="text-right">単価</th>
+                            <th class="text-right">職人単価</th>
                             <th class="w-8"></th>
                             <th class="w-8"></th>
                         </tr>
@@ -1028,6 +1031,52 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
         </div>
         <p id="linkPickerHint" class="text-xs text-gray-400"></p>
         <div id="linkPickerList" class="overflow-y-auto" style="max-height:50vh;"></div>
+    </div>
+</div>
+
+<!-- 複数ファイル選択時: どれを表示するか選ぶモーダル -->
+<div id="filePickerModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;min-width:360px;max-width:520px;max-height:80vh;display:flex;flex-direction:column;gap:10px;">
+        <div class="flex items-center justify-between">
+            <span class="font-bold text-sm text-white"><i class="fas fa-file-import mr-2" style="color:var(--accent)"></i>複数のファイルが選択されました</span>
+            <button onclick="closeFilePickerModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <p class="text-xs text-gray-400">表示するファイルを選んでください（1つだけ読み込まれます）</p>
+        <div id="filePickerList" class="overflow-y-auto flex flex-col gap-1.5" style="max-height:50vh;"></div>
+    </div>
+</div>
+
+<!-- PDFページ選択モーダル（複数ページのPDFの場合） -->
+<div id="pdfPageModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;width:90vw;max-width:720px;max-height:85vh;display:flex;flex-direction:column;gap:10px;">
+        <div class="flex items-center justify-between">
+            <span class="font-bold text-sm text-white"><i class="fas fa-copy mr-2" style="color:var(--accent)"></i>このPDFには複数ページあります</span>
+            <button onclick="closePdfPageModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <p class="text-xs text-gray-400">読み込むページを選んでください</p>
+        <div id="pdfPageList" class="overflow-y-auto grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(120px,1fr));max-height:65vh;"></div>
+    </div>
+</div>
+
+<!-- 積算リストから粗利サマリーへ項目を選んで追加するモーダル -->
+<div id="estListPickerModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;width:90vw;max-width:600px;max-height:85vh;display:flex;flex-direction:column;gap:10px;">
+        <div class="flex items-center justify-between">
+            <span class="font-bold text-sm text-white"><i class="fas fa-list mr-2" style="color:var(--accent)"></i>積算リストから追加</span>
+            <button onclick="closeEstListPicker()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        </div>
+        <p class="text-xs text-gray-400">
+            土工事・水盛り遣り方など、②〜⑥の計算区分に当てはまらない項目を積算リストから直接選んで追加できます。<br>
+            売価には積算リストの単価×数量がそのまま入ります。材料原価・職人費は追加後にご入力ください。
+        </p>
+        <div class="flex items-center gap-2">
+            <button onclick="estListPickerToggleAll(true)" class="btn btn-dim text-xs px-2 py-1">全選択</button>
+            <button onclick="estListPickerToggleAll(false)" class="btn btn-dim text-xs px-2 py-1">全解除</button>
+        </div>
+        <div id="estListPickerList" class="overflow-y-auto flex flex-col gap-1" style="max-height:50vh;"></div>
+        <button onclick="estListPickerAddSelected()" class="btn text-xs px-3 py-2 font-bold" style="background:var(--green);color:#000;">
+            <i class="fas fa-arrow-up mr-1"></i>選択した項目を① へ追加
+        </button>
     </div>
 </div>
 
@@ -1309,6 +1358,9 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
                     <div class="flex gap-2 flex-wrap">
                         <button onclick="addSummaryRowManual()" class="btn btn-dim text-xs px-3 py-1">
                             <i class="fas fa-plus mr-1"></i>手動で行追加
+                        </button>
+                        <button onclick="openEstListPicker()" class="btn text-xs px-3 py-1" style="background:rgba(79,142,247,0.15);border:1px solid var(--accent);color:var(--accent);">
+                            <i class="fas fa-list mr-1"></i>積算リストから追加
                         </button>
                         <button onclick="importManualItemsToSummary()" class="btn text-xs px-3 py-1" style="background:rgba(255,200,80,0.15);border:1px solid var(--yellow);color:var(--yellow);">
                             <i class="fas fa-file-import mr-1"></i>付帯工事を取込
@@ -1608,7 +1660,7 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
 <div id="calc-pdf-panel">
   <div id="calc-pdf-toolbar">
     <button class="at-btn" onclick="document.getElementById('calc-file-in').click()"><i class="fas fa-file-pdf"></i> PDF / 画像 読み込み</button>
-    <input id="calc-file-in" type="file" accept="application/pdf,image/*" style="display:none;" onchange="calcLoad(this)">
+    <input id="calc-file-in" type="file" accept="application/pdf,image/*" style="display:none;" onchange="calcLoad(this)" multiple>
     <div class="at-sep"></div>
     <button class="at-btn" onclick="calcFitReset()" title="表示リセット"><i class="fas fa-expand-arrows-alt"></i> フィット</button>
     <span id="calc-scale-label" style="font-size:11px; color:var(--text-dim); margin-left:4px;"></span>
@@ -1675,6 +1727,43 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
             <div class="field"><label>終点</label><select id="diff-to" class="field" style="font-size:12px;"><option value="">-- 選択 --</option></select></div>
           </div>
           <div id="survey-diff" class="rbox" style="margin-top:10px; display:none;"></div>
+        </div>
+
+        <!-- ── 整地計算（土量）── -->
+        <div class="card" style="margin-top:14px;">
+          <div class="card-title"><i class="fas fa-mountain"></i> 整地計算（土量）</div>
+          <div class="notice" style="margin-bottom:10px;">
+            <i class="fas fa-info-circle"></i>
+            現況レベル（9点）の平均と設計GLの差 × 面積 で地山土量を算出。<br>
+            <strong>搬出土量 ＝ 地山土量 × 膨張率 × (1＋ロス率%)</strong>　で残土量を計算します。
+          </div>
+          <div class="grid2">
+            <div class="field" style="grid-column:span 2;">
+              <label>現況レベル（9点）― 1行に1値、またはスペース・カンマ区切り</label>
+              <textarea id="levels9" rows="3" style="width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--text); font-size:12px; font-family:'JetBrains Mono',monospace; resize:vertical;" placeholder="例：10.12&#10;10.35&#10;10.08"></textarea>
+            </div>
+            <div class="field"><label>設計GL (m)</label><input id="designGL" type="number" value="10.10" step="0.01"></div>
+            <div class="field"><label>整地面積 (m²)</label><input id="siteArea" type="number" value="50" step="0.1"></div>
+          </div>
+
+          <div class="card-title" style="margin-top:12px; font-size:12px;"><i class="fas fa-cog"></i> 残土計算係数</div>
+          <div class="grid3">
+            <div class="field"><label>膨張率</label><input id="site_bulking" type="number" value="1.37" step="0.01"></div>
+            <div class="field"><label>残土ロス (%)</label><input id="site_waste_pct" type="number" value="5" step="0.1"></div>
+            <div class="field"><label>土比重 (t/m³)</label><input id="site_density" type="number" value="1.6" step="0.01"></div>
+          </div>
+
+          <div class="card-title" style="margin-top:12px; font-size:12px;"><i class="fas fa-truck-loading"></i> 客土計算係数（盛土が必要な場合）</div>
+          <div class="grid2">
+            <div class="field"><label>購入土 増し率 (%)</label><input id="site_fill_extra_pct" type="number" value="10" step="1"></div>
+          </div>
+          <div style="font-size:11px; color:var(--text-dim); margin-top:4px;">購入土量 ＝ 必要盛土量 × (1＋増し率)　※転圧による締まり・ロスを考慮</div>
+
+          <div style="margin-top:12px; display:flex; gap:8px;">
+            <button class="btn btn-primary" onclick="calcSiteVolume()"><i class="fas fa-calculator"></i> 整地計算</button>
+            <button class="btn btn-ghost" onclick="clearSiteVolume()"><i class="fas fa-trash"></i> クリア</button>
+          </div>
+          <div id="result9" class="rbox" style="margin-top:10px; display:none;"></div>
         </div>
       </div>
       <div>
@@ -1772,34 +1861,83 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
 
   <!-- ── 断面ビュー ── -->
   <div class="lc-sub" id="sub-section" style="display:none;">
-    <!-- 入力パネル（横一列） -->
-    <div class="card" style="margin-bottom:12px; padding:12px 16px;">
-      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px 14px; align-items:end;">
-        <div class="field"><label>🔵 自敷地 計画GL (mm)</label><input id="sec-own" type="number" value="100" oninput="drawSection()"></div>
-        <div class="field"><label>🟤 隣地 現況レベル (mm)</label><input id="sec-adj" type="number" value="400" oninput="drawSection()"></div>
-        <div class="field"><label>⬛ 計画 天端レベル (mm)</label><input id="sec-top" type="number" value="800" oninput="drawSection()"></div>
-        <div class="field"><label>🛣️ 道路レベル (mm)</label><input id="sec-road" type="number" value="-50" oninput="drawSection()"></div>
-        <div class="field"><label>CB1段の高さ (mm)</label><input id="sec-cbh" type="number" value="200" oninput="drawSection()"></div>
-        <div class="field"><label>種別</label>
-          <select id="sec-ret" style="width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--text); font-size:12px;" onchange="drawSection()">
-            <option value="0">境界塀のみ</option><option value="1">土留め兼用</option>
-          </select>
+
+    <!-- 基礎・ブロック仕様 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-title"><i class="fas fa-cubes"></i> 基礎・ブロック仕様</div>
+      <div class="grid3">
+        <div class="field"><label>基礎幅 (mm)</label><input id="qb-base-w" type="number" value="300" oninput="runStepCalc()"></div>
+        <div class="field"><label>基礎厚 (mm)</label><input id="qb-base-t" type="number" value="150" oninput="runStepCalc()"></div>
+        <div class="field"><label>砕石厚 (mm)</label><input id="qb-stone-t" type="number" value="50" oninput="runStepCalc()"></div>
+        <div class="field"><label>うち基礎段数</label><input id="qb-base-steps" type="number" value="0" oninput="runStepCalc()"></div>
+      </div>
+    </div>
+
+    <!-- 根入れ・段数計算（0.35mルール） -->
+    <div class="card" style="border:1.5px solid #f39c12;">
+      <div class="notice" style="background:rgba(243,156,18,.1); border-color:rgba(243,156,18,.35); color:#f39c12;">
+        <i class="fas fa-ruler-combined"></i>
+        ブロック高190mm ＋ 目地10mm ＝ <strong>1段 = 200mm (0.2m)</strong> で計算。<br>
+        埋設計 ＝ 根入れ深さ ＋ 基礎厚 ＋ 砕石厚 が <strong>0.35m以上</strong> 必要。
+      </div>
+      <div class="card-title" style="color:#f39c12;"><i class="fas fa-drafting-compass"></i> 根入れ・段数計算（0.35mルール）</div>
+
+      <!-- モード切替 -->
+      <div style="display:flex; gap:16px; margin-bottom:12px;">
+        <label style="display:flex; align-items:center; gap:5px; font-weight:700; cursor:pointer; font-size:12px;">
+          <input type="radio" name="qb-mode" value="top" checked id="qb-mode-top" onchange="qbToggleMode()"> 天端レベルから計算
+        </label>
+        <label style="display:flex; align-items:center; gap:5px; font-weight:700; cursor:pointer; font-size:12px;">
+          <input type="radio" name="qb-mode" value="manual" id="qb-mode-manual" onchange="qbToggleMode()"> 段数を手動指定
+        </label>
+      </div>
+
+      <div class="grid3">
+        <div class="field"><label>設計GL (m)</label><input id="qb-design-gl" type="number" value="10.10" step="0.01" oninput="runStepCalc()"></div>
+
+        <!-- 天端モード -->
+        <div class="field" id="qb-grp-top"><label>天端レベル (m)</label><input id="qb-top" type="number" value="10.80" step="0.01" oninput="runStepCalc()"></div>
+
+        <!-- 手動モード -->
+        <div id="qb-grp-manual" style="display:none; grid-column:span 2;">
+          <div class="grid2">
+            <div class="field"><label>地上段数（見え掛かり）</label><input id="qb-above-steps" type="number" value="3" step="1" min="0" oninput="runStepCalc()"></div>
+            <div class="field"><label>根入れ段数</label><input id="qb-embed-steps" type="number" value="1" step="1" min="0" oninput="runStepCalc()"></div>
+          </div>
         </div>
-        <div class="field"><label>基礎ブロック</label>
-          <select id="sec-fnd-blk" style="width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--text); font-size:12px;" onchange="drawSection()">
-            <option value="1">あり（推奨）</option><option value="0">なし</option>
+
+        <div class="field"><label>ブロック高</label>
+          <select id="qb-block-h" style="width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--text); font-size:12px;" onchange="qbToggleCustomH(); runStepCalc();">
+            <option value="190" selected>190mm（標準）</option>
+            <option value="custom">任意入力</option>
           </select>
+          <input id="qb-block-h-custom" type="number" value="190" style="display:none; margin-top:5px; width:100%; background:var(--panel2); border:1px solid var(--border); border-radius:6px; padding:6px 8px; color:var(--text); font-size:12px;" oninput="runStepCalc()">
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <button class="btn btn-primary" onclick="runStepCalc()"><i class="fas fa-calculator"></i> 段数計算</button>
+      </div>
+
+      <div id="qb-out" class="rbox" style="margin-top:10px; display:none; font-size:12px; line-height:1.7;"></div>
+
+      <svg id="qb-svg" viewBox="0 0 580 400" width="100%"
+        style="display:none; background:#0d0e12; border:1px solid var(--border); border-radius:6px; margin-top:10px;"></svg>
+
+      <!-- 最終段数の微調整 -->
+      <div style="margin-top:14px; border-top:1px dashed rgba(243,156,18,.4); padding-top:12px; display:flex; align-items:center; gap:16px;">
+        <div style="display:flex; flex-direction:column; align-items:center;">
+          <label style="color:#f39c12; font-size:11px; margin-bottom:4px;">★ 最終段数（調整可）</label>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button onclick="qbAdjustStep(-1)" class="btn btn-ghost" style="width:32px; height:32px; padding:0; font-size:16px;">－</button>
+            <input id="qb-final-steps" type="number" value="1" readonly
+              style="border:none; font-weight:700; font-size:20px; color:#f39c12; text-align:center; width:52px; background:transparent;">
+            <button onclick="qbAdjustStep(1)" class="btn btn-ghost" style="width:32px; height:32px; padding:0; font-size:16px;">＋</button>
+          </div>
         </div>
       </div>
     </div>
-    <!-- 断面図（大きく）＋ 計算結果を右に -->
-    <div style="display:grid; grid-template-columns:1fr 220px; gap:12px; align-items:start;">
-      <div class="card" style="padding:10px;">
-        <div class="card-title"><i class="fas fa-draw-polygon"></i> 簡易断面ビュー</div>
-        <canvas id="sectionCanvas" style="width:100%; border-radius:6px; background:#0d0e12; display:block; height:520px;"></canvas>
-      </div>
-      <div class="card"><div class="card-title"><i class="fas fa-calculator"></i> 計算結果</div><div id="sec-calc" class="rbox"></div></div>
-    </div>
+
   </div>
 
 </div><!-- /lc-body -->
@@ -1814,7 +1952,7 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
 <!-- Toolbar -->
 <div id="annot-toolbar">
   <button class="at-btn" onclick="document.getElementById('annot-file-in').click()"><i class="fas fa-file-pdf"></i> PDF / 画像 読み込み</button>
-  <input id="annot-file-in" type="file" accept="application/pdf,image/*" style="display:none;" onchange="annotLoad(this)">
+  <input id="annot-file-in" type="file" accept="application/pdf,image/*" style="display:none;" onchange="annotLoad(this)" multiple>
   <div class="at-sep"></div>
   <button class="at-btn" id="at-pan" onclick="setATool('pan')" title="移動"><i class="fas fa-hand-paper"></i></button>
   <div class="at-sep"></div>
@@ -2667,6 +2805,7 @@ function applyPreset() {
     App.currentSettings.masterName = p.name;
     App.currentSettings.refName = p.refName || '';
     App.currentSettings.price = p.price;
+    App.currentSettings.craftPrice = p.craftPrice || 0;
     App.currentSettings.multiplier = 1;
     App.currentSettings.category = p.category || '';
     document.getElementById('itemMultiplier').value = 1;
@@ -4217,9 +4356,7 @@ function drawShapeLabel(ctx, shape) {
             else ctx.setLineDash([]);
 
             // 図形色ベースの引き出し線（視認性確保）
-            const r = parseInt(shapeColor.slice(1,3),16)||128;
-            const g = parseInt(shapeColor.slice(3,5),16)||128;
-            const b = parseInt(shapeColor.slice(5,7),16)||128;
+            const { r, g, b } = hexToRGBComponents(shapeColor);
             ctx.strokeStyle = `rgba(${r},${g},${b},0.85)`;
             ctx.lineWidth = 1.5;
 
@@ -4267,9 +4404,7 @@ function drawShapeLabel(ctx, shape) {
 
     if (App.showLabelBg) {
         // 背景ボックスあり：暗い半透明背景 + 枠線 + 白文字 + 図形色数値
-        const r2 = parseInt(shapeColor.slice(1,3),16)||30;
-        const g2 = parseInt(shapeColor.slice(3,5),16)||30;
-        const b2 = parseInt(shapeColor.slice(5,7),16)||30;
+        const { r: r2, g: g2, b: b2 } = hexToRGBComponents(shapeColor);
         ctx.fillStyle = `rgba(${Math.round(r2*0.12)},${Math.round(g2*0.12)},${Math.round(b2*0.12)},0.88)`;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(boxLeft, boxTop, boxW, labelH, 5);
@@ -4395,23 +4530,156 @@ function drawCadDimLabel(ctx, mx, my, lineAng, text, color) {
 }
 
 function hexToRGBA(hex, alpha) {
-    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-    return `rgba(${r},${g},${b},${alpha})`;
+    // 高速パス: #rrggbb 形式
+    if (typeof hex === 'string' && /^#[0-9a-f]{6}$/i.test(hex)) {
+        const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+        return `rgba(${r},${g},${b},${alpha})`;
+    }
+    // フォールバック: hsl()や色名など、hex形式以外は一時要素で解決（既存データ互換用）
+    if (!hexToRGBA._el) {
+        hexToRGBA._el = document.createElement('div');
+        hexToRGBA._el.style.display = 'none';
+        document.body.appendChild(hexToRGBA._el);
+    }
+    hexToRGBA._el.style.color = hex || '#4f8ef7';
+    const m = getComputedStyle(hexToRGBA._el).color.match(/(\d+),\s*(\d+),\s*(\d+)/);
+    return m ? `rgba(${m[1]},${m[2]},${m[3]},${alpha})` : `rgba(79,142,247,${alpha})`;
+}
+
+// 任意のCSS色文字列から {r,g,b} を取得（hex以外の形式でも安全にフォールバック）
+function hexToRGBComponents(color) {
+    if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) {
+        return {
+            r: parseInt(color.slice(1,3),16),
+            g: parseInt(color.slice(3,5),16),
+            b: parseInt(color.slice(5,7),16),
+        };
+    }
+    if (!hexToRGBA._el) {
+        hexToRGBA._el = document.createElement('div');
+        hexToRGBA._el.style.display = 'none';
+        document.body.appendChild(hexToRGBA._el);
+    }
+    hexToRGBA._el.style.color = color || '#4f8ef7';
+    const m = getComputedStyle(hexToRGBA._el).color.match(/(\d+),\s*(\d+),\s*(\d+)/);
+    return m ? { r: +m[1], g: +m[2], b: +m[3] } : { r: 79, g: 142, b: 247 };
 }
 
 // ==========================================
 // FILE HANDLING
 // ==========================================
+// ══════════════════════════════════════════════════════════════
+// 複数ファイル選択時にどれを読み込むか選ばせる共通ヘルパー
+// fileList.length <= 1 なら即座にそのファイル(またはnull)を返す
+// ══════════════════════════════════════════════════════════════
+function pickOneFile(fileList) {
+    return new Promise(resolve => {
+        if (!fileList || fileList.length === 0) { resolve(null); return; }
+        if (fileList.length === 1) { resolve(fileList[0]); return; }
+
+        const modal = document.getElementById('filePickerModal');
+        const list = document.getElementById('filePickerList');
+        list.innerHTML = Array.from(fileList).map((f, i) => {
+            const sizeKB = (f.size / 1024).toFixed(0);
+            const sizeStr = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : sizeKB+' KB';
+            return `
+                <button data-file-idx="${i}" class="text-left text-xs px-3 py-2 rounded flex items-center justify-between"
+                    style="background:var(--panel2);border:1px solid var(--border);color:#d5d9e8;">
+                    <span class="truncate mr-2"><i class="fas ${f.type==='application/pdf'?'fa-file-pdf':'fa-file-image'} mr-2" style="color:var(--accent);"></i>${f.name}</span>
+                    <span class="text-gray-500 flex-shrink-0">${sizeStr}</span>
+                </button>`;
+        }).join('');
+
+        list.querySelectorAll('button[data-file-idx]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.fileIdx);
+                modal.style.display = 'none';
+                window._filePickerResolve = null;
+                resolve(fileList[idx]);
+            });
+            btn.addEventListener('mouseenter', () => { btn.style.background = 'rgba(79,142,247,0.15)'; btn.style.borderColor = 'var(--accent)'; });
+            btn.addEventListener('mouseleave', () => { btn.style.background = 'var(--panel2)'; btn.style.borderColor = 'var(--border)'; });
+        });
+
+        modal.style.display = 'flex';
+        // モーダルを閉じた場合(×ボタン)はキャンセル扱い
+        window._filePickerResolve = resolve;
+    });
+}
+function closeFilePickerModal() {
+    document.getElementById('filePickerModal').style.display = 'none';
+    if (window._filePickerResolve) { window._filePickerResolve(null); window._filePickerResolve = null; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// PDFが複数ページの場合、どのページを読み込むか選ばせる
+// pdf: pdfjsLib のドキュメントオブジェクト。1ページのみなら即座に1を返す
+// ══════════════════════════════════════════════════════════════
+async function pickPdfPage(pdf) {
+    if (pdf.numPages <= 1) return 1;
+
+    const modal = document.getElementById('pdfPageModal');
+    const list = document.getElementById('pdfPageList');
+    list.innerHTML = `<div class="text-xs text-gray-500 col-span-full text-center py-4">サムネイルを生成中...</div>`;
+    modal.style.display = 'flex';
+
+    return new Promise(async (resolve) => {
+        window._pdfPageResolve = resolve;
+        const thumbEls = [];
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'flex flex-col items-center gap-1 p-2 rounded';
+            btn.style.cssText = 'background:var(--panel2);border:1px solid var(--border);';
+            btn.innerHTML = `<div class="thumb-wrap" style="width:100%;aspect-ratio:0.75;background:#0d0e12;display:flex;align-items:center;justify-content:center;border-radius:4px;overflow:hidden;"><i class="fas fa-spinner fa-spin text-gray-600"></i></div><span class="text-xs text-gray-300">ページ ${i}</span>`;
+            btn.addEventListener('click', () => {
+                modal.style.display = 'none';
+                window._pdfPageResolve = null;
+                resolve(i);
+            });
+            btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--accent)'; });
+            btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border)'; });
+            thumbEls.push(btn);
+        }
+        list.innerHTML = '';
+        thumbEls.forEach(el => list.appendChild(el));
+
+        // サムネイルを順次レンダリング（低解像度・軽量）
+        for (let i = 1; i <= pdf.numPages; i++) {
+            try {
+                const page = await pdf.getPage(i);
+                const vp0 = page.getViewport({ scale: 1.0 });
+                const thumbScale = 160 / Math.max(vp0.width, vp0.height);
+                const vp = page.getViewport({ scale: thumbScale });
+                const c = document.createElement('canvas');
+                c.width = vp.width; c.height = vp.height;
+                await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+                c.style.maxWidth = '100%'; c.style.maxHeight = '100%';
+                const wrap = thumbEls[i-1].querySelector('.thumb-wrap');
+                wrap.innerHTML = '';
+                wrap.appendChild(c);
+            } catch (e) {
+                console.error('thumbnail render failed for page', i, e);
+            }
+        }
+    });
+}
+function closePdfPageModal() {
+    document.getElementById('pdfPageModal').style.display = 'none';
+    if (window._pdfPageResolve) { window._pdfPageResolve(1); window._pdfPageResolve = null; } // キャンセル時は1ページ目にフォールバック
+}
+
 async function handleFileUpload(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+    if (!e.target.files.length) return;
+    const file = await pickOneFile(e.target.files);
+    if (!file) { e.target.value = ''; return; }
     showLoader("図面を読み込んでいます...");
     try {
         if (file.type === 'application/pdf') {
             // PDF: ページサイズに合わせた動的スケールで高画質化
             const ab = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-            const page = await pdf.getPage(1);
+            const pageNum = await pickPdfPage(pdf);
+            const page = await pdf.getPage(pageNum);
             // ページの実寸を取得し、長辺が最低4000pxになるスケールを選択
             const baseVp = page.getViewport({ scale: 1.0 });
             const longSide = Math.max(baseVp.width, baseVp.height);
@@ -4467,7 +4735,7 @@ async function handleFileUpload(e) {
     } catch (err) {
         console.error(err); alert("ファイルの読み込みに失敗しました: " + err.message);
     } finally {
-        hideLoader(); render();
+        hideLoader(); render(); e.target.value = '';
     }
 }
 
@@ -4487,15 +4755,25 @@ function handlePriceListUpload(e) {
             const row = data[i];
             if (!row[0]) continue;
             const unit = String(row[2] || '');
-            const rawCat = String(row[4] || '').trim();
+            // E列が数値なら新形式(職人単価あり)、そうでなければ旧形式(カテゴリのみ)として扱う
+            const val4 = row[4];
+            const isNumericCol4 = val4 !== undefined && val4 !== '' && !isNaN(parseFloat(String(val4).replace(/,/g,'')));
+            let craftPrice = 0, rawCat = '';
+            if (isNumericCol4) {
+                craftPrice = parseInt(String(val4).replace(/,/g, '')) || 0;
+                rawCat = String(row[5] || '').trim();
+            } else {
+                rawCat = String(val4 || '').trim();
+            }
             const category = VALID_CATEGORIES.includes(rawCat) ? rawCat : '';
             mats.push({
-                name:    String(row[0]),
-                refName: String(row[1] || ''),
+                name:       String(row[0]),
+                refName:    String(row[1] || ''),
                 unit,
-                price:   parseInt(String(row[3]).replace(/,/g, '')) || 0,
+                price:      parseInt(String(row[3]).replace(/,/g, '')) || 0,
+                craftPrice,
                 category,
-                color:   getRandomColor()
+                color:      getRandomColor()
             });
         }
         if (mats.length > 0) {
@@ -4503,7 +4781,7 @@ function handlePriceListUpload(e) {
                 alert(`${mats.length}件をインポートしました。\n単位からタイプを自動判定しています。`);
             });
         } else {
-            alert("有効なデータが見つかりませんでした。\n列順: 名称, 参照商品名, 単位, 単価, カテゴリ");
+            alert("有効なデータが見つかりませんでした。\n列順: 名称, 参照商品名, 単位, 単価, 職人単価, カテゴリ");
         }
         e.target.value = '';
     };
@@ -4512,22 +4790,27 @@ function handlePriceListUpload(e) {
 
 function downloadTemplate() {
     // テンプレートExcelをブラウザ内で生成してDL
-    const CATEGORIES = ['舗装','フェンス','植栽','設備','土工','その他'];
-    const UNITS = ['m2','m','基','本','枚','式','棟','箇所','人工','その他'];
-
     const wb = XLSX.utils.book_new();
 
     // ===シート1: 入力シート===
-    const rows = [
-        // ヘッダー
-        ['名称', '参照商品名', '単位', '単価', 'カテゴリ'],
-        // サンプルデータ
-        ['コンクリート土間', '土間コンクリート 金鏝仕上げ', 'm2', 8000, '舗装'],
-        ['メッシュフェンス H=600', 'メッシュフェンス H=600 材工', 'm', 4500, 'フェンス'],
-        ['高木 H2.5', 'シマトネリコ 株立ち', '本', 25000, '植栽'],
-        ['機能門柱', 'LIXIL 機能門柱', '基', 80000, '設備'],
-        ['鋤取り・転圧', '鋤取り+路盤+転圧', 'm2', 2500, '土工'],
-    ];
+    const header = ['名称', '参照商品名', '単位', '単価', '職人単価', 'カテゴリ'];
+    let rows;
+    if (loadedMaterials && loadedMaterials.length > 0) {
+        // 現在の部材マスタ情報を反映（編集して再インポートできるように）
+        rows = [header, ...loadedMaterials.map(m => [
+            m.name || '', m.refName || '', m.unit || '', m.price || 0, m.craftPrice || 0, m.category || ''
+        ])];
+    } else {
+        // マスタが空の場合はサンプルデータでフォールバック
+        rows = [
+            header,
+            ['コンクリート土間', '土間コンクリート 金鏝仕上げ', 'm2', 8000, 3000, '舗装'],
+            ['メッシュフェンス H=600', 'メッシュフェンス H=600 材工', 'm', 4500, 1500, 'フェンス'],
+            ['高木 H2.5', 'シマトネリコ 株立ち', '本', 25000, 5000, '植栽'],
+            ['機能門柱', 'LIXIL 機能門柱', '基', 80000, 15000, '設備'],
+            ['鋤取り・転圧', '鋤取り+路盤+転圧', 'm2', 2500, 1000, '土工'],
+        ];
+    }
     const ws = XLSX.utils.aoa_to_sheet(rows);
 
     // 列幅設定
@@ -4536,6 +4819,7 @@ function downloadTemplate() {
         { wch: 36 }, // 参照商品名
         { wch: 8  }, // 単位
         { wch: 10 }, // 単価
+        { wch: 10 }, // 職人単価
         { wch: 12 }, // カテゴリ
     ];
 
@@ -4549,6 +4833,11 @@ function downloadTemplate() {
         ['m2 または ㎡', '面積', '面積計測に使用（土間・タイル・フェンス面積など）'],
         ['m',            '距離', '距離計測に使用（フェンス延長・縁石など）'],
         ['本・基・枚・式・棟・箇所・人工・その他', '個数', '個数カウントに使用'],
+        [],
+        ['■ 職人単価について'],
+        ['職人単価は「単価」と同じ単位（1行目の単位列）あたりの施工費です。'],
+        ['例：単位が m2 の場合 → 職人単価も 1m2 あたりの施工費を入力してください。'],
+        ['未入力の場合は 0 として扱われ、原価計算時に個別入力が必要になります。'],
         [],
         ['■ カテゴリ一覧（カテゴリ列に入力してください）'],
         ['カテゴリ', '用途例'],
@@ -4600,12 +4889,39 @@ function fitToScreen() {
 // PROJECT SAVE / LOAD
 // ==========================================
 function saveProject() {
+    // 粗利サマリー行を抽出（DOM上のinputから）
+    const summaryRowsData = Array.from(document.querySelectorAll('#summaryRows .sum-row')).map(row => {
+        const nameInput = row.querySelector('input[type=text]');
+        const nums = row.querySelectorAll('input[type=number]');
+        const colorDiv = row.querySelector('div[style*="border-radius:50%"]');
+        const colorMatch = colorDiv ? colorDiv.style.background : '#4f8ef7';
+        return {
+            name: nameInput ? nameInput.value : '',
+            sell: parseFloat(nums[0]?.value) || 0,
+            mat: parseFloat(nums[1]?.value) || 0,
+            craft: parseFloat(nums[2]?.value) || 0,
+            color: colorMatch,
+        };
+    });
+
+    // 敷き詰めレイアウトのパーツ（計算結果resultは保存せず、再計算可能な定義のみ保存）
+    const tileLayoutParts = TL.parts.map(p => ({
+        name: p.name, points: p.points, closed: p.closed,
+        tileW: p.tileW, tileH: p.tileH, joint: p.joint, pattern: p.pattern, gridAngle: p.gridAngle,
+        offsetX: p.offsetX, offsetY: p.offsetY,
+        pricePiece: p.pricePiece, priceCraft: p.priceCraft, cutMode: p.cutMode, wasteRate: p.wasteRate,
+        measurements: p.measurements || [],
+    }));
+
     const data = {
-        version: 2,
+        version: 3,
         projectName: document.getElementById('projectName').value,
         shapes: App.shapes,
         manualItems: App.manualItems,
         pixelsPerMeter: App.pixelsPerMeter,
+        levelAnnotations: AN.annotations,
+        tileLayoutParts,
+        summaryRows: summaryRowsData,
         savedAt: new Date().toISOString()
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -4632,9 +4948,44 @@ function loadProject(e) {
                 el.textContent = `1m = ${App.pixelsPerMeter.toFixed(1)}px`;
                 el.style.color = 'var(--green)';
             }
+
+            // レベルツール注記の復元
+            AN.annotations = data.levelAnnotations || [];
+            AN.selectedIdx = -1;
+            if (typeof renderAnnotList === 'function') renderAnnotList();
+            if (typeof renderDiffTable === 'function') renderDiffTable();
+            if (typeof renderGroupNameList === 'function') renderGroupNameList();
+            if (typeof annotRedraw === 'function') annotRedraw();
+
+            // 敷き詰めレイアウトパーツの復元（結果は再計算）
+            TL.partSeqCounter = 0;
+            TL.parts = (data.tileLayoutParts || []).map(p => ({
+                id: Date.now() + Math.random(),
+                seq: ++TL.partSeqCounter,
+                name: p.name || '', points: p.points || [], closed: !!p.closed,
+                tileW: p.tileW || 300, tileH: p.tileH || 300, joint: p.joint || 0,
+                pattern: p.pattern || 'grid', gridAngle: p.gridAngle || 0,
+                offsetX: p.offsetX || 0, offsetY: p.offsetY || 0,
+                pricePiece: p.pricePiece || 0, priceCraft: p.priceCraft || 0,
+                cutMode: p.cutMode || 'full', wasteRate: p.wasteRate || 0,
+                measurements: p.measurements || [],
+                result: null,
+            }));
+            TL.parts.forEach(p => { p.result = tlComputePart(p); });
+            TL.activeIndex = TL.parts.length > 0 ? 0 : -1;
+            if (document.getElementById('tlModal').style.display === 'flex') {
+                tlLoadSettingsToForm(); tlRenderPartsList(); tlFitView(); tlRecalc();
+            }
+
+            // 粗利サマリーの復元
+            document.getElementById('summaryRows').innerHTML =
+                '<div id="summaryEmpty" class="text-center text-gray-500 py-6 text-sm">②〜⑤の各セクションで計算後「① に追加」ボタンを押してください</div>';
+            summaryRowCount = 0;
+            (data.summaryRows || []).forEach(row => addSummaryRow(row));
+
             render(); updateEstimation();
             alert("プロジェクトを読み込みました。図面画像は別途読み込んでください。");
-        } catch { alert("読み込みに失敗しました。"); }
+        } catch(err) { console.error(err); alert("読み込みに失敗しました。"); }
         e.target.value = '';
     };
     reader.readAsText(file);
@@ -4880,11 +5231,9 @@ function initTextInputPopup() {
 // ==========================================
 // ESTIMATION
 // ==========================================
-function updateEstimation() {
-    const list = document.getElementById('estimationList');
-    const search = document.getElementById('listSearch').value.toLowerCase();
-    const fs = App.listFontSize;
-
+// 図形(App.shapes)を部材名でグループ化して集計する共通ロジック
+// updateEstimation() と 積算リストピッカー の両方から利用
+function getGroupedEstimationItems() {
     const groups = {};
     App.shapes.forEach(shape => {
         if (shape.type === 'text') return;
@@ -4899,6 +5248,7 @@ function updateEstimation() {
                 masterName: shape.settings.masterName || name,
                 refName: shape.settings.refName || '',
                 effectivePrice: (shape.settings.price || 0) * mult,
+                craftPrice: (shape.settings.craftPrice || 0) * mult,
                 quantity: 0, unit: '', items: [], color: shape.settings.color,
                 category: shape.settings.category || ''
             };
@@ -4913,12 +5263,21 @@ function updateEstimation() {
         if (shape.settings.additionalItems) {
             shape.settings.additionalItems.forEach(ai => {
                 const addKey = `_ADD_${ai.name}`;
-                if (!groups[addKey]) groups[addKey] = { name: `${ai.name}`, masterName: ai.name, refName: '', effectivePrice: ai.price, quantity: 0, unit: ai.unit, items: [], color: '#7c5cfc', category: '' };
+                if (!groups[addKey]) groups[addKey] = { name: `${ai.name}`, masterName: ai.name, refName: '', effectivePrice: ai.price, craftPrice: ai.craftPrice || 0, quantity: 0, unit: ai.unit, items: [], color: '#7c5cfc', category: '' };
                 groups[addKey].quantity += rawVal;
                 groups[addKey].items.push({ val: rawVal, id: App.shapes.indexOf(shape) });
             });
         }
     });
+    return groups;
+}
+
+function updateEstimation() {
+    const list = document.getElementById('estimationList');
+    const search = document.getElementById('listSearch').value.toLowerCase();
+    const fs = App.listFontSize;
+
+    const groups = getGroupedEstimationItems();
 
     let grandTotal = 0;
     let listHtml = '';
@@ -4943,6 +5302,7 @@ function updateEstimation() {
                 <div class="flex items-center gap-2">
                     <span class="status-badge ${unitBadge}" style="font-size:10px">${item.unit}</span>
                     <span style="font-size:${Math.max(10,fs-2)}px;color:var(--text-dim)">単価 ¥${item.effectivePrice.toLocaleString()}</span>
+                    ${item.craftPrice > 0 ? `<span style="font-size:${Math.max(10,fs-2)}px;color:var(--yellow)">職人 ¥${item.craftPrice.toLocaleString()}/${item.unit}</span>` : ''}
                     <span class="mono ml-auto" style="font-size:${Math.max(10,fs-2)}px;color:var(--text-dim)">${item.quantity.toFixed(2)} ${item.unit}</span>
                 </div>
             </div>
@@ -5003,6 +5363,7 @@ function updateMasterTable() {
             <td><span class="status-badge ${mat.type==='line'?'badge-line':mat.type==='area'?'badge-area':'badge-count'} text-xs">${mat.type==='line'?'長さ':mat.type==='area'?'面積':'個数'}</span></td>
             <td class="editable-cell text-gray-400 text-sm" ondblclick="editCell(this,'unit',${mat.id})">${mat.unit}</td>
             <td class="editable-cell text-right mono font-bold" ondblclick="editCell(this,'price',${mat.id})">¥${mat.price.toLocaleString()}</td>
+            <td class="editable-cell text-right mono" ondblclick="editCell(this,'craftPrice',${mat.id})" style="color:var(--yellow);" title="単位は単価と同じ（${mat.unit}あたり）">¥${(mat.craftPrice||0).toLocaleString()}<span style="color:var(--text-dim);font-size:10px;">/${mat.unit}</span></td>
             <td><button class="btn btn-dim px-2 py-1 text-xs" onclick="searchMaterialImage('${mat.refName||mat.name}')"><i class="fas fa-images"></i></button></td>
             <td><button class="text-red-500 hover:text-red-300" onclick="deleteMaterialFromDB(${mat.id})"><i class="fas fa-trash text-xs"></i></button></td>
         `;
@@ -5016,17 +5377,37 @@ function updateCellColor(input, id) {
     if (m) { m.color = input.value; updateMaterialInDB(m); }
 }
 
+// 部材マスタの単価・職人単価・名称変更を、既に配置済みの図形（積算リスト）へ反映する
+function syncShapesWithMaster(oldName, mat) {
+    let updated = 0;
+    App.shapes.forEach(shape => {
+        if (shape.settings.masterName === oldName) {
+            shape.settings.price = mat.price || 0;
+            shape.settings.craftPrice = mat.craftPrice || 0;
+            shape.settings.masterName = mat.name; // 名称変更にも追従してリンクを維持
+            if (shape.settings.name === oldName) shape.settings.name = mat.name; // 表示名も未編集なら追従
+            updated++;
+        }
+    });
+    if (updated > 0) { render(); updateEstimation(); }
+    return updated;
+}
+
 function editCell(td, field, id) {
     const m = loadedMaterials.find(m => m.id === id);
     if (!m) return;
     td.innerHTML = '';
     const inp = document.createElement('input');
-    inp.type = field === 'price' ? 'number' : 'text';
+    inp.type = (field === 'price' || field === 'craftPrice') ? 'number' : 'text';
     inp.value = m[field] ?? '';
     inp.className = 'cell-input';
     const save = () => {
-        m[field] = field === 'price' ? (parseInt(inp.value)||0) : inp.value;
+        const oldName = m.name; // 名称変更前に保持（リンク先の検索に使う）
+        m[field] = (field === 'price' || field === 'craftPrice') ? (parseInt(inp.value)||0) : inp.value;
         updateMaterialInDB(m);
+        if (field === 'price' || field === 'craftPrice' || field === 'name') {
+            syncShapesWithMaster(oldName, m);
+        }
     };
     inp.addEventListener('blur', save);
     inp.addEventListener('keypress', e => { if (e.key === 'Enter') inp.blur(); });
@@ -5112,6 +5493,7 @@ function getEstimationGroups() {
                 key,
                 name:   mult > 1 ? `${name} (x${mult})` : name,
                 price:  (shape.settings.price || 0) * mult,
+                craftPrice: (shape.settings.craftPrice || 0) * mult,
                 qty:    0,
                 type:   shape.type,
                 unit:   unitLabel,
@@ -5134,6 +5516,7 @@ function getEstimationGroups() {
                         key:   addKey,
                         name:  `${ai.name}`,
                         price: ai.price || 0,
+                        craftPrice: ai.craftPrice || 0,
                         qty:   0,
                         type:  aiType,
                         unit:  ai.unit || '個',
@@ -6011,6 +6394,33 @@ function calcSubmatCost(rowId, matBase) {
     return Math.round(total);
 }
 
+// 積算リスト項目を選択した際、職人単価が未入力(0)なら部材マスタの職人単価で自動入力
+function onCalcItemSelected(rowId) {
+    const div = document.getElementById(rowId);
+    if (div) {
+        const type = div.dataset.type;
+        const def = CALC_DEF[type];
+        const sel = div.querySelector('.calc-row-select');
+        const key = sel ? sel.value : '';
+        if (key && def) {
+            const g = getEstimationGroups().find(x => x.key === key);
+            if (g && g.craftPrice > 0) {
+                const craftField = def.fields.find(f => f.key.startsWith('craft'));
+                if (craftField) {
+                    const inp = div.querySelector(`[data-field="${craftField.key}"]`);
+                    if (inp && (parseFloat(inp.value) || 0) === 0) {
+                        // craftCostは合計金額欄のため 数量×職人単価、それ以外(円/㎡・円/m)は単価そのまま
+                        inp.value = craftField.key === 'craftCost'
+                            ? Math.round(g.craftPrice * Math.abs(g.qty))
+                            : g.craftPrice;
+                    }
+                }
+            }
+        }
+    }
+    calcRowResult(rowId);
+}
+
 function addCalcRow(type) {
     const def = CALC_DEF[type];
     const n   = ++calcRowCounters[type];
@@ -6027,7 +6437,7 @@ function addCalcRow(type) {
         <!-- 1行目: 積算リスト選択 + 削除 -->
         <div class="flex items-center gap-2 mb-2">
             <select class="inp text-xs flex-1 calc-row-select" data-unit-filter="${def.unitFilter}"
-                onchange="calcRowResult('${rowId}')">
+                onchange="onCalcItemSelected('${rowId}')">
                 ${makeEstSelect(def.unitFilter, '')}
             </select>
             <button onclick="document.getElementById('${rowId}').remove(); updateCalcSectionResult('${type}');"
@@ -6381,6 +6791,61 @@ function addToSummary(rowId) {
         craft: craftTotal,
         color: data.estItem.color,
     });
+}
+
+// ── 積算リストから① 粗利サマリーへ項目を選んで追加 ──
+function openEstListPicker() {
+    const groups = getGroupedEstimationItems();
+    const items = Object.values(groups).filter(g => g.quantity !== 0);
+    const list = document.getElementById('estListPickerList');
+    if (items.length === 0) {
+        list.innerHTML = '<div class="text-xs text-gray-500 text-center py-4">積算リストに項目がありません。まず図面・積算タブで図形を作成してください。</div>';
+    } else {
+        list.innerHTML = items.map((item, i) => {
+            const subtotal = Math.round(item.quantity * item.effectivePrice);
+            const craftInfo = item.craftPrice > 0
+                ? `<span class="flex-shrink-0" style="color:var(--yellow);font-size:10px;">職 ¥${(item.quantity*item.craftPrice).toLocaleString()}</span>`
+                : '';
+            return `
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded text-xs cursor-pointer" style="background:var(--panel2);border:1px solid var(--border);">
+                <input type="checkbox" data-est-idx="${i}" class="est-pick-cb">
+                <div style="width:8px;height:8px;border-radius:50%;background:${item.color||'#4f8ef7'};flex-shrink:0;"></div>
+                <span class="flex-1 truncate">${item.name}</span>
+                <span class="text-gray-500 flex-shrink-0">${item.quantity.toFixed(2)}${item.unit} × ¥${item.effectivePrice.toLocaleString()}</span>
+                <span class="mono flex-shrink-0" style="color:var(--accent);width:80px;text-align:right;">¥${subtotal.toLocaleString()}</span>
+                ${craftInfo}
+            </label>`;
+        }).join('');
+    }
+    window._estListPickerItems = items;
+    document.getElementById('estListPickerModal').style.display = 'flex';
+}
+function closeEstListPicker() {
+    document.getElementById('estListPickerModal').style.display = 'none';
+}
+function estListPickerToggleAll(checked) {
+    document.querySelectorAll('.est-pick-cb').forEach(cb => cb.checked = checked);
+}
+function estListPickerAddSelected() {
+    const items = window._estListPickerItems || [];
+    const existingNames = Array.from(
+        document.getElementById('summaryRows').querySelectorAll('.sum-row input[type=text]')
+    ).map(el => el.value);
+    let added = 0, skipped = 0;
+    document.querySelectorAll('.est-pick-cb:checked').forEach(cb => {
+        const item = items[parseInt(cb.dataset.estIdx)];
+        if (!item) return;
+        if (existingNames.includes(item.name)) { skipped++; return; }
+        const subtotal = Math.round(item.quantity * item.effectivePrice);
+        // 部材マスタに職人単価が登録されていれば、同じ単位・数量で職人費を自動計算
+        const craftCost = Math.round(item.quantity * (item.craftPrice || 0));
+        addSummaryRow({ name: item.name, sell: subtotal, mat: 0, craft: craftCost, color: item.color || '#4f8ef7' });
+        existingNames.push(item.name);
+        added++;
+    });
+    closeEstListPicker();
+    if (added === 0 && skipped === 0) alert('項目を選択してください');
+    else if (skipped > 0) alert(`${added}件を追加しました（${skipped}件は既に追加済みのためスキップ）`);
 }
 
 function addSummaryRowManual() {
@@ -6776,36 +7241,24 @@ function drawBarChart(canvas, labels, values, colors) {
 // ==========================================
 function exportCSV() {
     if (!App.shapes.length && !App.manualItems.length) { alert("出力するデータがありません"); return; }
-    const groups = {};
     const includeDetails = document.getElementById('csvIncludeDetails').checked;
-    App.shapes.forEach(shape => {
-        const name = shape.settings.name;
-        const mult = Math.round(shape.settings.multiplier||1);
-        const key = `${name}_${mult}`;
-        const rawVal = calculateMetric(shape);
-        if (!groups[key]) groups[key] = { name: mult>1?`${name} (x${mult})`:name, masterName: shape.settings.masterName||name, refName: shape.settings.refName||'', effectivePrice: (shape.settings.price||0)*mult, quantity:0, unit:'', details:[], category: shape.settings.category||'' };
-        groups[key].quantity += rawVal;
-        if (includeDetails) groups[key].details.push(rawVal < 0 ? `除外:${Math.abs(rawVal).toFixed(2)}` : rawVal.toFixed(2));
-        if (shape.type==='line') groups[key].unit='m';
-        else if (shape.type==='area') groups[key].unit='m2';
-        else groups[key].unit='個';
-        (shape.settings.additionalItems||[]).forEach(ai => {
-            const addKey = `_ADD_${ai.name}`;
-            if (!groups[addKey]) groups[addKey] = { name:`${ai.name}(同時計測)`, masterName:ai.name, refName:'', effectivePrice:ai.price, quantity:0, unit:ai.unit, details:[], category:'' };
-            groups[addKey].quantity += rawVal;
-        });
-    });
+    const groups = getGroupedEstimationItems();
 
     let csv = "data:text/csv;charset=utf-8,\uFEFF";
-    csv += "カテゴリ,部材名称(マスタ),表示名称,単価,数量,単位,合計金額,参照商品名" + (includeDetails ? ",詳細" : "") + "\n";
+    csv += "カテゴリ,部材名称(マスタ),表示名称,単価,数量,単位,合計金額(売上),職人単価,職人費(概算),参照商品名" + (includeDetails ? ",詳細" : "") + "\n";
     Object.values(groups).forEach(item => {
         const total = Math.round(item.quantity * item.effectivePrice);
-        let row = `"${item.category}","${item.masterName}","${item.name}",${item.effectivePrice},${item.quantity.toFixed(2)},"${item.unit}",${total},"${item.refName}"`;
-        if (includeDetails) row += `,"${item.details.join(' + ')}"`;
+        const craftPrice = item.craftPrice || 0;
+        const craftTotal = Math.round(item.quantity * craftPrice);
+        let row = `"${item.category}","${item.masterName}","${item.name}",${item.effectivePrice},${item.quantity.toFixed(2)},"${item.unit}",${total},${craftPrice},${craftTotal},"${item.refName}"`;
+        if (includeDetails) {
+            const details = item.items.map(d => d.val < 0 ? `除外:${Math.abs(d.val).toFixed(2)}` : d.val.toFixed(2));
+            row += `,"${details.join(' + ')}"`;
+        }
         csv += row + "\n";
     });
     App.manualItems.forEach(item => {
-        csv += `"手入力","${item.name}","${item.name} (手入力)",${item.price},1,"式",${item.price},""` + (includeDetails ? ',""' : '') + "\n";
+        csv += `"手入力","${item.name}","${item.name} (手入力)",${item.price},1,"式",${item.price},0,0,""` + (includeDetails ? ',""' : '') + "\n";
     });
 
     const a = document.createElement('a');
@@ -6814,29 +7267,69 @@ function exportCSV() {
     a.click();
 }
 
-function saveCanvasAsImage() {
-    showLoader("画像を生成中...");
-    const tmpCanvas = document.createElement('canvas');
-    const dpr = window.devicePixelRatio || 1;
-    tmpCanvas.width = App.width * dpr;
-    tmpCanvas.height = App.height * dpr;
-    const tmpCtx = tmpCanvas.getContext('2d');
-    tmpCtx.scale(dpr, dpr);
+async function saveCanvasAsImage() {
+    showLoader("画像を生成中（高解像度）...");
+    // 元のApp状態を退避
+    const orig = {
+        canvas: App.canvas, ctx: App.ctx, width: App.width, height: App.height,
+        dpr: App.dpr, scale: App.scale, offsetX: App.offsetX, offsetY: App.offsetY,
+    };
+    try {
+        let exportW, exportH, exportScale;
+        const offCanvas = document.createElement('canvas');
 
-    // White background
-    tmpCtx.fillStyle = '#fff';
-    tmpCtx.fillRect(0, 0, App.width, App.height);
+        if (App.bgImage) {
+            // 読み込んだPDF/画像の実寸解像度をそのまま使用（最大8000pxにクランプ）
+            const MAX_PX = 8000;
+            const ratio = Math.min(1, MAX_PX / Math.max(App.bgImage.width, App.bgImage.height));
+            exportW = Math.round(App.bgImage.width * ratio);
+            exportH = Math.round(App.bgImage.height * ratio);
+            exportScale = ratio;
+        } else {
+            // 背景画像なし: 現在の表示を3倍の解像度で出力
+            exportW = App.width * 3;
+            exportH = App.height * 3;
+            exportScale = App.scale * 3;
+        }
 
-    // Temporarily copy the main canvas
-    tmpCtx.drawImage(App.canvas, 0, 0, App.width, App.height);
+        offCanvas.width = exportW;
+        offCanvas.height = exportH;
+        const offCtx = offCanvas.getContext('2d', { alpha: false });
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.imageSmoothingQuality = 'high';
+        offCtx.fillStyle = '#fff';
+        offCtx.fillRect(0, 0, exportW, exportH);
 
-    tmpCanvas.toBlob(blob => {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${document.getElementById('projectName').value||'drawing'}.png`;
-        a.click();
+        // Appの描画ターゲットを一時的にオフスクリーンキャンバスへ切り替えて再描画
+        App.canvas = offCanvas;
+        App.ctx = offCtx;
+        App.width = exportW;
+        App.height = exportH;
+        App.dpr = 1;
+        App.scale = exportScale;
+        App.offsetX = 0;
+        App.offsetY = 0;
+
+        render();
+
+        offCanvas.toBlob(blob => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${document.getElementById('projectName').value||'drawing'}.png`;
+            a.click();
+        }, 'image/png');
+    } catch (e) {
+        console.error(e);
+        alert("画像生成に失敗しました。");
+    } finally {
+        // 元の画面表示に戻す
+        App.canvas = orig.canvas; App.ctx = orig.ctx;
+        App.width = orig.width; App.height = orig.height;
+        App.dpr = orig.dpr; App.scale = orig.scale;
+        App.offsetX = orig.offsetX; App.offsetY = orig.offsetY;
+        render();
         hideLoader();
-    });
+    }
 }
 
 async function saveCanvasAsPDF() {
@@ -6912,7 +7405,17 @@ function hideLoader() { document.getElementById('loader').style.display = 'none'
 
 function getRandomColor() {
     const h = Math.floor(Math.random()*360), s = 50 + Math.random()*30, l = 45 + Math.random()*15;
-    return `hsl(${h},${s}%,${l}%)`;
+    return hslToHex(h, s, l);
+}
+
+// HSL → #rrggbb 変換（hexToRGBA など、hex形式を前提とする箇所との互換性のため）
+function hslToHex(h, s, l) {
+    s /= 100; l /= 100;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const toHex = n => Math.round(255 * f(n)).toString(16).padStart(2, '0');
+    return `#${toHex(0)}${toHex(8)}${toHex(4)}`;
 }
 
 // Expose globals
@@ -6938,8 +7441,10 @@ window.searchMaterialImage = searchMaterialImage;
 const CALC = { scale:1, offsetX:0, offsetY:0, panning:false, lastX:0, lastY:0 };
 
 async function calcLoad(inp) {
-  const f = inp.files[0]; if (!f) return;
+  if (!inp.files.length) return;
+  const f = await pickOneFile(inp.files);
   inp.value = '';
+  if (!f) return;
   const hint = document.getElementById('calc-pdf-hint');
   const origHint = hint ? hint.textContent : '';
   if (hint) hint.textContent = '読み込み中...';
@@ -6948,7 +7453,8 @@ async function calcLoad(inp) {
     if (f.type === 'application/pdf') {
       const ab = await f.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-      const page = await pdf.getPage(1);
+      const pageNum = await pickPdfPage(pdf);
+      const page = await pdf.getPage(pageNum);
       // 積算ツールと同じ高画質化: 長辺4000px基準、scale 3.0〜8.0
       const baseVp = page.getViewport({ scale: 1.0 });
       const longSide = Math.max(baseVp.width, baseVp.height);
@@ -7108,7 +7614,7 @@ function ltSwitchView(v) {
   if (v === 'calc') {
     setTimeout(() => { calcFitReset(); }, 20);
   }
-  if (v === 'section') drawSection();
+  if (v === 'section') runStepCalc();
   if (v === 'annot') {
     // キャンバスサイズを wrap に合わせる（スケール/オフセットは維持）
     setTimeout(() => {
@@ -7128,7 +7634,7 @@ function ltSwitchView(v) {
 function switchSub(s) {
   document.querySelectorAll('.lc-sub-tab').forEach(el => el.classList.toggle('active', el.dataset.sub === s));
   document.querySelectorAll('.lc-sub').forEach(el => el.style.display = el.id === 'sub-' + s ? '' : 'none');
-  if (s === 'section') drawSection();
+  if (s === 'section') runStepCalc();
 }
 
 // ============================================================
@@ -7227,6 +7733,63 @@ function renderJISTable(h, ret) {
 // ============================================================
 // PLAN MODE
 // ============================================================
+// ============================================================
+// 整地計算（土量）― 造成・現況タブ
+// ============================================================
+function calcSiteVolume() {
+  const raw = (document.getElementById('levels9').value || '')
+    .split(/[\r\n,;\s]+/)
+    .map(s => parseFloat(s))
+    .filter(v => !isNaN(v));
+  const box = document.getElementById('result9');
+  if (raw.length === 0) { alert('レベル値を入力してください'); return; }
+
+  const avg    = raw.reduce((a, b) => a + b, 0) / raw.length;
+  const design = parseFloat(document.getElementById('designGL').value) || 0;
+  const area   = parseFloat(document.getElementById('siteArea').value) || 0;
+  const volRaw = area * (avg - design); // 地山土量（正=切土、負=盛土）
+
+  const bulking  = parseFloat(document.getElementById('site_bulking').value) || 1.37;
+  const wastePct = parseFloat(document.getElementById('site_waste_pct').value) || 0;
+  const density  = parseFloat(document.getElementById('site_density').value) || 1.6;
+
+  let html = `入力点数: ${raw.length}点　<strong>平均現況: ${avg.toFixed(3)} m</strong>　設計GL: ${design.toFixed(3)} m　差: ${(avg-design).toFixed(3)} m`;
+  html += `<div style="height:1px;background:var(--border);margin:8px 0;"></div>`;
+  html += `地山土量: <strong>${Math.abs(volRaw).toFixed(3)} m³</strong><br>`;
+  html += `<span style="font-size:11px;color:var(--text-dim);">　= 面積 ${area.toFixed(1)} m² × 高低差 ${Math.abs(avg-design).toFixed(3)} m</span>`;
+  html += `<div style="height:1px;background:var(--border);margin:8px 0;"></div>`;
+
+  if (volRaw > 0.001) {
+    const volWaste = volRaw * bulking * (1 + wastePct / 100);
+    const volT     = volWaste * density;
+    html += `<span style="color:var(--yellow);font-weight:700;">▲ 切土（残土発生）</span><br>`;
+    html += `搬出土量: <strong><span style="color:var(--yellow);">${volWaste.toFixed(3)} m³</span></strong><br>`;
+    html += `<span style="font-size:11px;color:var(--text-dim);">　= 地山 ${volRaw.toFixed(3)} m³ × 膨張率 ${bulking.toFixed(2)} × (1 + ロス ${wastePct}%)</span><br>`;
+    html += `重量: <strong>${volT.toFixed(2)} t</strong><br>`;
+    html += `<span style="font-size:11px;color:var(--text-dim);">　= 搬出土量 ${volWaste.toFixed(3)} m³ × 比重 ${density} t/m³</span>`;
+  } else if (volRaw < -0.001) {
+    const volFill    = Math.abs(volRaw);
+    const extraPct   = parseFloat(document.getElementById('site_fill_extra_pct').value) || 0;
+    const volPurchase = volFill * (1 + extraPct / 100);
+    html += `<span style="color:var(--accent);font-weight:700;">▼ 盛土（客土が必要）</span><br>`;
+    html += `必要盛土量: <strong><span style="color:var(--accent);">${volFill.toFixed(3)} m³</span></strong><br>`;
+    html += `<span style="font-size:11px;color:var(--text-dim);">　= 面積 ${area.toFixed(1)} m² × 高低差 ${Math.abs(avg-design).toFixed(3)} m</span><br>`;
+    html += `購入土量: <strong><span style="color:var(--accent);">${volPurchase.toFixed(3)} m³</span></strong><br>`;
+    html += `<span style="font-size:11px;color:var(--text-dim);">　= 必要盛土量 ${volFill.toFixed(3)} m³ × (1 + 増し率 ${extraPct}%)</span>`;
+  } else {
+    html += `<span style="color:var(--green);font-weight:700;">◎ ほぼGL一致（残土なし）</span>`;
+  }
+
+  box.style.display = 'block';
+  box.innerHTML = html;
+}
+
+function clearSiteVolume() {
+  document.getElementById('levels9').value = '';
+  document.getElementById('result9').style.display = 'none';
+  document.getElementById('result9').innerHTML = '';
+}
+
 function calcPlan() {
   const own  = parseLevel(document.getElementById('pl-own').value);
   const adj  = parseLevel(document.getElementById('pl-adj').value);
@@ -7306,241 +7869,288 @@ function calcSlope() {
 // ============================================================
 // SECTION VIEW
 // ============================================================
-function drawSection() {
-  const canvas = document.getElementById('sectionCanvas');
-  if (!canvas) return;
-  const own    = parseLevel(document.getElementById('sec-own').value);
-  const adj    = parseLevel(document.getElementById('sec-adj').value);
-  const top    = parseLevel(document.getElementById('sec-top').value);
-  const road   = parseLevel(document.getElementById('sec-road').value);
-  const cbH    = parseLevel(document.getElementById('sec-cbh').value) || 200;
-  const ret    = document.getElementById('sec-ret').value === '1';
-  const baseT  = parseLevel(document.getElementById('sec-base')?.value)   || 150;  // ベースコン厚
-  const gravT  = parseLevel(document.getElementById('sec-gravel')?.value) || 50;   // 砕石厚
-  const ctx  = canvas.getContext('2d');
-  canvas.width = canvas.offsetWidth || 600;
-  const W = canvas.width, H = 480;
-  canvas.height = H;
-  ctx.clearRect(0, 0, W, H);
+// ============================================================
+// 根入れ・段数計算（0.35mルール）― 参考実装より移植
+// ============================================================
+function qbToNum(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+function qbFmt(v, d) { return isFinite(v) ? (+v).toFixed(d !== undefined ? d : 3) : '0.000'; }
 
-  const vals = [own, adj, top, road].filter(v => !isNaN(v));
-  if (vals.length < 2) {
-    ctx.fillStyle = '#6b7294'; ctx.font = '14px Noto Sans JP'; ctx.textAlign = 'center';
-    ctx.fillText('レベルを2つ以上入力してください', W/2, H/2); return;
+function qbToggleMode() {
+  const isManual = document.getElementById('qb-mode-manual').checked;
+  document.getElementById('qb-grp-top').style.display = isManual ? 'none' : 'block';
+  document.getElementById('qb-grp-manual').style.display = isManual ? 'block' : 'none';
+  runStepCalc();
+}
+function qbToggleCustomH() {
+  document.getElementById('qb-block-h-custom').style.display =
+    document.getElementById('qb-block-h').value === 'custom' ? 'block' : 'none';
+}
+function qbAdjustStep(delta) {
+  const cur = parseInt(document.getElementById('qb-final-steps').value) || 1;
+  const next = cur + delta;
+  if (next < 1) return;
+  runStepCalc(next);
+}
+
+function runStepCalc(targetSteps) {
+  const design  = qbToNum(document.getElementById('qb-design-gl').value);
+  const bh_mm   = document.getElementById('qb-block-h').value === 'custom'
+                  ? qbToNum(document.getElementById('qb-block-h-custom').value)
+                  : qbToNum(document.getElementById('qb-block-h').value);
+  const base_t  = qbToNum(document.getElementById('qb-base-t').value) / 1000;
+  const stone_t = qbToNum(document.getElementById('qb-stone-t').value) / 1000;
+  const pitch   = bh_mm / 1000 + 0.010; // 1段高さ = ブロック高 + 目地10mm
+  const outBox  = document.getElementById('qb-out');
+
+  const isManual = document.getElementById('qb-mode-manual').checked;
+  let top, steps, manualNote = '';
+
+  if (isManual) {
+    const aboveN = Math.max(0, Math.round(qbToNum(document.getElementById('qb-above-steps').value)));
+    const embedN = Math.max(0, Math.round(qbToNum(document.getElementById('qb-embed-steps').value)));
+    steps = aboveN + embedN;
+    if (steps <= 0) {
+      outBox.style.display = 'block';
+      outBox.innerHTML = "<span style='color:var(--red);'>エラー: 地上段数＋根入れ段数が0です</span>";
+      return;
+    }
+    top = design + aboveN * pitch; // 天端を逆算
+    manualNote = `<div style="color:#74b9ff; margin-bottom:4px;">手動指定: 地上${aboveN}段 ＋ 根入れ${embedN}段　→　天端を逆算: <strong>${qbFmt(top,3)} m</strong></div>`;
+    document.getElementById('qb-top').value = top.toFixed(3);
+  } else {
+    top = qbToNum(document.getElementById('qb-top').value);
+    if (top <= design) {
+      outBox.style.display = 'block';
+      outBox.innerHTML = "<span style='color:var(--red);'>エラー: 天端レベルが設計GL以下です</span>";
+      return;
+    }
   }
-  const minV = Math.min(...vals) - 200, maxV = Math.max(...vals) + 300, range = maxV - minV;
-  const PL = 90, PR = 50, PT = 30, PB = 40;
-  const dH = H - PT - PB;
-  const toY = v => PT + dH - ((v - minV) / range) * dH;
 
-  // Grid
-  ctx.strokeStyle = 'rgba(46,48,64,0.5)'; ctx.lineWidth = 1;
-  const gs = Math.ceil(range / 8 / 50) * 50;
-  for (let lv = Math.ceil(minV/gs)*gs; lv <= maxV; lv += gs) {
-    const y = toY(lv);
-    ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W-PR, y); ctx.stroke();
-    ctx.fillStyle = '#4a4f6a'; ctx.font = '10px JetBrains Mono'; ctx.textAlign = 'right';
-    ctx.fillText((lv>=0?'+':'')+lv, PL-5, y+4);
+  const visible_h = top - design;
+  if (targetSteps !== undefined) {
+    steps = targetSteps;
+  } else if (!isManual) {
+    steps = Math.ceil(visible_h / pitch);
   }
 
-  // Ground fills
-  if (!isNaN(own)) { ctx.fillStyle = 'rgba(101,67,33,.18)'; ctx.fillRect(PL, toY(own), W-PL-PR, H-PB-toY(own)); }
-  if (!isNaN(road)) { ctx.fillStyle = 'rgba(80,80,100,.25)'; ctx.fillRect(PL, toY(road), 55, (!isNaN(own)?toY(own):H-PB)-toY(road)); }
+  let log = manualNote;
+  log += `<div style="color:var(--text-dim); margin-bottom:4px;">`;
+  log += `見え掛かり ${qbFmt(visible_h,3)} m　1段高さ ${qbFmt(pitch*1000,0)} mm（ブロック${bh_mm}mm＋目地10mm）`;
+  log += `　基礎厚 ${(base_t*1000).toFixed(0)}mm　砕石厚 ${(stone_t*1000).toFixed(0)}mm</div>`;
+  log += `<div style="color:var(--text-dim); font-size:11px; margin-bottom:6px; border-bottom:1px dashed var(--border); padding-bottom:4px;">`;
+  log += `埋設計 ＝ 根入れ深さ ＋ 基礎厚 ＋ 砕石厚（≥0.35m必要）</div>`;
 
-  // ── ブロック描画：天端固定で逆算・GLで切断しない・基礎ブロック別途 ──
-  if (!isNaN(own) && !isNaN(top) && top > own) {
-    const bx = W/2-28, bw = 56;
-    const useFndBlk = document.getElementById('sec-fnd-blk')?.value !== '0'; // 基礎ブロックあり/なし
-    const aboveH    = top - own;                            // 天端→GL の高さ
-    const wallSegs  = Math.ceil(aboveH / cbH);             // 壁ブロック段数（切り上げ→天端まで届く）
-
-    // 最下段ブロックのGL以下への埋まり量（＝壁ブロックのGL埋め部分）
-    const lastBotLevel   = top - wallSegs * cbH;           // 最下段の底面レベル（GLより低い場合あり）
-    const wallEmbedDepth = own - lastBotLevel;             // GL以下に埋まる量（0以上）
-
-    // 基礎ブロック底面レベル（最下段ブロックのすぐ下に1段）
-    const fndBlkBot      = useFndBlk ? lastBotLevel - cbH : lastBotLevel;
-    const totalRootDepth = own - fndBlkBot;                // 根入れ総深さ
-
-    // ── 壁ブロック：天端から下向きに wallSegs 段、GLで切断しない ──
-    for (let i = 0; i < wallSegs; i++) {
-      const sTop = top - i * cbH;
-      const sBot = top - (i+1) * cbH;          // GLより低くなる場合もそのまま描く
-      const y1   = toY(sTop);
-      const y2   = Math.min(toY(sBot), H - PB);
-      // GL以上の部分は土留め色 or 境界壁色、GL以下は同じブロックを埋没表現
-      const isEarth  = !isNaN(adj) && sBot < adj && sTop > own;  // 地上で隣地より低い段
-      const isBuried = sTop <= own;                               // 完全にGL以下の段（基礎埋め）
-      const isStraddle = sBot < own && sTop > own;                // GL跨ぎ段
-
-      if (isBuried) {
-        // 完全地中段（基礎ブロックの扱い）
-        ctx.fillStyle   = 'rgba(124,92,252,.22)';
-        ctx.strokeStyle = '#7c5cfc';
-      } else if (isEarth) {
-        ctx.fillStyle   = 'rgba(139,105,20,.35)';
-        ctx.strokeStyle = '#8b6914';
+  // 自動探索ループ（天端モード・段数未指定時のみ）
+  if (!isManual && targetSteps === undefined) {
+    while (true) {
+      const bottom = top - (steps * pitch);
+      const root = design - bottom;
+      const total_embed = root + base_t + stone_t;
+      if (total_embed >= 0.35 - 0.001) {
+        log += `<div>${steps}段: 根入れ <strong>${qbFmt(root,3)}m</strong> ＋ 基礎 ${qbFmt(base_t,3)}m ＋ 砕石 ${qbFmt(stone_t,3)}m ＝ 埋設計 <strong>${qbFmt(total_embed,3)} m</strong> <span style="color:var(--green);">✔ OK (≥0.35m)</span></div>`;
+        break;
       } else {
-        ctx.fillStyle   = 'rgba(79,142,247,.22)';
-        ctx.strokeStyle = '#4f8ef7';
+        log += `<div>${steps}段: 根入れ <strong>${qbFmt(root,3)}m</strong> ＋ 基礎 ${qbFmt(base_t,3)}m ＋ 砕石 ${qbFmt(stone_t,3)}m ＝ 埋設計 <strong>${qbFmt(total_embed,3)} m</strong> <span style="color:var(--red);">✘ 不足 → +1段</span></div>`;
+        steps++;
       }
-      ctx.lineWidth = 1.5; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.rect(bx, y1, bw, y2-y1-1); ctx.fill(); ctx.stroke();
+      if (steps > 50) break;
+    }
+  }
 
-      // GL跨ぎ段：GL境界ラインをブロック内に点線で示す
-      if (isStraddle) {
-        const glY2 = toY(own);
-        ctx.save();
-        ctx.strokeStyle = '#3ddc97'; ctx.lineWidth = 1.5; ctx.setLineDash([5,3]);
-        ctx.beginPath(); ctx.moveTo(bx, glY2); ctx.lineTo(bx+bw, glY2); ctx.stroke();
-        ctx.restore();
-        // 見え寸法・埋め寸法ラベル
-        const visH = sTop - own, burH = own - sBot;
-        ctx.fillStyle = '#3ddc97aa'; ctx.font = '8px JetBrains Mono'; ctx.textAlign = 'left';
-        ctx.fillText(`見え${visH}`, bx+bw+3, (toY(sTop)+glY2)/2+3);
-        ctx.fillStyle = '#9d7cfc88';
-        ctx.fillText(`埋め${burH}`, bx+bw+3, (glY2+y2)/2+3);
+  const final_bottom = top - (steps * pitch);
+  const final_root   = design - final_bottom;
+  const final_embed  = final_root + base_t + stone_t;
+  const ok = final_embed >= 0.35 - 0.001;
+
+  outBox.style.display = 'block';
+  outBox.innerHTML = log +
+    `<div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border); font-weight:700;">★ ${steps} 段　根入れ: ${qbFmt(final_root,3)} m　基礎厚: ${qbFmt(base_t,3)} m　砕石: ${qbFmt(stone_t,3)} m　埋設計: ${qbFmt(final_embed,3)} m　` +
+    (ok ? `<span style="color:var(--green);">✔ OK</span>` : `<span style="color:var(--red);">✘ 0.35m不足</span>`) + `</div>`;
+  document.getElementById('qb-final-steps').value = steps;
+  drawBlockSVG(steps, final_root, base_t, stone_t, bh_mm, design);
+}
+
+function drawBlockSVG(steps, rootDepth, base_t, stone_t, bh_mm, designGL) {
+  const svg = document.getElementById('qb-svg');
+  svg.style.display = 'block';
+
+  const top        = qbToNum(document.getElementById('qb-top').value);
+  const pitch       = bh_mm / 1000 + 0.010;
+  const base_steps = qbToNum(document.getElementById('qb-base-steps').value);
+
+  const normalSteps = Math.max(0, steps - base_steps);
+  const blkBotLevel = top - steps * pitch;
+  const aboveSteps  = normalSteps;
+
+  const lvTop    = top;
+  const lvGL     = designGL;
+  const lvBlkBot = blkBotLevel;
+  const lvBasBot = lvBlkBot - base_t;
+  const lvStnBot = lvBasBot - stone_t;
+
+  const W       = 580;
+  const RULER_W = 80;
+  const BLK_W   = 160;
+  const bx0     = RULER_W + 10;
+  const bx1     = bx0 + BLK_W;
+  const cx      = bx0 + BLK_W / 2;
+
+  const levelSpan = lvTop - lvStnBot;
+  const PAD_T = 30, PAD_B = 45;
+  const drawPxH = 280;
+  const scale = drawPxH / Math.max(levelSpan, 0.01);
+
+  function lv2y(lv) { return PAD_T + (lvTop - lv) * scale; }
+
+  const yTop    = lv2y(lvTop);
+  const yGL     = lv2y(lvGL);
+  const yBlkBot = lv2y(lvBlkBot);
+  const yBasBot = lv2y(lvBasBot);
+  const yStnBot = lv2y(lvStnBot);
+  const H       = yStnBot + PAD_B + 10;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  function hatch(x, y, w, n) {
+    let s = '';
+    const step = w / n;
+    for (let i = 0; i < n; i++) {
+      const hx = x + i * step + step * 0.5;
+      s += `<line x1="${hx}" y1="${y}" x2="${hx-10}" y2="${y+12}" stroke="#5d8a60" stroke-width="1.2"/>`;
+    }
+    return s;
+  }
+  function dimR(y1, y2, label, color) {
+    if (Math.abs(y2 - y1) < 4) return '';
+    const ox = bx1 + 70, mid = (y1 + y2) / 2;
+    return `<line x1="${ox}" y1="${y1}" x2="${ox}" y2="${y2}" stroke="${color}" stroke-width="1.5"
+        marker-start="url(#qbAR)" marker-end="url(#qbA)"/>
+      <line x1="${ox-4}" y1="${y1}" x2="${ox+4}" y2="${y1}" stroke="${color}" stroke-width="1"/>
+      <line x1="${ox-4}" y1="${y2}" x2="${ox+4}" y2="${y2}" stroke="${color}" stroke-width="1"/>
+      <text x="${ox+8}" y="${mid+4}" fill="${color}" font-size="11" font-family="sans-serif">${label}</text>`;
+  }
+
+  const embedTotal = lvGL - lvStnBot;
+  const embedOK    = embedTotal >= 0.35 - 0.001;
+  const embedColor = embedOK ? '#55efc4' : '#ff7675';
+  const bH = pitch * scale;
+
+  let out = `<defs>
+    <marker id="qbA"  markerWidth="7" markerHeight="7" refX="1" refY="3.5" orient="auto">
+      <path d="M0,1 L6,3.5 L0,6 Z" fill="#e74c3c"/>
+    </marker>
+    <marker id="qbAR" markerWidth="7" markerHeight="7" refX="5" refY="3.5" orient="auto-start-reverse">
+      <path d="M0,1 L6,3.5 L0,6 Z" fill="#e74c3c"/>
+    </marker>
+  </defs>`;
+
+  // 定規
+  const rulerX = RULER_W - 6;
+  const tickStep = 0.1;
+  const lvStart = Math.ceil(lvStnBot / tickStep) * tickStep;
+  const lvEnd   = Math.floor(lvTop / tickStep) * tickStep;
+  out += `<line x1="${rulerX}" y1="${yTop}" x2="${rulerX}" y2="${yStnBot}" stroke="#445" stroke-width="1.5"/>`;
+  const nStart = Math.round(lvStart * 10);
+  const nEnd   = Math.round(lvEnd * 10);
+  for (let n = nStart; n <= nEnd; n++) {
+    const lv = n / 10;
+    const py = lv2y(lv);
+    const isHalf = (n % 5 === 0);
+    const tLen = isHalf ? 11 : 5;
+    const col  = isHalf ? '#8a93a8' : '#566';
+    out += `<line x1="${rulerX - tLen}" y1="${py}" x2="${rulerX}" y2="${py}" stroke="${col}" stroke-width="${isHalf?1.3:0.8}"/>`;
+    if (isHalf) {
+      const keyLvs = [lvTop, lvGL, lvBlkBot, lvBasBot, lvStnBot];
+      const tooClose = keyLvs.some(k => Math.abs(k - lv) < 0.06);
+      if (!tooClose) {
+        out += `<text x="${rulerX - tLen - 3}" y="${py + 3.5}" fill="#8a93a8" font-size="8.5" font-family="monospace" text-anchor="end">${lv.toFixed(2)}</text>`;
       }
-
-      // 段番号
-      const numColor = isBuried ? '#9d7cfc' : isEarth ? '#c8a040' : '#6aaaf7';
-      ctx.fillStyle = numColor; ctx.font = '9px JetBrains Mono'; ctx.textAlign = 'center';
-      if (y2-y1 > 13) ctx.fillText(i+1, bx+bw/2, (y1+y2)/2+3);
-    }
-
-    // ── 基礎ブロック → ベースコン → 砕石 の順に積む ──
-    const fbx = bx - 6, fbw = bw + 12;
-    let curBottom = lastBotLevel;  // 現在積み下ろし中の底面レベル
-
-    // [A] 基礎ブロック（オプション）
-    if (useFndBlk) {
-      const layerBot = curBottom - cbH;
-      const ly1 = toY(curBottom), ly2 = Math.min(toY(layerBot), H - PB);
-      ctx.fillStyle = 'rgba(124,92,252,.28)'; ctx.strokeStyle = '#7c5cfc'; ctx.lineWidth = 2; ctx.setLineDash([]);
-      ctx.beginPath(); ctx.rect(fbx, ly1, fbw, ly2-ly1-1); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = '#c8aaff'; ctx.font = 'bold 9px JetBrains Mono'; ctx.textAlign = 'center';
-      if (ly2-ly1 > 12) ctx.fillText(`基礎B ${cbH}mm`, fbx+fbw/2, (ly1+ly2)/2+3);
-      curBottom = layerBot;
-    }
-
-    // [B] ベースコンクリート層
-    const baseBot = curBottom - baseT;
-    const by1 = toY(curBottom), by2 = Math.min(toY(baseBot), H - PB);
-    ctx.fillStyle = 'rgba(100,100,160,.35)'; ctx.strokeStyle = '#8080cc'; ctx.lineWidth = 1.5; ctx.setLineDash([]);
-    ctx.beginPath(); ctx.rect(fbx-4, by1, fbw+8, by2-by1-1); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#aaaaee'; ctx.font = '8px JetBrains Mono'; ctx.textAlign = 'center';
-    if (by2-by1 > 10) ctx.fillText(`ベースCon ${baseT}mm`, fbx+fbw/2, (by1+by2)/2+3);
-    curBottom = baseBot;
-
-    // [C] 砕石層
-    const gravBot = curBottom - gravT;
-    const gy1 = toY(curBottom), gy2 = Math.min(toY(gravBot), H - PB);
-    ctx.fillStyle = 'rgba(120,90,40,.40)'; ctx.strokeStyle = '#b07830'; ctx.lineWidth = 1.5; ctx.setLineDash([3,2]);
-    ctx.beginPath(); ctx.rect(fbx-4, gy1, fbw+8, gy2-gy1-1); ctx.fill(); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = '#d4a060'; ctx.font = '8px JetBrains Mono'; ctx.textAlign = 'center';
-    if (gy2-gy1 > 10) ctx.fillText(`砕石 ${gravT}mm`, fbx+fbw/2, (gy1+gy2)/2+3);
-
-    // 掘削底面 (= 砕石底面)
-    const excavBot = gravBot;
-    const totalRootDepth2 = own - excavBot;
-
-    // ── 根入れ総深さ寸法矢印（右側） ──
-    const dimX = fbx + fbw + 20;
-    const dimY1 = toY(own), dimY2 = Math.min(toY(excavBot), H - PB);
-    ctx.strokeStyle = '#7c5cfc'; ctx.lineWidth = 1; ctx.setLineDash([]);
-    ctx.beginPath();
-    ctx.moveTo(dimX, dimY1); ctx.lineTo(dimX, dimY2);
-    ctx.moveTo(dimX-4, dimY1+7); ctx.lineTo(dimX, dimY1); ctx.lineTo(dimX+4, dimY1+7);
-    ctx.moveTo(dimX-4, dimY2-7); ctx.lineTo(dimX, dimY2); ctx.lineTo(dimX+4, dimY2-7);
-    ctx.stroke();
-    ctx.fillStyle = '#9d7cfc'; ctx.font = '8px JetBrains Mono'; ctx.textAlign = 'left';
-    const rootLines = [
-      `掘削深 ${fmtAbs(totalRootDepth2)}mm`,
-      useFndBlk ? `埋${fmtAbs(wallEmbedDepth)}+基礎${cbH}` : `埋${fmtAbs(wallEmbedDepth)}`,
-      `ベース${baseT}+砕石${gravT}`,
-    ];
-    rootLines.forEach((ln, i) => ctx.fillText(ln, dimX+4, (dimY1+dimY2)/2 - 9 + i*11));
-
-    // ── GL境界強調線（断面全幅） ──
-    const glY = toY(own);
-    ctx.strokeStyle = '#3ddc9788'; ctx.lineWidth = 1; ctx.setLineDash([6,3]);
-    ctx.beginPath(); ctx.moveTo(PL, glY); ctx.lineTo(W-PR, glY); ctx.stroke();
-    ctx.setLineDash([]);
-
-    // ── 凡例 ──
-    if (useFndBlk) {
-      ctx.fillStyle = '#9d7cfc'; ctx.font = '10px JetBrains Mono'; ctx.textAlign = 'center';
-      ctx.fillText(`基礎ブロック 1段 (${cbH}mm)`, bx+bw/2, Math.min(toY(fndBlkBot), H-PB) + 13);
     }
   }
 
-  // Level lines
-  const drawLv = (v, label, col, lw, dash) => {
-    if (isNaN(v)) return;
-    const y = toY(v);
-    ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash(dash||[]);
-    ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W-PR, y); ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle = col; ctx.font = `bold 11px JetBrains Mono`; ctx.textAlign = 'left';
-    ctx.fillText(`▽ ${label}`, PL+5, y-4);
-    ctx.textAlign = 'right'; ctx.fillText((v>=0?'+':'')+v, W-PR-3, y-4);
-  };
-  if (!isNaN(road)) drawLv(road, '道路(側溝)', '#888', 1.5, [6,3]);
-  if (!isNaN(own))  drawLv(own,  '自敷地GL',  '#3ddc97', 2.5);
-  if (!isNaN(adj))  drawLv(adj,  '隣地レベル','#ffc853', 2, [4,2]);
-  if (!isNaN(top))  drawLv(top,  '計画天端',  '#4f8ef7', 2.5);
-
-  // Dimension arrow
-  if (!isNaN(own) && !isNaN(top)) {
-    const ax = PL-18, y1 = toY(top), y2 = toY(own);
-    ctx.strokeStyle = '#4f8ef7'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(ax,y1); ctx.lineTo(ax,y2);
-    ctx.moveTo(ax-4,y1+7); ctx.lineTo(ax,y1); ctx.lineTo(ax+4,y1+7);
-    ctx.moveTo(ax-4,y2-7); ctx.lineTo(ax,y2); ctx.lineTo(ax+4,y2-7);
-    ctx.stroke();
-    ctx.fillStyle='#4f8ef7'; ctx.font='10px JetBrains Mono'; ctx.textAlign='center';
-    ctx.save(); ctx.translate(ax-8,(y1+y2)/2); ctx.rotate(-Math.PI/2);
-    ctx.fillText(`${top-own}mm`,0,0); ctx.restore();
-  }
-
-  // Calc box
-  const calc = document.getElementById('sec-calc');
-  let rows = '';
-  const row = (l,v) => `<div class="rrow"><span class="rlabel">${l}</span><span class="rval">${v}</span></div>`;
-  if (!isNaN(own) && !isNaN(top) && top > own) {
-    const useFndBlk2  = document.getElementById('sec-fnd-blk')?.value !== '0';
-    const baseT2      = parseLevel(document.getElementById('sec-base')?.value)   || 150;
-    const gravT2      = parseLevel(document.getElementById('sec-gravel')?.value) || 50;
-    const h           = top - own;
-    const wallSegs2   = Math.ceil(h / cbH);
-    const lastBot2    = top - wallSegs2 * cbH;
-    const embedDepth  = own - lastBot2;
-    const fndBlkD     = useFndBlk2 ? cbH : 0;
-    const totalRoot   = embedDepth + fndBlkD + baseT2 + gravT2;
-    const jis2        = getJIS(h, ret);
-    rows += row('天端→GL 高さ', `${h} mm`);
-    rows += row('壁ブロック段数', `<strong style="color:var(--accent);">${wallSegs2} 段</strong>`);
-    rows += row('最下段 見え高さ', `${h - (wallSegs2-1)*cbH} mm`);
-    rows += row('最下段 GL埋まり', `${fmtAbs(embedDepth)} mm`);
-    rows += '<div style="height:1px;background:var(--border);margin:4px 0;"></div>';
-    rows += row('基礎ブロック', useFndBlk2 ? `<strong style="color:#9d7cfc;">${cbH}mm (1段)</strong>` : `<span style="color:var(--text-dim);">なし</span>`);
-    rows += row('ベースコンクリート', `${baseT2} mm`);
-    rows += row('砕石（路盤）', `${gravT2} mm`);
-    rows += '<div style="height:1px;background:var(--border);margin:4px 0;"></div>';
-    rows += row('掘削深さ合計', `<strong style="color:var(--green);">${fmtAbs(totalRoot)} mm</strong>${totalRoot < 300 ? ' <span class="badge badge-red">JIS 300mm未満</span>' : ' <span class="badge badge-green">JIS OK</span>'}`);
-    rows += row('JIS基準根入れ', `${jis2.depth} mm (${jis2.note})`);
-  }
-  if (!isNaN(own) && !isNaN(adj)) {
-    rows += '<div style="height:1px;background:var(--border);margin:4px 0;"></div>';
-    rows += row('土留め高さ', `${Math.max(0,adj-own)} mm`);
-    if (!isNaN(top) && top > own) {
-      const eP = Math.max(0, adj-own), aP = Math.max(0, top-Math.max(own,adj));
-      rows += row('土留め部', `約${Math.ceil(eP/cbH)}段 🟤`);
-      rows += row('地上部', `約${Math.ceil(aP/cbH)}段 🔵`);
+  const keyLevs = [
+    { lv: lvTop,    py: yTop,    color: '#74b9ff', label: lvTop.toFixed(3) + 'm' },
+    { lv: lvGL,     py: yGL,     color: '#f1c40f', label: lvGL.toFixed(3) + 'm' },
+    { lv: lvBlkBot, py: yBlkBot, color: '#e67e22', label: lvBlkBot.toFixed(3) + 'm' },
+    { lv: lvBasBot, py: yBasBot, color: '#7f8c8d', label: lvBasBot.toFixed(3) + 'm' },
+    { lv: lvStnBot, py: yStnBot, color: '#5d8a60', label: lvStnBot.toFixed(3) + 'm' },
+  ];
+  const shown = [];
+  keyLevs.forEach(k => {
+    if (shown.every(s => Math.abs(s.py - k.py) > 14)) {
+      shown.push(k);
+      out += `<text x="${rulerX - 13}" y="${k.py + 3.5}" fill="${k.color}" font-size="9.5" font-family="monospace" font-weight="bold" text-anchor="end">${k.label}</text>`;
+      out += `<line x1="${rulerX - 13}" y1="${k.py}" x2="${rulerX}" y2="${k.py}" stroke="${k.color}" stroke-width="1.5"/>`;
     }
+  });
+
+  // 地上ブロック
+  for (let i = 0; i < normalSteps; i++) {
+    const ly = lvTop - i * pitch;
+    const y1 = lv2y(ly), y2 = lv2y(ly - pitch);
+    out += `<rect x="${bx0}" y="${y1}" width="${BLK_W}" height="${y2-y1-1}" fill="${i===0?'#145a32':'#1e8449'}" stroke="#2ecc71" stroke-width="1" rx="1"/>`;
+    if (y2 - y1 > 16) out += `<text x="${cx}" y="${(y1+y2)/2+4}" fill="#a9dfbf" font-size="10" font-family="sans-serif" text-anchor="middle">CB ${normalSteps-i}段</text>`;
   }
-  calc.innerHTML = rows || '<span style="color:var(--text-dim);">入力してください</span>';
+  // 基礎段（充填）
+  for (let i = 0; i < base_steps; i++) {
+    const ly = lvTop - (normalSteps + i) * pitch;
+    const y1 = lv2y(ly), y2 = lv2y(ly - pitch);
+    out += `<rect x="${bx0}" y="${y1}" width="${BLK_W}" height="${y2-y1-1}" fill="#1a5276" stroke="#2e86c1" stroke-width="1.5" rx="1"/>`;
+    if (y2 - y1 > 16) out += `<text x="${cx}" y="${(y1+y2)/2+4}" fill="#aed6f1" font-size="10" font-family="sans-serif" text-anchor="middle">基礎段 ${base_steps-i}段</text>`;
+  }
+  // 根入れ部分ハッチング枠
+  if (blkBotLevel < lvGL - 0.001) {
+    const y1 = lv2y(lvGL);
+    const y2 = lv2y(blkBotLevel);
+    out += `<rect x="${bx0}" y="${y1}" width="${BLK_W}" height="${y2-y1}" fill="none" stroke="#e67e22" stroke-width="2" stroke-dasharray="4,3"/>`;
+    const midY = (y1 + y2) / 2;
+    const labelX = bx0 - 16;
+    out += `<line x1="${labelX}" y1="${midY}" x2="${bx0-2}" y2="${midY}" stroke="#e67e22" stroke-width="1.2"/>`;
+    out += `<rect x="${labelX-58}" y="${midY-9}" width="58" height="18" fill="#0d141b" rx="2"/>`;
+    out += `<text x="${labelX-4}" y="${midY+4}" fill="#e67e22" font-size="10" font-family="sans-serif" text-anchor="end">根入れ部分</text>`;
+  }
+  // 基礎コンクリート
+  out += `<rect x="${bx0-8}" y="${yBlkBot}" width="${BLK_W+16}" height="${yBasBot-yBlkBot}" fill="#1c2833" stroke="#7f8c8d" stroke-width="1.5" rx="2"/>`;
+  if (yBasBot - yBlkBot > 14) out += `<text x="${cx}" y="${(yBlkBot+yBasBot)/2+4}" fill="#aab7b8" font-size="10" font-family="sans-serif" text-anchor="middle">基礎コンクリート ${(base_t*1000).toFixed(0)}mm</text>`;
+  // 砕石
+  if (stone_t > 0) {
+    out += `<rect x="${bx0-8}" y="${yBasBot}" width="${BLK_W+16}" height="${yStnBot-yBasBot}" fill="#2e4053" stroke="#5d6d7e" stroke-width="1.5" rx="2"/>`;
+    if (yStnBot - yBasBot > 12) out += `<text x="${cx}" y="${(yBasBot+yStnBot)/2+4}" fill="#85929e" font-size="10" font-family="sans-serif" text-anchor="middle">砕石 ${(stone_t*1000).toFixed(0)}mm</text>`;
+  }
+  // 天端ライン
+  out += `<line x1="${bx0-10}" y1="${yTop}" x2="${bx1+10}" y2="${yTop}" stroke="#74b9ff" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <text x="${bx1+14}" y="${yTop-3}" fill="#74b9ff" font-size="10" font-family="sans-serif">天端</text>`;
+  // 設計GLライン
+  out += `<line x1="${bx0-10}" y1="${yGL}" x2="${bx1+10}" y2="${yGL}" stroke="#f1c40f" stroke-width="2" stroke-dasharray="6,3"/>`;
+  out += hatch(bx0 - 30, yGL, BLK_W + 60, 8);
+  out += `<rect x="${bx1+82}" y="${yGL-9}" width="48" height="18" fill="#0d141b" stroke="#f1c40f" stroke-width="0.8" rx="2"/>`;
+  out += `<text x="${bx1+87}" y="${yGL+4}" fill="#f1c40f" font-size="10" font-family="sans-serif">設計GL</text>`;
+  // 掘削底ライン
+  out += `<line x1="${bx0-10}" y1="${yStnBot}" x2="${bx1+10}" y2="${yStnBot}" stroke="#5d8a60" stroke-width="1.5"/>`;
+  out += hatch(bx0 - 30, yStnBot, BLK_W + 60, 8);
+  out += `<rect x="${bx0-8}" y="${yStnBot+6}" width="46" height="17" fill="#0d141b" stroke="#5d8a60" stroke-width="0.8" rx="2"/>
+  <text x="${bx0-3}" y="${yStnBot+18}" fill="#5d8a60" font-size="10" font-family="sans-serif">掘削底</text>`;
+  // 右側寸法線
+  if (aboveSteps > 0) out += dimR(yTop, yGL, `地上 ${qbFmt(lvTop-lvGL,3)}m`, '#2ecc71');
+  out += dimR(yGL, yStnBot, `埋設計 ${qbFmt(embedTotal,3)}m`, embedColor);
+  // OK/NGラベル
+  out += `<text x="${cx}" y="${yStnBot+34}" fill="${embedColor}" font-size="12" font-family="sans-serif" font-weight="bold" text-anchor="middle">埋設計 ${qbFmt(embedTotal,3)}m ${embedOK ? '✔ 0.35m OK' : '✘ 0.35m 不足'}</text>`;
+  // 凡例
+  const lgX = bx1 + 142, lgY = yTop;
+  out += `<rect x="${lgX}" y="${lgY}" width="120" height="82" rx="4" fill="rgba(0,0,0,0.5)" stroke="#555" stroke-width="1"/>
+  <rect x="${lgX+6}" y="${lgY+8}"  width="10" height="9" fill="#1e8449" stroke="#2ecc71"/>
+  <text x="${lgX+20}" y="${lgY+17}" fill="#a9dfbf"  font-size="10" font-family="sans-serif">地上ブロック</text>
+  <rect x="${lgX+6}" y="${lgY+22}" width="10" height="9" fill="#1a5276" stroke="#2e86c1"/>
+  <text x="${lgX+20}" y="${lgY+31}" fill="#aed6f1"  font-size="10" font-family="sans-serif">基礎段（充填）</text>
+  <rect x="${lgX+6}" y="${lgY+36}" width="10" height="9" fill="#6e2f0a" stroke="#e67e22"/>
+  <text x="${lgX+20}" y="${lgY+45}" fill="#fad7a0"  font-size="10" font-family="sans-serif">根入れブロック</text>
+  <rect x="${lgX+6}" y="${lgY+50}" width="10" height="9" fill="#1c2833" stroke="#7f8c8d"/>
+  <text x="${lgX+20}" y="${lgY+59}" fill="#aab7b8"  font-size="10" font-family="sans-serif">基礎コンクリート</text>
+  <rect x="${lgX+6}" y="${lgY+64}" width="10" height="9" fill="#2e4053" stroke="#5d6d7e"/>
+  <text x="${lgX+20}" y="${lgY+73}" fill="#85929e"  font-size="10" font-family="sans-serif">砕石</text>`;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = out;
 }
 
 // ============================================================
@@ -7594,14 +8204,17 @@ function setAStatus(m) { const el = document.getElementById('annot-status'); if 
 
 /* File load */
 async function annotLoad(inp) {
-  const f = inp.files[0]; if (!f) return;
+  if (!inp.files.length) return;
+  const f = await pickOneFile(inp.files);
   inp.value = '';
+  if (!f) return;
   setAStatus('読み込み中...');
   try {
     if (f.type === 'application/pdf') {
       const ab = await f.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
-      const page = await pdf.getPage(1);
+      const pageNum = await pickPdfPage(pdf);
+      const page = await pdf.getPage(pageNum);
       const baseVp = page.getViewport({ scale: 1.0 });
       const longSide = Math.max(baseVp.width, baseVp.height);
       const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
@@ -7957,8 +8570,8 @@ function setUnitMode(mode) {
 
   // 入力プレースホルダーを更新
   const plMap = {
-    'm':  { 'sp-diff':'例：10.35 / 9.85', 'pl-own':'例：10.10', 'pl-adj':'例：10.40', 'pl-top':'例：10.80', 'pl-road':'例：9.95', 'sl-from':'例：10.20', 'sl-to':'例：9.95', 'sec-own':'例：10.10', 'sec-adj':'例：10.40', 'sec-top':'例：10.80', 'sec-road':'例：9.95' },
-    'mm': { 'sp-diff':'例：+200 / -150', 'pl-own':'例：+100', 'pl-adj':'例：+400', 'pl-top':'例：+800', 'pl-road':'例：-50', 'sl-from':'例：0 / +100', 'sl-to':'例：-100 / +50', 'sec-own':'例：100', 'sec-adj':'例：400', 'sec-top':'例：800', 'sec-road':'例：-50' },
+    'm':  { 'sp-diff':'例：10.35 / 9.85', 'pl-own':'例：10.10', 'pl-adj':'例：10.40', 'pl-top':'例：10.80', 'pl-road':'例：9.95', 'sl-from':'例：10.20', 'sl-to':'例：9.95' },
+    'mm': { 'sp-diff':'例：+200 / -150', 'pl-own':'例：+100', 'pl-adj':'例：+400', 'pl-top':'例：+800', 'pl-road':'例：-50', 'sl-from':'例：0 / +100', 'sl-to':'例：-100 / +50' },
   };
   Object.entries(plMap[mode] || {}).forEach(([id, ph]) => {
     const el = document.getElementById(id);
@@ -8627,7 +9240,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initGroupSwatches();
   initCalcCanvas();
   renderSP();
-  drawSection();
+  runStepCalc();
   // Switch to annot view initializes canvas too
   document.querySelector('[data-view="annot"]').addEventListener('click', () => {
     setTimeout(() => { initAnnot(); annotRedraw(); }, 50);
@@ -8650,7 +9263,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // 複数パーツ（独立した枠）をキャンバス内に作成し、個別に移動・計測できる
 // ══════════════════════════════════════════════════════════════
 const TL = {
-  parts: [],          // { id, name, points, closed, tileW,tileH,joint,pattern,gridAngle,offsetX,offsetY,pricePiece,priceCraft,cutMode,wasteRate, result, measurements }
+  parts: [],          // { id, seq, name, points, closed, tileW,tileH,joint,pattern,gridAngle,offsetX,offsetY,pricePiece,priceCraft,cutMode,wasteRate, result, measurements }
   activeIndex: -1,
   mode: 'click',       // 'click' | 'num' | 'move' | 'measure'
   scale: 1,            // px per mm
@@ -8660,6 +9273,8 @@ const TL = {
   snapEnabled: true,
   dragging: false, dragPartIndex: -1, dragStartMM: null, dragOrigPoints: null,
   measureStart: null,  // 計測モードで1点目をクリックした後の座標(mm)
+  partSeqCounter: 0,   // パーツ名の自動採番用（削除・並べ替えしても番号がズレない永続カウンタ）
+  dragListSrcIdx: null, // パーツ一覧のドラッグ並び替え用
 };
 
 function tlBlankPartSettings() {
@@ -8686,6 +9301,7 @@ function tlNewPart() {
   } : tlBlankPartSettings();
   const part = {
     id: Date.now() + Math.random(),
+    seq: ++TL.partSeqCounter,  // 削除・並べ替えでも変わらない固有の番号
     name: '',
     points: [],
     closed: false,
@@ -9341,13 +9957,20 @@ function tlRenderPartsList() {
   }
   wrap.innerHTML = TL.parts.map((p, i) => {
     const isActive = i === TL.activeIndex;
-    const label = p.name || `パーツ${i+1}`;
+    const label = p.name || `パーツ${p.seq}`;
     const status = !p.closed ? '<span style="color:#ffe066;">描画中</span>'
       : p.result ? `${p.result.totalConsumed}枚 / ¥${(p.result.matCost+p.result.craftCost).toLocaleString()}`
       : '<span style="color:var(--text-dim);">未計算</span>';
     return `
-      <div onclick="tlSelectPart(${i})" class="flex items-center justify-between px-2 py-1.5 rounded cursor-pointer text-xs"
+      <div draggable="true"
+        ondragstart="tlPartDragStart(${i}, event)"
+        ondragover="tlPartDragOver(${i}, event)"
+        ondragleave="tlPartDragLeave(event)"
+        ondrop="tlPartDrop(${i}, event)"
+        ondragend="tlPartDragEnd(event)"
+        onclick="tlSelectPart(${i})" class="tl-part-row flex items-center justify-between px-2 py-1.5 rounded cursor-pointer text-xs"
         style="background:${isActive ? 'rgba(79,142,247,0.2)' : 'transparent'};border:1px solid ${isActive ? 'var(--accent)' : 'transparent'};">
+        <i class="fas fa-grip-vertical text-gray-600 mr-1.5 flex-shrink-0" style="cursor:grab;" title="ドラッグで並べ替え"></i>
         <div class="flex-1 min-w-0">
           <div class="truncate font-medium" style="color:${isActive ? '#fff' : '#d5d9e8'};">${label}</div>
           <div class="text-gray-500" style="font-size:10px;">${status}</div>
@@ -9355,6 +9978,48 @@ function tlRenderPartsList() {
         <button onclick="tlDeletePart(${i}, event)" class="text-gray-500 hover:text-red-400 px-1.5 flex-shrink-0"><i class="fas fa-trash-alt"></i></button>
       </div>`;
   }).join('');
+}
+
+// ── パーツ一覧のドラッグ並び替え ──
+function tlPartDragStart(idx, ev) {
+  TL.dragListSrcIdx = idx;
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', String(idx));
+  ev.currentTarget.classList.add('dragging');
+}
+function tlPartDragOver(idx, ev) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.style.borderTop = '2px solid var(--accent)';
+}
+function tlPartDragLeave(ev) {
+  ev.currentTarget.style.borderTop = '';
+}
+function tlPartDrop(idx, ev) {
+  ev.preventDefault();
+  ev.currentTarget.style.borderTop = '';
+  const srcIdx = TL.dragListSrcIdx;
+  TL.dragListSrcIdx = null;
+  if (srcIdx === null || srcIdx === idx) return;
+
+  const moved = TL.parts.splice(srcIdx, 1)[0];
+  TL.parts.splice(idx, 0, moved);
+
+  // アクティブインデックスの追跡調整
+  if (TL.activeIndex === srcIdx) {
+    TL.activeIndex = idx;
+  } else if (srcIdx < TL.activeIndex && idx >= TL.activeIndex) {
+    TL.activeIndex--;
+  } else if (srcIdx > TL.activeIndex && idx <= TL.activeIndex) {
+    TL.activeIndex++;
+  }
+
+  tlRenderPartsList();
+  tlRender();
+}
+function tlPartDragEnd(ev) {
+  TL.dragListSrcIdx = null;
+  document.querySelectorAll('.tl-part-row').forEach(el => el.style.borderTop = '');
 }
 
 // ── 描画 ──
@@ -9523,8 +10188,8 @@ function tlRender() {
 function tlSendAllToSummary() {
   const withResult = TL.parts.filter(p => p.result);
   if (withResult.length === 0) { alert('計算済みのパーツがありません。枠を閉じてタイルを配置してください'); return; }
-  withResult.forEach((p, i) => {
-    const name = p.name || `タイル敷き詰め（パーツ${TL.parts.indexOf(p)+1}）`;
+  withResult.forEach((p) => {
+    const name = p.name || `タイル敷き詰め（パーツ${p.seq}）`;
     addSummaryRow({ name, sell: 0, mat: p.result.matCost, craft: p.result.craftCost, color: '#ffb454' });
   });
   closeTileLayout();
