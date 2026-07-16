@@ -25,8 +25,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;overflow:hidden;background:var(-
 /* Main */
 #main{flex:1;position:relative;overflow:hidden;}
 /* Props bar */
-#pbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--w);border-radius:12px;box-shadow:var(--sh);padding:7px 14px;display:flex;align-items:center;gap:9px;z-index:90;border:1px solid var(--br);min-height:48px;pointer-events:all;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;max-width:calc(100vw - 80px);}
-#pbar::-webkit-scrollbar{display:none;}
+#pbar{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--w);border-radius:12px;box-shadow:var(--sh);padding:7px 14px;display:flex;align-items:center;gap:7px 9px;z-index:90;border:1px solid var(--br);min-height:48px;pointer-events:all;flex-wrap:wrap;justify-content:center;max-width:min(calc(100vw - 76px),980px);row-gap:6px;}
+.shape-popover{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);background:var(--w);border:1px solid var(--br);border-radius:10px;box-shadow:var(--sh);padding:8px;display:grid;grid-template-columns:repeat(8,28px);gap:3px;z-index:95;max-width:270px;}
 .p-lbl{font-size:10.5px;font-weight:600;color:#bbb;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap;}
 .p-sep{width:1px;height:24px;background:var(--br);flex-shrink:0;}
 .cs{width:20px;height:20px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;transition:all .15s;flex-shrink:0;}
@@ -626,6 +626,25 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.addEventListener('paste',onPaste);
   document.addEventListener('keydown',onKey);
   document.addEventListener('click',e=>{if(!e.target.closest('#ctx'))hideCtx();});
+  // 編集中のテキスト要素(テキストボックス/付箋)以外の場所がクリックされたら、
+  // 確実に編集を終了し文字選択も解除する（他要素のstopPropagation()に影響されないよう
+  // キャプチャフェーズで最優先に実行する）
+  document.addEventListener('mousedown',e=>{
+    const ae=document.activeElement;
+    if(!ae||ae===document.body) return;
+    const isEditableActive = ae.isContentEditable || ae.tagName==='TEXTAREA' || ae.tagName==='INPUT';
+    if(!isEditableActive) return;
+    if(ae.contains(e.target)) return; // 編集中の自分自身内のクリックは無視
+    if(e.target.closest && e.target.closest('#ftb,#pbar,#fcp,#ctx')) return; // ツールバー等の操作は無視
+    const activeTxb=ae.closest?ae.closest('.txb.active-edit'):null;
+    if(activeTxb&&activeTxb._endEdit){
+      activeTxb._endEdit();
+    } else {
+      ae.blur();
+    }
+    const sel=window.getSelection();
+    if(sel) sel.removeAllRanges();
+  },true);
   document.getElementById('ci').addEventListener('input',e=>{S.color=e.target.value;renderPbar();});
   setTool('select');
   // 起動時にautoSaveから復元（復元できた場合はそのまま、できなければ空ボード）
@@ -964,6 +983,8 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
       getTxtEl().style.pointerEvents='none';
       saveHist();
     });
+    getTxtEl().addEventListener('mouseup',()=>{if(el.classList.contains('editing')){saveRange();showFtb(getTxtEl(),'shape');}});
+    getTxtEl().addEventListener('keyup',()=>{if(el.classList.contains('editing'))saveRange();});
     // Resize handle
     const rh=document.createElement('div');rh.className='sh-resize';el.appendChild(rh);
     rh.addEventListener('mousedown',e=>{
@@ -989,6 +1010,7 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
       const range=document.createRange(); range.selectNodeContents(txtEl);
       range.collapse(false);
       const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      showFtb(txtEl,'shape');
     });
     makeDrag(el,rx,ry);elLayer.appendChild(el);addConnPts(el,id);
     // Smart-add buttons
@@ -1018,10 +1040,7 @@ var updElPos = function(){
       el.style.transform=`rotate(${rot}deg)`;
     }
     if(d.type==='tx'){
-      const txEl=el;
-      txEl.style.fontSize=((d.fs||16)*S.zoom)+'px';
-      const ta=txEl.querySelector('.txb-ta');
-      if(ta)ta.style.fontSize=((d.fs||16)*S.zoom)+'px';
+      el.style.fontSize=((d.fs||16)*S.zoom)+'px';
     }
     if(d.type==='shape'&&d.isLine){
       positionLineHandles(el,d);
@@ -1375,6 +1394,19 @@ function adjZoom(d){const nz=Math.max(0.06,Math.min(6,S.zoom+d));const cx=main.c
 function resetView(){S.zoom=1;S.px=0;S.py=0;document.getElementById('zlv').textContent='100%';drawGrid();redrawPen();updElPos();}
 
 // ─── PROPS BAR ───────────────────────────────────────
+function toggleShapePopover(){
+  const pop=document.getElementById('shape-popover');
+  if(!pop)return;
+  pop.style.display=(pop.style.display==='none'||!pop.style.display)?'grid':'none';
+}
+function closeShapePopover(){
+  const pop=document.getElementById('shape-popover');
+  if(pop)pop.style.display='none';
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#shape-popover')&&!e.target.closest('[onclick*="toggleShapePopover"]'))closeShapePopover();
+});
+
 function renderPbar(){
   // 要素が選択中なら常にそのプロパティバーを表示
   if(S.selId){renderSelPbar(S.selId);return;}
@@ -1428,7 +1460,16 @@ function renderPbar(){
       {id:'multidoc', l:'複数書類',               svg:'<path d="M5,5 L19,5 L19,14 Q15,17 12,14 Q9,11 5,14 Z"/><path d="M3,3 L19,3"/><path d="M1,1 L19,1"/>'},
       {id:'note',     l:'注釈（折り目）',         svg:'<path d="M8,3 L21,3 L21,21 L3,21 L3,10 Z"/><path d="M3,10 L8,10 L8,3"/>'},
     ];
-    h+=`<span class="p-lbl">図形</span><div style="display:grid;grid-template-columns:repeat(8,28px);gap:3px;flex-shrink:0">`;shapes.forEach(s=>{h+=`<button class="shb${S.shape===s.id?' on':''}" onclick="setSH('${s.id}')" title="${s.l}"><svg viewBox="0 0 24 24">${s.svg}</svg></button>`;});h+=`</div><div class="p-sep"></div>`;
+    // 図形の種類は数が多いため、ワンクリックで開くポップオーバーに折りたたむ
+    {
+      const cur=shapes.find(s=>s.id===S.shape)||shapes[0];
+      h+=`<span class="p-lbl">図形</span>`;
+      h+=`<div style="position:relative;flex-shrink:0">`;
+      h+=`<button class="shb on" style="width:40px" onclick="event.stopPropagation();toggleShapePopover()" title="図形を選択"><svg viewBox="0 0 24 24">${cur.svg}</svg><svg viewBox="0 0 24 24" style="width:9px;height:9px;position:absolute;right:1px;bottom:1px;opacity:.55"><polyline points="5,8 12,15 19,8" fill="none" stroke="currentColor" stroke-width="2.5"/></svg></button>`;
+      h+=`<div id="shape-popover" class="shape-popover" style="display:none" onmousedown="event.stopPropagation()">`;
+      shapes.forEach(s=>{h+=`<button class="shb${S.shape===s.id?' on':''}" onclick="setSH('${s.id}');closeShapePopover()" title="${s.l}"><svg viewBox="0 0 24 24">${s.svg}</svg></button>`;});
+      h+=`</div></div><div class="p-sep"></div>`;
+    }
     h+=colRow()+`<div class="p-sep"></div>`+swRowShape();
     h+=`<div class="p-sep"></div><span class="p-lbl">塗り</span><div style="display:flex;gap:5px;align-items:center">`;
     h+=`<div class="cs${!S.shFill?' on':''}" style="background:#fff;border:1.5px solid #d0d0d0;display:flex;align-items:center;justify-content:center;" onclick="clearPbarFill()" title="塗りなし"><svg width="12" height="12" viewBox="0 0 12 12" style="pointer-events:none;display:block;flex-shrink:0"><line x1="1" y1="1" x2="11" y2="11" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/><line x1="11" y1="1" x2="1" y2="11" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/></svg></div>`;
@@ -1517,7 +1558,6 @@ function selSetTextAlign(align){
   const el=document.getElementById(id);
   if(el){
     el.style.textAlign=align;
-    const ta=el.querySelector('[contenteditable],.txb-ta');if(ta)ta.style.textAlign=align;
   }
   saveHist(); renderSelPbar(id);
 }
@@ -1649,14 +1689,20 @@ function renderSelPbar(id){
   // 色ドット列（シンプルな関数名で呼び出し）
   const colRow=(cur,fnName)=>{
     let r=`<span class="p-lbl">色</span><div style="display:flex;gap:5px;align-items:center">`;
-    PCOLS2.forEach(c=>{r+=`<div class="cs${cur===c?' on':''}" style="background:${c};${c==='#ffffff'?'border:1px solid #d0d0d0;':''}" onclick="${fnName}('${c}')"></div>`;});
-    r+=`<div class="cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onclick="openSelCP('${fnName}')" title="カスタム"></div></div>`;
+    PCOLS2.forEach(c=>{r+=`<div class="cs${cur===c?' on':''}" style="background:${c};${c==='#ffffff'?'border:1px solid #d0d0d0;':''}" onmousedown="event.preventDefault()" onclick="${fnName}('${c}')"></div>`;});
+    r+=`<div class="cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onmousedown="event.preventDefault()" onclick="openSelCP('${fnName}')" title="カスタム"></div></div>`;
     return r;
   };
 
   if(d.type==='shape'&&!d.isLine){
     h+=`<span class="p-lbl">図形</span><div class="p-sep"></div>`;
     h+=colRow(d.color||'#1a1a1a','selSetColor');
+    h+=`<div class="p-sep"></div><span class="p-lbl">文字色</span><div style="display:flex;gap:5px;align-items:center">`;
+    PCOLS2.forEach(c=>{
+      const tc=d.labelColor||'#1a1a1a';
+      h+=`<div class="cs${tc===c?' on':''}" style="background:${c};${c==='#ffffff'?'border:1px solid #d0d0d0;':''}" onmousedown="event.preventDefault()" onclick="selSetLabelColor('${c}')"></div>`;
+    });
+    h+=`<div class="cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onmousedown="event.preventDefault()" onclick="openSelCP('selSetLabelColor')" title="カスタム"></div></div>`;
     h+=`<div class="p-sep"></div>`;
     h+=`<span class="p-lbl">太さ</span>`;
     [{v:0,l:'なし'},{v:1,l:'細'},{v:2,l:'普'},{v:3,l:'太'},{v:5,l:'極'}].forEach(s=>{
@@ -1673,12 +1719,6 @@ function renderSelPbar(id){
     h+=_fszSel(d.labelFs||13,'selSetLabelFs','62px');
     h+=_fwSel(d.labelFw||'400','selSetLabelFw','68px');
     h+=_fontSel(d.labelFont||'sans','selSetFont');
-    h+=`<div class="p-sep"></div><span class="p-lbl">文字色</span><div style="display:flex;gap:5px;align-items:center">`;
-    PCOLS2.forEach(c=>{
-      const tc=d.labelColor||'#1a1a1a';
-      h+=`<div class="cs${tc===c?' on':''}" style="background:${c};${c==='#ffffff'?'border:1px solid #d0d0d0;':''}" onclick="selSetLabelColor('${c}')"></div>`;
-    });
-    h+=`<div class="cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onclick="openSelCP('selSetLabelColor')" title="カスタム"></div></div>`;
   } else if(d.type==='shape'&&d.isLine){
     h+=`<span class="p-lbl">線</span><div class="p-sep"></div>`;
     h+=colRow(d.color||'#1a1a1a','selSetColor');
@@ -1756,6 +1796,12 @@ function initFCPOutsideClose(){/* no-op: handled in onMD */}
 // ── 選択要素プロパティ変更関数（S.selIdを使用）──
 function selSetColor(c){
   const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
+  if(d.type==='tx'&&_hasActiveTextSelection()){
+    // 編集中に文字が選択されている場合は、選択範囲だけに色を適用（ftbと同じ挙動）
+    ftbSetCol(c);
+    renderSelPbar(id);
+    return;
+  }
   d.color=c;
   if(d.type==='shape'&&!d.isLine){
     const el=document.getElementById(id);
@@ -1766,8 +1812,6 @@ function selSetColor(c){
     const el=document.getElementById(id);
     if(el){
       el.style.color=c;
-      const ta=el.querySelector('.txb-ta');if(ta)ta.style.color=c;
-      const disp=el.querySelector('.txb-display');if(disp)disp.style.color=c;
     }
   } else if(d.type==='connector'){
     renderConnector(id);
@@ -1826,6 +1870,11 @@ function selSetFillAlpha(a){
 function selSetFillAlphaCommit(){saveHist();renderSelPbar(S.selId);}
 function selSetLabelFs(s){
   const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
+  if(_hasActiveTextSelection()){
+    ftbSetFs(s);
+    renderSelPbar(id);
+    return;
+  }
   d.labelFs=s;
   const el=document.getElementById(id);
   if(el){const t=getLblText(el);if(t)t.style.fontSize=(s*S.zoom)+'px';}
@@ -1833,6 +1882,12 @@ function selSetLabelFs(s){
 }
 function selSetLabelColor(c){
   const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
+  if(_hasActiveTextSelection()){
+    // 編集中に文字が選択されている場合は、選択範囲だけに色を適用（ftbと同じ挙動）
+    ftbSetCol(c);
+    renderSelPbar(id);
+    return;
+  }
   d.labelColor=c;
   const el=document.getElementById(id);
   if(el){const t=getLblText(el);if(t)t.style.color=c;}
@@ -1840,11 +1895,15 @@ function selSetLabelColor(c){
 }
 function selSetTxFs(s){
   const id=S.selId; const d=S.elems.find(e=>e.id===id); if(!d)return;
+  if(_hasActiveTextSelection()){
+    ftbSetFs(s);
+    renderSelPbar(id);
+    return;
+  }
   d.fs=s;
   const el=document.getElementById(id);
   if(el){
     el.style.fontSize=(s*S.zoom)+'px';
-    const ta=el.querySelector('.txb-ta');if(ta)ta.style.fontSize=(s*S.zoom)+'px';
   }
   saveHist(); renderSelPbar(id);
 }
@@ -1856,8 +1915,6 @@ function selSetFont(fId){
     const el=document.getElementById(id);
     if(el){
       el.style.fontFamily=ff;
-      const ta=el.querySelector('[contenteditable],.txb-ta');if(ta)ta.style.fontFamily=ff;
-      const disp=el.querySelector('.txb-display');if(disp)disp.style.fontFamily=ff;
     }
   } else if(d.type==='shape'){
     d.labelFont=fId;
@@ -1883,7 +1940,6 @@ function selSetTxFw(fw){
   const el=document.getElementById(id);
   if(el){
     el.style.fontWeight=fw;
-    const ta=el.querySelector('[contenteditable],.txb-ta');if(ta)ta.style.fontWeight=fw;
   }
   saveHist(); renderSelPbar(id);
 }
@@ -1916,7 +1972,12 @@ function addSN(bx,by,opts={}){
   el.style.backgroundColor=col;el.style.width=(w*S.zoom)+'px';el.style.height=(h*S.zoom)+'px';
   el.style.transform=`rotate(${rot}deg)`;el.style.zIndex=++zc;
   const dots=SCOLS.map(c=>`<div class="sc" style="background:${c}" onclick="chSC('${id}','${c}')"></div>`).join('');
-  const phText='ここに入力...'; const initHtml=opts.text?(opts.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')):''; el.innerHTML=`<div class="sn-hd"><div class="sc-row">${dots}</div><button class="sn-del" onclick="delElem('${id}')">✕</button></div><div class="sn-ta" contenteditable="true" data-ph="${phText}">${initHtml}</div>`;
+  const phText='ここに入力...';
+  // opts.text は前回保存時の innerHTML（太字・色などのリッチテキストを含む）をそのまま復元する。
+  // 新規作成時は空文字。以前は毎回HTMLエスケープしていたため、Undo/再読込のたびに
+  // 太字・色などの書式が失われる不具合があったため、直接反映する方式に変更。
+  const initHtml=opts.text||'';
+  el.innerHTML=`<div class="sn-hd"><div class="sc-row">${dots}</div><button class="sn-del" onclick="delElem('${id}')">✕</button></div><div class="sn-ta" contenteditable="true" data-ph="${phText}">${initHtml}</div>`;
   const sc=b2s(bx,by);el.style.left=sc.x+'px';el.style.top=sc.y+'px';
   makeDrag(el,bx,by);elLayer.appendChild(el);addConnPts(el,id);
   S.elems.push({id,type:'sn',bx,by,bw:w,bh:h,col,text:opts.text||'',w,h,_rot:rot});
@@ -1957,83 +2018,70 @@ function addTxb(bx,by,opts={}){
   const wrap=document.createElement('div');
   wrap.className='txb';wrap.id=id;
   wrap.setAttribute('data-ph','テキストを入力...');
+  wrap.contentEditable='false'; // 初期はロック。ダブルクリックで編集開始
+  wrap.spellcheck=false;
   const fs=opts.fs||S.fs;
   const col=opts.color||S.color;
-  const ff=fontCss(opts.font||S.font||'sans');
+  const font=opts.font||S.font||'sans';
+  const ff=fontCss(font);
   const fw=opts.fw||(opts.bold?'700':'400')||S.fw||'400';
+  const textAlign=opts.textAlign||'left';
   wrap.style.fontSize=(fs*S.zoom)+'px';
   wrap.style.color=col;
   wrap.style.fontFamily=ff;
   wrap.style.fontWeight=fw;
+  wrap.style.textAlign=textAlign;
   wrap.style.zIndex=++zc;
 
-  // 表示用テキストspanと入力用textarea
-  const display=document.createElement('span');
-  display.className='txb-display';
-  display.style.cssText='display:block;min-width:80px;min-height:1.4em;white-space:pre-wrap;word-break:break-word;';
-  if(opts.text)display.textContent=opts.text;
-
-  const ta=document.createElement('textarea');
-  ta.className='txb-ta';
-  ta.style.cssText=`display:none;position:absolute;inset:0;width:100%;height:100%;min-width:100px;min-height:32px;border:none;outline:none;background:transparent;resize:none;font-family:${ff};font-size:${fs*S.zoom}px;color:${col};font-weight:${fw};line-height:1.4;padding:0;margin:0;overflow:hidden;`;
-  ta.value=opts.text||'';
-  ta.placeholder='テキストを入力...';
-
-  wrap.appendChild(display);
-  wrap.appendChild(ta);
+  // opts.text は前回保存時の innerHTML（リッチテキスト）をそのまま復元する。
+  // 新規作成時は空文字（ユーザーがそのままタイプできる）。
+  wrap.innerHTML=opts.text||'';
 
   const sc=b2s(bx,by);wrap.style.left=sc.x+'px';wrap.style.top=sc.y+'px';
   wrap.style.position='absolute';
 
-  // textarea自動高さ調整
-  const autoH=()=>{ta.style.height='auto';ta.style.height=(ta.scrollHeight||32)+'px';};
-
-  // 編集開始
+  // 編集開始（PowerPointのように、ダブルクリックでカーソルが入り部分選択で書式変更できる）
   function startEdit(){
-    wrap.classList.add('active-edit');
+    wrap.classList.add('active-edit','editing');
     wrap.style.pointerEvents='all';
-    display.style.visibility='hidden';
-    ta.style.display='block';
-    ta.style.fontSize=wrap.style.fontSize; // already zoom-corrected
-    ta.style.color=wrap.style.color;
-    ta.style.fontWeight=wrap.style.fontWeight;
-    autoH();
-    ta.focus();
-    ta.select();
-    showFtb(ta,'txb');
+    wrap.contentEditable='true';
+    wrap.focus();
+    const range=document.createRange();range.selectNodeContents(wrap);range.collapse(false);
+    const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+    showFtb(wrap,'txb');
   }
 
   // 編集終了
   function endEdit(){
     const d=S.elems.find(e=>e.id===id);
-    if(d){d.text=ta.value;d.fs=fs;}
-    display.textContent=ta.value;
-    display.style.visibility='';
-    ta.style.display='none';
-    wrap.classList.remove('active-edit');
+    if(d)d.text=wrap.innerHTML;
+    wrap.contentEditable='false';
+    wrap.classList.remove('active-edit','editing');
     wrap.style.pointerEvents='';
     saveHist();
     setTimeout(()=>{const f=document.getElementById('ftb');if(f&&!f.matches(':hover'))hideFtb();},150);
   }
 
-  ta.addEventListener('input',()=>{
-    autoH();
-    const d=S.elems.find(e=>e.id===id);if(d)d.text=ta.value;
+  wrap.addEventListener('input',()=>{
+    const d=S.elems.find(e=>e.id===id);if(d)d.text=wrap.innerHTML;
   });
-  ta.addEventListener('blur',ev=>{
+  wrap.addEventListener('mouseup',()=>{if(wrap.classList.contains('active-edit')){saveRange();showFtb(wrap,'txb');}});
+  wrap.addEventListener('keyup',()=>{if(wrap.classList.contains('active-edit'))saveRange();});
+  wrap.addEventListener('blur',ev=>{
+    if(!wrap.classList.contains('active-edit'))return;
     const ftb=document.getElementById('ftb');
     if(ftb&&ftb.contains(ev.relatedTarget))return;
     endEdit();
   });
-  ta.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){endEdit();}
-    // Enterはそのまま（改行OK）
+  wrap.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){e.preventDefault();wrap.blur();}
+    // Enterはそのまま（改行OK）。ショートカット誤爆防止のため上位へは伝播させない
+    if(wrap.classList.contains('active-edit'))e.stopPropagation();
   });
-  ta.addEventListener('mousedown',e=>e.stopPropagation());
-  ta.addEventListener('click',e=>e.stopPropagation());
+  wrap.addEventListener('mousedown',e=>{if(wrap.classList.contains('active-edit'))e.stopPropagation();});
 
   // ダブルクリックで編集開始
-  wrap.addEventListener('dblclick',e=>{e.stopPropagation();startEdit();});
+  wrap.addEventListener('dblclick',e=>{e.stopPropagation();if(!wrap.classList.contains('active-edit'))startEdit();});
   // sel-mode時クリックで選択＋pbar更新
   wrap.addEventListener('click',e=>{
     e.stopPropagation();
@@ -2048,7 +2096,7 @@ function addTxb(bx,by,opts={}){
   wrap._endEdit=endEdit;
 
   makeDrag(wrap,bx,by);elLayer.appendChild(wrap);addConnPts(wrap,id);
-  S.elems.push({id,type:'tx',bx,by,bw:120,bh:30,text:opts.text||'',fs,color:col,font:opts.font||S.font||'sans',fw});
+  S.elems.push({id,type:'tx',bx,by,bw:120,bh:30,text:opts.text||'',fs,color:col,font,fw,textAlign});
   return wrap;
 }
 
@@ -2300,7 +2348,7 @@ function _restoreSnap(snap){
       const newEl=document.getElementById(justAdded.id);
       if(newEl&&justAdded.id!==d.id){newEl.id=d.id;justAdded.id=d.id;}
     } else if(d.type==='tx'){
-      const el=addTxb(d.bx,d.by,{text:d.text,fs:d.fs,color:d.color,bold:d.bold});
+      const el=addTxb(d.bx,d.by,{text:d.text,fs:d.fs,color:d.color,font:d.font,fw:d.fw,textAlign:d.textAlign,_id:d.id});
       const justAdded=S.elems[S.elems.length-1];
       const newEl=document.getElementById(justAdded.id);
       if(newEl&&justAdded.id!==d.id){newEl.id=d.id;justAdded.id=d.id;}
@@ -2515,7 +2563,6 @@ function saveAsPNG(){
 .sn-hd{height:28px;padding:0 7px;display:flex;align-items:center;font-weight:600;font-size:12px;}
 .sn-ta{flex:1;padding:6px 10px;font-size:14px;line-height:1.6;word-break:break-word;white-space:pre-wrap;}
 .txb{line-height:1.4;padding:4px 6px;white-space:pre-wrap;word-break:break-word;}
-.txb-ta{display:none;}
 .is-line{pointer-events:none;} .is-line .line-svg-wrap{position:absolute;inset:0;}
 </style>`;
   const inner=_buildExportInner(ox,oy);
@@ -2617,7 +2664,7 @@ function loadFromJSON(ev){
           }
         }
         else if(d.type==='sn')addSN(d.bx,d.by,{col:d.col,text:d.text,w:d.w||d.bw||170,h:d.h||d.bh||150,_rot:d._rot,_id:d.id});
-        else if(d.type==='tx'||d.type==='text')addTxb(d.bx,d.by,{text:d.text,fs:d.fs,color:d.color,bold:d.bold,_id:d.id});
+        else if(d.type==='tx'||d.type==='text')addTxb(d.bx,d.by,{text:d.text,fs:d.fs,color:d.color,font:d.font,fw:d.fw,textAlign:d.textAlign,_id:d.id});
         else if(d.type==='img'&&d.src)addImgEl(d.bx,d.by,d.src,d.bw,d.bh,d.id);
       });
       // コネクタを全shape登録後に描画
@@ -3920,7 +3967,7 @@ function makeDrag(el, ibx, iby){
       const opts={label:d.label,labelFs:d.labelFs,labelColor:d.labelColor};
       if(d.type==='shape'&&!d.isLine) addShapeEl(d.bx+20,d.by+20,d.bw,d.bh,d.sh,d.color,d.lw,d.fill,opts);
       else if(d.type==='sn') addSN(d.bx+20,d.by+20,{col:d.col,text:d.text,w:d.w||170,h:d.h||150});
-      else if(d.type==='tx') addTxb(d.bx+20,d.by+20,{text:d.text,fs:d.fs,color:d.color});
+      else if(d.type==='tx') addTxb(d.bx+20,d.by+20,{text:d.text,fs:d.fs,color:d.color,font:d.font,fw:d.fw,textAlign:d.textAlign});
       else if(d.type==='img') addImgEl(d.bx+20,d.by+20,d.src,d.bw,d.bh);
     });
     saveHist();return;
@@ -4050,6 +4097,7 @@ function buildFtb(){
   FTB_COLS.forEach(c=>{
     h+=`<div class="ftb-cs" data-col="${c}" style="background:${c}" onmousedown="event.preventDefault()" onclick="ftbSetCol('${c}')"></div>`;
   });
+  h+=`<div class="ftb-cs" style="background:linear-gradient(135deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)" onmousedown="event.preventDefault()" onclick="openSelCP('ftbSetCol')" title="カスタムカラー"></div>`;
   ftb.innerHTML=h;
 }
 
@@ -4096,9 +4144,8 @@ function applyCmd(cmd, val=null){
       sp.innerHTML=f.innerHTML;
       f.parentNode.replaceChild(sp,f);
     });
-    // 保存
-    const sn=ftbEl.closest && ftbEl.closest('.sn');
-    if(sn){const d=S.elems.find(e=>e.id===sn.id);if(d)d.text=ftbEl.innerHTML;}
+    // 保存（sn/txb共通）
+    _ftbSaveText();
   }
   // 適用後にRangeを再保存
   const sel=window.getSelection();
@@ -4106,9 +4153,31 @@ function applyCmd(cmd, val=null){
   return true;
 }
 
-function ftbSetFs(s){
+// ftbEl（sn-ta または txb本体）の元データにテキストを保存する共通ヘルパー
+// 現在「編集中の要素内で、範囲選択（非collapsed）が有効」かどうかを判定する。
+// trueなら、上部バー(pbar)の色/サイズ変更もftbと同じ「選択範囲だけに適用」する。
+function _hasActiveTextSelection(){
+  if(!ftbEl) return false;
+  const sel=window.getSelection();
+  if(!sel||sel.rangeCount===0||sel.isCollapsed) return false;
+  return ftbEl.contains(sel.anchorNode);
+}
+function _ftbSaveText(){
   if(!ftbEl)return;
   if(ftbTarget==='ta'){
+    const sn=ftbEl.closest('.sn');
+    if(sn){const d=S.elems.find(e=>e.id===sn.id);if(d)d.text=ftbEl.innerHTML;}
+  } else if(ftbTarget==='txb'){
+    const d=S.elems.find(e=>e.id===ftbEl.id);
+    if(d)d.text=ftbEl.innerHTML;
+  } else if(ftbTarget==='shape'){
+    const shapeEl=ftbEl.closest('.wb-shape');
+    if(shapeEl){const d=S.elems.find(e=>e.id===shapeEl.id);if(d)d.label=ftbEl.innerHTML;}
+  }
+}
+function ftbSetFs(s){
+  if(!ftbEl)return;
+  if(ftbTarget==='ta'||ftbTarget==='txb'||ftbTarget==='shape'){
     const hasSel=restoreRange();
     const sel=window.getSelection();
     if(hasSel){
@@ -4150,16 +4219,8 @@ function ftbSetFs(s){
         savedRange=nr.cloneRange();
       }
     }
-    const sn=ftbEl.closest('.sn');
-    if(sn){const d=S.elems.find(e=>e.id===sn.id);if(d)d.text=ftbEl.innerHTML;}
-  } else {
-    // テキストボックス(textarea)は全体にサイズ適用
-    const txbWrap=ftbEl.closest?ftbEl.closest('.txb'):ftbEl;
-    if(txbWrap){
-      txbWrap.style.fontSize=s+'px';
-      ftbEl.style.fontSize=s+'px';
-      const d=S.elems.find(e=>e.id===txbWrap.id);if(d)d.fs=s;
-    }
+    _ftbSaveText();
+    if(ftbTarget==='txb'){const d=S.elems.find(e=>e.id===ftbEl.id);if(d)d.fs=s;}
   }
   // サイズボタンの on クラスを更新
   document.querySelectorAll('#ftb .ftb-sz').forEach(b=>{
@@ -4168,40 +4229,40 @@ function ftbSetFs(s){
 }
 function ftbToggleBold(){
   if(!ftbEl)return;
-  if(ftbTarget==='ta'){
+  if(ftbTarget==='ta'||ftbTarget==='txb'||ftbTarget==='shape'){
     const applied=applyCmd('bold');
     if(!applied){
+      // 選択なし：要素全体の太さをトグル（次に打つ文字にも反映される簡易フォールバック）
       const cur=ftbEl.style.fontWeight==='700'||ftbEl.style.fontWeight==='bold';
       ftbEl.style.fontWeight=cur?'400':'700';
+      if(ftbTarget==='txb'){const d=S.elems.find(e=>e.id===ftbEl.id);if(d)d.fw=cur?'400':'700';}
+    } else {
+      _ftbSaveText();
     }
-  } else {
-    const txbWrap=ftbEl.closest?ftbEl.closest('.txb'):ftbEl;
-    const cur=(txbWrap||ftbEl).style.fontWeight==='700'||(txbWrap||ftbEl).style.fontWeight==='bold';
-    if(txbWrap){txbWrap.style.fontWeight=cur?'400':'700';}
-    ftbEl.style.fontWeight=cur?'400':'700';
-    const d=S.elems.find(e=>e.id===(txbWrap||ftbEl).id);if(d)d.bold=!cur;
   }
 }
 function ftbToggleItalic(){
   if(!ftbEl)return;
-  if(ftbTarget==='ta'){
+  if(ftbTarget==='ta'||ftbTarget==='txb'||ftbTarget==='shape'){
     const applied=applyCmd('italic');
     if(!applied){
       const cur=ftbEl.style.fontStyle==='italic';
       ftbEl.style.fontStyle=cur?'normal':'italic';
+    } else {
+      _ftbSaveText();
     }
-  } else {
-    const cur=ftbEl.style.fontStyle==='italic';
-    ftbEl.style.fontStyle=cur?'normal':'italic';
   }
 }
 function ftbUnderline(){
   if(!ftbEl)return;
-  if(ftbTarget==='ta') applyCmd('underline');
+  if(ftbTarget==='ta'||ftbTarget==='txb'||ftbTarget==='shape'){
+    applyCmd('underline');
+    _ftbSaveText();
+  }
 }
 function ftbSetCol(c){
   if(!ftbEl)return;
-  if(ftbTarget==='ta'){
+  if(ftbTarget==='ta'||ftbTarget==='txb'||ftbTarget==='shape'){
     const hasSel=restoreRange();
     const sel=window.getSelection();
     if(hasSel){
@@ -4242,15 +4303,11 @@ function ftbSetCol(c){
         }
       }
     }
-    const sn=ftbEl.closest('.sn');
-    if(sn){const d=S.elems.find(e=>e.id===sn.id);if(d)d.text=ftbEl.innerHTML;}
-  } else {
-    const txbWrap=ftbEl.closest?ftbEl.closest('.txb'):ftbEl;
-    if(txbWrap){txbWrap.style.color=c;}
-    ftbEl.style.color=c;
-    const d=S.elems.find(e=>e.id===(txbWrap||ftbEl).id);if(d)d.color=c;
-    const disp=txbWrap?txbWrap.querySelector('.txb-display'):null;
-    if(disp)disp.style.color=c;
+    _ftbSaveText();
+    if(ftbTarget==='txb'&&!hasSel){
+      // 選択なしでテキスト全体が空の場合など：既定色も更新しておく
+      const d=S.elems.find(e=>e.id===ftbEl.id);if(d&&!d.text)d.color=c;
+    }
   }
   // カラードットのonクラス更新
   const ftb=document.getElementById('ftb');
@@ -4917,7 +4974,7 @@ function loadAutoSave(){
           addShapeEl(d.bx,d.by,d.bw,d.bh,d.sh,d.color,d.lw,d.fill,{label:d.label,labelFs:d.labelFs,labelColor:d.labelColor,_id:d.id});
         }
       } else if(d.type==='sn'){addSN(d.bx,d.by,{col:d.col,text:d.text,w:d.w||d.bw||170,h:d.h||d.bh||150,_rot:d._rot,_id:d.id});}
-      else if(d.type==='tx'){addTxb(d.bx,d.by,{text:d.text,fs:d.fs,color:d.color,bold:d.bold,_id:d.id});}
+      else if(d.type==='tx'){addTxb(d.bx,d.by,{text:d.text,fs:d.fs,color:d.color,font:d.font,fw:d.fw,textAlign:d.textAlign,_id:d.id});}
       else if(d.type==='img'&&d.src){addImgEl(d.bx,d.by,d.src,d.bw,d.bh,d.id);}
     });
     pending.forEach(d=>{
