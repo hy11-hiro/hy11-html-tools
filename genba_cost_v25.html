@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v86</title>
+    <title>G-Ledger | 現場原価管理台帳システム v91</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v86</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v91</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -323,6 +323,11 @@
                                 <span class="text-xs font-bold text-slate-500 whitespace-nowrap">担当者:</span>
                                 <div id="uncoll-manager-buttons" class="flex flex-wrap gap-1.5"></div>
                                 <button onclick="window.clearUncollSelection('manager')" class="text-[10px] text-slate-400 hover:text-slate-600 underline whitespace-nowrap">解除</button>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
+                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">積算:</span>
+                                <div id="uncoll-estimator-buttons" class="flex flex-wrap gap-1.5"></div>
+                                <button onclick="window.clearUncollSelection('estimator')" class="text-[10px] text-slate-400 hover:text-slate-600 underline whitespace-nowrap">解除</button>
                             </div>
                             <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
                                 <span class="text-xs font-bold text-slate-500 whitespace-nowrap">キーワード:</span>
@@ -1012,6 +1017,17 @@
                             </div>
                         </div>
 
+                        <!-- 未回収差異ワースト -->
+                        <div class="p-3 rounded-lg border border-red-100 bg-red-50/40">
+                            <p class="font-bold text-red-700 mb-1.5"><i class="fa-solid fa-scale-unbalanced mr-1.5"></i>未回収差異ワースト</p>
+                            <ul class="space-y-0.5 text-slate-600 text-xs">
+                                <li>・ 回収データ（<code class="bg-white px-1 rounded">collections</code>）全件が対象。売上明細の税込金額と回収済額に差異があるものだけを抽出</li>
+                                <li>・ 未請求＝未回収と判定できるもの（未回収残高0円かつ未請求額＝予定額）は対象外</li>
+                                <li>・ 差異の絶対値が大きい順に表示。差異の向き（未回収超過／過払い）・拠点・担当者で絞込可</li>
+                                <li>・ <span class="text-amber-600 font-bold">集計期間（完了日）は反映されません</span>　※回収データには完了日の概念がないため常に全件対象</li>
+                            </ul>
+                        </div>
+
                         <!-- 月別・拠点内 -->
                         <div class="p-3 rounded-lg border border-emerald-100 bg-emerald-50/40">
                             <p class="font-bold text-emerald-700 mb-1.5"><i class="fa-solid fa-users-viewfinder mr-1.5"></i>月別・拠点内</p>
@@ -1071,6 +1087,10 @@
                             <button onclick="window.switchRankingTab('worst')" id="tab-worst" data-tab-color="red"
                                 class="ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-red-300 bg-white whitespace-nowrap hover:text-red-500 transition-all">
                                 <i class="fa-solid fa-triangle-exclamation mr-1.5 text-xs"></i>利益率ワースト
+                            </button>
+                            <button onclick="window.switchRankingTab('coll-anomaly')" id="tab-coll-anomaly" data-tab-color="red"
+                                class="ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-red-300 bg-white whitespace-nowrap hover:text-red-500 transition-all">
+                                <i class="fa-solid fa-scale-unbalanced mr-1.5 text-xs"></i>未回収差異ワースト
                             </button>
                         </div>
                         <!-- セパレーター -->
@@ -1479,6 +1499,85 @@
                     </div>
                 </div>
 
+                <!-- 6.5 未回収差異ワースト -->
+                <div id="ranking-coll-anomaly" class="ranking-tab-content hidden space-y-4">
+                    <div class="glass-panel rounded-xl overflow-hidden">
+
+                        <!-- ヘッダー -->
+                        <div class="bg-red-50 px-5 py-3 border-b border-red-200 flex flex-wrap items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-scale-unbalanced text-red-500"></i>
+                                <span class="font-bold text-slate-700">未回収差異ワースト分析</span>
+                                <span class="text-xs text-slate-400">回収データ / 売上税込 － 回収済額 の差異基準</span>
+                            </div>
+                            <button onclick="window.exportCollAnomalyWorstExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow transition-colors">
+                                <i class="fa-solid fa-file-excel"></i> Excel出力
+                            </button>
+                        </div>
+
+                        <!-- フィルター行 -->
+                        <div class="px-5 py-4 bg-white border-b border-slate-200 flex flex-wrap items-end gap-4">
+
+                            <!-- 差異の向き -->
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-slate-500">差異の向き</label>
+                                <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-bold">
+                                    <button onclick="window.setCollAnomalyDir('all')" id="btn-cadir-all"
+                                        class="px-3 py-1.5 bg-slate-700 text-white transition-colors whitespace-nowrap">すべて</button>
+                                    <button onclick="window.setCollAnomalyDir('under')" id="btn-cadir-under"
+                                        class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">未回収超過（+）</button>
+                                    <button onclick="window.setCollAnomalyDir('over')" id="btn-cadir-over"
+                                        class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">過払い（－）</button>
+                                </div>
+                            </div>
+
+                            <!-- 拠点フィルター -->
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-slate-500">拠点</label>
+                                <select id="ca-filter-branch" onchange="window.renderCollAnomalyWorst()"
+                                    class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none">
+                                    <option value="ALL">全拠点</option>
+                                </select>
+                            </div>
+
+                            <!-- 担当者フィルター -->
+                            <div class="flex flex-col gap-1">
+                                <label class="text-xs font-bold text-slate-500">担当者</label>
+                                <select id="ca-filter-manager" onchange="window.renderCollAnomalyWorst()"
+                                    class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none">
+                                    <option value="ALL">全担当者</option>
+                                </select>
+                            </div>
+
+                            <!-- 件数バッジ -->
+                            <div class="ml-auto flex items-end">
+                                <span id="ca-count-badge" class="text-xs bg-red-100 text-red-700 font-bold px-3 py-1.5 rounded-full border border-red-200">0 件</span>
+                            </div>
+                        </div>
+
+                        <!-- テーブル -->
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="text-xs text-slate-500 uppercase bg-red-50 border-b border-red-200">
+                                    <tr>
+                                        <th class="px-4 py-3 w-12 text-center">順位</th>
+                                        <th class="px-4 py-3 whitespace-nowrap">工番</th>
+                                        <th class="px-4 py-3">現場名</th>
+                                        <th class="px-4 py-3 whitespace-nowrap">担当者</th>
+                                        <th class="px-4 py-3 whitespace-nowrap">拠点</th>
+                                        <th class="px-4 py-3 whitespace-nowrap">完了日</th>
+                                        <th class="px-4 py-3 text-right whitespace-nowrap">売上（税込）</th>
+                                        <th class="px-4 py-3 text-right whitespace-nowrap">回収済額</th>
+                                        <th class="px-4 py-3 text-right whitespace-nowrap">差異</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ranking-body-coll-anomaly" class="bg-white divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                        <p class="text-xs text-slate-400 px-5 py-2 border-t border-slate-100">※ 差異 ＝ 売上（税込）－ 回収済額。プラスは未回収超過、マイナスは過払いを表します。「未請求＝未回収」と判定できるものは対象外です。</p>
+                    </div>
+                </div>
+
                 <!-- 7. 支店長会議資料 -->
                 <div id="ranking-board-meeting" class="ranking-tab-content hidden space-y-4">
 
@@ -1498,6 +1597,7 @@
                                 class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">原価集計（完了日）</button>
                         </div>
                         <span id="bm-data-basis-debug" class="text-[10px] text-slate-400 whitespace-nowrap"></span>
+
 
                         <!-- 工事全体 / 拠点別 -->
                         <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-bold">
@@ -2270,6 +2370,7 @@
     let pendingFiles = { cost: null, master: null, purchase: [], sales: [], collection: null };
     let currentMonthlyMode = 'manager'; 
     let currentWorstType = 'ranking'; 
+    let currentCollAnomalyDir = 'all';
     let currentWorstSort = 'rate';    
     let rankingFilter = { start: null, end: null };
     let currentRankingTab = 'owner';
@@ -4546,6 +4647,7 @@
         'branch':           { icon: 'fa-check-circle', color: 'text-green-700 bg-green-50 border border-green-200', text: 'この タブは上部の「集計期間（完了日）」が反映されます。' },
         'manager':          { icon: 'fa-triangle-exclamation', color: 'text-amber-700 bg-amber-50 border border-amber-200', text: '上部の「集計期間（完了日）」は反映されません。タブ内の「年月」「拠点」で絞り込んでください（年月が「全年月」のときのみ集計期間が反映されます）。' },
         'worst':            { icon: 'fa-triangle-exclamation', color: 'text-amber-700 bg-amber-50 border border-amber-200', text: 'ランキングモードのみ上部の「集計期間（完了日）」が反映されます。アラートモードはタブ内の完工月・拠点で絞り込んでください。' },
+        'coll-anomaly':     { icon: 'fa-triangle-exclamation', color: 'text-amber-700 bg-amber-50 border border-amber-200', text: '上部の「集計期間（完了日）」は反映されません。回収データ全件を対象に、タブ内の拠点・担当者・差異の向きで絞り込んでください。' },
         'monthly-manager':  { icon: 'fa-triangle-exclamation', color: 'text-amber-700 bg-amber-50 border border-amber-200', text: '上部の「集計期間（完了日）」は反映されません。タブ内の「明細期間（開始年月〜終了年月）」で絞り込んでください。' },
         'month':            { icon: 'fa-triangle-exclamation', color: 'text-amber-700 bg-amber-50 border border-amber-200', text: '上部の「集計期間（完了日）」は反映されません。タブ内の「明細期間（開始年月〜終了年月）」で絞り込んでください。' },
         'board-meeting':    { icon: 'fa-triangle-exclamation', color: 'text-amber-700 bg-amber-50 border border-amber-200', text: 'このタブは専用の「期間絞込」を使用します。上部の「集計期間（完了日）」とは独立しています。' },
@@ -4586,6 +4688,7 @@
             if (tab === 'monthly-manager') await window.renderMonthlyManagerRanking();
             if (tab === 'month')           await window.initMonthlyRanking();
             if (tab === 'worst')           await window.initWorstRanking();
+            if (tab === 'coll-anomaly')    await window.initCollAnomalyWorst();
             if (tab === 'board-meeting')   await window.initBoardMeeting();
         } catch (e) { console.error('タブ切替エラー:', e); alert('タブ切替エラー: ' + e.message); }
     }
@@ -5105,6 +5208,14 @@
     }
 
     window.renderMonthlyManagerRanking = async function() {
+        // 担当者別／施工主別トグルの見た目を現在の状態に同期（タブ復帰時に見た目だけ初期化されるのを防ぐ）
+        const btnMgr = document.getElementById('btn-mode-manager');
+        const btnOwn = document.getElementById('btn-mode-owner');
+        if (btnMgr) btnMgr.className = currentMonthlyMode === 'manager' ? 'btn-group-item active' : 'btn-group-item';
+        if (btnOwn) btnOwn.className = currentMonthlyMode === 'owner' ? 'btn-group-item active' : 'btn-group-item';
+        const mmHeaderName = document.getElementById('mm-header-name');
+        if (mmHeaderName) mmHeaderName.textContent = currentMonthlyMode === 'manager' ? '担当者名' : '施工主名';
+
         const allSales     = await db.sales.toArray();
         const allPurchases = await db.purchases.toArray();
         const allMasters   = await db.masters.toArray();
@@ -6050,7 +6161,7 @@
         });
     }
 
-    function bmRebuildPeriodSelect() {
+    function bmRebuildPeriodSelect(forceFilterReset) {
         const sel = document.getElementById('bm-period-select');
         const labelEl = document.getElementById('bm-period-label');
         if (!sel) return;
@@ -6070,7 +6181,7 @@
             bm.periodKey = bm.periodKeyCalendar;
             if (labelEl) labelEl.textContent = '対象年度:';
         }
-        bmRebuildPeriodFilter(true);
+        bmRebuildPeriodFilter(!!forceFilterReset);
     }
 
     window.bmOnPeriodChange = function() {
@@ -6100,7 +6211,7 @@
     window.bmSetBasis = function(basis) {
         bm.basis = basis;
         bmApplyBasisButtons();
-        bmRebuildPeriodSelect();
+        bmRebuildPeriodSelect(true);
         window.bmRenderCurrentView();
     }
     window.bmSetDataBasis = function(dataBasis) {
@@ -7446,10 +7557,15 @@
         });
         const selMonth = document.getElementById('worst-alert-month');
         const selBranch = document.getElementById('worst-alert-branch');
-        // ⑤ 毎回リセットして再構築
-        if(selMonth) { selMonth.innerHTML = ''; selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m, m))); }
-        if(selBranch) { selBranch.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
-        window.renderWorstRanking();
+        // ⑤ 選択肢を再構築（前回選択していた値は維持する。タブ復帰時に初期値へ戻ってしまうのを防ぐ）
+        const prevMonth = selMonth ? selMonth.value : 'ALL';
+        const prevBranch = selBranch ? selBranch.value : 'ALL';
+        if(selMonth) { selMonth.innerHTML = ''; selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m, m))); selMonth.value = prevMonth; if(selMonth.value !== prevMonth) selMonth.value = 'ALL'; }
+        if(selBranch) { selBranch.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); selBranch.value = prevBranch; if(selBranch.value !== prevBranch) selBranch.value = 'ALL'; }
+        // 表示モード・並び順のボタン／パネル表示を、保持している状態（currentWorstType/currentWorstSort）に同期させる
+        // （これを呼ばないと、タブを離れて戻ってきたときに見た目だけ「全体ランキング」表示に戻ってしまう）
+        window.setWorstType(currentWorstType);
+        window.setWorstSort(currentWorstSort);
     }
     window.renderWorstRanking = async function() {
         const costs = await db.costs.toArray();
@@ -7571,6 +7687,151 @@
         const buffer = await wb.xlsx.writeBuffer();
         saveAs(new Blob([buffer]), `利益率ワースト分析_${periodStr.replace(/〜/g,'-')}_${dateStr}.xlsx`);
     }
+
+    // ── 未回収差異ワースト（回収データ全件から独立して算出。現場一覧ページを開いていなくても動作する）──
+    async function computeCollectionAnomalies() {
+        const collections = await db.collections.toArray();
+        const allSales = await db.sales.toArray();
+        const masters = await db.masters.toArray();
+        const masterMap = new Map();
+        masters.forEach(m => masterMap.set(String(m.code||'').trim().toLowerCase(), m));
+
+        const salesByCodeSub = new Map();
+        const salesByCodeOnly = new Map();
+        allSales.forEach(s => {
+            const code = String(s.siteCode||'').trim().toLowerCase();
+            const sub  = String(s.subCode||'').trim();
+            const csKey = `${code}::${sub}`;
+            salesByCodeSub.set(csKey, (salesByCodeSub.get(csKey) || 0) + (s.amountInc || 0));
+            if (!sub || sub === '00') {
+                salesByCodeOnly.set(code, (salesByCodeOnly.get(code) || 0) + (s.amountInc || 0));
+            }
+        });
+
+        const results = [];
+        for (const col of collections) {
+            const mainCode = String(col.code||'').trim().toLowerCase();
+            const sub      = String(col.subCode||'').trim();
+            const subNorm  = (sub === '00' || sub === '') ? '' : sub;
+            const salesTaxInc = subNorm
+                ? (salesByCodeSub.get(`${mainCode}::${subNorm}`) || 0)
+                : (salesByCodeOnly.get(mainCode) || 0);
+            const isFullyUnrequested = col.collectedAmount === 0 && Math.abs(col.unRequestedAmount - col.scheduledAmount) <= 1;
+            const diff = salesTaxInc - col.collectedAmount;
+            const isAnomaly = !isFullyUnrequested && salesTaxInc > 0 && Math.abs(diff) > 1;
+            if (!isAnomaly) continue;
+            const m = masterMap.get(mainCode) || {};
+            results.push({
+                code: col.code, subCode: sub,
+                siteName: col.siteName || m.name || '',
+                manager: m.manager || '',
+                branch: m.branch || '',
+                endDate: m.endDate || '',
+                salesTaxInc, collectedAmount: col.collectedAmount, diff,
+            });
+        }
+        return results;
+    }
+
+    window.initCollAnomalyWorst = async function() {
+        const data = await computeCollectionAnomalies();
+        window._collAnomalyWorstCache = data;
+        const branches = new Set(); const managers = new Set();
+        data.forEach(r => { if (r.branch) branches.add(r.branch); if (r.manager) managers.add(r.manager); });
+        const selBranch = document.getElementById('ca-filter-branch');
+        const selManager = document.getElementById('ca-filter-manager');
+        // 選択肢を再構築（前回選択していた値は維持。タブ復帰時に初期値へ戻ってしまうのを防ぐ）
+        const prevBranch = selBranch ? selBranch.value : 'ALL';
+        const prevManager = selManager ? selManager.value : 'ALL';
+        if (selBranch) { selBranch.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); selBranch.value = prevBranch; if (selBranch.value !== prevBranch) selBranch.value = 'ALL'; }
+        if (selManager) { selManager.innerHTML = '<option value="ALL">全担当者</option>'; Array.from(managers).sort().forEach(m => selManager.add(new Option(m, m))); selManager.value = prevManager; if (selManager.value !== prevManager) selManager.value = 'ALL'; }
+        window.setCollAnomalyDir(currentCollAnomalyDir);
+    }
+
+    window.setCollAnomalyDir = function(dir) {
+        currentCollAnomalyDir = dir;
+        ['all', 'under', 'over'].forEach(d => {
+            const btn = document.getElementById('btn-cadir-' + d);
+            if (!btn) return;
+            btn.className = d === dir
+                ? 'px-3 py-1.5 bg-slate-700 text-white transition-colors whitespace-nowrap'
+                : 'px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap';
+        });
+        window.renderCollAnomalyWorst();
+    }
+
+    window.renderCollAnomalyWorst = function() {
+        const data = window._collAnomalyWorstCache || [];
+        const selBranch = document.getElementById('ca-filter-branch');
+        const selManager = document.getElementById('ca-filter-manager');
+        const branch = selBranch ? selBranch.value : 'ALL';
+        const manager = selManager ? selManager.value : 'ALL';
+        let filtered = data.filter(r => {
+            if (branch !== 'ALL' && r.branch !== branch) return false;
+            if (manager !== 'ALL' && r.manager !== manager) return false;
+            if (currentCollAnomalyDir === 'under' && r.diff <= 0) return false;
+            if (currentCollAnomalyDir === 'over' && r.diff >= 0) return false;
+            return true;
+        });
+        filtered.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+        window._lastCollAnomalyWorst = filtered;
+
+        const badge = document.getElementById('ca-count-badge');
+        if (badge) badge.textContent = filtered.length + ' 件';
+
+        const tbody = document.getElementById('ranking-body-coll-anomaly');
+        if (!tbody) return;
+        const fmtDate = (v) => {
+            const ts = window.parseDateValue(v);
+            if (!ts) return '-';
+            const d = new Date(ts);
+            return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+        };
+        tbody.innerHTML = filtered.length ? filtered.map((r, i) => {
+            const label = r.subCode && r.subCode !== '00' ? `${r.code}-${r.subCode}` : r.code;
+            const diffColor = r.diff < 0 ? 'text-blue-600' : 'text-red-600';
+            const diffText = (r.diff >= 0 ? '+' : '▲ ') + formatCurrency(Math.abs(r.diff));
+            return `<tr class="hover:bg-slate-50">
+                <td class="px-4 py-3 font-bold text-center">${i+1}</td>
+                <td class="px-4 py-3 font-mono font-bold">${label}</td>
+                <td class="px-4 py-3">${r.siteName}</td>
+                <td class="px-4 py-3">${r.manager || '-'}</td>
+                <td class="px-4 py-3">${r.branch || '-'}</td>
+                <td class="px-4 py-3 font-mono">${fmtDate(r.endDate)}</td>
+                <td class="px-4 py-3 text-right font-mono">${formatCurrency(r.salesTaxInc)}</td>
+                <td class="px-4 py-3 text-right font-mono">${formatCurrency(r.collectedAmount)}</td>
+                <td class="px-4 py-3 text-right font-mono font-bold ${diffColor}">${diffText}</td>
+            </tr>`;
+        }).join('') : `<tr><td colspan="9" class="px-4 py-8 text-center text-slate-400">該当データがありません</td></tr>`;
+    }
+
+    window.exportCollAnomalyWorstExcel = async function() {
+        const data = window._lastCollAnomalyWorst || [];
+        if (!data.length) { alert('出力するデータがありません'); return; }
+        const dateStr = new Date().toISOString().slice(0,10);
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'G-Ledger';
+        const hdrStyle = { font:{bold:true,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}}, alignment:{horizontal:'center'} };
+        const ws = wb.addWorksheet('未回収差異ワースト');
+        [8,14,26,14,14,14,16,16,16].forEach((w,i) => { ws.getColumn(i+1).width = w; });
+        ws.addRow(['■ 未回収差異ワースト分析　（差異＝売上(税込)－回収済額）']).font = { bold:true, size:12 };
+        ws.mergeCells(1,1,1,9);
+        ws.addRow(['順位','工番','現場名','担当者','拠点','完了日','売上(税込)','回収済額','差異']).eachCell(c => c.style = hdrStyle);
+        const fmtDate = (v) => {
+            const ts = window.parseDateValue(v);
+            if (!ts) return '';
+            const d = new Date(ts);
+            return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+        };
+        data.forEach((r, i) => {
+            const label = r.subCode && r.subCode !== '00' ? `${r.code}-${r.subCode}` : r.code;
+            const row = ws.addRow([i+1, label, r.siteName, r.manager, r.branch, fmtDate(r.endDate), r.salesTaxInc, r.collectedAmount, r.diff]);
+            [7,8,9].forEach(ci => { const c = row.getCell(ci); c.numFmt = '#,##0'; c.alignment = {horizontal:'right'}; });
+            row.getCell(9).font = { color: { argb: r.diff < 0 ? 'FF2563EB' : 'FFDC2626' } };
+        });
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `未回収差異ワースト_${dateStr}.xlsx`);
+    }
     window.sortAndRender = function(data, tbodyId, sortSelectId, groupLabel) { 
         const sel = document.getElementById(sortSelectId);
         const sortKey = sel ? sel.value : 'profit'; 
@@ -7671,7 +7932,13 @@
         document.getElementById('page-title').textContent = titles[p] || 'G-Ledger';
         
         if(p==='import') window.updateDBStats();
-        if(p==='ranking') window.switchRankingTab('owner');
+        // 「戻る」で遷移してきた場合（_skipPageInit）は、ジャンプした瞬間のタブへ戻す。
+        // 通常のサイドバー遷移（新規に集計・ランキングを開いた場合）は施工主別タブから開始する。
+        if(p==='ranking') {
+            const targetTab = window._skipPageInit ? (window._backReturnTab || currentRankingTab || 'owner') : 'owner';
+            window._backReturnTab = null;
+            window.switchRankingTab(targetTab);
+        }
         if(p==='cost-search' && !window._skipPageInit) window.initCostSearch();
         if(p==='dashboard') window.initSiteSearch();
         if(p==='browse' && !window._skipPageInit) window.initBrowsePage();
@@ -7888,6 +8155,7 @@
     // 未回収タブ専用フィルターセット
     let uncollSelectedBranches = new Set();
     let uncollSelectedManagers = new Set();
+    let uncollSelectedEstimators = new Set();
     const BROWSE_PAGE_SIZE = 50;
     let browseCurrentPage = 1;
 
@@ -8112,6 +8380,7 @@
         browseSelectedEstimators.clear();
         uncollSelectedBranches.clear();
         uncollSelectedManagers.clear();
+        uncollSelectedEstimators.clear();
     }
 
     window.buildBrowseButtons = function() {
@@ -8221,11 +8490,29 @@
                 umContainer.appendChild(btn);
             });
         }
+        // 積算ボタン
+        const uncollEstimators = [...new Set(collData.map(d => d.estimator).filter(Boolean))].sort();
+        const ueContainer = document.getElementById('uncoll-estimator-buttons');
+        if (ueContainer) {
+            ueContainer.innerHTML = '';
+            if (uncollEstimators.length === 0) {
+                ueContainer.innerHTML = '<span class="text-[10px] text-slate-400">（データなし）</span>';
+            }
+            uncollEstimators.forEach(est => {
+                const cnt = collData.filter(d => d.estimator === est).length;
+                const btn = document.createElement('button');
+                btn.className = 'uncoll-estimator-btn px-2.5 py-1 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-700 transition-all flex items-center gap-1';
+                btn.innerHTML = `${est} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
+                btn.dataset.value = est;
+                btn.onclick = () => window.toggleUncollButton(btn, 'estimator');
+                ueContainer.appendChild(btn);
+            });
+        }
     }
 
     window.toggleUncollButton = function(btn, group) {
         const val = btn.dataset.value;
-        const selSet = group === 'branch' ? uncollSelectedBranches : uncollSelectedManagers;
+        const selSet = group === 'branch' ? uncollSelectedBranches : group === 'manager' ? uncollSelectedManagers : uncollSelectedEstimators;
         if (selSet.has(val)) {
             selSet.delete(val);
             btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
@@ -8240,9 +8527,9 @@
     }
 
     window.clearUncollSelection = function(group) {
-        const selSet = group === 'branch' ? uncollSelectedBranches : uncollSelectedManagers;
+        const selSet = group === 'branch' ? uncollSelectedBranches : group === 'manager' ? uncollSelectedManagers : uncollSelectedEstimators;
         selSet.clear();
-        const cls = group === 'branch' ? '.uncoll-branch-btn' : '.uncoll-manager-btn';
+        const cls = group === 'branch' ? '.uncoll-branch-btn' : group === 'manager' ? '.uncoll-manager-btn' : '.uncoll-estimator-btn';
         document.querySelectorAll(cls).forEach(btn => {
             btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
             btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
@@ -8269,6 +8556,7 @@
             const m2 = masterMap2.get(d.code) || {};
             if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(m2.branch || '')) return false;
             if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(m2.manager || '')) return false;
+            if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(m2.estimator || '')) return false;
             const uncollKw = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
             if (uncollKw) {
                 const hay = window.normalizeStr([d.code, d.siteName, m2.owner||'', m2.manager||'', m2.branch||''].join(' '));
@@ -8501,6 +8789,7 @@
                 if (!d.hasCollData) return false;
                 if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(d.branch)) return false;
                 if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(d.manager)) return false;
+                if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(d.estimator)) return false;
                 if (uncollKeyword) {
                     const hay = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.code, d.branch].join(' '));
                     if (!hay.includes(uncollKeyword)) return false;
@@ -8715,13 +9004,16 @@
     window.browseJumpToSite = function(code, fromPage, contextLabel) {
         const backPage  = fromPage || window._currentPage || 'cost-search';
         const backLabel = contextLabel || '前の画面に戻る';
+        // ジャンプした「その瞬間」のタブをスナップショットとして保存しておく
+        // （currentRankingTab のような可変のグローバル変数だけに頼らず、確実に元のタブへ戻せるようにする）
+        const backSubTab = (backPage === 'ranking') ? currentRankingTab : null;
         // showPage が状態を消さないようフラグを立ててから遷移
         window._jumpingToSite = true;
         window.showPage('dashboard');
         const inp = document.getElementById('search-input');
         if (inp) { inp.value = code; window.searchSite(); }
         // 遷移後に状態をセット・バーを表示
-        window._dashboardBackState = { page: backPage, label: backLabel };
+        window._dashboardBackState = { page: backPage, label: backLabel, subTab: backSubTab };
         const bar = document.getElementById('dashboard-back-bar');
         const lbl = document.getElementById('dashboard-back-label');
         const ctx = document.getElementById('dashboard-back-context');
@@ -8737,6 +9029,8 @@
         document.getElementById('dashboard-back-bar')?.classList.add('hidden');
         // 戻る時は再初期化をスキップ（絞り込み状態を維持）
         window._skipPageInit = true;
+        // ジャンプ時点のタブを明示的に指定（無ければ現在値にフォールバック）
+        window._backReturnTab = state.subTab || null;
         window.showPage(state.page);
     }
 
@@ -9391,9 +9685,11 @@
                 const m = _mmap.get(d.code) || {};
                 const br  = m.branch  || '';
                 const mgr = m.manager || '';
-                // 現在の拠点・担当者選択フィルターを適用
+                const est = m.estimator || '';
+                // 現在の拠点・担当者・積算選択フィルターを適用
                 if (uncollSelectedBranches.size  > 0 && !uncollSelectedBranches.has(br))  return false;
                 if (uncollSelectedManagers.size  > 0 && !uncollSelectedManagers.has(mgr)) return false;
+                if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(est)) return false;
                 // ★ 差異あり出力では未回収残高フィルターを適用しない
                 // （マイナス差異＝過払いも出力対象）
                 return true;
