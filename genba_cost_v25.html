@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v93</title>
+    <title>G-Ledger | 現場原価管理台帳システム v94</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v93</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v94</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -396,6 +396,9 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- 現在の絞り込み条件（一覧） -->
+                <div id="browse-active-filters" class="glass-panel rounded-xl px-5 py-3 hidden"></div>
 
                 <!-- 結果一覧テーブル -->
                 <div class="glass-panel rounded-xl overflow-hidden" id="browse-list-panel">
@@ -8658,6 +8661,111 @@
         window.applyBrowseFilter();
     }
 
+    // ── 現在の絞り込み条件を一覧表示（タブを開かなくても何が選択されているか分かるようにする）──
+    window.removeBrowseFilterValue = function(group, val) {
+        const setMap = {
+            manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches, estimator: browseSelectedEstimators,
+            'uncoll-branch': uncollSelectedBranches, 'uncoll-manager': uncollSelectedManagers, 'uncoll-estimator': uncollSelectedEstimators
+        };
+        const sel = setMap[group];
+        if (sel) sel.delete(val);
+        const btnClassMap = {
+            manager: '.browse-sel-btn', customer: '.browse-sel-btn', branch: '.browse-sel-btn', estimator: '.browse-sel-btn',
+            'uncoll-branch': '.uncoll-branch-btn', 'uncoll-manager': '.uncoll-manager-btn', 'uncoll-estimator': '.uncoll-estimator-btn'
+        };
+        const activeColor = group.startsWith('uncoll') ? 'orange' : 'teal';
+        document.querySelectorAll(btnClassMap[group]).forEach(btn => {
+            if (btn.dataset.value === val) {
+                btn.classList.remove(`bg-${activeColor}-500`, `border-${activeColor}-500`, 'text-white');
+                btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
+            }
+        });
+        window.applyBrowseFilter();
+        if (window.renderCollAnomalyTable) window.renderCollAnomalyTable();
+    }
+
+    window.removeBrowseFilterField = function(field) {
+        const idMap = {
+            keyword: 'browse-keyword-input',
+            chkSub: 'browse-chk-subcodes', chkCostNoEnd: 'browse-chk-cost-and-no-end', chkNoEnd: 'browse-chk-no-end',
+            chkUncollected: 'browse-chk-uncollected-only', chkCollAnomaly: 'browse-chk-coll-anomaly',
+            uncollKeyword: 'uncoll-keyword-input',
+        };
+        if (field === 'dateRange') {
+            const s = document.getElementById('browse-date-start'); const e = document.getElementById('browse-date-end');
+            if (s) s.value = ''; if (e) e.value = '';
+        } else if (field === 'endDateRange') {
+            const s = document.getElementById('browse-enddate-start'); const e = document.getElementById('browse-enddate-end');
+            if (s) s.value = ''; if (e) e.value = '';
+        } else if (field === 'margin') {
+            const v = document.getElementById('browse-margin-value'); if (v) v.value = '';
+        } else {
+            const el = document.getElementById(idMap[field]);
+            if (!el) return;
+            if (el.type === 'checkbox') el.checked = false; else el.value = '';
+        }
+        window.applyBrowseFilter();
+        if (field === 'chkCollAnomaly' && window.renderCollAnomalyTable) window.renderCollAnomalyTable();
+    }
+
+    window.renderActiveFilterChips = function() {
+        const wrap = document.getElementById('browse-active-filters');
+        if (!wrap) return;
+        const esc = (s) => String(s).replace(/'/g, "\\'");
+        const chips = [];
+        const addChip = (label, onclickAttr, colorClass) => {
+            chips.push(`<span class="inline-flex items-center gap-1.5 ${colorClass || 'bg-teal-50 text-teal-700 border-teal-200'} border text-xs font-bold pl-2.5 pr-1.5 py-1 rounded-full">${label}<button onclick="${onclickAttr}" class="hover:bg-black/10 rounded-full w-4 h-4 flex items-center justify-center leading-none" title="この条件を解除">×</button></span>`);
+        };
+
+        const keywordEl = document.getElementById('browse-keyword-input');
+        if (browseCurrentTab === 'keyword' && keywordEl && keywordEl.value) {
+            addChip(`キーワード: 「${keywordEl.value}」`, `window.removeBrowseFilterField('keyword')`);
+        }
+
+        browseSelectedManagers.forEach(v => addChip(`担当者: ${v}`, `window.removeBrowseFilterValue('manager','${esc(v)}')`));
+        browseSelectedEstimators.forEach(v => addChip(`積算: ${v}`, `window.removeBrowseFilterValue('estimator','${esc(v)}')`));
+        browseSelectedCustomers.forEach(v => addChip(`得意先: ${v}`, `window.removeBrowseFilterValue('customer','${esc(v)}')`));
+        browseSelectedBranches.forEach(v => addChip(`拠点: ${v}`, `window.removeBrowseFilterValue('branch','${esc(v)}')`));
+
+        const marginOp = document.getElementById('browse-margin-op')?.value;
+        const marginVal = document.getElementById('browse-margin-value')?.value;
+        if (marginVal) addChip(`粗利率 ${marginVal}%${marginOp === 'gte' ? '以上' : '以下'}`, `window.removeBrowseFilterField('margin')`, 'bg-amber-50 text-amber-700 border-amber-200');
+
+        const dS = document.getElementById('browse-date-start')?.value;
+        const dE = document.getElementById('browse-date-end')?.value;
+        if (dS || dE) addChip(`着手日: ${dS || '…'} 〜 ${dE || '…'}`, `window.removeBrowseFilterField('dateRange')`, 'bg-sky-50 text-sky-700 border-sky-200');
+
+        const eS = document.getElementById('browse-enddate-start')?.value;
+        const eE = document.getElementById('browse-enddate-end')?.value;
+        if (eS || eE) addChip(`完工日: ${eS || '…'} 〜 ${eE || '…'}`, `window.removeBrowseFilterField('endDateRange')`, 'bg-sky-50 text-sky-700 border-sky-200');
+
+        if (document.getElementById('browse-chk-subcodes')?.checked) addChip('サブコードありのみ', `window.removeBrowseFilterField('chkSub')`, 'bg-slate-100 text-slate-600 border-slate-300');
+        if (document.getElementById('browse-chk-cost-and-no-end')?.checked) addChip('原価あり＆完了日なし', `window.removeBrowseFilterField('chkCostNoEnd')`, 'bg-indigo-50 text-indigo-700 border-indigo-200');
+        if (document.getElementById('browse-chk-no-end')?.checked) addChip('完了日なし', `window.removeBrowseFilterField('chkNoEnd')`, 'bg-orange-50 text-orange-700 border-orange-200');
+        if (document.getElementById('browse-chk-uncollected-only')?.checked) addChip('未回収残高あり', `window.removeBrowseFilterField('chkUncollected')`, 'bg-orange-50 text-orange-700 border-orange-200');
+        if (document.getElementById('browse-chk-coll-anomaly')?.checked) addChip('回収差異あり', `window.removeBrowseFilterField('chkCollAnomaly')`, 'bg-red-50 text-red-700 border-red-200');
+
+        if (browseCurrentTab === 'uncollected') {
+            uncollSelectedBranches.forEach(v => addChip(`未回収-拠点: ${v}`, `window.removeBrowseFilterValue('uncoll-branch','${esc(v)}')`, 'bg-orange-50 text-orange-700 border-orange-200'));
+            uncollSelectedManagers.forEach(v => addChip(`未回収-担当者: ${v}`, `window.removeBrowseFilterValue('uncoll-manager','${esc(v)}')`, 'bg-orange-50 text-orange-700 border-orange-200'));
+            uncollSelectedEstimators.forEach(v => addChip(`未回収-積算: ${v}`, `window.removeBrowseFilterValue('uncoll-estimator','${esc(v)}')`, 'bg-orange-50 text-orange-700 border-orange-200'));
+            const uk = document.getElementById('uncoll-keyword-input')?.value;
+            if (uk) addChip(`未回収-キーワード: 「${uk}」`, `window.removeBrowseFilterField('uncollKeyword')`, 'bg-orange-50 text-orange-700 border-orange-200');
+        }
+
+        if (chips.length === 0) {
+            wrap.classList.add('hidden');
+            wrap.innerHTML = '';
+            return;
+        }
+        wrap.classList.remove('hidden');
+        wrap.innerHTML = `<div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold text-slate-500 flex items-center gap-1 whitespace-nowrap"><i class="fa-solid fa-filter"></i>絞り込み中（${chips.length}件）:</span>
+            ${chips.join('')}
+            <button onclick="window.resetBrowseFilter()" class="text-xs text-slate-400 hover:text-red-600 underline ml-2 whitespace-nowrap">すべて解除</button>
+        </div>`;
+    }
+
     window.filterCustomerButtons = function() {
         const val = window.normalizeStr(document.getElementById('browse-customer-filter').value || '');
         document.querySelectorAll('[data-group="customer"]').forEach(btn => {
@@ -8887,6 +8995,7 @@
         }
 
         window.renderBrowseTable();
+        window.renderActiveFilterChips();
     }
 
     window.renderBrowseTable = function() {
@@ -9046,11 +9155,15 @@
             btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
             btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
         });
-        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-enddate-start','browse-enddate-end','browse-customer-filter','browse-margin-value'];
+        document.querySelectorAll('.uncoll-branch-btn, .uncoll-manager-btn, .uncoll-estimator-btn').forEach(btn => {
+            btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
+            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
+        });
+        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-enddate-start','browse-enddate-end','browse-customer-filter','browse-margin-value','uncoll-keyword-input'];
         ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
         const marginOpEl = document.getElementById('browse-margin-op'); if (marginOpEl) marginOpEl.value = 'lte';
         window.filterCustomerButtons();
-        ['browse-chk-subcodes','browse-chk-cost-and-no-end','browse-chk-no-end'].forEach(id => {
+        ['browse-chk-subcodes','browse-chk-cost-and-no-end','browse-chk-no-end','browse-chk-uncollected-only','browse-chk-coll-anomaly'].forEach(id => {
             const el = document.getElementById(id); if(el) el.checked = false;
         });
         browseFiltered = [...browseAllData];
@@ -9058,6 +9171,7 @@
         const badge = document.getElementById('browse-count-badge');
         if (badge) badge.textContent = browseAllData.length + ' 件';
         window.renderBrowseTable();
+        window.renderActiveFilterChips();
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
