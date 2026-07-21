@@ -644,6 +644,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     }
     const sel=window.getSelection();
     if(sel) sel.removeAllRanges();
+    // 保険：個別要素側でhideFtbが呼ばれないケースがあっても、確実にftbを閉じる
+    setTimeout(()=>{
+      const f=document.getElementById('ftb');
+      if(!f||f.matches(':hover'))return;
+      const stillEditing=document.activeElement&&
+        (document.activeElement.isContentEditable||document.activeElement.tagName==='TEXTAREA');
+      if(!stillEditing)hideFtb();
+    },130);
   },true);
   document.getElementById('ci').addEventListener('input',e=>{S.color=e.target.value;renderPbar();});
   setTool('select');
@@ -976,12 +984,15 @@ function addShapeEl(bx,by,bw,bh,sh,color,lw,fill,opts={}){
     lblEl.appendChild(txtEl);
     el.appendChild(lblEl);
     const getTxtEl=()=>el.querySelector('.sh-text')||lblEl;
-    getTxtEl().addEventListener('blur',()=>{
+    getTxtEl().addEventListener('blur',ev=>{
+      const ftb=document.getElementById('ftb');
+      if(ftb&&ftb.contains(ev.relatedTarget))return; // ftb操作中は編集終了しない
       const d=S.elems.find(e=>e.id===id);
       if(d)d.label=getTxtEl().innerHTML;
       el.classList.remove('editing');
       getTxtEl().style.pointerEvents='none';
       saveHist();
+      setTimeout(()=>{const f=document.getElementById('ftb');if(f&&!f.matches(':hover'))hideFtb();},120);
     });
     getTxtEl().addEventListener('mouseup',()=>{if(el.classList.contains('editing')){saveRange();showFtb(getTxtEl(),'shape');}});
     getTxtEl().addEventListener('keyup',()=>{if(el.classList.contains('editing'))saveRange();});
