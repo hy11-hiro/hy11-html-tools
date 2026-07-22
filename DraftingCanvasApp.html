@@ -671,6 +671,7 @@
             const [snapEnabled, setSnapEnabled] = useState(true);
             const [orthoMode, setOrthoMode] = useState(false);
             const [alignGuideEnabled, setAlignGuideEnabled] = useState(true);
+            const [pdfExportDPI, setPdfExportDPI] = useState(300);
             const [cubeSize, setCubeSize] = useState(5);
 
             const viewRef = useRef({ scale: 1.0, offsetX: 0, offsetY: 0 }); 
@@ -1932,64 +1933,49 @@
             // EXPORT PDF FUNCTION - canvas全体をキャプチャしてPDF化
             const exportPDF = useCallback(() => {
                 const p = PAPERS[paper];
-                const canvas = canvasRef.current;
-                if (!canvas) return;
+                const realCanvas = canvasRef.current;
+                if (!realCanvas) return;
 
-                // 現在の view を一時的に用紙全体表示に合わせて再描画
-                const v = viewRef.current;
-                const savedView = { ...v };
+                // 画面上のキャンバス（ブラウザウィンドウのピクセル数に依存）をそのまま画像化すると
+                // 解像度が低くなってしまうため、印刷用に高DPIのオフスクリーンキャンバスへ
+                // 用紙サイズぴったりで直接描画してから書き出す。
+                const exportDPI = pdfExportDPI || 300;
+                const exportMM_TO_PX = exportDPI / 25.4;
+                const outW = Math.round(p.width  * exportMM_TO_PX);
+                const outH = Math.round(p.height * exportMM_TO_PX);
 
-                // 用紙がキャンバス全体に収まるスケールを計算
-                const MM_TO_PX2 = 3.7795275591;
-                const scaleX = canvas.width  / (p.width  * MM_TO_PX2);
-                const scaleY = canvas.height / (p.height * MM_TO_PX2);
-                const fitScale = Math.min(scaleX, scaleY) * 0.98;
+                const offCanvas = document.createElement('canvas');
+                offCanvas.width = outW;
+                offCanvas.height = outH;
 
-                // 用紙のピクセル寸法と画面上の位置（切り出し範囲）
-                const paperPxW = p.width  * MM_TO_PX2 * fitScale;
-                const paperPxH = p.height * MM_TO_PX2 * fitScale;
-                const offsetX = (canvas.width  - paperPxW) / 2;
-                const offsetY = (canvas.height - paperPxH) / 2;
+                const realView = viewRef.current;
+                const savedCanvasRefCurrent = canvasRef.current;
 
-                viewRef.current = { scale: fitScale, offsetX, offsetY };
-                setForceUpdate(n => n + 1);
+                try {
+                    // render() が参照している canvasRef / viewRef を一時的に
+                    // オフスクリーンキャンバス・書き出し用ビューに差し替えて直接描画させる
+                    canvasRef.current = offCanvas;
+                    viewRef.current = { scale: exportDPI / DPI, offsetX: 0, offsetY: 0 };
+                    render();
 
-                // 次フレームでキャプチャ
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        try {
-                            // ── 用紙部分のみを正確に切り出す（伸縮させない） ──
-                            // 全体をそのまま用紙サイズに引き伸ばすと、周囲の余白が
-                            // 一緒に拡大されグリッド・線が間延びして見える原因になっていた
-                            const cropCanvas = document.createElement('canvas');
-                            cropCanvas.width = Math.round(paperPxW);
-                            cropCanvas.height = Math.round(paperPxH);
-                            const cropCtx = cropCanvas.getContext('2d');
-                            cropCtx.drawImage(
-                                canvas,
-                                offsetX, offsetY, paperPxW, paperPxH,   // 元画像から用紙部分のみ切り出し
-                                0, 0, cropCanvas.width, cropCanvas.height // そのままのサイズで貼り付け（拡大縮小なし）
-                            );
-
-                            const imgData = cropCanvas.toDataURL('image/png', 1.0);
-                            const doc = new jsPDF({
-                                orientation: p.width > p.height ? 'l' : 'p',
-                                unit: 'mm',
-                                format: [p.width, p.height]
-                            });
-                            doc.addImage(imgData, 'PNG', 0, 0, p.width, p.height);
-                            doc.save('drawing.pdf');
-                        } catch(e) {
-                            console.error('PDF export error:', e);
-                            alert('PDF出力に失敗しました: ' + e.message);
-                        } finally {
-                            // 元のビューに戻す
-                            viewRef.current = savedView;
-                            setForceUpdate(n => n + 1);
-                        }
+                    const imgData = offCanvas.toDataURL('image/png', 1.0);
+                    const doc = new jsPDF({
+                        orientation: p.width > p.height ? 'l' : 'p',
+                        unit: 'mm',
+                        format: [p.width, p.height]
                     });
-                });
-            }, [paper, entities, drawingScale]);
+                    doc.addImage(imgData, 'PNG', 0, 0, p.width, p.height);
+                    doc.save('drawing.pdf');
+                } catch(e) {
+                    console.error('PDF export error:', e);
+                    alert('PDF出力に失敗しました: ' + e.message);
+                } finally {
+                    // 画面表示用の状態に戻す
+                    canvasRef.current = savedCanvasRefCurrent;
+                    viewRef.current = realView;
+                    setForceUpdate(n => n + 1);
+                }
+            }, [paper, entities, drawingScale, pdfExportDPI]);
 
             // Draw Grid Function
             const drawGrid = (ctx, view, paperW, paperH) => {
@@ -3440,6 +3426,11 @@
                         <div className="flex-1"></div>
                         <button onClick={undo} className="tool-btn text-white"><i data-lucide="undo-2"></i></button>
                         <button onClick={() => setEntities([])} className="tool-btn text-red-400"><i data-lucide="trash-2"></i></button>
+                        <select value={pdfExportDPI} onChange={(e)=>setPdfExportDPI(Number(e.target.value))} title="PDF書き出し解像度" className="bg-gray-800 border border-gray-600 text-gray-300 text-xs rounded px-1 mr-1">
+                            <option value={150}>150dpi</option>
+                            <option value={300}>300dpi</option>
+                            <option value={600}>600dpi</option>
+                        </select>
                         <button onClick={exportPDF} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center"><i data-lucide="download" className="w-4 h-4 mr-1"></i> PDF</button>
                     </div>
 
