@@ -1931,6 +1931,196 @@
             };
 
             // EXPORT PDF FUNCTION - canvas全体をキャプチャしてPDF化
+            // ── ベクターPDF書き出し（jsPDFのネイティブ描画命令を使用。線・文字は拡大しても劣化しない）──
+            const exportPDFVector = useCallback(() => {
+                try {
+                    const p = PAPERS[paper];
+                    const doc = new jsPDF({
+                        orientation: p.width > p.height ? 'l' : 'p',
+                        unit: 'mm',
+                        format: [p.width, p.height]
+                    });
+                    const ptFromMM = (mm) => mm * 72 / 25.4;
+                    const hexToRgb = (hex) => {
+                        if (!hex) return [0, 0, 0];
+                        const h = hex.replace('#', '');
+                        const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+                        const n = parseInt(full, 16);
+                        if (isNaN(n)) return [0, 0, 0];
+                        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+                    };
+                    const setStroke = (colorHex, widthMM) => {
+                        const [r, g, b] = hexToRgb(colorHex || '#000000');
+                        doc.setDrawColor(r, g, b);
+                        doc.setLineWidth(Math.max(0.05, widthMM || 0.3));
+                    };
+                    const setDash = (lineStyle) => {
+                        const dash = (LINE_STYLES[lineStyle] || LINE_STYLES.solid).dash;
+                        doc.setLineDashPattern(dash && dash.length ? dash : [], 0);
+                    };
+                    const vText = (str, x, y, fontSizeMM, colorHex, align, rotationDeg) => {
+                        const [r, g, b] = hexToRgb(colorHex || '#000000');
+                        doc.setTextColor(r, g, b);
+                        doc.setFontSize(ptFromMM(fontSizeMM || 3));
+                        doc.text(String(str), x, y, { align: align || 'left', angle: rotationDeg || 0 });
+                    };
+                    // 円弧を短い折れ線（多角形近似）でベクター描画
+                    const vArc = (cx, cy, r, a1, a2, anticlockwise) => {
+                        let sweep = anticlockwise ? a1 - a2 : a2 - a1;
+                        while (sweep < 0) sweep += Math.PI * 2;
+                        while (sweep > Math.PI * 2) sweep -= Math.PI * 2;
+                        const steps = Math.max(8, Math.round((sweep / (Math.PI * 2)) * 96));
+                        let prev = null;
+                        for (let i = 0; i <= steps; i++) {
+                            const a = anticlockwise ? a1 - sweep * (i / steps) : a1 + sweep * (i / steps);
+                            const pt = { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
+                            if (prev) doc.line(prev.x, prev.y, pt.x, pt.y);
+                            prev = pt;
+                        }
+                    };
+
+                    // ── 用紙外周 ──
+                    doc.setDrawColor(160, 160, 160); doc.setLineWidth(0.1); doc.setLineDashPattern([], 0);
+                    doc.rect(0, 0, p.width, p.height);
+
+                    // ── グリッド（主グリッド＋サブグリッド、淡いグレー） ──
+                    if (gridConfig.visible && gridMode === GRID_MODES.ORTHO) {
+                        const step = gridConfig.spacing || 10;
+                        const showSub = gridConfig.showSubGrid;
+                        const subDiv = Math.max(2, gridConfig.subDivisions || 5);
+                        const subStep = step / subDiv;
+
+                        if (showSub) {
+                            doc.setDrawColor(232, 232, 232); doc.setLineWidth(0.03); doc.setLineDashPattern([], 0);
+                            for (let x = 0; x <= p.width + 0.01; x += subStep) {
+                                if (Math.abs(x % step) < 0.001) continue; // 主グリッドと重複する線は除く
+                                doc.line(x, 0, x, p.height);
+                            }
+                            for (let y = 0; y <= p.height + 0.01; y += subStep) {
+                                if (Math.abs(y % step) < 0.001) continue;
+                                doc.line(0, y, p.width, y);
+                            }
+                        }
+                        doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.06); doc.setLineDashPattern([], 0);
+                        for (let x = 0; x <= p.width + 0.01; x += step) doc.line(x, 0, x, p.height);
+                        for (let y = 0; y <= p.height + 0.01; y += step) doc.line(0, y, p.width, y);
+                    }
+
+                    // ── 材料ハッチング（簡易ベクター版：斜線／点/短い縦線で系統別に表現）──
+                    const vMaterialHatch = (pts, material) => {
+                        const mat = MATERIALS[material];
+                        if (!mat || !mat.pattern) return;
+                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                        pts.forEach(pt => { minX = Math.min(minX, pt.x); maxX = Math.max(maxX, pt.x); minY = Math.min(minY, pt.y); maxY = Math.max(maxY, pt.y); });
+                        const sp = Math.max(2, Math.min(maxX - minX, maxY - minY) / 12 || 5);
+                        const dotPatterns = ['sand', 'gravel', 'asphalt'];
+                        const gridPatterns = ['tile', 'tile600', 'brick', 'interlock', 'hirakita'];
+                        doc.setDrawColor(0, 0, 0); doc.setLineWidth(0.08); doc.setLineDashPattern([], 0);
+                        if (dotPatterns.includes(mat.pattern)) {
+                            doc.setFillColor(0, 0, 0);
+                            for (let gx = minX + sp/2; gx < maxX; gx += sp) {
+                                for (let gy = minY + sp/2; gy < maxY; gy += sp) {
+                                    doc.circle(gx, gy, 0.15, 'F');
+                                }
+                            }
+                        } else if (gridPatterns.includes(mat.pattern)) {
+                            for (let x = minX; x < maxX; x += sp) doc.line(x, minY, x, maxY);
+                            for (let y = minY; y < maxY; y += sp) doc.line(minX, y, maxX, y);
+                        } else if (mat.pattern === 'grass' || mat.pattern === 'grass_j') {
+                            for (let gx = minX; gx < maxX; gx += sp * 0.7) {
+                                for (let gy = minY + sp/2; gy < maxY; gy += sp) {
+                                    doc.line(gx, gy + sp*0.4, gx + sp*0.2, gy);
+                                }
+                            }
+                        } else {
+                            // 既定：45°斜線ハッチ（コンクリート・地盤・割り石・木材など）
+                            for (let d = minX + minY; d < maxX + maxY; d += sp * 0.8) {
+                                doc.line(Math.max(minX, d - maxY), Math.min(maxY, d - minX), Math.min(maxX, d - minY), Math.max(minY, d - maxX));
+                            }
+                        }
+                    };
+
+                    entities.forEach(ent => {
+                        try {
+                            const entLayer = ent.layer || 'drawing';
+                            if (layerVisibility[entLayer] === false) return;
+                            const color = ent.color || '#000000';
+
+                            if (ent.type === TOOLS.LINE) {
+                                setStroke(color, ent.lineWidth); setDash(ent.lineStyle);
+                                doc.line(ent.p1.x, ent.p1.y, ent.p2.x, ent.p2.y);
+                            } else if (ent.type === TOOLS.RECT) {
+                                setStroke(color, ent.lineWidth); setDash(ent.lineStyle);
+                                doc.rect(ent.p1.x, ent.p1.y, ent.w, ent.h);
+                            } else if (ent.type === TOOLS.CIRCLE) {
+                                setStroke(color, ent.lineWidth); setDash(ent.lineStyle);
+                                if (ent.isArc) vArc(ent.c.x, ent.c.y, ent.r, ent.startAngle, ent.endAngle, ent.anticlockwise);
+                                else doc.circle(ent.c.x, ent.c.y, ent.r, 'S');
+                            } else if (ent.type === 'mline') {
+                                setStroke(color, ent.lineWidth); setDash(ent.lineStyle);
+                                const dx = ent.p2.x - ent.p1.x, dy = ent.p2.y - ent.p1.y;
+                                const len = Math.sqrt(dx*dx+dy*dy) || 1;
+                                const nx = -dy/len, ny = dx/len;
+                                const offsets = computeMlineOffsets(ent.spacing || 100, ent.leftCount != null ? ent.leftCount : 1, ent.rightCount != null ? ent.rightCount : 1, ent.showCenter !== false);
+                                offsets.forEach(off => doc.line(ent.p1.x+nx*off, ent.p1.y+ny*off, ent.p2.x+nx*off, ent.p2.y+ny*off));
+                            } else if (ent.type === 'leader') {
+                                setStroke(color, ent.lineWidth); doc.setLineDashPattern([], 0);
+                                const dirX = ent.p2.x >= ent.p1.x ? 1 : -1;
+                                const tailEnd = { x: ent.p2.x + dirX*6, y: ent.p2.y };
+                                doc.line(ent.p1.x, ent.p1.y, ent.p2.x, ent.p2.y);
+                                doc.line(ent.p2.x, ent.p2.y, tailEnd.x, tailEnd.y);
+                                vText(ent.text || '', tailEnd.x + dirX*0.8, tailEnd.y - 0.5, ent.fontSize || 3, color, dirX>0?'left':'right', 0);
+                            } else if (ent.type === TOOLS.DIM) {
+                                setStroke(color, 0.2); doc.setLineDashPattern([], 0);
+                                doc.line(ent.p1.x, ent.p1.y, ent.p2.x, ent.p2.y);
+                                const ang = Math.atan2(ent.p2.y-ent.p1.y, ent.p2.x-ent.p1.x);
+                                const tx = Math.cos(ang+Math.PI/2)*2, ty = Math.sin(ang+Math.PI/2)*2;
+                                doc.line(ent.p1.x-tx, ent.p1.y-ty, ent.p1.x+tx, ent.p1.y+ty);
+                                doc.line(ent.p2.x-tx, ent.p2.y-ty, ent.p2.x+tx, ent.p2.y+ty);
+                                const mid = Geo.mid(ent.p1, ent.p2);
+                                const dfs = ent.fontSize != null ? ent.fontSize : dimFontSize;
+                                const dto = ent.textOffset != null ? ent.textOffset : dimTextOffset;
+                                let dAng = (ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang;
+                                const perpX = Math.cos(dAng - Math.PI/2) * dto, perpY = Math.sin(dAng - Math.PI/2) * dto;
+                                const dimText = formatDim(Geo.dist(ent.p1, ent.p2) * drawingScale);
+                                vText(dimText, mid.x + perpX, mid.y + perpY, dfs, color, 'center', -dAng*180/Math.PI);
+                            } else if (ent.type === 'text_label') {
+                                const isGroupName = ent.color === '#ffff00';
+                                const isUserText = ent.userText === true;
+                                const fs = ent.fontSize || (isGroupName ? 4 : (isUserText ? 3 : 2));
+                                const align = ent.align || (isGroupName ? 'center' : 'left');
+                                const rot = (ent.rotation || 0);
+                                vText(ent.text, ent.p1.x, ent.p1.y, fs, isGroupName ? '#333333' : (color === '#ff00ff' ? '#333333' : color), align, -rot);
+                            } else if (ent.type === TOOLS.POLYGON) {
+                                if (ent.material && ent.material !== 'none') vMaterialHatch(ent.pts, ent.material);
+                                setStroke(color, ent.lineWidth); setDash(ent.lineStyle);
+                                for (let i = 0; i < ent.pts.length; i++) {
+                                    const a = ent.pts[i], b = ent.pts[(i+1)%ent.pts.length];
+                                    doc.line(a.x, a.y, b.x, b.y);
+                                }
+                            } else if (ent.type === 'symbol') {
+                                // シンボルは形状の種類が非常に多いため、簡易ベクター表現（枠＋ラベル）とする
+                                const sym = GAIKO_SYMBOLS[ent.symbolType];
+                                if (!sym) return;
+                                setStroke(color, ent.lineWidth); doc.setLineDashPattern([], 0);
+                                const s = (ent.scale || 1) / drawingScale;
+                                if (sym.r) {
+                                    doc.circle(ent.p1.x, ent.p1.y, sym.r * s, 'S');
+                                } else if (sym.w && sym.h) {
+                                    doc.rect(ent.p1.x - sym.w*s/2, ent.p1.y - sym.h*s/2, sym.w*s, sym.h*s, 'S');
+                                }
+                                vText(sym.label, ent.p1.x, ent.p1.y + (sym.h ? sym.h*s/2+2 : (sym.r||2)*s+2), 1.8, '#222222', 'center', 0);
+                            }
+                        } catch (e) { console.warn('vector export entity error', ent.type, e); }
+                    });
+
+                    doc.save('drawing_vector.pdf');
+                } catch (e) {
+                    console.error('Vector PDF export error:', e);
+                    alert('ベクターPDF出力に失敗しました: ' + e.message);
+                }
+            }, [paper, entities, gridConfig, gridMode, layerVisibility, drawingScale, unit, formatDim, dimFontSize, dimTextOffset]);
+
             const exportPDF = useCallback(() => {
                 const p = PAPERS[paper];
                 const realCanvas = canvasRef.current;
@@ -3431,7 +3621,8 @@
                             <option value={300}>300dpi</option>
                             <option value={600}>600dpi</option>
                         </select>
-                        <button onClick={exportPDF} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center"><i data-lucide="download" className="w-4 h-4 mr-1"></i> PDF</button>
+                        <button onClick={exportPDF} title="ラスターPDF（高解像度画像として出力）" className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center"><i data-lucide="download" className="w-4 h-4 mr-1"></i> PDF</button>
+                        <button onClick={exportPDFVector} title="ベクターPDF（線・文字が拡大しても劣化しない。材料の柄・シンボルは簡易表現になります）" className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded text-sm flex items-center ml-1"><i data-lucide="file-type" className="w-4 h-4 mr-1"></i> PDF(ベクター)</button>
                     </div>
 
                     <div className="flex flex-1 overflow-hidden relative">
