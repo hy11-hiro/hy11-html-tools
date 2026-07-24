@@ -630,7 +630,11 @@
             const [strokeStyleType, setStrokeStyleType] = useState('solid');
             const [strokeColor, setStrokeColor] = useState('#000000');
 
-            const [gridConfig, setGridConfig] = useState({ color: '#333333', opacity: 0.5, isoAngle: 30, spacing: 10, showSubGrid: false, subDivisions: 5, visible: true, showFrontGrid: true });
+            const [gridConfig, setGridConfig] = useState({ color: '#333333', opacity: 0.5, isoAngle: 30, spacing: 10, showSubGrid: false, subDivisions: 5, visible: true, showFrontGrid: true, lineWidth: 0.15 });
+            // 描画中プレビューの計測値表示 ON/OFF
+            const [showLiveMeasure, setShowLiveMeasure] = useState(true);
+            // 描画中プレビュー線を点線にするか実線にするか
+            const [previewDashed, setPreviewDashed] = useState(true);
             const [showGridPanel, setShowGridPanel] = useState(false);
             const [showGaikoPanel, setShowGaikoPanel] = useState(false);
             const [selectedMaterial, setSelectedMaterial] = useState('none');
@@ -2176,10 +2180,10 @@
                 const showSub = gridConfig.showSubGrid;
                 const subDiv = Math.max(2, gridConfig.subDivisions || 5);
                 const subStep = step / subDiv;
-                // 固定の実寸太さ（mm）。ズーム倍率や PDF出力時の一時スケールに依存させない。
-                // これにより画面表示とPDF出力で常に同じ太さになる。
-                const majorLW = 0.15;
-                const minorLW = 0.08;
+                // 実寸太さ（mm）。ズーム倍率や PDF出力時の一時スケールに依存させない。
+                // これにより画面表示とPDF出力で常に同じ太さになる。ユーザーがグリッド設定パネルから調整可能。
+                const majorLW = gridConfig.lineWidth || 0.15;
+                const minorLW = majorLW * 0.53;
 
                 const buildPath = (stepSize, isMajorOnly) => {
                     ctx.beginPath();
@@ -2588,25 +2592,31 @@
                 if (tempPoints.length > 0) {
                     const start = tempPoints[0];
                     const curr = snapPos.current || currentMousePos.current;
-                    ctx.beginPath(); ctx.strokeStyle = strokeColor; ctx.lineWidth = (tool===TOOLS.DIM)?0.2:strokeWidth; ctx.setLineDash([2, 2]);
+                    ctx.beginPath(); ctx.strokeStyle = strokeColor; ctx.lineWidth = (tool===TOOLS.DIM)?0.2:strokeWidth; ctx.setLineDash(previewDashed ? [2, 2] : []);
                     if (tool === TOOLS.LINE || tool === TOOLS.DIM) {
                         ctx.moveTo(start.x, start.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
+                        if (showLiveMeasure) {
                         const dimText = formatDim(Geo.dist(start, curr) * drawingScale);
                         ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = `${dimFontSize}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
                         const mid = Geo.mid(start, curr);
                         const ang = Math.atan2(curr.y - start.y, curr.x - start.x);
                         ctx.translate(mid.x, mid.y); ctx.rotate((ang > Math.PI/2 || ang < -Math.PI/2) ? ang + Math.PI : ang);
                         ctx.fillText(dimText, 0, -dimTextOffset); ctx.restore();
+                        }
                     } else if (tool === TOOLS.RECT) {
                         const w = curr.x - start.x, h = curr.y - start.y;
                         ctx.rect(start.x, start.y, w, h); ctx.stroke();
+                        if (showLiveMeasure) {
                         const txtW = formatDim(Math.abs(w)*drawingScale), txtH = formatDim(Math.abs(h)*drawingScale);
                         ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; ctx.fillText(`${txtW} x ${txtH}`, curr.x+2, curr.y+5); ctx.restore();
+                        }
                     } else if (tool === TOOLS.CIRCLE) {
                         const r = Geo.dist(start, curr);
                         ctx.arc(start.x, start.y, r, 0, Math.PI * 2); ctx.moveTo(start.x, start.y); ctx.lineTo(curr.x, curr.y); ctx.stroke();
+                        if (showLiveMeasure) {
                         const txtR = formatDim(r*drawingScale);
                         ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; const mid = Geo.mid(start, curr); ctx.fillText(`R${txtR}`, mid.x, mid.y); ctx.restore();
+                        }
                     } else if (tool === TOOLS.ARC) {
                         const center = tempPoints[0];
                         if (tempPoints.length === 1) {
@@ -2615,7 +2625,9 @@
                             ctx.arc(center.x, center.y, r, 0, Math.PI * 2);
                             ctx.moveTo(center.x, center.y); ctx.lineTo(curr.x, curr.y);
                             ctx.stroke();
+                            if (showLiveMeasure) {
                             ctx.save(); ctx.fillStyle = '#ff0000'; ctx.font = '3px sans-serif'; ctx.fillText(`R${formatDim(r*drawingScale)}`, curr.x+2, curr.y+5); ctx.restore();
+                            }
                         } else {
                             // 終了角を決めている段階：実際に描かれる弧をプレビュー
                             const startPt = tempPoints[1];
@@ -2868,7 +2880,7 @@
                         ctx.restore();
                     }
                 }
-            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides, bwFill, dimFontSize, dimTextOffset]);
+            }, [size, paper, gridMode, entities, tempPoints, vp1, vp2, tool, gridConfig, forceUpdate, drawingScale, unit, formatDim, strokeWidth, strokeColor, snapEnabled, selectedMaterial, blockThickness, blockPosition, layerVisibility, selVersion, cubeSize, regPolySides, bwFill, dimFontSize, dimTextOffset, showLiveMeasure, previewDashed]);
 
             useEffect(() => {
                 let id;
@@ -3448,7 +3460,7 @@
                 const mx = (e.clientX - rect.left) * (canvasRef.current.width/rect.width);
                 const my = (e.clientY - rect.top) * (canvasRef.current.height/rect.height);
                 const before = Geo.unprojectPoint(mx, my, { scale: v.scale*MM_TO_PX, offsetX: v.offsetX, offsetY: v.offsetY });
-                v.scale = Math.max(0.1, Math.min(v.scale * factor, 10));
+                v.scale = Math.max(0.1, Math.min(v.scale * factor, 50));
                 const after = Geo.unprojectPoint(mx, my, { scale: v.scale*MM_TO_PX, offsetX: v.offsetX, offsetY: v.offsetY });
                 v.offsetX += (after.x - before.x) * v.scale * MM_TO_PX; v.offsetY += (after.y - before.y) * v.scale * MM_TO_PX;
             };
@@ -3552,6 +3564,7 @@
                                     <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">カラー</label><input type="color" value={gridConfig.color} onChange={(e) => setGridConfig({...gridConfig, color: e.target.value})} className="w-full h-8"/></div>
                                     <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">不透明度</label><input type="range" min="0.1" max="1" step="0.1" value={gridConfig.opacity} onChange={(e) => setGridConfig({...gridConfig, opacity: parseFloat(e.target.value)})}/></div>
                                     <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">間隔（mm）</label><input type="number" min="1" max="5000" step="1" value={gridConfig.spacing} onChange={(e) => setGridConfig({...gridConfig, spacing: Math.max(1, parseFloat(e.target.value)||1)})} className="w-full bg-white text-black border border-gray-400 rounded px-1 py-0.5"/></div>
+                                    <div className="mb-2"><label className="block text-xs text-gray-300 mb-1">線の太さ（{(gridConfig.lineWidth ?? 0.15).toFixed(2)}mm）</label><input type="range" min="0.05" max="1" step="0.05" value={gridConfig.lineWidth ?? 0.15} onChange={(e) => setGridConfig({...gridConfig, lineWidth: parseFloat(e.target.value)})}/></div>
                                     <div className="mb-2 flex items-center"><input type="checkbox" id="subgrid" checked={gridConfig.showSubGrid} onChange={(e)=>setGridConfig({...gridConfig, showSubGrid: e.target.checked})} className="mr-2"/><label htmlFor="subgrid" className="text-xs text-gray-300">補助線</label></div>
                                     {gridConfig.showSubGrid && <div className="mb-2 flex items-center pl-6"><span className="text-xs text-gray-300 mr-2">分割数:</span><input type="number" min="2" max="20" value={gridConfig.subDivisions} onChange={(e)=>{ const raw = e.target.value; if(raw === '') { setGridConfig({...gridConfig, subDivisions: raw}); return; } const n = parseInt(raw); if(!isNaN(n)) setGridConfig({...gridConfig, subDivisions: n}); }} onBlur={(e)=>{ let n = parseInt(e.target.value); if(isNaN(n)) n = 2; n = Math.max(2, Math.min(20, n)); setGridConfig({...gridConfig, subDivisions: n}); }} className="w-16 bg-white text-black border border-gray-400 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"/></div>}
                                     {gridMode === GRID_MODES.ISO && <div className="mb-2"><label className="block text-xs text-gray-300">ISO角度</label><input type="range" min="15" max="75" step="5" value={gridConfig.isoAngle} onChange={(e)=>setGridConfig({...gridConfig, isoAngle: parseInt(e.target.value)})}/></div>}
@@ -3612,6 +3625,34 @@
                             <i data-lucide="crosshair" className="w-4 h-4"></i>
                             <span>ガイド</span>
                             <span className="opacity-40 text-xs">[G]</span>
+                        </button>
+
+                        {/* 描画中の計測値（寸法プレビュー）表示 ON/OFF トグル */}
+                        <button
+                            onClick={() => setShowLiveMeasure(prev => !prev)}
+                            title={showLiveMeasure ? '描画中の計測値表示ON（クリックでOFFへ）' : '描画中の計測値表示OFF（クリックでONへ）'}
+                            className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded border text-xs font-bold transition-all ${
+                                showLiveMeasure
+                                    ? 'bg-cyan-700 border-cyan-500 text-white'
+                                    : 'bg-gray-900 border-gray-600 text-gray-400'
+                            }`}
+                        >
+                            <i data-lucide="ruler" className="w-4 h-4"></i>
+                            <span>計測値</span>
+                        </button>
+
+                        {/* 描画中のプレビュー線: 点線／実線 トグル */}
+                        <button
+                            onClick={() => setPreviewDashed(prev => !prev)}
+                            title={previewDashed ? 'プレビュー線: 点線（クリックで実線へ）' : 'プレビュー線: 実線（クリックで点線へ）'}
+                            className={`ml-2 flex items-center gap-1.5 px-3 py-1 rounded border text-xs font-bold transition-all ${
+                                previewDashed
+                                    ? 'bg-gray-900 border-gray-600 text-gray-400'
+                                    : 'bg-cyan-700 border-cyan-500 text-white'
+                            }`}
+                        >
+                            <i data-lucide="minus" className="w-4 h-4"></i>
+                            <span>{previewDashed ? '点線' : '実線'}</span>
                         </button>
                         <div className="flex-1"></div>
                         <button onClick={undo} className="tool-btn text-white"><i data-lucide="undo-2"></i></button>
