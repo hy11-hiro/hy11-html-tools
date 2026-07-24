@@ -49,7 +49,7 @@
         .logo-icon { color: var(--accent); }
 
         /* Nav */
-        .nav-btn { border-bottom: 2px solid transparent; transition: all 0.2s; color: var(--text-dim); }
+        .nav-btn { border-bottom: 2px solid transparent; transition: all 0.2s; color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
         .nav-btn:hover { color: var(--text); }
         .nav-btn.active { border-bottom-color: var(--accent); color: white; }
 
@@ -565,7 +565,7 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
     <div class="flex items-center gap-3">
         <div class="flex items-center gap-2">
             <i class="fas fa-drafting-compass logo-icon text-lg"></i>
-            <span class="font-bold text-white text-sm">Exterior Planner <span class="text-xs font-normal opacity-50">Pro</span></span>
+            <span class="font-bold text-white text-sm whitespace-nowrap">Exterior Planner <span class="text-xs font-normal opacity-50">Pro</span></span>
         </div>
 
         <!-- Nav -->
@@ -610,15 +610,36 @@ body{font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--te
 
         <div class="w-px h-6 bg-cad-border mx-1"></div>
 
-        <!-- Save/Export -->
-        <button id="saveProjectBtn" class="btn btn-dim text-xs" title="プロジェクト保存 (JSON)"><i class="fas fa-save mr-1"></i>保存</button>
-        <label class="btn btn-dim text-xs cursor-pointer" title="プロジェクト読込"><i class="fas fa-upload mr-1"></i>開く<input type="file" id="loadProjectInput" accept=".json" class="hidden"></label>
+        <!-- 鮮明化メニュー（ドロップダウンでまとめて省スペース化） -->
+        <div class="relative">
+            <button id="sharpenMenuBtn" onclick="toggleSharpenMenu(event)" class="btn text-xs px-3 py-1" style="background:rgba(79,142,247,0.15);border:1px solid var(--accent);color:var(--accent);" title="PDF鮮明化メニュー">
+                <i class="fas fa-magic mr-1"></i>鮮明化<i class="fas fa-caret-down ml-1"></i>
+            </button>
+            <div id="sharpenMenu" class="hidden" style="position:absolute; top:100%; right:0; margin-top:6px; background:var(--panel); border:1px solid var(--border); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:100; min-width:230px; padding:6px;">
+                <button id="sharpenViewBtn" onclick="sharpenCurrentView(); closeSharpenMenu();" class="w-full text-left text-xs px-3 py-2 rounded hover:bg-white/5 flex items-center gap-2" style="color:var(--accent);" title="今表示している範囲＋周辺を含めてPDFから高解像度で再描画（ページ全体は再描画しないので重くなりません）">
+                    <i class="fas fa-magic" style="width:14px;"></i>この範囲を鮮明化
+                </button>
+                <button id="sharpenWholeBtn" onclick="sharpenWholePage(); closeSharpenMenu();" class="w-full text-left text-xs px-3 py-2 rounded hover:bg-white/5 flex items-center gap-2" style="color:var(--green);" title="ページ全体を高解像度に置き換え（一度置き換えた後は今まで通り軽快に動作します）">
+                    <i class="fas fa-file-image" style="width:14px;"></i>ページ全体を鮮明化
+                </button>
+                <div class="h-px my-1" style="background:var(--border);"></div>
+                <button id="resetResolutionBtn" onclick="resetToOriginalResolution(); closeSharpenMenu();" class="w-full text-left text-xs px-3 py-2 rounded hover:bg-white/5 flex items-center gap-2 text-gray-400" title="読込んだ時の解像度に戻す（鮮明化・範囲クロップを取り消し）">
+                    <i class="fas fa-undo" style="width:14px;"></i>元の解像度に戻す
+                </button>
+            </div>
+        </div>
 
         <div class="w-px h-6 bg-cad-border mx-1"></div>
 
-        <button id="saveImgBtn" class="btn btn-dim text-xs"><i class="fas fa-image mr-1"></i>PNG</button>
-        <button id="savePdfBtn" class="btn btn-red text-xs"><i class="fas fa-file-pdf mr-1"></i>PDF</button>
-        <button id="exportBtn" class="btn btn-green text-xs"><i class="fas fa-file-csv mr-1"></i>CSV出力</button>
+        <!-- Save/Export（アイコンのみで省スペース化） -->
+        <button id="saveProjectBtn" class="btn btn-dim px-2.5 py-1" title="プロジェクト保存 (JSON)"><i class="fas fa-save text-xs"></i></button>
+        <label class="btn btn-dim px-2.5 py-1 cursor-pointer" title="プロジェクト読込"><i class="fas fa-upload text-xs"></i><input type="file" id="loadProjectInput" accept=".json" class="hidden"></label>
+
+        <div class="w-px h-6 bg-cad-border mx-1"></div>
+
+        <button id="saveImgBtn" class="btn btn-dim px-2.5 py-1" title="PNG画像として保存"><i class="fas fa-image text-xs"></i></button>
+        <button id="savePdfBtn" class="btn btn-red px-2.5 py-1" title="PDFとして保存"><i class="fas fa-file-pdf text-xs"></i></button>
+        <button id="exportBtn" class="btn btn-green text-xs" title="CSV出力"><i class="fas fa-file-csv mr-1"></i>CSV出力</button>
     </div>
 </header>
 
@@ -2168,6 +2189,8 @@ const App = {
     pixelsPerMeter: 0,
     calibrationPoints: [],
     bgImage: null,
+    bgImageHiResCrop: null, // {canvas, wx0,wy0,wx1,wy1} 手動「鮮明化」で作った現在表示範囲のみの高解像度画像
+    pdfDoc: null, pdfPageNum: 1, pdfBaseScale: 1, pdfOriginalBaseScale: 1, // 元PDFへの参照（手動鮮明化用。originalは読込時の解像度を保持し「元に戻す」に使う）
     bgRotation: 0,
     shapes: [],
     manualItems: [],
@@ -3789,6 +3812,11 @@ function render(cursor) {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(App.bgImage, 0, 0);
+        // 手動「鮮明化」で作った高解像度クロップがあれば、同じ範囲に重ねて描画
+        const crop = App.bgImageHiResCrop;
+        if (crop) {
+            ctx.drawImage(crop.canvas, crop.wx0, crop.wy0, crop.wx1 - crop.wx0, crop.wy1 - crop.wy0);
+        }
         ctx.restore();
     }
 
@@ -4680,10 +4708,10 @@ async function handleFileUpload(e) {
             const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
             const pageNum = await pickPdfPage(pdf);
             const page = await pdf.getPage(pageNum);
-            // ページの実寸を取得し、長辺が最低6000pxになるスケールを選択
+            // ページの実寸を取得し、長辺が最低4000pxになるスケールを選択
             const baseVp = page.getViewport({ scale: 1.0 });
             const longSide = Math.max(baseVp.width, baseVp.height);
-            const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
+            const pdfScale = Math.min(Math.max(5000 / longSide, 3.5), 9.0);
             showLoader(`PDF高画質化中 (x${pdfScale.toFixed(1)})...`);
             const vp = page.getViewport({ scale: pdfScale });
             const cvs = document.createElement('canvas');
@@ -4694,8 +4722,11 @@ async function handleFileUpload(e) {
             await page.render({ canvasContext: renderCtx, viewport: vp }).promise;
             App.bgImage = cvs;
             App.bgImageDPI = Math.round(pdfScale * 72); // 参考DPI保持
+            App.pdfDoc = pdf; App.pdfPageNum = pageNum; App.pdfBaseScale = pdfScale; App.pdfOriginalBaseScale = pdfScale;
+            App.bgImageHiResCrop = null;
         } else {
             // 画像: createImageBitmap で高品質デコード
+            App.pdfDoc = null; App.bgImageHiResCrop = null;
             showLoader("画像を高品質読み込み中...");
             const bitmap = await createImageBitmap(file, {
                 imageOrientation: 'from-image',
@@ -4704,7 +4735,7 @@ async function handleFileUpload(e) {
                 resizeQuality: 'high'
             });
             // 画像が非常に大きい場合はそのまま（縮小しない）
-            const MAX_PX = 8000;
+            const MAX_PX = 9000;
             if (bitmap.width <= MAX_PX && bitmap.height <= MAX_PX) {
                 // そのままcanvasに焼き付け
                 const cvs = document.createElement('canvas');
@@ -4865,8 +4896,206 @@ function rotateImage(deg) {
     ctx.rotate(deg * Math.PI / 180);
     ctx.drawImage(App.bgImage, -App.bgImage.width/2, -App.bgImage.height/2);
     const img = new Image();
-    img.onload = () => { App.bgImage = img; fitToScreen(); render(); };
+    img.onload = () => {
+        App.bgImage = img;
+        App.bgImageHiResCrop = null; // 回転で座標系が変わるため無効化
+        App.pdfDoc = null; // 回転後は元PDFとの対応が崩れるため「鮮明化」機能を無効化
+        fitToScreen(); render();
+    };
     img.src = cvs.toDataURL();
+}
+
+// ══════════════════════════════════════════════════════════════
+// 手動「鮮明化」機能: 今画面に見えている範囲＋周辺マージンをPDFから
+// 高解像度で切り出して再描画する。ページ全体を再描画しないので、
+// どれだけズームしても生成される画像は一定サイズに収まり重くならない。
+// 周辺にもマージンを持たせることで、多少パンしても鮮明さが保たれる。
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// 手動「ページ全体を鮮明化」機能: PDFページ全体をより高い固定解像度で
+// 再描画し、App.bgImage自体を置き換える。世界座標系の単位が変わるため、
+// 既存の図形・ラベル位置・スケール換算値もすべて同じ比率で変換し、
+// 見た目の位置・ズームは一切変わらないようにする。
+// （毎フレームの重い縮小描画を避けるため、オーバーレイ方式ではなく
+// 　bgImage自体を置き換える方式にしている）
+// ══════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// bgImage全体を指定した解像度で再描画・置換する共通処理。
+// 図形座標・ラベル位置・m換算スケール・現在のズームをすべて同じ比率で
+// 変換するので、見た目の位置・大きさは一切変わらない。
+// sharpenWholePage（高解像度化）と resetToOriginalResolution（元に戻す）
+// の両方から利用する。
+// ══════════════════════════════════════════════════════════════
+async function replaceBgImageAtScale(targetScale) {
+    const page = await App.pdfDoc.getPage(App.pdfPageNum);
+    const vp = page.getViewport({ scale: targetScale });
+    const c = document.createElement('canvas');
+    c.width = Math.round(vp.width);
+    c.height = Math.round(vp.height);
+    const cctx = c.getContext('2d', { alpha: false });
+    await page.render({ canvasContext: cctx, viewport: vp }).promise;
+
+    const scaleFactor = targetScale / App.pdfBaseScale;
+    const scalePt = p => ({ x: p.x * scaleFactor, y: p.y * scaleFactor });
+
+    // 既存図形の座標をすべて新しい解像度に合わせて変換
+    App.shapes.forEach(shape => {
+        if (shape.points) shape.points = shape.points.map(scalePt);
+        if (shape.center) shape.center = scalePt(shape.center);
+        if (shape.radius != null) shape.radius *= scaleFactor;
+        if (shape.labelOffset) shape.labelOffset = scalePt(shape.labelOffset);
+    });
+    // 進行中の一時的な座標状態があれば追従
+    if (App.drawingPoints?.length) App.drawingPoints = App.drawingPoints.map(scalePt);
+    if (App.rectStartPoint) App.rectStartPoint = scalePt(App.rectStartPoint);
+    if (App.circleCenter) App.circleCenter = scalePt(App.circleCenter);
+    if (App.calibrationPoints?.length) App.calibrationPoints = App.calibrationPoints.map(scalePt);
+
+    // m換算スケール（積算の面積・距離計算に使用）も同じ比率で維持
+    if (App.pixelsPerMeter) App.pixelsPerMeter *= scaleFactor;
+
+    // 画面上の見た目（ズーム・位置）が変わらないよう、拡大率を逆補正
+    App.scale = App.scale / scaleFactor;
+
+    App.bgImage = c;
+    App.pdfBaseScale = targetScale;
+    App.bgImageHiResCrop = null; // 全体を置き換えたので範囲クロップは不要
+}
+
+// ══════════════════════════════════════════════════════════════
+// 手動「ページ全体を鮮明化」機能: PDFページ全体をより高い固定解像度で
+// 再描画し、App.bgImage自体を置き換える。世界座標系の単位が変わるため、
+// 既存の図形・ラベル位置・スケール換算値もすべて同じ比率で変換し、
+// 見た目の位置・ズームは一切変わらないようにする。
+// （毎フレームの重い縮小描画を避けるため、オーバーレイ方式ではなく
+// 　bgImage自体を置き換える方式にしている）
+// ══════════════════════════════════════════════════════════════
+async function sharpenWholePage() {
+    if (!App.pdfDoc) { alert('PDFを読み込んでいる場合のみ使えます（画像ファイルには効果がありません）'); return; }
+    const btn = document.getElementById('sharpenWholeBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>鮮明化中(数秒かかります)...'; }
+    try {
+        const page = await App.pdfDoc.getPage(App.pdfPageNum);
+        const baseVp = page.getViewport({ scale: 1.0 });
+        const longSide = Math.max(baseVp.width, baseVp.height);
+        // 現在の基準解像度より大幅に高い解像度で全体を再描画（一度だけの処理なので、
+        // 「この範囲を鮮明化」に近い画質になるまで思い切って引き上げる。上限12000px）
+        const targetScale = Math.min(12000 / longSide, App.pdfBaseScale * 3.2);
+        if (targetScale <= App.pdfBaseScale * 1.05) {
+            alert('既に十分な解像度で表示されています');
+            return;
+        }
+        await replaceBgImageAtScale(targetScale);
+        render();
+        updateEstimation();
+    } catch (err) {
+        console.error(err);
+        alert('鮮明化に失敗しました: ' + err.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-file-image mr-1"></i>ページ全体を鮮明化'; }
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 手動「元の解像度に戻す」機能: 読込時の解像度までbgImageを戻す。
+// 「この範囲」のクロップも同時にクリアされる。
+// ══════════════════════════════════════════════════════════════
+async function resetToOriginalResolution() {
+    if (!App.pdfDoc) { alert('PDFを読み込んでいる場合のみ使えます（画像ファイルには効果がありません）'); return; }
+    const alreadyOriginal = App.pdfBaseScale <= App.pdfOriginalBaseScale * 1.02;
+    if (alreadyOriginal && !App.bgImageHiResCrop) {
+        alert('既に元の解像度です');
+        return;
+    }
+    const btn = document.getElementById('resetResolutionBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>戻しています...'; }
+    try {
+        if (alreadyOriginal) {
+            // 解像度自体は既に元通り。「この範囲」のクロップだけ消せばよい
+            App.bgImageHiResCrop = null;
+        } else {
+            await replaceBgImageAtScale(App.pdfOriginalBaseScale);
+        }
+        render();
+        updateEstimation();
+    } catch (err) {
+        console.error(err);
+        alert('元に戻す処理に失敗しました: ' + err.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-undo mr-1"></i>元の解像度に戻す'; }
+    }
+}
+
+// 鮮明化メニュー（ドロップダウン）の開閉
+function toggleSharpenMenu(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('sharpenMenu').classList.toggle('hidden');
+}
+function closeSharpenMenu() {
+    document.getElementById('sharpenMenu').classList.add('hidden');
+}
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('sharpenMenu');
+    const btn = document.getElementById('sharpenMenuBtn');
+    if (menu && !menu.classList.contains('hidden') && !menu.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+        menu.classList.add('hidden');
+    }
+});
+
+async function sharpenCurrentView() {
+    if (!App.pdfDoc) { alert('PDFを読み込んでいる場合のみ使えます（画像ファイルには効果がありません）'); return; }
+    const btn = document.getElementById('sharpenViewBtn');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>鮮明化中...'; }
+    try {
+        // 画面に見えている範囲をワールド座標で取得
+        const topLeft = screenToWorld(0, 0);
+        const bottomRight = screenToWorld(App.width, App.height);
+        const viewW = bottomRight.x - topLeft.x, viewH = bottomRight.y - topLeft.y;
+
+        // 表示範囲の前後左右に1枚分ずつマージンを持たせる（多少パンしても鮮明なまま）
+        const MARGIN_RATIO = 1.0; // 片側に視野1枚分ずつ拡張（合計で縦横約3倍の範囲）
+        const marginX = viewW * MARGIN_RATIO, marginY = viewH * MARGIN_RATIO;
+
+        const wx0 = Math.max(0, Math.min(topLeft.x - marginX, App.bgImage.width));
+        const wy0 = Math.max(0, Math.min(topLeft.y - marginY, App.bgImage.height));
+        const wx1 = Math.max(0, Math.min(bottomRight.x + marginX, App.bgImage.width));
+        const wy1 = Math.max(0, Math.min(bottomRight.y + marginY, App.bgImage.height));
+        if (wx1 - wx0 < 1 || wy1 - wy0 < 1) { alert('図面が画面内に見えていません'); return; }
+
+        // ワールド座標(=元PDFレンダリング時のpx) → PDF実寸(pt)に変換
+        const px0 = wx0 / App.pdfBaseScale, py0 = wy0 / App.pdfBaseScale;
+        const px1 = wx1 / App.pdfBaseScale, py1 = wy1 / App.pdfBaseScale;
+
+        const dpr = window.devicePixelRatio || 1;
+        // 現在のズーム＋画面解像度に相当する分だけ細かく描画（ページ全体ではなく、この範囲だけ）
+        let renderScale = App.scale * App.pdfBaseScale * dpr;
+        const MAX_EDGE = 6000; // 生成canvasの一辺上限（マージン込みでも十分な余裕）
+        const cropWpt = px1 - px0, cropHpt = py1 - py0;
+        const naturalW = cropWpt * renderScale, naturalH = cropHpt * renderScale;
+        const maxNatural = Math.max(naturalW, naturalH);
+        if (maxNatural > MAX_EDGE) renderScale *= MAX_EDGE / maxNatural;
+
+        const page = await App.pdfDoc.getPage(App.pdfPageNum);
+        const viewport = page.getViewport({ scale: renderScale });
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(cropWpt * renderScale));
+        c.height = Math.max(1, Math.round(cropHpt * renderScale));
+        const cctx = c.getContext('2d', { alpha: false });
+        // 対象範囲だけがcanvas原点に来るようオフセットして描画
+        await page.render({
+            canvasContext: cctx,
+            viewport,
+            transform: [1, 0, 0, 1, -px0 * renderScale, -py0 * renderScale],
+        }).promise;
+
+        App.bgImageHiResCrop = { canvas: c, wx0, wy0, wx1, wy1 };
+        render();
+    } catch (err) {
+        console.error(err);
+        alert('鮮明化に失敗しました: ' + err.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic mr-1"></i>この範囲を鮮明化'; }
+    }
 }
 
 function fitToScreen() {
@@ -7280,7 +7509,7 @@ async function saveCanvasAsImage() {
 
         if (App.bgImage) {
             // 読み込んだPDF/画像の実寸解像度をそのまま使用（最大8000pxにクランプ）
-            const MAX_PX = 8000;
+            const MAX_PX = 9000;
             const ratio = Math.min(1, MAX_PX / Math.max(App.bgImage.width, App.bgImage.height));
             exportW = Math.round(App.bgImage.width * ratio);
             exportH = Math.round(App.bgImage.height * ratio);
@@ -7346,7 +7575,7 @@ async function saveCanvasAsPDF() {
 
         if (App.bgImage) {
             // 読み込んだPDF/画像の実寸解像度をそのまま使用（最大8000pxにクランプ）
-            const MAX_PX = 8000;
+            const MAX_PX = 9000;
             const ratio = Math.min(1, MAX_PX / Math.max(App.bgImage.width, App.bgImage.height));
             exportW = Math.round(App.bgImage.width * ratio);
             exportH = Math.round(App.bgImage.height * ratio);
@@ -7458,7 +7687,7 @@ async function calcLoad(inp) {
       // 積算ツールと同じ高画質化: 長辺6000px基準、scale 4.0〜11.0
       const baseVp = page.getViewport({ scale: 1.0 });
       const longSide = Math.max(baseVp.width, baseVp.height);
-      const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
+      const pdfScale = Math.min(Math.max(5000 / longSide, 3.5), 9.0);
       if (hint) hint.textContent = `高画質化中 (x${pdfScale.toFixed(1)})... しばらくお待ちください`;
       const vp = page.getViewport({ scale: pdfScale });
       const oc = document.createElement('canvas');
@@ -8219,7 +8448,7 @@ async function annotLoad(inp) {
       const page = await pdf.getPage(pageNum);
       const baseVp = page.getViewport({ scale: 1.0 });
       const longSide = Math.max(baseVp.width, baseVp.height);
-      const pdfScale = Math.min(Math.max(4000 / longSide, 3.0), 8.0);
+      const pdfScale = Math.min(Math.max(5000 / longSide, 3.5), 9.0);
       setAStatus(`高画質化中 (x${pdfScale.toFixed(1)})...`);
       const vp = page.getViewport({ scale: pdfScale });
       const oc = document.createElement('canvas');
