@@ -3787,10 +3787,49 @@ function getShapeCenter(shape) {
         }
         return shape.points[0];
     }
-    // area: centroid
-    const cx = shape.points.reduce((s, p) => s + p.x, 0) / shape.points.length;
-    const cy = shape.points.reduce((s, p) => s + p.y, 0) / shape.points.length;
-    return { x: cx, y: cy };
+    // area: 面積重心（シューレース公式による正しい重心）を計算。
+    // L字などの凹形状では重心がポリゴン外（くびれ部分）に出ることがあるため、
+    // その場合は同じ高さでポリゴン内側にある区間のうち最も長い区間の中点を使う
+    // （引き出し線が塗りつぶし範囲の外から出てしまう不具合の対策）
+    const pts = shape.points;
+    let area2 = 0, wcx = 0, wcy = 0;
+    for (let i = 0; i < pts.length; i++) {
+        const p1 = pts[i], p2 = pts[(i + 1) % pts.length];
+        const cross = p1.x * p2.y - p2.x * p1.y;
+        area2 += cross;
+        wcx += (p1.x + p2.x) * cross;
+        wcy += (p1.y + p2.y) * cross;
+    }
+    let cx, cy;
+    if (Math.abs(area2) > 1e-9) {
+        cx = wcx / (3 * area2);
+        cy = wcy / (3 * area2);
+    } else {
+        // 面積ほぼ0（縮退図形）は単純平均にフォールバック
+        cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+        cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+        return { x: cx, y: cy };
+    }
+
+    if (pointInPolygon(cx, cy, pts)) return { x: cx, y: cy };
+
+    // 重心がポリゴン外に出た場合: 同じ高さの水平線とポリゴンの交点を求め、
+    // 最も長く内側にある区間の中点を採用（必ずポリゴン内側になる）
+    const xsAtY = [];
+    for (let i = 0; i < pts.length; i++) {
+        const p1 = pts[i], p2 = pts[(i + 1) % pts.length];
+        if ((p1.y <= cy && p2.y > cy) || (p2.y <= cy && p1.y > cy)) {
+            const t = (cy - p1.y) / (p2.y - p1.y);
+            xsAtY.push(p1.x + t * (p2.x - p1.x));
+        }
+    }
+    xsAtY.sort((a, b) => a - b);
+    let bestMid = { x: cx, y: cy }, bestLen = -1;
+    for (let i = 0; i + 1 < xsAtY.length; i += 2) {
+        const len = xsAtY[i + 1] - xsAtY[i];
+        if (len > bestLen) { bestLen = len; bestMid = { x: (xsAtY[i] + xsAtY[i + 1]) / 2, y: cy }; }
+    }
+    return bestMid;
 }
 
 // ==========================================
