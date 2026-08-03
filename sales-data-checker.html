@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>売上データチェック・集計ツール (Ver 3.3)</title>
+    <title>売上データチェック・集計ツール (Ver 3.4)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <!-- Excel出力用ライブラリ (SheetJS) -->
@@ -83,7 +83,7 @@
 
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> 売上データチェック・集計ツール (Ver 3.3)</h4>
+        <h4 class="mb-0"><i class="bi bi-file-earmark-spreadsheet"></i> 売上データチェック・集計ツール (Ver 3.4)</h4>
         <div class="d-flex gap-2">
             <button class="btn btn-success btn-sm" onclick="exportToExcel()"><i class="bi bi-file-earmark-excel"></i> Excel出力</button>
             <button class="btn btn-outline-danger btn-sm" onclick="clearAllData()">🗑️ 全データクリア</button>
@@ -141,6 +141,9 @@
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="job-tab" data-bs-toggle="tab" data-bs-target="#job-pane" type="button"><i class="bi bi-buildings"></i> 工番別集計</button>
+                </li>
+                <li class="nav-item ms-auto" role="presentation">
+                    <button class="nav-link text-secondary" id="fmt-tab" data-bs-toggle="tab" data-bs-target="#fmt-pane" type="button"><i class="bi bi-sliders"></i> 取込形式</button>
                 </li>
             </ul>
 
@@ -215,12 +218,56 @@
                         </div>
                     </div>
                 </div>
+                <!-- 取込形式設定 -->
+                <div class="tab-pane fade" id="fmt-pane">
+                    <div id="formatTabContent"></div>
+                </div>
+
             </div>
         </div>
     </div>
 </div>
 
 <script>
+/**
+ * 取込形式設定 (CONFIG)
+ * ここを変更するか「取込形式」タブのUIから変更・保存することで列番号を調整できます
+ */
+let CONFIG = {
+    master: {
+        encoding: 'Shift-JIS',
+        delimiter: 'tab',
+        minCols: 3,
+        headerKeyword: '',          // 空文字の場合はスキップなし
+        cols: {
+            code:     { idx: 0,  label: '工番コード',  desc: '現場を一意に識別するメインコード' },
+            sub:      { idx: 1,  label: 'サブコード',  desc: '工番に紐づく枝番' },
+            name:     { idx: 2,  label: '名称',        desc: '現場の略称・通称' },
+            fullName: { idx: 5,  label: '正式名称',    desc: '空欄の場合は名称(C列)を使用' },
+            client:   { idx: 47, label: '施工主',      desc: '発注者・施工主名' },
+            staff:    { idx: 49, label: '担当者',      desc: '社内担当者名' },
+        }
+    },
+    sales: {
+        encoding: 'Shift-JIS',
+        delimiter: 'tab',
+        minCols: 10,
+        headerKeyword: '伝票日付',  // この文字列が1行目に含まれる場合ヘッダー行としてスキップ
+        cols: {
+            custName: { idx: 6,  label: '得意先名',   desc: '請求先の得意先名称' },
+            amount:   { idx: 26, label: '金額(税込)', desc: '整数として取込。カンマ・記号は自動除去' },
+            jobCode:  { idx: 96, label: '工番',       desc: '現場マスタと照合するメインキー' },
+            subCode:  { idx: 97, label: 'サブ',       desc: '現場マスタと照合するサブキー' },
+            compDate: { idx: 98, label: '完了日',     desc: 'YYYYMMDD形式で取込' },
+        }
+    },
+    rules: {
+        dupKey: '工番 ＋ サブ ＋ 現場名称 ＋ 金額',
+        codeAsString: true,
+        note: '「01」と「1」は別コードとして扱います（文字列比較）'
+    }
+};
+
 /**
  * グローバル変数
  */
@@ -273,10 +320,57 @@ async function loadMasterFromDB() {
     });
 }
 
+async function saveConfigToDB(cfg) {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        store.put({ id: 'config', data: cfg });
+        tx.oncomplete = () => resolve();
+        tx.onerror = e => reject(e.target.error);
+    });
+}
+
+async function loadConfigFromDB() {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.get('config');
+        req.onsuccess = e => resolve(e.target.result ? e.target.result.data : null);
+        req.onerror = e => reject(e.target.error);
+    });
+}
+
 // 起動時処理
 document.addEventListener('DOMContentLoaded', async () => {
     setupDropZone('dropZoneMaster', handleMasterFile);
     setupDropZone('dropZoneData', handleDataFiles);
+
+    // IndexedDB から CONFIG 復元（保存済みの設定があれば上書き）
+    try {
+        const savedConfig = await loadConfigFromDB();
+        if (savedConfig) {
+            // 列インデックスのみ復元（label・descはコード側を正として維持）
+            ['master', 'sales'].forEach(section => {
+                if (savedConfig[section] && savedConfig[section].cols) {
+                    Object.keys(savedConfig[section].cols).forEach(key => {
+                        if (CONFIG[section].cols[key] !== undefined) {
+                            CONFIG[section].cols[key].idx = savedConfig[section].cols[key].idx;
+                        }
+                    });
+                }
+                if (savedConfig[section] && savedConfig[section].headerKeyword !== undefined) {
+                    CONFIG[section].headerKeyword = savedConfig[section].headerKeyword;
+                }
+                if (savedConfig[section] && savedConfig[section].minCols !== undefined) {
+                    CONFIG[section].minCols = savedConfig[section].minCols;
+                }
+            });
+        }
+    } catch(e) {
+        console.error('CONFIG復元エラー:', e);
+    }
     
     // IndexedDB からマスタ復元
     try {
@@ -288,6 +382,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch(e) {
         console.error('マスタ復元エラー:', e);
     }
+
+    renderFormatTab();
 });
 
 function setupDropZone(id, handler) {
@@ -326,19 +422,20 @@ async function handleMasterFile(e) {
         const rows = text.split(/\r\n|\n|\r/);
         const newData = [];
 
+        const mc = CONFIG.master.cols;
         rows.forEach(line => {
             if (!line.trim()) return;
             let cols = line.split('\t');
             cols = cols.map(c => c.replace(/^"|"$/g, '').trim());
 
-            if (cols.length < 3) return;
+            if (cols.length < CONFIG.master.minCols) return;
 
-            const code = String(cols[0] || "");      // A列
-            const sub = String(cols[1] || "");       // B列
-            const name = cols[2];      // C列
-            const fullName = cols[5] || ""; // F列
-            const client = cols[47] || ""; // AV列
-            const staff = cols[49] || "";  // AX列
+            const code     = String(cols[mc.code.idx]     || "");
+            const sub      = String(cols[mc.sub.idx]      || "");
+            const name     =        cols[mc.name.idx]     || "";
+            const fullName =        cols[mc.fullName.idx] || "";
+            const client   =        cols[mc.client.idx]   || "";
+            const staff    =        cols[mc.staff.idx]    || "";
 
             if (code) {
                 newData.push({
@@ -403,8 +500,10 @@ async function handleDataFiles(e) {
             const text = await readFileAsText(file);
             const lines = text.split(/\r\n|\n|\r/);
             
+            const sc = CONFIG.sales.cols;
             let startIndex = 0;
-            if (lines[0] && lines[0].includes("伝票日付")) startIndex = 1;
+            const hw = CONFIG.sales.headerKeyword;
+            if (hw && lines[0] && lines[0].includes(hw)) startIndex = 1;
 
             for (let j = startIndex; j < lines.length; j++) {
                 const line = lines[j];
@@ -412,11 +511,11 @@ async function handleDataFiles(e) {
 
                 // パース
                 let cols = line.split('\t').map(c => c.replace(/^"|"$/g, '').trim());
-                if (cols.length < 10) continue;
+                if (cols.length < CONFIG.sales.minCols) continue;
 
-                const jobCode = String(cols[96] || "");
-                const subCode = String(cols[97] || "");
-                const amount = parseInt(cols[26]) || 0;
+                const jobCode = String(cols[sc.jobCode.idx] || "");
+                const subCode = String(cols[sc.subCode.idx] || "");
+                const amount  = parseInt((cols[sc.amount.idx] || "").replace(/[^\d-]/g, '')) || 0;
                 
                 // マスタ検索（現場名をキーに含めるため）
                 const m = findMaster(jobCode, subCode);
@@ -439,8 +538,8 @@ async function handleDataFiles(e) {
                 const rowData = {
                     no: currentNo,
                     fileName: file.name,
-                    compDate: cols[98] || "",
-                    custName: cols[6] || "",
+                    compDate: cols[sc.compDate.idx] || "",
+                    custName: cols[sc.custName.idx] || "",
                     jobCode: jobCode,
                     subCode: subCode,
                     amount: amount,
@@ -716,6 +815,244 @@ function filterTable() {
 function formatDate(yyyymmdd) {
     if (!yyyymmdd || yyyymmdd.length !== 8) return yyyymmdd;
     return `${yyyymmdd.substring(0,4)}/${yyyymmdd.substring(4,6)}/${yyyymmdd.substring(6,8)}`;
+}
+
+/**
+ * 列インデックス(0始まり) → Excel列名 (A, B, ... Z, AA, AB ...)
+ */
+function idxToColLetter(n) {
+    n = parseInt(n);
+    if (isNaN(n) || n < 0) return '?';
+    if (n < 26) return String.fromCharCode(65 + n);
+    const first  = Math.floor((n - 26) / 26);
+    const second = (n - 26) % 26;
+    return String.fromCharCode(65 + first) + String.fromCharCode(65 + second);
+}
+
+/**
+ * 取込形式タブ描画
+ */
+function renderFormatTab() {
+    const container = document.getElementById('formatTabContent');
+    if (!container) return;
+
+    const mkColRows = (section) => {
+        return Object.entries(CONFIG[section].cols).map(([key, v]) => `
+            <tr>
+                <td class="fw-bold text-primary">${v.label}</td>
+                <td class="text-center">
+                    <span class="badge bg-secondary fmt-letter" id="letter_${section}_${key}">${idxToColLetter(v.idx)}</span>
+                </td>
+                <td class="text-center">
+                    <input type="number" min="0" max="999"
+                        class="form-control form-control-sm text-center fmt-idx-input"
+                        id="idx_${section}_${key}"
+                        value="${v.idx}"
+                        style="width:70px;display:inline-block;"
+                        oninput="onIdxChange('${section}','${key}',this.value)">
+                </td>
+                <td class="text-muted small">${v.desc}</td>
+            </tr>
+        `).join('');
+    };
+
+    container.innerHTML = `
+    <div class="row g-3">
+
+        <!-- 現場マスタ設定 -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-database"></i> 現場マスタ (txt) の列設定</span>
+                    <span class="badge bg-light text-dark border small">文字コード: Shift-JIS　区切: タブ</span>
+                </div>
+                <div class="card-body p-2">
+                    <table class="table table-sm table-bordered mb-2">
+                        <thead class="table-light">
+                            <tr>
+                                <th>項目</th>
+                                <th class="text-center" style="width:60px">列名</th>
+                                <th class="text-center" style="width:80px">列番号<br><small class="text-muted fw-normal">※0始まり</small></th>
+                                <th>用途・備考</th>
+                            </tr>
+                        </thead>
+                        <tbody>${mkColRows('master')}</tbody>
+                    </table>
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <label class="form-label small mb-1">最小列数（これ未満は行スキップ）</label>
+                            <input type="number" min="1" class="form-control form-control-sm" id="master_minCols" value="${CONFIG.master.minCols}" style="width:80px">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1">ヘッダー行スキップキーワード</label>
+                            <input type="text" class="form-control form-control-sm" id="master_headerKeyword" value="${CONFIG.master.headerKeyword}" placeholder="（空欄=スキップなし）">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 売上データ設定 -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-collection"></i> 売上データ (txt) の列設定</span>
+                    <span class="badge bg-light text-dark border small">文字コード: Shift-JIS　区切: タブ</span>
+                </div>
+                <div class="card-body p-2">
+                    <table class="table table-sm table-bordered mb-2">
+                        <thead class="table-light">
+                            <tr>
+                                <th>項目</th>
+                                <th class="text-center" style="width:60px">列名</th>
+                                <th class="text-center" style="width:80px">列番号<br><small class="text-muted fw-normal">※0始まり</small></th>
+                                <th>用途・備考</th>
+                            </tr>
+                        </thead>
+                        <tbody>${mkColRows('sales')}</tbody>
+                    </table>
+                    <div class="row g-2 mt-1">
+                        <div class="col-6">
+                            <label class="form-label small mb-1">最小列数（これ未満は行スキップ）</label>
+                            <input type="number" min="1" class="form-control form-control-sm" id="sales_minCols" value="${CONFIG.sales.minCols}" style="width:80px">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1">ヘッダー行スキップキーワード</label>
+                            <input type="text" class="form-control form-control-sm" id="sales_headerKeyword" value="${CONFIG.sales.headerKeyword}" placeholder="例: 伝票日付">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- チェックルール -->
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary bg-opacity-10">
+                    <i class="bi bi-shield-check"></i> チェックルール
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr><th style="width:180px">ルール</th><th>内容</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="fw-bold">重複判定キー</td>
+                                <td>
+                                    <code>${CONFIG.rules.dupKey}</code>
+                                    <div class="text-muted small mt-1">この4項目がすべて一致した場合に「重複」と判定します。マスタが読み込まれていない場合、現場名称は空欄として比較されます。</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">コード比較方式</td>
+                                <td>
+                                    <span class="badge bg-info text-dark">文字列比較</span>
+                                    <span class="ms-2">${CONFIG.rules.note}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">マスタ名称優先順位</td>
+                                <td>正式名称(${idxToColLetter(CONFIG.master.cols.fullName.idx)}列) が空欄でなければ正式名称を使用。空欄の場合は名称(${idxToColLetter(CONFIG.master.cols.name.idx)}列)を使用。</td>
+                            </tr>
+                            <tr>
+                                <td class="fw-bold">複数ファイル取込</td>
+                                <td>ファイルをまとめてドロップすると順番に処理します。重複判定はセッション全体（全ファイル横断）で行います。</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 保存ボタン -->
+        <div class="col-12 d-flex justify-content-end gap-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="resetConfig()">
+                <i class="bi bi-arrow-counterclockwise"></i> デフォルトに戻す
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveConfig()">
+                <i class="bi bi-floppy"></i> この設定を保存（次回起動時も反映）
+            </button>
+        </div>
+
+    </div>
+    <div class="mt-2 small text-muted">
+        <i class="bi bi-info-circle"></i>
+        列番号は <strong>0始まり</strong> です（A列=0, B列=1, AA列=26, AV列=47 …）。
+        設定を変更後「保存」すると IndexedDB に記録され、次回ブラウザを開いたときも維持されます。
+        設定変更は <strong>次回の取込から</strong> 反映されます（読み込み済みのデータには影響しません）。
+    </div>
+    `;
+}
+
+/** 列番号入力変更時：列名バッジをリアルタイム更新 */
+function onIdxChange(section, key, val) {
+    const badge = document.getElementById(`letter_${section}_${key}`);
+    if (badge) badge.textContent = idxToColLetter(val);
+}
+
+/** 設定を保存 */
+async function saveConfig() {
+    // UI から値を反映
+    ['master','sales'].forEach(section => {
+        Object.keys(CONFIG[section].cols).forEach(key => {
+            const el = document.getElementById(`idx_${section}_${key}`);
+            if (el) CONFIG[section].cols[key].idx = parseInt(el.value) || 0;
+        });
+        const mc = document.getElementById(`${section}_minCols`);
+        if (mc) CONFIG[section].minCols = parseInt(mc.value) || 1;
+        const hk = document.getElementById(`${section}_headerKeyword`);
+        if (hk) CONFIG[section].headerKeyword = hk.value.trim();
+    });
+
+    try {
+        await saveConfigToDB(CONFIG);
+        // 保存成功表示
+        const btn = document.querySelector('#fmt-pane .btn-primary');
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-lg"></i> 保存しました';
+        btn.classList.replace('btn-primary','btn-success');
+        setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success','btn-primary'); }, 2000);
+        // ルール欄を再描画
+        renderFormatTab();
+    } catch(e) {
+        alert('保存エラー: ' + e.message);
+    }
+}
+
+/** デフォルト設定に戻す */
+async function resetConfig() {
+    if (!confirm('列番号設定をデフォルトに戻しますか？\n（現在のマスタ・売上データはクリアされません）')) return;
+    CONFIG = {
+        master: {
+            encoding: 'Shift-JIS', delimiter: 'tab', minCols: 3, headerKeyword: '',
+            cols: {
+                code:     { idx: 0,  label: '工番コード',  desc: '現場を一意に識別するメインコード' },
+                sub:      { idx: 1,  label: 'サブコード',  desc: '工番に紐づく枝番' },
+                name:     { idx: 2,  label: '名称',        desc: '現場の略称・通称' },
+                fullName: { idx: 5,  label: '正式名称',    desc: '空欄の場合は名称(C列)を使用' },
+                client:   { idx: 47, label: '施工主',      desc: '発注者・施工主名' },
+                staff:    { idx: 49, label: '担当者',      desc: '社内担当者名' },
+            }
+        },
+        sales: {
+            encoding: 'Shift-JIS', delimiter: 'tab', minCols: 10, headerKeyword: '伝票日付',
+            cols: {
+                custName: { idx: 6,  label: '得意先名',   desc: '請求先の得意先名称' },
+                amount:   { idx: 26, label: '金額(税込)', desc: '整数として取込。カンマ・記号は自動除去' },
+                jobCode:  { idx: 96, label: '工番',       desc: '現場マスタと照合するメインキー' },
+                subCode:  { idx: 97, label: 'サブ',       desc: '現場マスタと照合するサブキー' },
+                compDate: { idx: 98, label: '完了日',     desc: 'YYYYMMDD形式で取込' },
+            }
+        },
+        rules: {
+            dupKey: '工番 ＋ サブ ＋ 現場名称 ＋ 金額',
+            codeAsString: true,
+            note: '「01」と「1」は別コードとして扱います（文字列比較）'
+        }
+    };
+    await saveConfigToDB(CONFIG);
+    renderFormatTab();
 }
 
 </script>
