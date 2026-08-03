@@ -1987,15 +1987,30 @@
                     doc.setDrawColor(160, 160, 160); doc.setLineWidth(0.1); doc.setLineDashPattern([], 0);
                     doc.rect(0, 0, p.width, p.height);
 
-                    // ── グリッド（主グリッド＋サブグリッド、淡いグレー） ──
+                    // ── グリッド（主グリッド＋サブグリッド。画面表示と同じ色・不透明度・太さを反映） ──
                     if (gridConfig.visible && gridMode === GRID_MODES.ORTHO) {
                         const step = gridConfig.spacing || 10;
                         const showSub = gridConfig.showSubGrid;
                         const subDiv = Math.max(2, gridConfig.subDivisions || 5);
                         const subStep = step / subDiv;
+                        const gridOpacity = gridConfig.opacity != null ? gridConfig.opacity : 0.5;
+                        const majorLW = gridConfig.lineWidth || 0.15;
+                        const minorLW = majorLW * 0.53;
+                        // PDFの線には直接アルファ値を指定できないため、白背景（用紙）に対して
+                        // ctx.globalAlpha と同等の見た目になるよう、指定色を白とブレンドして表現する。
+                        const blendWithWhite = (colorHex, alpha) => {
+                            const [r, g, b] = hexToRgb(colorHex || '#333333');
+                            const a = Math.max(0, Math.min(1, alpha));
+                            return [
+                                Math.round(r * a + 255 * (1 - a)),
+                                Math.round(g * a + 255 * (1 - a)),
+                                Math.round(b * a + 255 * (1 - a))
+                            ];
+                        };
 
                         if (showSub) {
-                            doc.setDrawColor(232, 232, 232); doc.setLineWidth(0.03); doc.setLineDashPattern([], 0);
+                            const [sr, sg, sb] = blendWithWhite(gridConfig.color, gridOpacity * 0.5);
+                            doc.setDrawColor(sr, sg, sb); doc.setLineWidth(minorLW); doc.setLineDashPattern([], 0);
                             for (let x = 0; x <= p.width + 0.01; x += subStep) {
                                 if (Math.abs(x % step) < 0.001) continue; // 主グリッドと重複する線は除く
                                 doc.line(x, 0, x, p.height);
@@ -2005,7 +2020,8 @@
                                 doc.line(0, y, p.width, y);
                             }
                         }
-                        doc.setDrawColor(210, 210, 210); doc.setLineWidth(0.06); doc.setLineDashPattern([], 0);
+                        const [mr, mg, mb] = blendWithWhite(gridConfig.color, gridOpacity);
+                        doc.setDrawColor(mr, mg, mb); doc.setLineWidth(majorLW); doc.setLineDashPattern([], 0);
                         for (let x = 0; x <= p.width + 0.01; x += step) doc.line(x, 0, x, p.height);
                         for (let y = 0; y <= p.height + 0.01; y += step) doc.line(0, y, p.width, y);
                     }
