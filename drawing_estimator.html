@@ -2180,6 +2180,8 @@ const App = {
     width: 0, height: 0,
     scale: 1, offsetX: 0, offsetY: 0,
     isDragging: false,
+    spaceHeld: false, spacePanning: false, // スペースキーで一時パン
+    highlightedShapeIds: new Set(), // 積算リストから選択中の図形（複数可）
     dragStartX: 0, dragStartY: 0,
     lastMouseX: 0, lastMouseY: 0,
     currentTool: 'select',
@@ -2652,11 +2654,35 @@ function initEvents() {
 
     // Keyboard shortcuts
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', e => {
+        if (e.code === 'Space' || e.key === ' ') {
+            App.spaceHeld = false;
+            App.spacePanning = false;
+            if (App.canvas) App.canvas.style.cursor = '';
+        }
+    });
+    // ウィンドウがフォーカスを失った場合（Alt+Tab等）にスペース状態が固まらないようにする
+    window.addEventListener('blur', () => {
+        App.spaceHeld = false;
+        App.spacePanning = false;
+        App.isDragging = false;
+        if (App.canvas) App.canvas.style.cursor = '';
+    });
 }
 
 function onKeyDown(e) {
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    // スペースキー: 押している間だけ一時的にパン（離すと元のツールの挙動に戻る）
+    if (e.code === 'Space' || e.key === ' ') {
+        if (!App.spaceHeld) {
+            App.spaceHeld = true;
+            if (App.canvas) App.canvas.style.cursor = 'grab';
+        }
+        e.preventDefault(); // ページスクロール防止
+        return;
+    }
 
     // Tool shortcuts
     const toolMap = { 'v':'select','d':'line','a':'area','r':'rect','c':'circle','n':'count','s':'scale','l':'label','t':'text','m':'measure' };
@@ -2912,8 +2938,17 @@ function onMouseDown(e) {
         App.isDragging = true; App.dragStartX = sx; App.dragStartY = sy; e.preventDefault(); return;
     }
 
+    // スペースキーを押している間は左クリックドラッグでパン（現在のツールの動作は一時中断）
+    if (App.spaceHeld && e.button === 0) {
+        App.isDragging = true; App.spacePanning = true;
+        App.dragStartX = sx; App.dragStartY = sy;
+        App.canvas.style.cursor = 'grabbing';
+        e.preventDefault(); return;
+    }
+
     if (e.button !== 0) return;
     hideContextMenu();
+    if (App.highlightedShapeIds.size > 0) { App.highlightedShapeIds = new Set(); render(); }
 
     const tool = App.currentTool;
 
@@ -3108,12 +3143,17 @@ function onMouseMove(e) {
         document.getElementById('cursorPosLabel').textContent = `X:${world.x.toFixed(0)} Y:${world.y.toFixed(0)}`;
     }
 
-    // Pan (middle button)
-    if (App.isDragging && e.buttons === 4) {
+    // Pan (middle button、またはスペース+左クリックドラッグ)
+    if (App.isDragging && (e.buttons === 4 || (App.spacePanning && e.buttons === 1))) {
         App.offsetX += sx - App.dragStartX;
         App.offsetY += sy - App.dragStartY;
         App.dragStartX = sx; App.dragStartY = sy;
         render(); return;
+    }
+
+    // スペースを押しているだけ（まだドラッグ開始前）はカーソルだけgrabにしておく
+    if (App.spaceHeld && !App.isDragging && App.canvas.style.cursor !== 'grab') {
+        App.canvas.style.cursor = 'grab';
     }
 
     // ハンドルドラッグ（hybridシェイプ）
@@ -3178,6 +3218,10 @@ function onMouseUp(e) {
         if (orig && (Math.abs(orig[0].x - curr[0].x) > 1 || Math.abs(orig[0].y - curr[0].y) > 1)) {
             updateEstimation();
         }
+    }
+    if (App.spacePanning) {
+        App.spacePanning = false;
+        App.canvas.style.cursor = App.spaceHeld ? 'grab' : '';
     }
     App.isDragging = false;
     App.draggingLabelShape = null;
@@ -3389,14 +3433,14 @@ function hitTest(wx, wy) {
         const fs = s.settings.textSize || 16;
         const lines = (s.settings.textContent || '').split('\n');
         const maxLen = Math.max(...lines.map(l => l.length), 1);
-        // 文字幅・高さをワールド座標に換算（近似）
-        const charW = fs * 0.6 / App.scale;
-        const lineH = fs * 1.4 / App.scale;
+        // 文字サイズは既にワールド座標系の量（App.scaleと共に拡大縮小される）
+        const charW = fs * 0.6;
+        const lineH = fs * 1.4;
         const bw = maxLen * charW;
         const bh = lines.length * lineH;
         const px = s.points[0].x, py = s.points[0].y;
         if (wx >= px - 4/App.scale && wx <= px + bw + 4/App.scale &&
-            wy >= py - fs/App.scale - 2/App.scale && wy <= py + bh) return i;
+            wy >= py - fs - 2/App.scale && wy <= py + bh) return i;
     }
 
     // パス1: エッジ優先（輪郭線・頂点付近）
@@ -3891,7 +3935,7 @@ function render(cursor) {
 
     // Draw shapes
     App.shapes.forEach((shape, idx) => {
-        const isSelected = App.selectedShape === idx;
+        const isSelected = App.selectedShape === idx || App.highlightedShapeIds.has(idx);
         drawShape(ctx, shape, isSelected, cursor);
     });
 
@@ -4236,7 +4280,10 @@ function drawShape(ctx, shape, isSelected, cursor) {
     if (shape.type === 'text') {
         const sp = worldToScreen(shape.points[0].x, shape.points[0].y);
         const content = shape.settings.textContent || '';
-        const fs = shape.settings.textSize || 16;
+        // 文字サイズはズーム倍率に純粋比例させる（PDF/PNG出力は常に1:1のため、
+        // ここで App.scale を掛けないと、ズームアウトするほど図面に対して
+        // 文字が相対的に大きく見えてしまう）
+        const fs = (shape.settings.textSize || 16) * App.scale;
         const col = shape.settings.textColor || '#ffffff';
         const lines = content.split('\n');
 
@@ -4393,8 +4440,9 @@ function drawShapeLabel(ctx, shape) {
     const label = shape.settings.name;
     const val = valStr + unit;
 
-    // ラベル文字サイズはズーム倍率に連動（図形と同じ比率で拡大縮小、極端な縮小時は下限を設ける）
-    const fSize = Math.max(9, App.fontSize * App.scale);
+    // ラベル文字サイズはズーム倍率に純粋比例（PDF/PNG出力（常に1:1）と同じ比率になるよう、
+    // 下限クランプは設けない。ズームアウトすれば出力時と同様に小さくなる）
+    const fSize = App.fontSize * App.scale;
     ctx.font = `500 ${fSize}px 'Noto Sans JP'`;
     const lw1 = ctx.measureText(label).width;
     ctx.font = `600 ${fSize}px 'JetBrains Mono'`;
@@ -4983,6 +5031,10 @@ async function replaceBgImageAtScale(targetScale) {
         if (shape.center) shape.center = scalePt(shape.center);
         if (shape.radius != null) shape.radius *= scaleFactor;
         if (shape.labelOffset) shape.labelOffset = scalePt(shape.labelOffset);
+        // テキスト注釈の文字サイズもワールド座標系の量なので同じ比率で追従させる
+        if (shape.type === 'text' && shape.settings?.textSize) {
+            shape.settings.textSize *= scaleFactor;
+        }
     });
     // 進行中の一時的な座標状態があれば追従
     if (App.drawingPoints?.length) App.drawingPoints = App.drawingPoints.map(scalePt);
@@ -4992,6 +5044,16 @@ async function replaceBgImageAtScale(targetScale) {
 
     // m換算スケール（積算の面積・距離計算に使用）も同じ比率で維持
     if (App.pixelsPerMeter) App.pixelsPerMeter *= scaleFactor;
+
+    // ラベル文字サイズもワールド座標系の一部として同じ比率で維持
+    // （これをしないと、図形は同じ大きさのまま文字だけ相対的に縮んで見える）
+    if (App.fontSize) {
+        App.fontSize = Math.round(App.fontSize * scaleFactor);
+        const fsInput = document.getElementById('globalFontSize');
+        const fsDisplay = document.getElementById('fontSizeDisplay');
+        if (fsInput) fsInput.value = App.fontSize;
+        if (fsDisplay) fsDisplay.textContent = App.fontSize + 'px';
+    }
 
     // 画面上の見た目（ズーム・位置）が変わらないよう、拡大率を逆補正
     App.scale = App.scale / scaleFactor;
@@ -5135,6 +5197,51 @@ async function sharpenCurrentView() {
     } finally {
         if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic mr-1"></i>この範囲を鮮明化'; }
     }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 積算リストの項目をクリックしたとき、対応する図形を図面上でハイライトし、
+// 画面に収まるようフィットする（複数図形の場合は全体を囲むように調整）
+// ══════════════════════════════════════════════════════════════
+function highlightShapesFromList(ids, ev) {
+    if (ev) ev.stopPropagation(); // アコーディオン開閉トグルと競合しないように
+    const validIds = ids.filter(id => App.shapes[id]);
+    if (validIds.length === 0) return;
+
+    // 同じ対象を再クリックしたら解除（トグル動作）
+    const same = validIds.length === App.highlightedShapeIds.size &&
+        validIds.every(id => App.highlightedShapeIds.has(id));
+    if (same) {
+        App.highlightedShapeIds = new Set();
+        render();
+        return;
+    }
+
+    App.highlightedShapeIds = new Set(validIds);
+
+    // 対象図形すべてを含むワールド座標のバウンディングボックスを求める
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    validIds.forEach(id => {
+        const shape = App.shapes[id];
+        (shape.points || []).forEach(p => {
+            minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+            minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        });
+        if (shape.center && shape.radius != null) {
+            minX = Math.min(minX, shape.center.x - shape.radius); maxX = Math.max(maxX, shape.center.x + shape.radius);
+            minY = Math.min(minY, shape.center.y - shape.radius); maxY = Math.max(maxY, shape.center.y + shape.radius);
+        }
+    });
+
+    if (isFinite(minX) && App.width > 0 && App.height > 0) {
+        const w = Math.max(maxX - minX, 10), h = Math.max(maxY - minY, 10);
+        const PAD = 0.7; // 対象が画面の70%程度に収まるよう余白を持たせる
+        const scaleX = (App.width * PAD) / w, scaleY = (App.height * PAD) / h;
+        App.scale = Math.min(scaleX, scaleY, 20); // 極端な拡大を防ぐ上限
+        App.offsetX = App.width / 2 - ((minX + maxX) / 2) * App.scale;
+        App.offsetY = App.height / 2 - ((minY + maxY) / 2) * App.scale;
+    }
+    render();
 }
 
 function fitToScreen() {
@@ -5558,6 +5665,7 @@ function updateEstimation() {
 
         const dotColor = item.color || '#4f8ef7';
         const unitBadge = item.unit === 'm' ? 'badge-line' : (item.unit === 'm²' ? 'badge-area' : 'badge-count');
+        const idsJson = JSON.stringify(item.items.map(s => s.id));
 
         listHtml += `
         <div class="est-item">
@@ -5565,6 +5673,7 @@ function updateEstimation() {
                 <div class="flex items-center gap-2 mb-1">
                     <div style="width:10px;height:10px;border-radius:50%;background:${dotColor};flex-shrink:0"></div>
                     <span style="font-size:${fs}px;font-weight:500;color:#e2e8f0;flex:1">${item.name}</span>
+                    <button onclick='highlightShapesFromList(${idsJson}, event)' class="text-gray-500 hover:text-accent px-1" title="図面上でハイライト表示"><i class="fas fa-crosshairs text-xs"></i></button>
                     <span class="mono" style="font-size:${fs}px;color:var(--accent)">¥${subtotal.toLocaleString()}</span>
                 </div>
                 <div class="flex items-center gap-2">
@@ -5576,9 +5685,9 @@ function updateEstimation() {
             </div>
             <div class="est-item-body">
                 ${item.items.map((sub, si) => `
-                <div class="flex justify-between items-center text-xs py-1 border-b border-gray-700/50">
+                <div class="flex justify-between items-center text-xs py-1 border-b border-gray-700/50 cursor-pointer hover:bg-white/5" onclick="highlightShapesFromList([${sub.id}], event)">
                     <span class="${sub.val < 0 ? 'text-red-400' : 'text-gray-400'}">${sub.val < 0 ? '🔴 除外' : `No.${si+1}`}: ${sub.val.toFixed(2)}${item.unit}</span>
-                    <button onclick="deleteShapeByIdx(${sub.id})" class="text-red-500 hover:text-red-300 px-1"><i class="fas fa-trash text-xs"></i></button>
+                    <button onclick="event.stopPropagation(); deleteShapeByIdx(${sub.id})" class="text-red-500 hover:text-red-300 px-1"><i class="fas fa-trash text-xs"></i></button>
                 </div>`).join('')}
             </div>
         </div>`;
@@ -5627,7 +5736,7 @@ function updateMasterTable() {
             <td><input type="color" class="w-6 h-6 rounded" value="${mat.color||'#ffffff'}" onchange="updateCellColor(this,${mat.id})"></td>
             <td class="editable-cell text-white" ondblclick="editCell(this,'name',${mat.id})">${mat.name}</td>
             <td class="editable-cell text-gray-400 text-sm" ondblclick="editCell(this,'refName',${mat.id})">${mat.refName||''}</td>
-            <td><span class="text-xs text-gray-400">${mat.category||'未分類'}</span></td>
+            <td class="editable-cell" ondblclick="editCategoryCell(this,${mat.id})"><span class="text-xs text-gray-400">${mat.category||'未分類'}</span></td>
             <td><span class="status-badge ${mat.type==='line'?'badge-line':mat.type==='area'?'badge-area':'badge-count'} text-xs">${mat.type==='line'?'長さ':mat.type==='area'?'面積':'個数'}</span></td>
             <td class="editable-cell text-gray-400 text-sm" ondblclick="editCell(this,'unit',${mat.id})">${mat.unit}</td>
             <td class="editable-cell text-right mono font-bold" ondblclick="editCell(this,'price',${mat.id})">¥${mat.price.toLocaleString()}</td>
@@ -5680,6 +5789,26 @@ function editCell(td, field, id) {
     inp.addEventListener('blur', save);
     inp.addEventListener('keypress', e => { if (e.key === 'Enter') inp.blur(); });
     td.appendChild(inp); inp.focus();
+}
+
+// カテゴリはフィルターと同じ固定の選択肢からドロップダウンで編集する
+function editCategoryCell(td, id) {
+    const m = loadedMaterials.find(m => m.id === id);
+    if (!m) return;
+    const CATEGORIES = ['土工事', 'ブロック', 'ポーチ', '床工事', '金物', 'その他'];
+    td.innerHTML = '';
+    const sel = document.createElement('select');
+    sel.className = 'cell-input';
+    sel.innerHTML = `<option value="">未分類</option>` +
+        CATEGORIES.map(c => `<option value="${c}" ${m.category === c ? 'selected' : ''}>${c}</option>`).join('');
+    const save = () => {
+        m.category = sel.value;
+        updateMaterialInDB(m);
+        updateMasterTable();
+    };
+    sel.addEventListener('change', save);
+    sel.addEventListener('blur', () => updateMasterTable());
+    td.appendChild(sel); sel.focus();
 }
 
 function searchMaterialImage(kw) { if (kw) window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(kw)}`, '_blank'); }
@@ -7547,12 +7676,12 @@ async function saveCanvasAsImage() {
         const offCanvas = document.createElement('canvas');
 
         if (App.bgImage) {
-            // 読み込んだPDF/画像の実寸解像度をそのまま使用（最大8000pxにクランプ）
-            const MAX_PX = 9000;
-            const ratio = Math.min(1, MAX_PX / Math.max(App.bgImage.width, App.bgImage.height));
-            exportW = Math.round(App.bgImage.width * ratio);
-            exportH = Math.round(App.bgImage.height * ratio);
-            exportScale = ratio;
+            // 読み込んだPDF/画像の実寸解像度をそのまま使用。
+            // exportScaleは常に1.0に固定する（可変にすると、App.fontSize×App.scaleで
+            // 決まる文字サイズが画像の解像度によって毎回変わってしまうため）
+            exportW = App.bgImage.width;
+            exportH = App.bgImage.height;
+            exportScale = 1.0;
         } else {
             // 背景画像なし: 現在の表示を3倍の解像度で出力
             exportW = App.width * 3;
@@ -7613,12 +7742,12 @@ async function saveCanvasAsPDF() {
         const offCanvas = document.createElement('canvas');
 
         if (App.bgImage) {
-            // 読み込んだPDF/画像の実寸解像度をそのまま使用（最大8000pxにクランプ）
-            const MAX_PX = 9000;
-            const ratio = Math.min(1, MAX_PX / Math.max(App.bgImage.width, App.bgImage.height));
-            exportW = Math.round(App.bgImage.width * ratio);
-            exportH = Math.round(App.bgImage.height * ratio);
-            exportScale = ratio; // world座標(=元画像px) → 出力px への倍率
+            // 読み込んだPDF/画像の実寸解像度をそのまま使用。
+            // exportScaleは常に1.0に固定する（可変にすると、App.fontSize×App.scaleで
+            // 決まる文字サイズが画像の解像度によって毎回変わってしまうため）
+            exportW = App.bgImage.width;
+            exportH = App.bgImage.height;
+            exportScale = 1.0; // world座標(=元画像px) → 出力px への倍率（常に1:1で統一）
         } else {
             // 背景画像なし: 現在の表示を3倍の解像度で出力
             exportW = App.width * 3;
