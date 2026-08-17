@@ -29,6 +29,7 @@
         .invalid-input { background-color: #f8d7da !important; border-color: #dc3545 !important; }
         .genba-name.invalid-input { color: #842029; font-weight: bold; }
         .manual-check-col { background-color: #fff3cd !important; }
+        .product-note-col { background-color: #d1e7ff !important; }
 
         .completed-job { 
             background-color: #ffcccc !important; color: #d63384; font-weight: bold; border: 2px solid #dc3545 !important; 
@@ -151,8 +152,9 @@
                     <div class="border rounded px-2 py-1 bg-light d-flex gap-3 align-items-center" style="font-size:0.78rem;">
                         <span class="text-muted">得意先マスタ 端数処理：</span>
                         <span>金額処理区分(DA列)：<strong id="badgeAmtRound" class="badge bg-secondary">-</strong></span>
-                        <span>消費税計算区分(DI列)：<strong id="badgeTaxRound" class="badge bg-primary">-</strong></span>
+                        <span>消費税分解区分(DL列)：<strong id="badgeTaxRound" class="badge bg-primary">-</strong></span>
                         <span class="text-muted" id="badgeTaxRoundLabel" style="font-size:0.75rem;"></span>
+                        <span class="text-muted" style="font-size:0.72rem;">(参考: 消費税計算区分(DI列)＝<span id="badgeTaxRoundDI">-</span>／税抜金額の場合はこちらを参照)</span>
                     </div>
                 </div>
             </div>
@@ -222,7 +224,7 @@
                             <tbody>
                                 <tr><td>27列目 (AA)</td><td>金額</td><td>入力値そのまま（<strong>税込金額</strong>）</td></tr>
                                 <tr><td>31列目 (AE)</td><td>粗利</td><td><code>金額 − 内消費税等</code>　⚠️ 実態は税抜金額</td></tr>
-                                <tr><td>36列目 (AJ)</td><td>内消費税等</td><td>得意先マスタ DI列（消費税計算区分）に従い端数処理<br><code>消費税 = 端数処理(金額 × 10 ÷ 110)</code><br><code>0:切り捨て(floor)</code> / <code>1:切り上げ(ceil)</code> / <code>2:四捨五入(round)</code><br>マスタ未設定の場合は四捨五入</td></tr>
+                                <tr><td>36列目 (AJ)</td><td>内消費税等</td><td>得意先マスタ DL列（消費税分解区分・00055）に従い端数処理<br><code>消費税 = 端数処理(金額 × 10 ÷ 110)</code><br><code>0:切り捨て(ROUNDDOWN)</code> / <code>1:切り上げ(ROUNDUP)</code> / <code>2:四捨五入(ROUND)</code><br>マスタ未設定の場合は四捨五入<br>📌 27列目「金額」は<strong>税込金額</strong>のため、参照すべきは<strong>DL列（消費税分解区分）</strong>。DI列（消費税計算区分・00053）は<strong>税抜金額</strong>を入力する場合にスマイル上の計算ロジックで参照される区分。同一得意先では通常DI列とDL列に同じ数値が入るため実際の結果は変わらないが、参照元をDL列に統一<br>⚠️ 金額がマイナスの場合もExcelのROUNDDOWN/ROUNDUP/ROUND関数と同じ挙動（切り捨て・四捨五入はゼロ方向、切り上げはゼロから離れる方向）。単純なfloor/ceilでは負数で結果が逆転するため大塚商会に確認の上、方式を修正済み</td></tr>
                                 <tr><td>35列目 (AI)</td><td>消費税率</td><td>固定値 <code>"10"</code></td></tr>
                                 <tr><td>33列目 (AG)</td><td>課税区分</td><td>固定値 <code>"1"</code></td></tr>
                                 <tr><td>28列目 (AB)</td><td>原単価</td><td>固定値 <code>"0"</code></td></tr>
@@ -233,8 +235,9 @@
                         </table>
                         <div class="alert alert-warning py-1 px-2 mb-3" style="font-size:0.75rem;">
                             ⚠️ <strong>「粗利」列に税抜金額を格納しています。</strong>レイアウト変更で「粗利」の定義が変わった場合は上記計算ロジックの見直しが必要です。<br>
-                            📌 <strong>端数処理は得意先マスタ DI列（消費税計算区分・index 112）を参照。</strong>マスタ未読込または未設定の場合は四捨五入で動作します。DA列（金額処理区分・index 104）は表示のみ（現在は計算に使用していません）。<br>
-                            🔄 <strong>転記後の修正画面で「金額」セルを直接編集した場合も、得意先の端数処理ルールに従って「粗利」「内消費税等」を自動で再計算します。</strong>
+                            📌 <strong>端数処理は得意先マスタ DL列（消費税分解区分・00055・index 115）を参照。</strong>本ツールの「金額」は税込金額のため、税抜金額の場合に参照するDI列（消費税計算区分・00053・index 112）ではなくDL列を参照します（同一得意先では通常同じ数値が入るため実務上の差異は生じにくい）。マスタ未読込または未設定の場合は四捨五入で動作します。DA列（金額処理区分・index 104）は表示のみ（現在は計算に使用していません）。<br>
+                            🔄 <strong>転記後の修正画面で「金額」セルを直接編集した場合も、得意先の端数処理ルールに従って「粗利」「内消費税等」を自動で再計算します。</strong><br>
+                            ⚠️ <strong>明細レイアウト（本ツールの出力ファイル）をスマイルに取込む際は、得意先マスタの消費税区分（DI列・DL列）はスマイル側では参照されません。</strong>明細行に書かれた数値（粗利・内消費税等など）がそのままスマイルに反映されるため、得意先マスタと紐づいた設定は取込時点では無視されます。取込後にスマイル上でその明細を修正すると、そのタイミングで得意先マスタの設定が反映される仕組みです。
                         </div>
 
                         <!-- 列レイアウト一覧 (出力値あり列のみ) -->
@@ -258,7 +261,7 @@
                                 <tr><td>16列目</td><td>取引区分</td><td>固定 <code>"1"</code></td><td></td></tr>
                                 <tr><td>17列目</td><td>取引区分属性</td><td>固定 <code>"1"</code></td><td></td></tr>
                                 <tr class="table-info"><td>19列目</td><td>商品コード</td><td>商品マスタのコード</td><td></td></tr>
-                                <tr class="table-info"><td>20列目</td><td>商品名</td><td>商品名（入力値）</td><td></td></tr>
+                                <tr class="table-info"><td>20列目</td><td>商品名</td><td>商品名（入力値）</td><td>明細行の「商品名 追加文字」に入力があれば、半角スペース区切りで末尾に追加（元の商品名は変更しない）。合計36桁を超える場合は超過分を切り捨て</td></tr>
                                 <tr><td>24列目</td><td>数量</td><td>固定 <code>"0"</code></td><td></td></tr>
                                 <tr><td>26列目</td><td>単価</td><td>固定 <code>"0"</code></td><td></td></tr>
                                 <tr class="table-warning"><td>27列目</td><td>金額</td><td>明細「金額(税込)」入力値</td><td><strong>税込金額をそのまま格納</strong></td></tr>
@@ -322,6 +325,7 @@
                             <th style="width: 80px;">工番</th>
                             <th style="width: 60px;">サブ</th>
                             <th style="width: 180px;" class="manual-check-col">手入力現場名<br>(確認用)</th>
+                            <th style="width: 140px;" class="product-note-col">商品名 追加文字<br>(確認・表示用)</th>
                             <th style="width: 100px;">完了日</th>
                             <th style="width: 100px;">金額<br>(税込)</th>
                             <th style="width: 100px;">税抜金額<br><small class="fw-normal text-muted">31列目/粗利</small></th>
@@ -439,6 +443,25 @@
 </div>
 
 <script>
+/** ============================================================
+ * 消費税端数処理（得意先マスタ DI列の区分に対応）
+ * 大塚商会に確認済み: 負の金額の場合も「切り捨て」はROUNDDOWN
+ * （ゼロ方向への切り捨て）、「切り上げ」はROUNDUP（ゼロから離れる方向）
+ * として処理する。単純なMath.floor/Math.ceilだと負数で結果が逆転するため注意。
+ * type: 0=切り捨て(ROUNDDOWN) / 1=切り上げ(ROUNDUP) / 2=四捨五入(ROUND)
+ * ============================================================ */
+function taxRoundFn(type) {
+    if (type === 0) return (v) => Math.trunc(v);                                  // ROUNDDOWN（ゼロ方向）
+    if (type === 1) return (v) => (v >= 0 ? Math.ceil(v) : Math.floor(v));         // ROUNDUP（ゼロから離れる方向）
+    return (v) => (v >= 0 ? Math.round(v) : -Math.round(-v));                      // ROUND（四捨五入、ゼロから離れる方向で丸め）
+}
+// 本ツールの「金額」は税込金額のため、参照すべきは得意先マスタ DL列（消費税分解区分・00055）。
+// DI列（消費税計算区分・00053、税抜金額の場合に参照する区分）と同じ数値・同じ意味で運用されているが、
+// 本来の参照先はDL列。DL列が無い古いマスタキャッシュの場合はDI列で代用する。
+function getEffectiveTaxRoundType(custData) {
+    return parseInt(custData?.taxSplit ?? custData?.taxRound ?? "2");
+}
+
 /** ============================================================
  * 0. レイアウト定義
  * ============================================================ */
@@ -943,6 +966,8 @@ async function processCustFile(f) {
         amtRound:(r[104]!==undefined && r[104]!=="")?r[104]:"2",
         taxRound:(r[112]!==undefined && r[112]!=="")?r[112]:"2",
         _taxRoundIsDefault: (r[112]===undefined || r[112]==="") // マスタ未取込相当(DI列が無い)の場合のフラグ
+        ,taxSplit:(r[115]!==undefined && r[115]!=="")?r[115]:"2", // DL列（消費税分解区分・00055）※税込金額の端数処理はこちらを参照
+        _taxSplitIsDefault: (r[115]===undefined || r[115]==="") // マスタ未取込相当(DL列が無い)の場合のフラグ
     })).filter(d=>d.c);
     await idbSet('MST_CUST', data);
 }
@@ -982,11 +1007,16 @@ async function loadMastersFromStorage() {
     // 読込時に補完する（バッジが消えてしまうのを防ぐ。正確な値にするにはマスタの再取込が必要）
     M_CUST = M_CUST.map(m => {
         const taxRoundMissing = (m.taxRound === undefined || m.taxRound === "");
+        const taxSplitMissing = (m.taxSplit === undefined || m.taxSplit === "");
         return {
             ...m,
             amtRound: (m.amtRound !== undefined && m.amtRound !== "") ? m.amtRound : "2",
             taxRound: (m.taxRound !== undefined && m.taxRound !== "") ? m.taxRound : "2",
-            _taxRoundIsDefault: taxRoundMissing // マスタ未取込による既定値かどうかのフラグ
+            _taxRoundIsDefault: taxRoundMissing, // マスタ未取込による既定値かどうかのフラグ
+            // 過去バージョンで取り込んだキャッシュにはDL列(消費税分解区分)が無いため、DI列(消費税計算区分)の値で補完
+            // （同じ数値・同じ意味で運用されているため実害はないが、本来参照すべきはDL列）
+            taxSplit: (m.taxSplit !== undefined && m.taxSplit !== "") ? m.taxSplit : (m.taxRound !== undefined && m.taxRound !== "" ? m.taxRound : "2"),
+            _taxSplitIsDefault: taxSplitMissing
         };
     });
     M_PROD  = await ld('MST_PROD',  'st_prod',  'prodOptions',  m => m.n);
@@ -1036,16 +1066,18 @@ function validateCustomer() {
     setStatus('combo2', 'custStatus', !!found);
     const roundLabels = ["0:切り捨て","1:切り上げ","2:四捨五入"];
     const infoDiv = document.getElementById('custRoundInfo');
-    if (found && (found.amtRound !== undefined || found.taxRound !== undefined)) {
+    if (found && (found.amtRound !== undefined || found.taxRound !== undefined || found.taxSplit !== undefined)) {
         const ar = found.amtRound ?? "2";
-        const tr = found.taxRound ?? "2";
+        const tr = getEffectiveTaxRoundType(found); // DL列(消費税分解区分)優先。無ければDI列で代用
+        const di = found.taxRound ?? "2";
         const colorMap = ["danger","warning","success"];
         document.getElementById('badgeAmtRound').textContent = roundLabels[ar] ?? ar;
         document.getElementById('badgeAmtRound').className = `badge bg-${colorMap[ar] ?? "secondary"}`;
         document.getElementById('badgeTaxRound').textContent = roundLabels[tr] ?? tr;
         document.getElementById('badgeTaxRound').className = `badge bg-${colorMap[tr] ?? "secondary"}`;
-        document.getElementById('badgeTaxRoundLabel').textContent = found._taxRoundIsDefault
-            ? `← 粗利(税抜)計算に使用　⚠️マスタにDI列が無いため既定値(四捨五入)を使用中`
+        document.getElementById('badgeTaxRoundDI').textContent = roundLabels[di] ?? di;
+        document.getElementById('badgeTaxRoundLabel').textContent = found._taxSplitIsDefault
+            ? `← 粗利(税抜)計算に使用　⚠️マスタにDL列が無いためDI列(またはが両方無ければ既定値の四捨五入)を代用中`
             : `← 粗利(税抜)計算に使用`;
         infoDiv.style.display = "";
     } else {
@@ -1097,6 +1129,7 @@ function addGridRow() {
         <td><input type="text" class="form-control form-control-sm job-code"></td>
         <td><input type="text" class="form-control form-control-sm sub-code"></td>
         <td><input type="text" class="form-control form-control-sm manual-genba-name manual-check-col"></td>
+        <td><input type="text" class="form-control form-control-sm product-note product-note-col" placeholder="任意"></td>
         <td><input type="text" class="form-control form-control-sm date-col" placeholder="yyyymmdd" inputmode="numeric"></td>
         <td><input type="text" class="form-control form-control-sm amount-col" inputmode="numeric" pattern="[0-9]*"></td>
         <td><input type="text" class="form-control form-control-sm tax-ex-col text-end text-muted" readonly tabindex="-1" placeholder="-" style="background:#f8f9fa;font-size:0.82rem;"></td>
@@ -1193,11 +1226,11 @@ function addGridRow() {
         const amt = parseInt(normalized) || 0;
         const taxExIn = tr.querySelector('.tax-ex-col');
         if (amt !== 0) {
-            // 得意先マスタの消費税計算区分を参照（未選択時は四捨五入）
+            // 得意先マスタの消費税分解区分(DL列)を参照（税込金額のため。未選択時は四捨五入）
             const custCode = document.getElementById('textBox3').value;
             const custData = M_CUST.find(c => c.c === custCode);
-            const taxRoundType = parseInt(custData?.taxRound ?? "2");
-            const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
+            const taxRoundType = getEffectiveTaxRoundType(custData);
+            const roundFn = taxRoundFn(taxRoundType);
             taxExIn.value = (amt - roundFn(amt * 10 / 110)).toLocaleString();
         } else {
             taxExIn.value = "";
@@ -1267,9 +1300,13 @@ function executeTransfer() {
     let staffText = document.getElementById('combo3').value;
     let staffCode = (staffText.indexOf(":") > -1) ? staffText.split(":")[0].trim() : staffText;
 
-    // 消費税計算区分(得意先マスタDI列): 0=切り捨て 1=切り上げ 2=四捨五入 (未設定時は四捨五入)
-    const taxRoundType = parseInt(custData?.taxRound ?? "2");
-    const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
+    // 消費税分解区分(得意先マスタDL列・00055): 0=切り捨て 1=切り上げ 2=四捨五入 (未設定時は四捨五入)
+    // ※本ツールの「金額」は税込金額のため、税抜金額の場合に参照するDI列ではなくDL列を参照する
+    const taxRoundType = getEffectiveTaxRoundType(custData);
+    const roundFn = taxRoundFn(taxRoundType);
+
+    const PRODUCT_NAME_MAX_LEN = 36;
+    const truncatedJobs = [];
 
     validRows.forEach(tr => {
         const dateStr = tr.querySelector('.date-col').value; 
@@ -1279,11 +1316,20 @@ function executeTransfer() {
         const tax = roundFn(amount * 10 / 110);
         const taxEx = amount - tax;
 
+        // 商品名 追加文字：明細行ごとの手入力があれば、元の商品名の後ろにスペース区切りで追加する（元の商品名は変更しない）
+        // 未入力の場合は従来通り商品名（入力値）のみ。合計は36桁まで（超過分は切り捨て）
+        const productNote = tr.querySelector('.product-note').value.trim();
+        let prodNameOut = productNote ? (prodName + " " + productNote) : prodName;
+        if (prodNameOut.length > PRODUCT_NAME_MAX_LEN) {
+            prodNameOut = prodNameOut.slice(0, PRODUCT_NAME_MAX_LEN);
+            truncatedJobs.push(sub ? `${job}-${sub}` : job);
+        }
+
         let row = new Array(136).fill(""); 
         row[0] = dateStr; row[2] = currentSeq; row[3] = "0"; row[4] = "1";
         row[5] = String(custCode); row[6] = custName; row[7] = String(hColVal); row[10] = String(staffCode);
         row[13] = nVal; row[14] = oVal; row[15] = "1"; row[16] = "1";
-        row[18] = String(prodCode); row[19] = prodName; row[23] = "0"; row[25] = "0";
+        row[18] = String(prodCode); row[19] = prodNameOut; row[23] = "0"; row[25] = "0";
         row[26] = amount; row[27] = "0"; row[28] = "0"; row[30] = taxEx;
         row[31] = "0"; row[32] = "1"; row[34] = "10"; row[35] = tax;
         row[37] = "0"; row[40] = "0"; row[42] = "0"; row[43] = "0";
@@ -1294,6 +1340,10 @@ function executeTransfer() {
         exportData.push(row);
         currentSeq++;
     });
+
+    if (truncatedJobs.length > 0) {
+        alert(`⚠️ 商品名が36桁を超えたため、以下の工番で末尾を切り捨てました。\nプレビュー画面で内容をご確認ください。\n\n工番: ${truncatedJobs.join('、')}`);
+    }
 
     showPreviewTable();
     showPreviewModal(); // ★ 修正: プレビューを表示する(関数を呼ぶ)
@@ -1378,8 +1428,8 @@ function showPreviewTable() {
                     const amount = parseInt(val) || 0;
                     const custCode = exportData[idx][5]; // 得意先コード
                     const custData = M_CUST.find(c => c.c === custCode);
-                    const taxRoundType = parseInt(custData?.taxRound ?? "2");
-                    const roundFn = taxRoundType === 0 ? Math.floor : taxRoundType === 1 ? Math.ceil : Math.round;
+                    const taxRoundType = getEffectiveTaxRoundType(custData);
+                    const roundFn = taxRoundFn(taxRoundType);
                     const tax = roundFn(amount * 10 / 110);
                     const taxEx = amount - tax;
                     exportData[idx][30] = String(taxEx);        // 粗利
