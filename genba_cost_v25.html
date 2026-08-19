@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v99</title>
+    <title>G-Ledger | 現場原価管理台帳システム v100</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -75,7 +75,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v99</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v100</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -302,17 +302,27 @@
                             <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
                                 <input type="checkbox" id="browse-chk-uncollected-only" class="w-3.5 h-3.5 text-orange-500 rounded" onchange="window.applyBrowseFilter()">
                                 <span>未回収残高 &gt; 0 のみ</span>
+                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-slate-600 cursor-help" title="「未回収残高」は、回収予定額のうちまだ入金が確認できていない金額です。このチェックを入れると、回収データが登録されている現場の中から、未回収残高が実際に残っている（まだ回収が完了していない）現場だけに絞り込みます。回収が完了済み（未回収残高が0円）の現場は除外されます。"></i>
                             </label>
                             <label class="flex items-center gap-1.5 cursor-pointer text-xs text-red-600 font-bold">
                                 <input type="checkbox" id="browse-chk-coll-anomaly" class="w-3.5 h-3.5 text-red-500 rounded" onchange="window.applyBrowseFilter(); window.renderCollAnomalyTable();">
                                 <span>回収差異あり（売上税込 ≠ 回収済額）</span>
                             </label>
                             <span class="text-xs text-slate-400" id="browse-uncollected-count"></span>
+                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium border-l border-slate-200 pl-3">
+                                <input type="checkbox" id="browse-chk-uncoll-branch-detail" class="w-3.5 h-3.5 text-teal-500 rounded" onchange="window.renderUncollBranchDetail()">
+                                <span>枝番別明細を表示（合算しない）</span>
+                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-slate-600 cursor-help" title="上の一覧は親コード＋枝コードを合算した金額です。このチェックを入れると、回収データに登録されている親・枝コードごとの明細を1行ずつそのまま表示します。"></i>
+                            </label>
                             <!-- Excel出力ボタン -->
                             <button onclick="window.exportUncollectedExcel()" class="ml-auto bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1.5 shadow transition-colors">
-                                <i class="fa-solid fa-file-excel"></i> Excel出力（回収データ付）
+                                <i class="fa-solid fa-file-excel"></i> Excel出力（合算・回収データ付）
+                            </button>
+                            <button onclick="window.exportUncollectedBranchExcel()" class="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1.5 shadow transition-colors">
+                                <i class="fa-solid fa-file-excel"></i> Excel出力（枝番別・合算なし）
                             </button>
                         </div>
+                        <p class="text-xs text-slate-400 mb-3 -mt-2">※「未回収残高 &gt; 0 のみ」＝回収予定額のうち、まだ入金が確認できていない金額が残っている現場だけを表示します（回収完了済みの現場は除外）。</p>
                         <!-- 行②：拠点・担当者絞り込み -->
                         <div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 space-y-2">
                             <div class="flex flex-wrap items-center gap-3">
@@ -334,7 +344,7 @@
                                 <span class="text-xs font-bold text-slate-500 whitespace-nowrap">キーワード:</span>
                                 <input type="text" id="uncoll-keyword-input" placeholder="現場名・施工主・工番など..."
                                     class="flex-1 min-w-[180px] pl-3 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-                                    oninput="window.applyBrowseFilterDebounced(); window.renderCollAnomalyTable();">
+                                    oninput="window.applyBrowseFilterDebounced(); window.renderCollAnomalyTable(); window.renderUncollBranchDetail();">
                             </div>
                         </div>
                         <!-- 差異詳細テーブル -->
@@ -363,6 +373,30 @@
                                     </tr>
                                 </thead>
                                 <tbody id="coll-anomaly-tbody"></tbody>
+                            </table>
+                        </div>
+                        <!-- 枝番別明細テーブル（合算しない） -->
+                        <div id="uncoll-branch-detail" class="hidden mt-4 overflow-x-auto">
+                            <div class="text-xs font-bold text-teal-700 mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-list"></i> 回収明細（親コード＋枝コード別・合算なし）
+                                <span class="text-slate-400 font-normal" id="uncoll-branch-detail-count"></span>
+                            </div>
+                            <table class="w-full text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-teal-50 text-slate-600">
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">工番</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">枝番</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left">現場名</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">担当者</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">積算</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">拠点</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">回収予定額</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">内未請求分</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">回収額</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap text-orange-600">未回収残高</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uncoll-branch-detail-tbody"></tbody>
                             </table>
                         </div>
                     </div>
@@ -8629,6 +8663,7 @@
         }
         window.applyBrowseFilter();
         window.renderCollAnomalyTable();
+        window.renderUncollBranchDetail();
     }
 
     window.clearUncollSelection = function(group) {
@@ -8641,6 +8676,7 @@
         });
         window.applyBrowseFilter();
         window.renderCollAnomalyTable();
+        window.renderUncollBranchDetail();
     }
 
     window.renderCollAnomalyTable = function() {
@@ -8713,6 +8749,97 @@
         });
     };
 
+    // ── 枝番別明細（合算しない）：回収データを親コード＋枝コードのまま1行ずつ表示・出力する ──
+    function getUncollBranchRows() {
+        const collectionArrayMap = window._browseRawData?.collectionArrayMap || new Map();
+        const masterMap = new Map();
+        (window._browseRawData?.masters || []).forEach(m => masterMap.set(String(m.code||'').trim().toLowerCase(), m));
+        const chkUncollOnly = document.getElementById('browse-chk-uncollected-only')?.checked;
+        const uncollKw = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
+
+        const rows = [];
+        collectionArrayMap.forEach((recs) => {
+            recs.forEach(r => {
+                const key = String(r.code||'').trim().toLowerCase();
+                const m = masterMap.get(key) || {};
+                if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(m.branch || '')) return;
+                if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(m.manager || '')) return;
+                if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(m.estimator || '')) return;
+                if (chkUncollOnly && !(r.uncollectedAmount > 0)) return;
+                if (uncollKw) {
+                    const hay = window.normalizeStr([r.code, r.siteName, m.name||'', m.owner||'', m.manager||'', m.branch||''].join(' '));
+                    if (!hay.includes(uncollKw)) return;
+                }
+                rows.push({
+                    code: r.code, subCode: r.subCode || '',
+                    siteName: m.name || r.siteName || '',
+                    manager: m.manager || '', estimator: m.estimator || '', branch: m.branch || '',
+                    scheduledAmount: r.scheduledAmount || 0,
+                    unRequestedAmount: r.unRequestedAmount || 0,
+                    collectedAmount: r.collectedAmount || 0,
+                    uncollectedAmount: r.uncollectedAmount || 0,
+                });
+            });
+        });
+        rows.sort((a, b) => (a.code + (a.subCode||'')).localeCompare(b.code + (b.subCode||'')));
+        return rows;
+    }
+
+    window.renderUncollBranchDetail = function() {
+        const panel = document.getElementById('uncoll-branch-detail');
+        const tbody = document.getElementById('uncoll-branch-detail-tbody');
+        const countEl = document.getElementById('uncoll-branch-detail-count');
+        const isOn = document.getElementById('browse-chk-uncoll-branch-detail')?.checked;
+        if (!panel || !tbody) return;
+        if (!isOn) { panel.classList.add('hidden'); return; }
+        panel.classList.remove('hidden');
+
+        const rows = getUncollBranchRows();
+        window._lastUncollBranchRows = rows;
+        if (countEl) countEl.textContent = `（${rows.length}件）`;
+        const fmt = window.formatCurrency;
+        tbody.innerHTML = rows.length ? rows.map(r => `
+            <tr class="hover:bg-teal-50/40 transition-colors">
+                <td class="border-b border-slate-100 px-3 py-2 font-mono font-bold text-xs whitespace-nowrap">
+                    <button class="hover:text-blue-600 hover:underline" onclick="window.browseJumpToSite('${r.code}','browse','現場一覧に戻る')">${r.code}</button>
+                </td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs font-mono whitespace-nowrap">${r.subCode || '親'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 font-bold text-slate-800 text-xs max-w-[150px] truncate" title="${r.siteName}">${r.siteName || '-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-600 whitespace-nowrap">${r.manager || '-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500 whitespace-nowrap">${r.estimator || '-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-xs text-slate-400 whitespace-nowrap">${r.branch || '-'}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono text-slate-600">${fmt(r.scheduledAmount)}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono text-slate-400">${fmt(r.unRequestedAmount)}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono text-slate-600">${fmt(r.collectedAmount)}</td>
+                <td class="border-b border-slate-100 px-3 py-2 text-right text-xs font-mono font-black ${r.uncollectedAmount > 0 ? 'text-orange-600' : 'text-slate-400'}">${fmt(r.uncollectedAmount)}</td>
+            </tr>`).join('') : '<tr><td colspan="10" class="px-4 py-6 text-center text-slate-400">該当するデータがありません</td></tr>';
+    };
+
+    window.exportUncollectedBranchExcel = async function() {
+        const rows = getUncollBranchRows();
+        if (!rows.length) { alert('出力するデータがありません'); return; }
+        const dateStr = new Date().toISOString().slice(0,10);
+        const wb = new ExcelJS.Workbook();
+        wb.creator = 'G-Ledger';
+        const hdrStyle = { font:{bold:true,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF0F766E'}}, alignment:{horizontal:'center'} };
+        const ws = wb.addWorksheet('回収明細(枝番別)');
+        [12,10,26,14,14,14,16,16,16,16].forEach((w,i) => { ws.getColumn(i+1).width = w; });
+        ws.addRow(['■ 回収明細（親コード＋枝コード別・合算なし）']).font = { bold:true, size:12 };
+        ws.mergeCells(1,1,1,10);
+        ws.addRow(['工番','枝番','現場名','担当者','積算','拠点','回収予定額','内未請求分','回収額','未回収残高']).eachCell(c => c.style = hdrStyle);
+        let totS=0, totU=0, totC=0, totUn=0;
+        rows.forEach(r => {
+            totS+=r.scheduledAmount; totU+=r.unRequestedAmount; totC+=r.collectedAmount; totUn+=r.uncollectedAmount;
+            const row = ws.addRow([r.code, r.subCode || '親', r.siteName, r.manager, r.estimator, r.branch, r.scheduledAmount, r.unRequestedAmount, r.collectedAmount, r.uncollectedAmount]);
+            [7,8,9,10].forEach(ci => { const c = row.getCell(ci); c.numFmt = '#,##0'; c.alignment = {horizontal:'right'}; });
+            if (r.uncollectedAmount > 0) row.getCell(10).font = { color:{argb:'FFEA580C'}, bold:true };
+        });
+        const totRow = ws.addRow(['合計','','','','','', totS, totU, totC, totUn]);
+        totRow.eachCell((c,i) => { c.font = {bold:true}; c.fill = {type:'pattern',pattern:'solid',fgColor:{argb:'FFCCFBF1'}}; if (i>=7) { c.numFmt='#,##0'; c.alignment={horizontal:'right'}; } });
+        const buffer = await wb.xlsx.writeBuffer();
+        saveAs(new Blob([buffer]), `回収明細_枝番別_${dateStr}.xlsx`);
+    };
+
     window.setBrowseTab = function(tab) {
         browseCurrentTab = tab;
         document.querySelectorAll('.browse-tab-btn').forEach(b => {
@@ -8778,6 +8905,7 @@
         });
         window.applyBrowseFilter();
         if (window.renderCollAnomalyTable) window.renderCollAnomalyTable();
+        if (window.renderUncollBranchDetail) window.renderUncollBranchDetail();
     }
 
     window.removeBrowseFilterField = function(field) {
@@ -8802,6 +8930,7 @@
         }
         window.applyBrowseFilter();
         if (field === 'chkCollAnomaly' && window.renderCollAnomalyTable) window.renderCollAnomalyTable();
+        if ((field === 'chkUncollected' || field === 'uncollKeyword') && window.renderUncollBranchDetail) window.renderUncollBranchDetail();
     }
 
     window.renderActiveFilterChips = function() {
@@ -9098,6 +9227,7 @@
 
         window.renderBrowseTable();
         window.renderActiveFilterChips();
+        if (browseCurrentTab === 'uncollected' && window.renderUncollBranchDetail) window.renderUncollBranchDetail();
     }
 
     window.renderBrowseTable = function() {
