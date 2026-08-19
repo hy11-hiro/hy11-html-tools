@@ -454,13 +454,29 @@
                                 <input type="text" id="scFilter_estimator" placeholder="例：田中" oninput="filterSalesCheck()" class="w-full text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                             </div>
                             <div class="md:col-span-2">
-                                <label class="block text-xs font-bold text-gray-600 mb-1">完了日</label>
-                                <div class="flex items-center gap-2">
-                                    <input type="date" id="scFilter_endFrom" onchange="filterSalesCheck()" class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                <label class="block text-xs font-bold text-gray-600 mb-1">着手日</label>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <input type="date" id="scFilter_startFrom" onchange="filterSalesCheck()" class="flex-1 min-w-[120px] text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
                                     <span class="text-xs text-gray-400 font-bold flex-shrink-0">〜</span>
-                                    <input type="date" id="scFilter_endTo" onchange="filterSalesCheck()" class="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
-                                    <span class="text-xs text-gray-400 flex-shrink-0">（空欄は制限なし）</span>
+                                    <input type="date" id="scFilter_startTo" onchange="filterSalesCheck()" class="flex-1 min-w-[120px] text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                    <label class="flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none whitespace-nowrap w-full sm:w-auto">
+                                        <input type="checkbox" id="scFilter_startIncludeEmpty" onchange="filterSalesCheck()" class="rounded border-gray-400 text-indigo-600 focus:ring-indigo-400">
+                                        空欄も含める
+                                    </label>
                                 </div>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-bold text-gray-600 mb-1">完了日</label>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <input type="date" id="scFilter_endFrom" onchange="filterSalesCheck()" class="flex-1 min-w-[120px] text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                    <span class="text-xs text-gray-400 font-bold flex-shrink-0">〜</span>
+                                    <input type="date" id="scFilter_endTo" onchange="filterSalesCheck()" class="flex-1 min-w-[120px] text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+                                    <label class="flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none whitespace-nowrap w-full sm:w-auto">
+                                        <input type="checkbox" id="scFilter_endIncludeEmpty" onchange="filterSalesCheck()" class="rounded border-gray-400 text-indigo-600 focus:ring-indigo-400">
+                                        空欄も含める
+                                    </label>
+                                </div>
+                                <p class="text-[10px] text-gray-400 mt-1">期間を指定した場合、通常は完了日が空欄の行は対象外になります。「空欄も含める」をONにすると期間条件を満たさなくても完了日が空欄の行も表示されます。</p>
                             </div>
                             <!-- 親完了日グループ展開フィルター -->
                             <div class="md:col-span-3">
@@ -1619,7 +1635,8 @@ let salesCheckResultList = [];
                 document.getElementById("countSC").textContent = `${salesCheckResultList.length}件`;
                 document.getElementById("resultAreaSC").classList.remove("hidden");
                 // フィルターリセット
-                ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_endFrom','scFilter_endTo','scFilter_parentEndFrom','scFilter_parentEndTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+                ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_startFrom','scFilter_startTo','scFilter_endFrom','scFilter_endTo','scFilter_parentEndFrom','scFilter_parentEndTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+            ['scFilter_startIncludeEmpty','scFilter_endIncludeEmpty'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; });
             const _pEmpEl = document.getElementById('scFilter_parentEndIncludeEmpty'); if(_pEmpEl) _pEmpEl.checked = false;
             // サブフィルターボタンもリセット
             setSubFilter('all', false);
@@ -1950,8 +1967,12 @@ let salesCheckResultList = [];
             const fSite     = (document.getElementById('scFilter_siteName')?.value || "").trim();
             const fDesigner2  = (document.getElementById('scFilter_designer')?.value || "").trim();
             const fEstimator2 = (document.getElementById('scFilter_estimator')?.value || "").trim();
+            const fStartFrom2 = (document.getElementById('scFilter_startFrom')?.value || "").replace(/-/g, '');
+            const fStartTo2   = (document.getElementById('scFilter_startTo')?.value || "").replace(/-/g, '');
+            const fStartInclEmpty2 = document.getElementById('scFilter_startIncludeEmpty')?.checked || false;
             const fEndFrom2   = (document.getElementById('scFilter_endFrom')?.value || "").replace(/-/g, '');
             const fEndTo2     = (document.getElementById('scFilter_endTo')?.value || "").replace(/-/g, '');
+            const fEndInclEmpty2 = document.getElementById('scFilter_endIncludeEmpty')?.checked || false;
             // マスターモードの場合は masterBaseList を基準にする
             const baseForCheck = scViewMode === 'master' ? masterBaseList : salesCheckResultList;
             return baseForCheck.filter(r => {
@@ -1961,11 +1982,23 @@ let salesCheckResultList = [];
                 if (fSite     && !r.m_c.includes(fSite))      return false;
                 if (fDesigner2  && !r.m_az.includes(fDesigner2))  return false;
                 if (fEstimator2 && !r.m_bb.includes(fEstimator2)) return false;
+                if (fStartFrom2 || fStartTo2) {
+                    const startStr = (r.m_ar||'').toString().replace(/[^0-9]/g,'');
+                    const startNum = startStr.length >= 8 ? parseInt(startStr, 10) : 0;
+                    const isEmpty  = startNum === 0;
+                    if (!(isEmpty && fStartInclEmpty2)) {
+                        if (fStartFrom2 && (isEmpty || startNum < parseInt(fStartFrom2, 10))) return false;
+                        if (fStartTo2   && (isEmpty || startNum > parseInt(fStartTo2,   10))) return false;
+                    }
+                }
                 if (fEndFrom2 || fEndTo2) {
                     const endStr = (r.m_at||'').toString().replace(/[^0-9]/g,'');
                     const endNum = endStr.length >= 8 ? parseInt(endStr, 10) : 0;
-                    if (fEndFrom2 && (endNum === 0 || endNum < parseInt(fEndFrom2, 10))) return false;
-                    if (fEndTo2   && (endNum === 0 || endNum > parseInt(fEndTo2,   10))) return false;
+                    const isEmpty = endNum === 0;
+                    if (!(isEmpty && fEndInclEmpty2)) {
+                        if (fEndFrom2 && (isEmpty || endNum < parseInt(fEndFrom2, 10))) return false;
+                        if (fEndTo2   && (isEmpty || endNum > parseInt(fEndTo2,   10))) return false;
+                    }
                 }
                 // 除外パターン（現場CDまたは現場名の部分一致）
                 if (excludePatterns && excludePatterns.size > 0) {
@@ -2075,8 +2108,12 @@ let salesCheckResultList = [];
             const fSite      = (document.getElementById('scFilter_siteName')?.value || "").trim();
             const fDesigner  = (document.getElementById('scFilter_designer')?.value || "").trim();
             const fEstimator = (document.getElementById('scFilter_estimator')?.value || "").trim();
+            const fStartFrom = (document.getElementById('scFilter_startFrom')?.value || "").replace(/-/g, '');
+            const fStartTo   = (document.getElementById('scFilter_startTo')?.value || "").replace(/-/g, '');
+            const fStartInclEmpty = document.getElementById('scFilter_startIncludeEmpty')?.checked || false;
             const fEndFrom   = (document.getElementById('scFilter_endFrom')?.value || "").replace(/-/g, '');
             const fEndTo     = (document.getElementById('scFilter_endTo')?.value || "").replace(/-/g, '');
+            const fEndInclEmpty = document.getElementById('scFilter_endIncludeEmpty')?.checked || false;
             const fSubMode   = (document.getElementById('scFilter_subCode')?.value || "").trim();
             const gpOp       = (!isEdabetsu) ? (document.getElementById('scFilter_gpOp')?.value || "") : "";
             const gpValRaw   = (!isEdabetsu) ? (document.getElementById('scFilter_gpVal')?.value || "") : "";
@@ -2124,12 +2161,26 @@ let salesCheckResultList = [];
                 if (fSite     && !r.m_c.includes(fSite))      return false;
                 if (fDesigner  && !r.m_az.includes(fDesigner))  return false;
                 if (fEstimator && !r.m_bb.includes(fEstimator)) return false;
+                if (fStartFrom || fStartTo) {
+                    // m_ar は着手日（<00020>）YYYYMMDD 形式 or 空/"0"
+                    const startStr = (r.m_ar||'').toString().replace(/[^0-9]/g,'');
+                    const startNum = startStr.length >= 8 ? parseInt(startStr, 10) : 0;
+                    const isEmpty  = startNum === 0;
+                    if (!(isEmpty && fStartInclEmpty)) {
+                        if (fStartFrom && (isEmpty || startNum < parseInt(fStartFrom, 10))) return false;
+                        if (fStartTo   && (isEmpty || startNum > parseInt(fStartTo,   10))) return false;
+                    }
+                }
                 if (fEndFrom || fEndTo) {
-                    // m_at は YYYYMMDD 形式 or 空/"0"
+                    // m_at は完了日（<00022>）YYYYMMDD 形式 or 空/"0"
                     const endStr = (r.m_at||'').toString().replace(/[^0-9]/g,'');
                     const endNum = endStr.length >= 8 ? parseInt(endStr, 10) : 0;
-                    if (fEndFrom && (endNum === 0 || endNum < parseInt(fEndFrom, 10))) return false;
-                    if (fEndTo   && (endNum === 0 || endNum > parseInt(fEndTo,   10))) return false;
+                    const isEmpty = endNum === 0;
+                    // 「空欄も含める」がONの場合、完了日が空欄の行は期間条件を無視して常に通す
+                    if (!(isEmpty && fEndInclEmpty)) {
+                        if (fEndFrom && (isEmpty || endNum < parseInt(fEndFrom, 10))) return false;
+                        if (fEndTo   && (isEmpty || endNum > parseInt(fEndTo,   10))) return false;
+                    }
                 }
                 if (isEdabetsu && fSubMode) {
                     if (fSubMode === 'subOnly') {
@@ -2220,7 +2271,8 @@ let salesCheckResultList = [];
         }
 
         function clearSCFilters() {
-            ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_endFrom','scFilter_endTo','scFilter_parentEndFrom','scFilter_parentEndTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+            ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_startFrom','scFilter_startTo','scFilter_endFrom','scFilter_endTo','scFilter_parentEndFrom','scFilter_parentEndTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+            ['scFilter_startIncludeEmpty','scFilter_endIncludeEmpty'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; });
             const _pEmpEl = document.getElementById('scFilter_parentEndIncludeEmpty'); if(_pEmpEl) _pEmpEl.checked = false;
             // サブフィルターボタンもリセット
             setSubFilter('all', false);
@@ -3770,7 +3822,8 @@ async function downloadGroupCheckXLSX(selectedLabels) {
                 document.getElementById("countSC").textContent = `${salesCheckResultList.length}件`;
                 document.getElementById("resultAreaSC").classList.remove("hidden");
 
-                ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_endFrom','scFilter_endTo','scFilter_parentEndFrom','scFilter_parentEndTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+                ['scFilter_branch','scFilter_manager','scFilter_customer','scFilter_siteName','scFilter_subCode','scFilter_designer','scFilter_estimator','scFilter_startFrom','scFilter_startTo','scFilter_endFrom','scFilter_endTo','scFilter_parentEndFrom','scFilter_parentEndTo'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+            ['scFilter_startIncludeEmpty','scFilter_endIncludeEmpty'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = false; });
             const _pEmpEl = document.getElementById('scFilter_parentEndIncludeEmpty'); if(_pEmpEl) _pEmpEl.checked = false;
                 setSubFilter('all', false);
                 const opEl = document.getElementById('scFilter_gpOp'); if(opEl) opEl.value='';
