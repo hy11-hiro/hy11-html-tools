@@ -595,10 +595,10 @@
                             </div>
                             <div class="flex justify-between items-start mb-2">
                                 <span class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold" id="res-code">CODE</span>
-                                <span class="text-slate-500 text-sm" id="res-branch">拠点名</span>
                             </div>
                             <h2 class="text-2xl font-bold text-slate-800 mb-1" id="res-name">現場名称</h2>
-                            <div class="text-xs text-slate-500 mb-2 flex gap-2">
+                            <div class="text-xs text-slate-500 mb-2 flex gap-2 flex-wrap">
+                                <span class="bg-violet-100 text-violet-700 px-2 py-1 rounded font-bold"><i class="fa-solid fa-building mr-1"></i>拠点: <span id="res-branch">-</span></span>
                                 <span class="bg-slate-100 px-2 py-1 rounded">現場サブ名称: <span id="res-sub-name" class="font-bold">-</span></span>
                                 <span class="bg-slate-100 px-2 py-1 rounded">サブコード: <span id="res-sub-code" class="font-bold font-mono">-</span></span>
                             </div>
@@ -2018,13 +2018,32 @@
                 <!-- 2. Cost Integrity Check -->
                 <div class="glass-panel p-6 rounded-xl border-l-4 border-red-500">
                     <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-file-invoice-dollar text-red-500"></i> 原価データ整合性チェック</h4>
-                    <div class="bg-red-50 p-4 rounded-lg mb-4">
-                        <p class="text-xs text-red-800 font-bold mb-2">チェック条件 (売上/原価 0円検出):</p>
-                        <ul class="list-disc list-inside space-y-1 text-xs text-red-700">
-                            <li><strong>完了済かつデータ0:</strong> 8桁の完了日が入力されているのに、売上または原価が「0」のデータ</li>
-                            <li><strong>進行中・未計上:</strong> 完了日が未入力(または0)だが、売上または原価が「0」のデータ</li>
-                        </ul>
-                        <p class="text-[10px] text-red-600 mt-3">※原価集計データに基づき、どちらかが0円の場合にリストアップします。</p>
+                    <div class="bg-red-50 p-4 rounded-lg mb-4 space-y-4">
+
+                        <div>
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-zero" checked class="check-input"><label for="chk-cost-zero" class="check-label font-bold">① 売上/原価 0円検出</label></div>
+                            <ul class="list-disc list-inside space-y-1 text-xs text-red-700 ml-6">
+                                <li><strong>完了済かつデータ0:</strong> 8桁の完了日が入力されているのに、売上または原価が「0」のデータ</li>
+                                <li><strong>進行中・未計上:</strong> 完了日が未入力(または0)だが、売上または原価が「0」のデータ</li>
+                            </ul>
+                        </div>
+
+                        <div class="border-t border-red-100 pt-3">
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-voucher-after-end" checked class="check-input"><label for="chk-cost-voucher-after-end" class="check-label font-bold">② 完了日より後の伝票日付を検出</label></div>
+                            <p class="text-xs text-red-700 ml-6">売上明細・仕入明細それぞれの<strong>伝票日付（発生日）が、その工番の完了日より後</strong>になっているものを検出します（完了日の入力誤り、または完了後の追加計上の見落としの可能性）。</p>
+                        </div>
+
+                        <div class="border-t border-red-100 pt-3">
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-stale-no-end" checked class="check-input"><label for="chk-cost-stale-no-end" class="check-label font-bold">③ 完了日未入力の放置現場を検出</label></div>
+                            <p class="text-xs text-red-700 ml-6 mb-2"><strong>完了日が未入力</strong>なのに、<strong>最終の原価・売上計上日から一定期間が経過</strong>している現場を検出します（例：3〜4月に原価が計上されたきり、8月になっても完了日が入力されていない現場）。</p>
+                            <div class="flex items-center gap-2 ml-6">
+                                <span class="text-xs font-bold text-slate-700">経過月数のしきい値:</span>
+                                <input type="number" id="chk-stale-months" value="2" min="0" class="text-xs border rounded p-1 w-16 bg-white focus:outline-none focus:ring-1 focus:ring-red-500">
+                                <span class="text-xs text-slate-500">ヶ月以上（最終計上日から現在日付まで）</span>
+                            </div>
+                        </div>
+
+                        <p class="text-[10px] text-red-600 border-t border-red-100 pt-3">※チェックONにした項目ごとに、Excelの別シートとして出力されます。</p>
                     </div>
                     <div class="text-right">
                         <button onclick="window.exportCostCheck()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg shadow flex items-center gap-2 ml-auto">
@@ -5409,7 +5428,7 @@
         }
     };
 
-    window.setMonthlyMode = function(mode) { currentMonthlyMode = mode; document.getElementById('btn-mode-manager').className = mode==='manager'?'btn-group-item active':'btn-group-item'; document.getElementById('btn-mode-owner').className = mode==='owner'?'btn-group-item active':'btn-group-item'; document.getElementById('mm-header-name').textContent = mode==='manager'?'担当者名':'施工主名'; window.renderMonthlyManagerRanking(); }
+    window.setMonthlyMode = function(mode) { currentMonthlyMode = mode; const mmAct = 'px-3 py-1.5 bg-slate-700 text-white transition-colors whitespace-nowrap'; const mmIna = 'px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap'; document.getElementById('btn-mode-manager').className = mode==='manager'?mmAct:mmIna; document.getElementById('btn-mode-owner').className = mode==='owner'?mmAct:mmIna; document.getElementById('mm-header-name').textContent = mode==='manager'?'担当者名':'施工主名'; window.renderMonthlyManagerRanking(); }
     window.clearMmMonthFilter = function() {
         const s = document.getElementById('mm-filter-month-start');
         const e = document.getElementById('mm-filter-month-end');
@@ -5422,8 +5441,14 @@
         // 担当者別／施工主別トグルの見た目を現在の状態に同期（タブ復帰時に見た目だけ初期化されるのを防ぐ）
         const btnMgr = document.getElementById('btn-mode-manager');
         const btnOwn = document.getElementById('btn-mode-owner');
-        if (btnMgr) btnMgr.className = currentMonthlyMode === 'manager' ? 'btn-group-item active' : 'btn-group-item';
-        if (btnOwn) btnOwn.className = currentMonthlyMode === 'owner' ? 'btn-group-item active' : 'btn-group-item';
+        // 拠点別会議資料の期/年トグルと同じクラス（px-3 py-1.5 bg-slate-700...）で統一する。
+        // 以前は「btn-group-item」（別のボーダー・角丸体系）を使っており、
+        // 外側の枠（rounded-lg border overflow-hidden）と二重にボーダーが重なって
+        // ボタンが繋がって見える表示崩れの原因になっていた。
+        const mmAct = 'px-3 py-1.5 bg-slate-700 text-white transition-colors whitespace-nowrap';
+        const mmIna = 'px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap';
+        if (btnMgr) btnMgr.className = currentMonthlyMode === 'manager' ? mmAct : mmIna;
+        if (btnOwn) btnOwn.className = currentMonthlyMode === 'owner' ? mmAct : mmIna;
         const mmHeaderName = document.getElementById('mm-header-name');
         if (mmHeaderName) mmHeaderName.textContent = currentMonthlyMode === 'manager' ? '担当者名' : '施工主名';
 
@@ -5457,12 +5482,14 @@
             return true;
         };
 
-        // 全期間時は 担当者×拠点 で合算、期間指定時は 年月×担当者×拠点 で分割
+        // 担当者×拠点で合算（期間指定の有無にかかわらず、選択期間全体で1人1行に集計する。
+        // 画面のランキング表に「月」列は無いため、月ごとにキーを分けると同じ担当者が複数行に
+        // 重複表示されてしまうバグがあったため、常に name+branch のみでキーを作る）
         const agg = {};
-        const getKey  = (ym, name, branch) => isAllMonth ? `${name}_${branch}` : `${ym}_${name}_${branch}`;
+        const getKey  = (ym, name, branch) => `${name}_${branch}`;
         const addToAgg = (ym, name, branch, sales, cost) => {
             const key = getKey(ym, name, branch);
-            if (!agg[key]) agg[key] = { month: isAllMonth ? '全期間' : ym, name, branch, sales:0, cost:0, siteDetails:[] };
+            if (!agg[key]) agg[key] = { month: isAllMonth ? '全期間' : `${selMonthStart||''}〜${selMonthEnd||''}`, name, branch, sales:0, cost:0, siteDetails:[] };
             agg[key].sales += sales; agg[key].cost += cost;
         };
 
@@ -5817,21 +5844,12 @@
             // ── Sheet4: クロス集計（横=監督名、縦=得意先[売上] / 業者名[原価]） ──
             const ws4 = wb.addWorksheet('クロス集計');
 
-            // 完了日フィルター（集計期間設定を尊重）
-            const rf = cache.rankFilterSnap || {};
-            const rfStart = rf.start ? new Date(rf.start).setHours(0,0,0,0) : 0;
-            const rfEnd   = rf.end   ? new Date(rf.end).setHours(23,59,59,999) : 9999999999999;
-            const mMap    = cache.masterMap || new Map();
-            const inEndDateRange = (siteCode) => {
-                const master = mMap.get(siteCode);
-                if (!master) return true; // マスターなければ除外しない
-                const ts = window.parseDateValue(master.endDate);
-                if (!ts) return (rfStart === 0 && rfEnd === 9999999999999); // 完了日なしは期間指定時は除外
-                return ts >= rfStart && ts <= rfEnd;
-            };
-            const crossSales     = filteredSales.filter(s => inEndDateRange(s.siteCode));
-            const crossPurchases = filteredPurchases.filter(p => inEndDateRange(p.siteCode));
-            const periodLabel = (rf.start || rf.end) ? `完了日:${rf.start||''}〜${rf.end||''}` : '';
+            // Sheet1〜3（月次サマリー／売上内訳／原価内訳）と同じ発生日ベースの絞込結果をそのまま使う。
+            // ※このタブは元々「上部の集計期間（完了日）は反映されません」という仕様のため、
+            //   ここで完了日フィルターを別途適用すると他シートと数字が食い違ってしまうので使用しない。
+            const crossSales     = filteredSales;
+            const crossPurchases = filteredPurchases;
+            const periodLabel = '';
 
             // 監督名リスト（売上・原価の両方から収集・ソート）
             const mgrSalesSet = new Set();
@@ -6000,7 +6018,7 @@
                 map5[ym][br].p += p.amount;
             });
 
-            const periodStr5  = periodLabel || `${rfYmStart||''}〜${rfYmEnd||''}`;
+            const periodStr5  = periodLabel || `${ymStart||''}〜${ymEnd||''}`;
             const hdrBlue     = { font:{bold:true,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}}, alignment:{horizontal:'center'} };
             const titleStyle5 = { font:{bold:true,size:11,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}}, alignment:{horizontal:'left',vertical:'middle'} };
             const ymStyle5    = { font:{}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFF8FAFC'}}, alignment:{horizontal:'center'} };
@@ -10673,90 +10691,192 @@
 window.exportCostCheck = async function() {
     try {
         if ((await db.costs.count()) === 0) { alert("原価データがありません。"); return; }
-        
-        const wb = new ExcelJS.Workbook();
-        const ws = wb.addWorksheet('原価整合性チェック');
 
+        const doZero        = document.getElementById('chk-cost-zero')?.checked ?? true;
+        const doVoucherOver = document.getElementById('chk-cost-voucher-after-end')?.checked ?? true;
+        const doStale       = document.getElementById('chk-cost-stale-no-end')?.checked ?? true;
+        const staleMonths   = Number(document.getElementById('chk-stale-months')?.value) || 0;
+
+        if (!doZero && !doVoucherOver && !doStale) { alert('チェック項目を1つ以上選択してください。'); return; }
+
+        const wb = new ExcelJS.Workbook();
         const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC00000' } }, alignment: { horizontal: 'center' } };
 
-        // ▼ カラム定義の変更（施工主、担当者、拠点を追加）
-        ws.columns = [
-            { header: '工番', key: 'code', width: 12 },
-            { header: '現場名', key: 'name', width: 35 },
-            { header: '施工主', key: 'owner', width: 15 },   // 追加
-            { header: '担当者', key: 'manager', width: 12 }, // 追加
-            { header: '拠点', key: 'branch', width: 10 },    // 追加
-            { header: '完了日', key: 'end', width: 12 },
-            { header: '売上累計(税抜)', key: 'sales', width: 15 },
-            { header: '原価累計', key: 'cost', width: 15 },
-            { header: '判定コメント', key: 'comment', width: 25 },
-        ];
-        
-        ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
-
-        const costs = await db.costs.toArray();
-        const masters = await db.masters.toArray();
+        const costs     = await db.costs.toArray();
+        const masters   = await db.masters.toArray();
+        const allSales  = doVoucherOver || doStale ? await db.sales.toArray()     : [];
+        const allPurch  = doVoucherOver || doStale ? await db.purchases.toArray() : [];
         const masterMap = new Map();
         masters.forEach(m => masterMap.set(m.code, m));
 
-        let alertCount = 0;
+        // 8桁日付文字列(YYYYMMDD) → タイムスタンプ。不正/空は null。
+        const toTs = (v) => {
+            if (!v) return null;
+            const s = String(v).trim();
+            if (s.length !== 8 || s === '00000000' || s === '0') return null;
+            const ts = window.parseDateValue ? window.parseDateValue(s) : new Date(`${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`).getTime();
+            return ts && !isNaN(ts) ? ts : null;
+        };
+        const fmtDateDisp = (v) => {
+            const s = String(v||'').trim();
+            if (s.length === 8 && s !== '00000000') return `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)}`;
+            return '-';
+        };
 
-        costs.forEach(c => {
-            const m = masterMap.get(c.code) || {};
-            const rawEndDate = m.endDate;
-            
-            let isCompleted = false;
-            if (rawEndDate) {
-                const sDate = String(rawEndDate).trim();
-                if (sDate.length === 8 && sDate !== '0') {
-                    isCompleted = true;
+        let summaryLines = [];
+
+        // ━━ ① 売上/原価 0円検出（既存ロジック） ━━
+        if (doZero) {
+            const ws = wb.addWorksheet('①0円検出');
+            ws.columns = [
+                { header: '工番', key: 'code', width: 12 },
+                { header: '現場名', key: 'name', width: 35 },
+                { header: '施工主', key: 'owner', width: 15 },
+                { header: '担当者', key: 'manager', width: 12 },
+                { header: '拠点', key: 'branch', width: 10 },
+                { header: '完了日', key: 'end', width: 12 },
+                { header: '売上累計(税抜)', key: 'sales', width: 15 },
+                { header: '原価累計', key: 'cost', width: 15 },
+                { header: '判定コメント', key: 'comment', width: 25 },
+            ];
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+
+            let alertCount = 0;
+            costs.forEach(c => {
+                const m = masterMap.get(c.code) || {};
+                const rawEndDate = m.endDate;
+                const isCompleted = toTs(rawEndDate) !== null;
+                const sales = c.salesTotal || 0;
+                const cost = c.costTotal || 0;
+
+                if (sales === 0 || cost === 0) {
+                    alertCount++;
+                    let comment = '';
+                    let isCritical = false;
+                    if (isCompleted) { comment = '【要注意】完了済だが0円'; isCritical = true; }
+                    else { comment = '進行中・未計上'; }
+                    if (sales === 0 && cost === 0) comment += ' (売上・原価共に0)';
+                    else if (sales === 0) comment += ' (売上0)';
+                    else if (cost === 0) comment += ' (原価0)';
+
+                    const newRow = ws.addRow({ code: c.code, name: c.name, owner: m.owner || '-', manager: m.manager || '-', branch: m.branch || '-', end: rawEndDate || '-', sales, cost, comment });
+                    if (isCritical) {
+                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
+                        newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
+                    } else {
+                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFE0' } }; });
+                    }
                 }
-            }
-            
-            const sales = c.salesTotal || 0;
-            const cost = c.costTotal || 0;
-            
-            // 判定ロジック
-            if (sales === 0 || cost === 0) {
-                alertCount++;
-                let comment = '';
-                let isCritical = false;
+            });
+            summaryLines.push(`①0円検出：${alertCount}件`);
+        }
 
-                if (isCompleted) {
-                    comment = '【要注意】完了済だが0円';
-                    isCritical = true;
-                } else {
-                    comment = '進行中・未計上';
-                }
-                
-                if (sales === 0 && cost === 0) comment += ' (売上・原価共に0)';
-                else if (sales === 0) comment += ' (売上0)';
-                else if (cost === 0) comment += ' (原価0)';
+        // ━━ ② 完了日より後の伝票日付を検出 ━━
+        if (doVoucherOver) {
+            const ws = wb.addWorksheet('②完了日超過伝票');
+            ws.columns = [
+                { header: '工番', key: 'code', width: 12 },
+                { header: '現場名', key: 'name', width: 30 },
+                { header: '拠点', key: 'branch', width: 10 },
+                { header: '担当者', key: 'manager', width: 12 },
+                { header: '種別', key: 'kind', width: 8 },
+                { header: '伝票日付', key: 'voucherDate', width: 12 },
+                { header: '完了日', key: 'endDate', width: 12 },
+                { header: '超過日数', key: 'overDays', width: 10 },
+                { header: '得意先/業者名', key: 'partner', width: 22 },
+                { header: '金額', key: 'amount', width: 15 },
+            ];
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
 
-                const newRow = ws.addRow({
-                    code: c.code,
-                    name: c.name,
-                    owner: m.owner || '-',     // 追加: マスターから取得
-                    manager: m.manager || '-', // 追加: マスターから取得
-                    branch: m.branch || '-',   // 追加: マスターから取得
-                    end: rawEndDate || '-',
-                    sales: sales,
-                    cost: cost,
-                    comment: comment
+            let overCount = 0;
+            const DAY_MS = 24 * 60 * 60 * 1000;
+            const checkRows = (rows, kind, amountKey, partnerKey) => {
+                rows.forEach(r => {
+                    const m = masterMap.get(r.siteCode);
+                    const endTs = toTs(m?.endDate);
+                    if (endTs === null) return; // 完了日未入力の現場は対象外（③でカバー）
+                    const vTs = toTs(r.date);
+                    if (vTs === null) return;
+                    if (vTs <= endTs) return;
+                    overCount++;
+                    const overDays = Math.round((vTs - endTs) / DAY_MS);
+                    const row = ws.addRow({
+                        code: r.siteCode, name: m?.name || r.siteName || '-', branch: m?.branch || '-', manager: m?.manager || '-',
+                        kind, voucherDate: fmtDateDisp(r.date), endDate: fmtDateDisp(m.endDate), overDays,
+                        partner: r[partnerKey] || '-', amount: r[amountKey] || 0,
+                    });
+                    row.getCell('overDays').font = { color: { argb: 'FFFF0000' }, bold: true };
+                    row.eachCell({ includeEmpty: true }, (cell) => { if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
                 });
+            };
+            checkRows(allSales, '売上', 'amountExc', 'customer');
+            checkRows(allPurch, '仕入', 'amount', 'vendor');
+            summaryLines.push(`②完了日超過伝票：${overCount}件`);
+        }
 
-                if (isCritical) {
-                    newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; }); 
-                    newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
-                } else {
-                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFE0' } }; }); 
-                }
+        // ━━ ③ 完了日未入力の放置現場を検出 ━━
+        if (doStale) {
+            const ws = wb.addWorksheet('③完了日未入力の放置現場');
+            ws.columns = [
+                { header: '工番', key: 'code', width: 12 },
+                { header: '現場名', key: 'name', width: 30 },
+                { header: '拠点', key: 'branch', width: 10 },
+                { header: '担当者', key: 'manager', width: 12 },
+                { header: '最終計上日', key: 'lastDate', width: 12 },
+                { header: '経過月数', key: 'elapsedMonths', width: 10 },
+                { header: '完了日', key: 'endDate', width: 10 },
+                { header: '原価累計', key: 'cost', width: 15 },
+                { header: '売上累計(税抜)', key: 'sales', width: 15 },
+            ];
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+
+            // 現場ごとの最終計上日（売上明細・仕入明細のうち、より新しい方）を収集
+            const lastDateMap = new Map(); // code -> 'YYYYMMDD'
+            const updateLast = (code, dateStr) => {
+                if (!dateStr || String(dateStr).length !== 8) return;
+                const cur = lastDateMap.get(code);
+                if (!cur || dateStr > cur) lastDateMap.set(code, dateStr);
+            };
+            allSales.forEach(s => updateLast(s.siteCode, s.date));
+            allPurch.forEach(p => updateLast(p.siteCode, p.date));
+
+            const now = new Date();
+            let staleCount = 0;
+            const costMap = new Map(); costs.forEach(c => costMap.set(c.code, c));
+
+            masters.forEach(m => {
+                if (toTs(m.endDate) !== null) return; // 完了日が入力済みなら対象外
+                const lastDateStr = lastDateMap.get(m.code);
+                if (!lastDateStr) return; // 計上実績が無ければ対象外（未着手の可能性が高い）
+                const lastTs = toTs(lastDateStr);
+                if (lastTs === null) return;
+                const lastD = new Date(lastTs);
+                const elapsedMonths = (now.getFullYear() - lastD.getFullYear()) * 12 + (now.getMonth() - lastD.getMonth());
+                if (elapsedMonths < staleMonths) return;
+                staleCount++;
+                const c = costMap.get(m.code) || {};
+                const row = ws.addRow({
+                    code: m.code, name: m.name || '-', branch: m.branch || '-', manager: m.manager || '-',
+                    lastDate: fmtDateDisp(lastDateStr), elapsedMonths, endDate: '（未入力）',
+                    cost: c.costTotal || 0, sales: c.salesTotal || 0,
+                });
+                row.getCell('elapsedMonths').font = { color: { argb: 'FFFF0000' }, bold: true };
+                row.getCell('endDate').font = { color: { argb: 'FFFF0000' }, bold: true };
+                row.eachCell({ includeEmpty: true }, (cell) => { if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } }; });
+            });
+            // 経過月数の多い順に並び替え
+            if (staleCount > 0) {
+                const dataRows = ws.getRows(2, ws.rowCount - 1) || [];
+                const sorted = dataRows.map(r => r.values).sort((a, b) => (b[6]||0) - (a[6]||0));
+                for (let i = 0; i < sorted.length; i++) { ws.getRow(i + 2).values = sorted[i]; }
             }
-        });
+            summaryLines.push(`③完了日未入力の放置現場：${staleCount}件（しきい値${staleMonths}ヶ月以上）`);
+        }
 
+        if (wb.worksheets.length === 0) { alert('出力するデータがありません'); return; }
         const buffer = await wb.xlsx.writeBuffer();
         saveAs(new Blob([buffer]), `原価整合性チェック_${new Date().toISOString().slice(0,10)}.xlsx`);
-        alert(`出力完了: ${alertCount}件の該当データが見つかりました。`);
+        alert(`出力完了\n${summaryLines.join('\n')}`);
     } catch (e) {
         console.error(e);
         alert("エクスポート中にエラーが発生しました: " + e.message);
