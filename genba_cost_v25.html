@@ -617,6 +617,7 @@
                                     </div>
                                     <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
                                         <div><span class="block text-slate-400 text-[10px]">サブコード名</span><span class="font-bold text-slate-700" id="sd-name">-</span></div>
+                                        <div><span class="block text-slate-400 text-[10px]">拠点</span><span class="font-bold text-slate-700" id="sd-branch">-</span></div>
                                         <div><span class="block text-slate-400 text-[10px]">着手日</span><span class="font-bold text-slate-700" id="sd-start">-</span></div>
                                         <div>
                                             <span class="block text-slate-400 text-[10px]">完了日</span>
@@ -1667,18 +1668,19 @@
                                 class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"></select>
                         </div>
 
-                        <!-- 期間絞り込み（開始月〜終了月） -->
+                        <!-- 期間絞り込み（発生日／完了日ベースで任意の年月〜年月を指定。対象期をまたいだ指定も可能） -->
                         <div class="flex items-center gap-1 flex-wrap">
                             <i class="fa-solid fa-calendar-days text-slate-400 text-xs"></i>
                             <label class="text-xs text-slate-500 font-bold">期間絞込:</label>
-                            <select id="bm-filter-start" onchange="window.bmOnPeriodFilterChange()"
-                                class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none"></select>
+                            <input type="month" id="bm-filter-start" onchange="window.bmOnPeriodFilterChange()"
+                                class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none">
                             <span class="text-xs text-slate-400">〜</span>
-                            <select id="bm-filter-end" onchange="window.bmOnPeriodFilterChange()"
-                                class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none"></select>
+                            <input type="month" id="bm-filter-end" onchange="window.bmOnPeriodFilterChange()"
+                                class="text-xs border border-slate-200 rounded px-2 py-1.5 bg-white focus:outline-none">
                             <button onclick="window.bmResetPeriodFilter()"
                                 class="text-xs text-slate-400 hover:text-slate-600 px-1">✕全期間</button>
                         </div>
+
 
                         <!-- 拠点セレクター（拠点別モードのみ） -->
                         <div id="bm-branch-selector-area" class="hidden flex items-center gap-2">
@@ -1722,6 +1724,16 @@
                                     <li>「期（事業年度）」は9月始まり〜翌年8月終わりの会社の事業年度（第◯期）で集計します。</li>
                                     <li>「年（カレンダー年）」は1月〜12月のカレンダー年で集計します。</li>
                                     <li>各表・グラフの右上または見出し横に、現在表示している「期」または「年」が表示されます。</li>
+                                </ul>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-700 mb-1"><i class="fa-solid fa-filter text-emerald-600 mr-1"></i>「期間絞込」の使い方</p>
+                                <ul class="list-disc list-inside space-y-1 ml-1">
+                                    <li>ツールバーの「期間絞込：開始月〜終了月」は、月を直接指定して集計対象の年月範囲を絞り込む機能です（明細データ／原価集計どちらの基準でも使えます）。</li>
+                                    <li>指定した範囲外の月は、表・グラフ・Excel出力すべてで「-」（対象外）として扱われ、累計実績・累計目標などの計算からも除外されます。</li>
+                                    <li>終了月として「対象期」欄で現在選んでいる期・年に含まれない年月を指定した場合は、その年月を含む期・年へ「対象期」欄が自動的に切り替わります。期をまたいだ絞り込みも可能です。</li>
+                                    <li>「対象期」欄をプルダウンで直接切り替えた場合は、期間絞込は新しい対象期の全月にリセットされます。</li>
+                                    <li>「✕全期間」ボタンで、現在の対象期の全月表示に戻せます。</li>
                                 </ul>
                             </div>
                             <div>
@@ -1829,10 +1841,15 @@
 
                         <!-- 拠点別数値表 -->
                         <div class="glass-panel rounded-xl overflow-hidden">
-                            <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center gap-3">
+                            <div class="bg-slate-50 px-5 py-3 border-b border-slate-200 flex flex-wrap items-center gap-3">
                                 <i class="fa-solid fa-table text-slate-500"></i>
                                 <span class="font-bold text-slate-700">拠点別　実績・目標一覧</span>
                                 <span id="bm-overall-table-period-label" class="text-xs text-violet-600 font-bold"></span>
+                                <label class="ml-auto flex items-center gap-1.5 text-xs text-slate-500 font-bold cursor-pointer select-none">
+                                    <input type="checkbox" id="bm-hide-zero-branches" onchange="window.bmOnHideZeroChange()"
+                                        class="w-3.5 h-3.5 text-violet-600 rounded">
+                                    累計実績が0の拠点を非表示
+                                </label>
                             </div>
                             <div class="overflow-x-auto">
                                 <table class="w-full text-sm text-left text-slate-600 border-collapse border border-slate-200">
@@ -1919,7 +1936,29 @@
                     </div>
                 </div>
             </div>
-            
+
+            <!-- 拠点別 実績・目標一覧：数字クリック時の内訳ドリルダウン モーダル -->
+            <div id="bm-drilldown-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-slate-900/50" onclick="window.bmCloseDrilldown()"></div>
+                <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+                    <div class="px-5 py-3 border-b border-slate-200 flex items-center gap-3 bg-slate-50">
+                        <i class="fa-solid fa-magnifying-glass-chart text-violet-500"></i>
+                        <div class="flex-1 min-w-0">
+                            <div id="bm-drilldown-title" class="font-bold text-slate-700 truncate"></div>
+                            <div id="bm-drilldown-subtitle" class="text-xs text-slate-400"></div>
+                        </div>
+                        <button id="bm-drilldown-export-btn" onclick="window.bmExportDrilldownExcel()" disabled
+                            class="hidden text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg whitespace-nowrap">
+                            <i class="fa-solid fa-file-excel mr-1"></i>Excel出力
+                        </button>
+                        <button onclick="window.bmCloseDrilldown()" class="text-slate-400 hover:text-slate-600 px-2 py-1">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+                    <div id="bm-drilldown-body" class="overflow-y-auto px-5 py-4 text-sm"></div>
+                </div>
+            </div>
+
             <!-- 4. DATA CHECK PAGE (NEW TAB) -->
             <div id="page-check" class="page-content hidden max-w-4xl mx-auto space-y-6">
                 <div class="bg-white p-6 rounded-xl border-b border-slate-200 shadow-sm mb-4">
@@ -3041,6 +3080,8 @@
         const startDate = fmtDate(subEntry?.startDate);
 
         document.getElementById('sd-name').textContent     = fmtVal(subEntry?.subName)   || subName || '-';
+        // 拠点：サブコード行に無い場合は親コードの拠点をフォールバックとして表示する
+        document.getElementById('sd-branch').textContent   = fmtVal(subEntry?.branch) !== '-' ? fmtVal(subEntry?.branch) : fmtVal(parentMaster?.branch);
         document.getElementById('sd-start').textContent    = startDate                  || '-';
         document.getElementById('sd-delivery').textContent = fmtDate(subEntry?.delivery) || fmtVal(subEntry?.delivery);
         document.getElementById('sd-manager').textContent  = fmtVal(subEntry?.manager);
@@ -3763,6 +3804,59 @@
             }
         }
 
+        // ━━ 関連サブコード一覧（拠点を含む） ━━
+        const subCodesForExcel = data.subCodes || [];
+        if (subCodesForExcel.length > 0) {
+            ws.mergeCells('B'+row+':R'+row);
+            ws.getCell('B'+row).value = '■ 関連サブコード　（' + subCodesForExcel.length + '件）';
+            ws.getCell('B'+row).style = {
+                font:{bold:true, size:11, color:{argb:'FFFFFFFF'}},
+                fill:{type:'pattern',pattern:'solid', fgColor:{argb:'FF'+C.navy}},
+                alignment:{horizontal:'left', vertical:'middle', indent:1}
+            };
+            ws.getRow(row).height = 28; row++;
+
+            ['サブコード','サブコード名','拠点','担当者','得意先','着手日','完了日'].forEach((h,i) => {
+                ws.getCell(['B','C','F','I','K','N','P'][i] + row).value = h;
+                ws.getCell(['B','C','F','I','K','N','P'][i] + row).style = hdr(C.blue);
+            });
+            ws.mergeCells('B'+row+':B'+row);
+            ws.mergeCells('C'+row+':E'+row);
+            ws.mergeCells('F'+row+':H'+row);
+            ws.mergeCells('I'+row+':J'+row);
+            ws.mergeCells('K'+row+':M'+row);
+            ws.mergeCells('N'+row+':O'+row);
+            ws.mergeCells('P'+row+':R'+row);
+            ws.getRow(row).height = 24; row++;
+
+            const fmtDateExcel = (v) => {
+                if (!v) return '-';
+                const s = String(v).replace(/\D/g,'');
+                if (s.length === 8 && s !== '00000000') return `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)}`;
+                return '-';
+            };
+            subCodesForExcel.forEach((sc, i) => {
+                ws.getRow(row).height = 22;
+                const bg = i%2===0 ? 'FFFFFF' : 'EFF6FF';
+                const bgF = {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+bg}};
+                ws.getCell('B'+row).value = sc.subCode || '-'; ws.getCell('B'+row).style = {...cell, fill:bgF};
+                ws.mergeCells('C'+row+':E'+row);
+                ws.getCell('C'+row).value = sc.subName || '-'; ws.getCell('C'+row).style = {...cell, fill:bgF};
+                ws.mergeCells('F'+row+':H'+row);
+                // 拠点：サブコード行に無い場合は親コードの拠点をフォールバック表示
+                ws.getCell('F'+row).value = sc.branch || data.branch || '-'; ws.getCell('F'+row).style = {...cell, fill:bgF};
+                ws.mergeCells('I'+row+':J'+row);
+                ws.getCell('I'+row).value = sc.manager || '-'; ws.getCell('I'+row).style = {...cell, fill:bgF};
+                ws.mergeCells('K'+row+':M'+row);
+                ws.getCell('K'+row).value = sc.customer || '-'; ws.getCell('K'+row).style = {...cell, fill:bgF};
+                ws.mergeCells('N'+row+':O'+row);
+                ws.getCell('N'+row).value = fmtDateExcel(sc.startDate); ws.getCell('N'+row).style = {...cell, fill:bgF};
+                ws.mergeCells('P'+row+':R'+row);
+                ws.getCell('P'+row).value = fmtDateExcel(sc.endDate); ws.getCell('P'+row).style = {...cell, fill:bgF};
+                row++;
+            });
+        }
+
         return ws;
     }
 
@@ -3853,7 +3947,8 @@
                     margin:   (gpDec3*100).toFixed(1) + '%',
                     salesDetails:    sales,
                     purchaseDetails: purchases,
-                    collRows:        collRows   // ★回収行を追加
+                    collRows:        collRows,   // ★回収行を追加
+                    subCodes:        master ? (master.subCodes || []) : []  // Excel出力の「関連サブコード」セクション用
                 };
 
                 // オフスクリーンでグラフ生成
@@ -3974,7 +4069,8 @@
                 margin: (cost ? cost.marginRatio * 100 : 0).toFixed(1) + '%',
                 salesDetails: sales,
                 purchaseDetails: purchases,
-                collRows: collRows   // ★回収行を追加
+                collRows: collRows,   // ★回収行を追加
+                subCodes: master ? (master.subCodes || []) : []  // Excel出力の「関連サブコード」セクション用
             };
 
             document.getElementById('search-result').classList.remove('hidden'); 
@@ -6014,6 +6110,7 @@
         periodKeyFiscal: null,
         periodKeyCalendar: null,
         branch: '',
+        hideZeroBranches: false,  // 拠点別 実績・目標一覧：累計実績が0の拠点を非表示にするか
         data: null,               // { byBranchMonth, byOwnerMonth, branches }
         dataByBasis: null,         // { detail: {...}, cost: {...} }
         budget: { perKey: {} },
@@ -6147,6 +6244,8 @@
             detail: { byBranchMonth: byBranchMonthDetail, byOwnerMonth: byOwnerMonthDetail, branches: Array.from(branchSetDetail).sort((a, b) => a.localeCompare(b, 'ja')) },
             cost: { byBranchMonth: byBranchMonthCost, byOwnerMonth: byOwnerMonthCost, branches: Array.from(branchSetCost).sort((a, b) => a.localeCompare(b, 'ja')) },
         };
+        // 内訳ドリルダウン表示用に、拠点別一覧の数字クリック時に再利用できるようマスターマップを保持しておく
+        bm.masterMap = masterMap;
         // 両基準が確実に別データであることを検証できるよう、件数を保持しておく（デバッグ表示用）
         bm.debugCounts = {
             detailRows: allSales.length,
@@ -6166,6 +6265,212 @@
     function bmCumulative(arr) { let acc = 0; return arr.map(v => (acc += (v || 0))); }
     // 支店長会議資料専用：百万円単位フォーマッタ（円→百万円、整数・桁区切り）
     function bmFmtM(n) { if (n === null || n === undefined) return '-'; return Math.round(n / 1e6).toLocaleString('ja-JP'); }
+    function bmFmtYen(n) { return Math.round(n || 0).toLocaleString('ja-JP') + '円'; }
+
+    // ── 拠点別 実績・目標一覧：数字クリック時の内訳ドリルダウン ──
+    // ym1〜ym2（"YYYY-MM"）の範囲・拠点で、明細データ（発生日）または原価集計（完了日）の元データを
+    // 工番単位に集計して一覧表示する。cellLabel は見出し用（例："4月" や "累計実績"）。
+    window.bmShowDrilldown = async function(branch, ym1, ym2, cellLabel) {
+        const modal = document.getElementById('bm-drilldown-modal');
+        const titleEl = document.getElementById('bm-drilldown-title');
+        const subEl = document.getElementById('bm-drilldown-subtitle');
+        const bodyEl = document.getElementById('bm-drilldown-body');
+        const exportBtn = document.getElementById('bm-drilldown-export-btn');
+        if (!modal || !bodyEl) return;
+        const basisLabel = bm.dataBasis === 'cost' ? '原価集計（完了日基準）' : '明細データ（発生日基準）';
+        const rangeLabel = ym1 === ym2 ? ym1 : `${ym1}〜${ym2}`;
+        titleEl.textContent = `${branch}　${cellLabel}　内訳`;
+        subEl.textContent = `${basisLabel}　${rangeLabel}`;
+        bodyEl.innerHTML = `<div class="text-center text-slate-400 py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i>読み込み中...</div>`;
+        if (exportBtn) { exportBtn.classList.add('hidden'); exportBtn.disabled = true; }
+        bm._drilldownExport = null;
+        modal.classList.remove('hidden');
+
+        try {
+            const masterMap = bm.masterMap || new Map();
+            let rowsHtml = '';
+            let total = 0;
+            let count = 0;
+
+            if (bm.dataBasis === 'cost') {
+                // 原価集計：工番（現場マスターの完了日基準）の salesTotal を工番ごとに一覧表示
+                const allCosts = await db.costs.toArray();
+                const items = [];
+                allCosts.forEach(c => {
+                    const m = masterMap.get(c.code);
+                    if (!m || (m.branch || '不明') !== branch) return;
+                    const ts = window.parseDateValue ? window.parseDateValue(m.endDate) : null;
+                    if (!ts) return;
+                    const d = new Date(ts);
+                    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    if (ym < ym1 || ym > ym2) return;
+                    const amt = c.salesTotal || 0;
+                    if (!amt) return;
+                    items.push({ code: c.code, siteName: m.siteName || m.name || '', owner: m.owner || '', endDate: m.endDate || '', amt });
+                });
+                items.sort((a, b) => b.amt - a.amt);
+                count = items.length;
+                total = items.reduce((a, it) => a + it.amt, 0);
+                rowsHtml = items.map(it => `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50">
+                        <td class="px-3 py-1.5 font-mono">${it.code ? `<button class="text-blue-600 hover:text-blue-800 hover:underline font-bold" title="現場照会でこの工番を開く" onclick="window.bmJumpToSiteFromDrilldown('${it.code.replace(/'/g, "\\'")}')">${it.code}</button>` : '-'}</td>
+                        <td class="px-3 py-1.5">${it.siteName || '-'}</td>
+                        <td class="px-3 py-1.5">${it.owner || '-'}</td>
+                        <td class="px-3 py-1.5 text-center">${it.endDate || '-'}</td>
+                        <td class="px-3 py-1.5 text-right font-mono font-bold">${bmFmtYen(it.amt)}</td>
+                    </tr>`).join('');
+                bodyEl.innerHTML = `
+                    <div class="flex items-center justify-between mb-2 text-xs text-slate-500">
+                        <span>${count}件の工番</span>
+                        <span>合計：<span class="font-bold text-slate-700">${bmFmtYen(total)}</span></span>
+                    </div>
+                    <table class="w-full text-xs border border-slate-200">
+                        <thead class="bg-slate-100 sticky top-0"><tr>
+                            <th class="px-3 py-1.5 text-left">工番</th>
+                            <th class="px-3 py-1.5 text-left">現場名</th>
+                            <th class="px-3 py-1.5 text-left">担当</th>
+                            <th class="px-3 py-1.5 text-center">完了日</th>
+                            <th class="px-3 py-1.5 text-right">金額（税抜）</th>
+                        </tr></thead>
+                        <tbody>${rowsHtml || `<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">該当データがありません</td></tr>`}</tbody>
+                    </table>`;
+                bm._drilldownExport = {
+                    basis: 'cost', branch, cellLabel, basisLabel, rangeLabel,
+                    columns: [
+                        { header: '工番', key: 'code', width: 14 },
+                        { header: '現場名', key: 'siteName', width: 28 },
+                        { header: '担当者', key: 'owner', width: 14 },
+                        { header: '完了日', key: 'endDate', width: 14 },
+                        { header: '金額（税抜）', key: 'amt', width: 16, isAmount: true },
+                    ],
+                    items, total,
+                };
+            } else {
+                // 明細データ：発生日が範囲内の売上明細を、工番＋得意先ごとに集計して一覧表示
+                const allSales = await db.sales.toArray();
+                const groups = new Map(); // key: siteCode|customer
+                allSales.forEach(s => {
+                    const m = masterMap.get(s.siteCode);
+                    if (((m && m.branch) || '不明') !== branch) return;
+                    const dateStr = s.date || '';
+                    if (dateStr.length < 6) return;
+                    const ym = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}`;
+                    if (ym < ym1 || ym > ym2) return;
+                    const key = `${s.siteCode}|${s.customer || ''}`;
+                    if (!groups.has(key)) groups.set(key, { code: s.siteCode, siteName: (m && (m.siteName || m.name)) || '', owner: (m && m.owner) || '', customer: s.customer || '', amt: 0, n: 0, lastDate: '' });
+                    const g = groups.get(key);
+                    g.amt += (s.amountExc || 0);
+                    g.n += 1;
+                    if (dateStr > g.lastDate) g.lastDate = dateStr;
+                });
+                const items = Array.from(groups.values()).sort((a, b) => b.amt - a.amt);
+                count = items.reduce((a, it) => a + it.n, 0);
+                total = items.reduce((a, it) => a + it.amt, 0);
+                rowsHtml = items.map(it => `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50">
+                        <td class="px-3 py-1.5 font-mono">${it.code ? `<button class="text-blue-600 hover:text-blue-800 hover:underline font-bold" title="現場照会でこの工番を開く" onclick="window.bmJumpToSiteFromDrilldown('${it.code.replace(/'/g, "\\'")}')">${it.code}</button>` : '-'}</td>
+                        <td class="px-3 py-1.5">${it.siteName || '-'}</td>
+                        <td class="px-3 py-1.5">${it.customer || '-'}</td>
+                        <td class="px-3 py-1.5">${it.owner || '-'}</td>
+                        <td class="px-3 py-1.5 text-center">${it.n}件</td>
+                        <td class="px-3 py-1.5 text-right font-mono font-bold">${bmFmtYen(it.amt)}</td>
+                    </tr>`).join('');
+                bodyEl.innerHTML = `
+                    <div class="flex items-center justify-between mb-2 text-xs text-slate-500">
+                        <span>${items.length}件の工番・得意先（明細 ${count}件）</span>
+                        <span>合計：<span class="font-bold text-slate-700">${bmFmtYen(total)}</span></span>
+                    </div>
+                    <table class="w-full text-xs border border-slate-200">
+                        <thead class="bg-slate-100 sticky top-0"><tr>
+                            <th class="px-3 py-1.5 text-left">工番</th>
+                            <th class="px-3 py-1.5 text-left">現場名</th>
+                            <th class="px-3 py-1.5 text-left">得意先</th>
+                            <th class="px-3 py-1.5 text-left">担当者</th>
+                            <th class="px-3 py-1.5 text-center">明細件数</th>
+                            <th class="px-3 py-1.5 text-right">金額（税抜）</th>
+                        </tr></thead>
+                        <tbody>${rowsHtml || `<tr><td colspan="6" class="px-3 py-6 text-center text-slate-400">該当データがありません</td></tr>`}</tbody>
+                    </table>`;
+                bm._drilldownExport = {
+                    basis: 'detail', branch, cellLabel, basisLabel, rangeLabel,
+                    columns: [
+                        { header: '工番', key: 'code', width: 14 },
+                        { header: '現場名', key: 'siteName', width: 28 },
+                        { header: '得意先', key: 'customer', width: 22 },
+                        { header: '担当者', key: 'owner', width: 14 },
+                        { header: '明細件数', key: 'n', width: 10 },
+                        { header: '金額（税抜）', key: 'amt', width: 16, isAmount: true },
+                    ],
+                    items, total,
+                };
+            }
+            if (exportBtn && bm._drilldownExport && bm._drilldownExport.items.length) {
+                exportBtn.classList.remove('hidden');
+                exportBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error('bmShowDrilldown error:', err);
+            bodyEl.innerHTML = `<div class="text-center text-red-500 py-8">内訳の取得に失敗しました：${err.message || err}</div>`;
+        }
+    };
+    window.bmCloseDrilldown = function() {
+        const modal = document.getElementById('bm-drilldown-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+    // 内訳一覧の工番クリック → モーダルを閉じて「現場照会・分析」画面へジャンプする
+    // （集計・ランキング画面の他の一覧（ワースト分析等）と同じ browseJumpToSite の仕組みを利用）
+    window.bmJumpToSiteFromDrilldown = function(code) {
+        window.bmCloseDrilldown();
+        window.browseJumpToSite(code, 'ranking', '支店長会議資料の内訳に戻る');
+    };
+    // 内訳ドリルダウンで表示している一覧をそのままExcelに出力する
+    window.bmExportDrilldownExcel = async function() {
+        const data = bm._drilldownExport;
+        if (!data || !data.items || !data.items.length) return;
+        const btn = document.getElementById('bm-drilldown-export-btn');
+        const origHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>出力中...'; }
+        try {
+            const wb = new ExcelJS.Workbook();
+            wb.creator = 'G-Ledger';
+            const sheetName = `${data.branch}_${data.cellLabel}`.replace(/[\\/*?:[\]]/g, '_').substring(0, 31) || '内訳';
+            const ws = wb.addWorksheet(sheetName);
+            data.columns.forEach((c, i) => { ws.getColumn(i + 1).width = c.width; });
+
+            // 1行目：タイトル
+            ws.mergeCells(1, 1, 1, data.columns.length);
+            ws.getCell(1, 1).value = `${data.branch}　${data.cellLabel}　内訳　［${data.basisLabel}／${data.rangeLabel}］`;
+            ws.getCell(1, 1).font = { bold: true, size: 12 };
+
+            // 2行目：見出し
+            const hdrRow = ws.addRow(data.columns.map(c => c.header));
+            hdrRow.eachCell(c => { c.font = { bold: true, color: { argb: 'FFFFFFFF' } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2563EB' } }; c.alignment = { horizontal: 'center' }; });
+            hdrRow.height = 20;
+
+            // 3行目以降：データ
+            data.items.forEach(it => {
+                const row = ws.addRow(data.columns.map(c => it[c.key] ?? ''));
+                data.columns.forEach((c, i) => {
+                    if (c.isAmount) { row.getCell(i + 1).numFmt = '#,##0'; row.getCell(i + 1).alignment = { horizontal: 'right' }; }
+                });
+            });
+
+            // 最終行：合計
+            const totalRow = ws.addRow(data.columns.map((c, i) => i === 0 ? '合計' : (c.isAmount ? data.total : '')));
+            totalRow.font = { bold: true };
+            data.columns.forEach((c, i) => { if (c.isAmount) { totalRow.getCell(i + 1).numFmt = '#,##0'; totalRow.getCell(i + 1).alignment = { horizontal: 'right' }; } });
+
+            const buf = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buf], { type: 'application/octet-stream' });
+            const fname = `${data.branch}_${data.cellLabel}_内訳_${new Date().toISOString().slice(0, 10)}.xlsx`.replace(/[\\/*?:"<>|]/g, '_');
+            saveAs(blob, fname);
+        } catch (err) {
+            console.error('bmExportDrilldownExcel error:', err);
+            alert('Excel出力に失敗しました：' + (err.message || err));
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+        }
+    };
 
     // ── 予算設定の保存・読込（db.meta に1レコードで保存） ──
     async function bmLoadBudget() {
@@ -6218,31 +6523,52 @@
         if (!startSel || !endSel) return;
         const prevStart = startSel.value;
         const prevEnd = endSel.value;
-        startSel.innerHTML = '';
-        endSel.innerHTML = '';
-        months.forEach(ym => {
-            const label = `${Number(ym.split('-')[1])}月`;
-            startSel.add(new Option(label, ym));
-            endSel.add(new Option(label, ym));
-        });
         // 前回の選択値を維持（期間が変わった場合はリセット）
-        // ただし forceFullRange 指定時（期⇔年の切替時など、期間の基準そのものが変わる場合）は
-        // 「4月」のような月文字列がたまたま新しい期間にも存在するケースで誤って絞り込みが
-        // 引き継がれてしまうのを防ぐため、常に全期間にリセットする
-        if (forceFullRange) {
+        // ただし forceFullRange 指定時（期⇔年の切替時など、期間の基準そのものが変わる場合）や
+        // 前回値が空の場合は、対象期の全月にリセットする
+        if (forceFullRange || !prevStart || !prevEnd) {
             startSel.value = months[0];
             endSel.value = months[months.length - 1];
         } else {
-            startSel.value = months.includes(prevStart) ? prevStart : months[0];
-            endSel.value = months.includes(prevEnd) ? prevEnd : months[months.length - 1];
+            startSel.value = prevStart;
+            endSel.value = prevEnd;
         }
+    }
+    // 期間絞込の終了月が現在の「対象期」の外にある場合、その終了月を含む期／年へ対象期を自動的に合わせる
+    // （＝期間絞込を「対象期をまたいで」指定できるようにする。絞込の入力値自体は変更しない）
+    function bmSyncPeriodToFilterEnd(endYm) {
+        if (!endYm) return false;
+        if (bm.basis === 'fiscal') {
+            const no = bmFiscalNoForYm(endYm);
+            if (no == null || no === bm.periodKey) return false;
+            bm.periodKey = no;
+            bm.periodKeyFiscal = no;
+        } else {
+            const y = Number(endYm.split('-')[0]);
+            if (!y || y === bm.periodKey) return false;
+            bm.periodKey = y;
+            bm.periodKeyCalendar = y;
+        }
+        // 「対象期」セレクタの表示も合わせる（選択肢に無い期／年の場合は選択肢を作り直す）
+        const sel = document.getElementById('bm-period-select');
+        if (sel) {
+            const hasOpt = Array.from(sel.options).some(o => o.value === String(bm.periodKey));
+            if (!hasOpt) {
+                bmRebuildPeriodSelect(false); // 選択肢を作り直す（内部でperiodKeyFiscal/Calendarを参照）
+            }
+            sel.value = String(bm.periodKey);
+        }
+        return true;
     }
     window.bmOnPeriodFilterChange = function() {
         const startSel = document.getElementById('bm-filter-start');
         const endSel = document.getElementById('bm-filter-end');
-        if (!startSel || !endSel) return;
+        if (!startSel || !endSel || !startSel.value || !endSel.value) return;
         // 開始 > 終了になった場合は終了を開始に合わせる
         if (startSel.value > endSel.value) endSel.value = startSel.value;
+        // 終了月が現在の対象期の外なら、対象期をその月を含む期／年へ自動的に切り替える
+        // （入力した絞込範囲そのものは維持したまま再描画する）
+        bmSyncPeriodToFilterEnd(endSel.value);
         window.bmRenderCurrentView();
     };
     window.bmResetPeriodFilter = function() {
@@ -6284,14 +6610,19 @@
         if (bm.basis === 'fiscal') {
             const cur = bmCurrentFiscalNo();
             if (bm.periodKeyFiscal == null) bm.periodKeyFiscal = cur;
-            for (let no = cur + 1; no >= Math.max(20, cur - 6); no--) sel.add(new Option(bmFiscalLabel(no), String(no)));
+            const lo = Math.max(20, cur - 6), hi = cur + 1;
+            for (let no = hi; no >= lo; no--) sel.add(new Option(bmFiscalLabel(no), String(no)));
+            // 期間絞込からの自動同期などで選択肢の範囲外の期が指定された場合は、その期も選べるように追加する
+            if (bm.periodKeyFiscal < lo || bm.periodKeyFiscal > hi) sel.add(new Option(bmFiscalLabel(bm.periodKeyFiscal), String(bm.periodKeyFiscal)));
             sel.value = String(bm.periodKeyFiscal);
             bm.periodKey = bm.periodKeyFiscal;
             if (labelEl) labelEl.textContent = '対象期:';
         } else {
             const curY = new Date().getFullYear();
             if (bm.periodKeyCalendar == null) bm.periodKeyCalendar = curY;
-            for (let y = curY + 1; y >= curY - 6; y--) sel.add(new Option(bmCalendarLabel(y), String(y)));
+            const lo = curY - 6, hi = curY + 1;
+            for (let y = hi; y >= lo; y--) sel.add(new Option(bmCalendarLabel(y), String(y)));
+            if (bm.periodKeyCalendar < lo || bm.periodKeyCalendar > hi) sel.add(new Option(bmCalendarLabel(bm.periodKeyCalendar), String(bm.periodKeyCalendar)));
             sel.value = String(bm.periodKeyCalendar);
             bm.periodKey = bm.periodKeyCalendar;
             if (labelEl) labelEl.textContent = '対象年度:';
@@ -6304,13 +6635,20 @@
         const v = Number(sel.value);
         bm.periodKey = v;
         if (bm.basis === 'fiscal') bm.periodKeyFiscal = v; else bm.periodKeyCalendar = v;
-        // 期／年の対象が変わったので、期間絞込の選択肢（月リスト）も対象期間に合わせて作り直す
-        bmRebuildPeriodFilter();
+        // 対象期（軸）を手動で切り替えた場合は、期間絞込を新しい対象期の全月にリセットする
+        // （期間絞込側から自動的に対象期が切り替わった場合はここを通らないため、絞込値は保持される）
+        bmRebuildPeriodFilter(true);
         window.bmRenderCurrentView();
     }
     window.bmOnBranchChange = function() {
         const sel = document.getElementById('bm-branch-select');
         bm.branch = sel.value;
+        window.bmRenderCurrentView();
+    }
+    // 「拠点別 実績・目標一覧」で累計実績が0の拠点を非表示にするかどうかの切替
+    window.bmOnHideZeroChange = function() {
+        const chk = document.getElementById('bm-hide-zero-branches');
+        bm.hideZeroBranches = !!(chk && chk.checked);
         window.bmRenderCurrentView();
     }
     window.bmSetView = function(view) {
@@ -6540,6 +6878,7 @@
         const elapsedMonths = months.slice(0, lastIdxAll + 1).filter(ym => ym >= fStart && ym <= fEnd);
 
         let rowsHtml = '';
+        let hiddenCount = 0;
         const totalMonthly = new Array(months.length).fill(null);
         let totalTarget = 0, totalCum = 0, totalAnnual = 0;
 
@@ -6560,6 +6899,9 @@
             const annualRate = annualTarget ? (cum / annualTarget * 100) : null;
             vals.forEach((v, i) => { if (v !== null) totalMonthly[i] = (totalMonthly[i] || 0) + v; });
             totalCum += cum; totalTarget += target; totalAnnual += annualTarget;
+            // 「累計実績が0の拠点を非表示」がONの場合、累計実績が0の拠点は行を出力しない
+            // （総計・合計への集計は非表示中も継続して行う）
+            if (bm.hideZeroBranches && !cum) { hiddenCount++; return; }
             rowsHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100">
                 <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">${branch}</td>
                 ${vals.map((v, i) => {
@@ -6569,9 +6911,12 @@
                     const isFuture = i > lastIdxAll;
                     const shaded = !inRange || isFuture;
                     const text = (!inRange || isFuture) ? '-' : (v ? bmFmtM(v) : '0');
-                    return `<td class="px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ''}">${text}</td>`;
+                    // 表示対象の月はクリックで内訳（工番・得意先ごとの明細/原価）をポップアップ表示する
+                    const cls = `px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ' cursor-pointer hover:bg-violet-50 hover:underline underline-offset-2 decoration-dotted'}`;
+                    const attrs = shaded ? '' : ` title="クリックで${months[i]}の内訳を表示" onclick="window.bmShowDrilldown('${branch.replace(/'/g, "\\'")}','${months[i]}','${months[i]}','${Number(months[i].split('-')[1])}月')"`;
+                    return `<td class="${cls}"${attrs}>${text}</td>`;
                 }).join('')}
-                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold">${bmFmtM(cum)}</td>
+                <td class="px-3 py-2 border border-slate-200 text-right font-mono font-bold${cum ? ' cursor-pointer hover:bg-violet-50 hover:underline underline-offset-2 decoration-dotted' : ''}"${cum ? ` title="クリックで累計実績の内訳を表示" onclick="window.bmShowDrilldown('${branch.replace(/'/g, "\\'")}','${fStart}','${fEnd}','累計実績')"` : ''}>${bmFmtM(cum)}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono">${target ? bmFmtM(target) : '-'}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right font-mono ${diff < 0 ? 'text-blue-600' : 'text-red-600'}">${target ? (diff > 0 ? '▲ ' : '') + bmFmtM(Math.abs(diff)) : '-'}</td>
                 <td class="px-3 py-2 border border-slate-200 text-right font-bold ${rate !== null && rate < 100 ? 'text-amber-600' : 'text-emerald-600'}">${rate !== null ? rate.toFixed(1) + '%' : '-'}</td>
@@ -6579,6 +6924,9 @@
                 <td class="px-3 py-2 border border-slate-200 text-right text-indigo-700">${annualRate !== null ? annualRate.toFixed(1) + '%' : '-'}</td>
             </tr>`;
         });
+        if (hiddenCount > 0) {
+            rowsHtml += `<tr><td colspan="${months.length + 7}" class="px-3 py-1.5 text-center text-[11px] text-slate-400 bg-slate-50">累計実績が0の拠点 ${hiddenCount}件を非表示中</td></tr>`;
+        }
         tbody.innerHTML = rowsHtml || `<tr><td colspan="${months.length + 7}" class="px-3 py-4 text-center text-slate-400">データがありません</td></tr>`;
 
         const totDiff = totalCum - totalTarget;
@@ -6631,6 +6979,7 @@
         <tr><th colspan="${totalColCount}" class="px-3 py-1 text-right text-[10px] text-slate-400 font-normal bg-slate-50 border border-slate-200">（単位：百万円）</th></tr>`;
 
         let rowsHtml = '';
+        let hiddenCount = 0;
         const totalMonthly = new Array(months.length).fill(null);
         const totalByYear = new Array(keys.length).fill(0);
 
@@ -6651,6 +7000,10 @@
                 return total;
             });
 
+            // 「累計実績が0の拠点を非表示」がONの場合、当年（最新キー）の累計実績が0の拠点は行を出力しない
+            const curYearTotal = yearTotals[yearTotals.length - 1];
+            if (bm.hideZeroBranches && !curYearTotal) { hiddenCount++; return; }
+
             rowsHtml += `<tr class="hover:bg-slate-50 border-b border-slate-100">
                 <td class="px-3 py-2 border border-slate-200 font-bold sticky left-0 bg-white">${branch}</td>
                 ${vals.map((v, i) => {
@@ -6658,11 +7011,24 @@
                     const isFuture = i > lastIdxAll;
                     const shaded = !inRange || isFuture;
                     const text = shaded ? '-' : (v ? bmFmtM(v) : '0');
-                    return `<td class="px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ''}">${text}</td>`;
+                    const cls = `px-3 py-2 border border-slate-200 text-right font-mono${shaded ? ' text-slate-300' : ' cursor-pointer hover:bg-violet-50 hover:underline underline-offset-2 decoration-dotted'}`;
+                    const attrs = shaded ? '' : ` title="クリックで${months[i]}の内訳を表示" onclick="window.bmShowDrilldown('${branch.replace(/'/g, "\\'")}','${months[i]}','${months[i]}','${Number(months[i].split('-')[1])}月')"`;
+                    return `<td class="${cls}"${attrs}>${text}</td>`;
                 }).join('')}
-                ${yearTotals.map((t, i) => `<td class="px-3 py-2 border border-slate-200 text-right font-mono${i === yearTotals.length - 1 ? ' font-bold' : ''}">${t ? bmFmtM(t) : '-'}</td>`).join('')}
+                ${yearTotals.map((t, i) => {
+                    const isCurrentKey = i === yearTotals.length - 1;
+                    const ymonths = yearMonthsList[i];
+                    const yStart = isCurrentKey ? fStart : ymonths[0];
+                    const yEnd = isCurrentKey ? fEnd : ymonths[ymonths.length - 1];
+                    const cls = `px-3 py-2 border border-slate-200 text-right font-mono${isCurrentKey ? ' font-bold' : ''}${t ? ' cursor-pointer hover:bg-violet-50 hover:underline underline-offset-2 decoration-dotted' : ''}`;
+                    const attrs = t ? ` title="クリックで${labelsForKeys[i]}の内訳を表示" onclick="window.bmShowDrilldown('${branch.replace(/'/g, "\\'")}','${yStart}','${yEnd}','${labelsForKeys[i]}計')"` : '';
+                    return `<td class="${cls}"${attrs}>${t ? bmFmtM(t) : '-'}</td>`;
+                }).join('')}
             </tr>`;
         });
+        if (hiddenCount > 0) {
+            rowsHtml += `<tr><td colspan="${totalColCount}" class="px-3 py-1.5 text-center text-[11px] text-slate-400 bg-slate-50">累計実績が0の拠点 ${hiddenCount}件を非表示中</td></tr>`;
+        }
         tbody.innerHTML = rowsHtml || `<tr><td colspan="${totalColCount}" class="px-3 py-4 text-center text-slate-400">データがありません</td></tr>`;
 
         tfoot.innerHTML = `<tr>
@@ -7261,21 +7627,27 @@
             const elapsedMonthsX = months.slice(0, lastIdxAllX + 1).filter(ym => inFilter(ym));
 
             const branchRowNums = [];
+            let hiddenBranchCountX = 0;
             branches.forEach(branch => {
                 const valsRaw = bmSumMonths(bm.data.byBranchMonth, branch, months);
                 // 期間絞込フィルターの範囲外の月はnull（空欄）にする（画面表示と同じ扱い）
                 const vals = valsRaw.map((v, i) => inFilter(months[i]) ? v : null);
+                // 画面側の「累計実績が0の拠点を非表示」がONの場合、Excel出力でも同様に0の拠点行は出力しない
+                if (bm.hideZeroBranches && !vals.reduce((a, v) => a + (v || 0), 0)) { hiddenBranchCountX++; return; }
                 const entry = bmGetBudgetEntry(basis, key, branch);
                 const monthlySumElapsed = elapsedMonthsX.reduce((s, ym) => s + (entry.monthly[ym] || 0), 0);
                 const hasMonthlyBudget = elapsedMonthsX.some(ym => entry.monthly[ym]);
                 const target = hasMonthlyBudget ? monthlySumElapsed : (entry.annualTarget && months.length ? Math.round(entry.annualTarget * elapsedMonthsX.length / months.length) : 0);
                 const annualTarget = entry.annualTarget || 0;
                 const valsM = vals.map(v => v === null ? null : v / 1e6);
+                const cumVal = vals.reduce((a, v) => a + (v || 0), 0);
                 const row = ws1.addRow([branch, ...valsM, null, target ? target / 1e6 : null, null, null, annualTarget ? annualTarget / 1e6 : null, null]);
                 const r = row.number;
                 branchRowNums.push(r);
                 // 累計実績＝月別の合計（関数）
                 row.getCell(cumCol).value = { formula: `SUM(${bmColLetter(firstMonthCol)}${r}:${bmColLetter(lastMonthCol)}${r})` };
+                // 累計実績が0以外（＝実績が発生している拠点）のセルに色を付けて、ひと目で分かるようにする
+                if (cumVal) row.getCell(cumCol).fill = hdrFill('FFDCFCE7');
                 // 差額＝累計実績－累計目標（関数）
                 row.getCell(diffCol).value = { formula: `IF(${bmColLetter(targetCol)}${r}="","",${bmColLetter(cumCol)}${r}-${bmColLetter(targetCol)}${r})` };
                 // 進捗率＝累計実績／累計目標（関数）
@@ -7289,19 +7661,25 @@
                     }
                 });
             });
+            if (hiddenBranchCountX > 0) {
+                const noteRow = ws1.addRow([`※累計実績が0の拠点 ${hiddenBranchCountX}件は非表示（画面の表示設定に合わせています）`]);
+                noteRow.getCell(1).font = { italic: true, size: 9, color: { argb: 'FF94A3B8' } };
+            }
 
             const totRow = ws1.addRow(['総計']);
             const tr = totRow.number;
-            const firstBranchRow = branchRowNums[0], lastBranchRow = branchRowNums[branchRowNums.length - 1];
-            for (let c = firstMonthCol; c <= lastMonthCol; c++) {
-                totRow.getCell(c).value = { formula: `SUM(${bmColLetter(c)}${firstBranchRow}:${bmColLetter(c)}${lastBranchRow})` };
+            if (branchRowNums.length > 0) {
+                const firstBranchRow = branchRowNums[0], lastBranchRow = branchRowNums[branchRowNums.length - 1];
+                for (let c = firstMonthCol; c <= lastMonthCol; c++) {
+                    totRow.getCell(c).value = { formula: `SUM(${bmColLetter(c)}${firstBranchRow}:${bmColLetter(c)}${lastBranchRow})` };
+                }
+                totRow.getCell(cumCol).value = { formula: `SUM(${bmColLetter(cumCol)}${firstBranchRow}:${bmColLetter(cumCol)}${lastBranchRow})` };
+                totRow.getCell(targetCol).value = { formula: `SUM(${bmColLetter(targetCol)}${firstBranchRow}:${bmColLetter(targetCol)}${lastBranchRow})` };
+                totRow.getCell(diffCol).value = { formula: `${bmColLetter(cumCol)}${tr}-${bmColLetter(targetCol)}${tr}` };
+                totRow.getCell(rateCol).value = { formula: `IF(${bmColLetter(targetCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(targetCol)}${tr}*100)` };
+                totRow.getCell(annualCol).value = { formula: `SUM(${bmColLetter(annualCol)}${firstBranchRow}:${bmColLetter(annualCol)}${lastBranchRow})` };
+                totRow.getCell(annualRateCol).value = { formula: `IF(${bmColLetter(annualCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(annualCol)}${tr}*100)` };
             }
-            totRow.getCell(cumCol).value = { formula: `SUM(${bmColLetter(cumCol)}${firstBranchRow}:${bmColLetter(cumCol)}${lastBranchRow})` };
-            totRow.getCell(targetCol).value = { formula: `SUM(${bmColLetter(targetCol)}${firstBranchRow}:${bmColLetter(targetCol)}${lastBranchRow})` };
-            totRow.getCell(diffCol).value = { formula: `${bmColLetter(cumCol)}${tr}-${bmColLetter(targetCol)}${tr}` };
-            totRow.getCell(rateCol).value = { formula: `IF(${bmColLetter(targetCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(targetCol)}${tr}*100)` };
-            totRow.getCell(annualCol).value = { formula: `SUM(${bmColLetter(annualCol)}${firstBranchRow}:${bmColLetter(annualCol)}${lastBranchRow})` };
-            totRow.getCell(annualRateCol).value = { formula: `IF(${bmColLetter(annualCol)}${tr}=0,"",${bmColLetter(cumCol)}${tr}/${bmColLetter(annualCol)}${tr}*100)` };
             totRow.eachCell((c, i) => { c.font = { bold: true }; c.fill = hdrFill('FFEDE9FE'); if (i > 1) { c.numFmt = (i === rateCol || i === annualRateCol) ? '0.0"%"' : (i === diffCol ? diffNumFmt : numFmt); c.alignment = { horizontal: 'right' }; } });
 
             const priorKey = key - 1;
@@ -7350,6 +7728,12 @@
                 const ws = wb2.addWorksheet(safeName);
                 ws.getColumn(1).width = 20;
                 ws.addRow([`${branch}　拠点別資料（単位：百万円）　${bmPeriodLabel(basis, key)}`]).getCell(1).font = { bold: true, size: 12 };
+
+                // 累計実績が0以外（＝実績が発生している拠点）のシートは、シート見出しタブ自体に色を付けて
+                // ひと目で分かるようにする（Excel画面下部のシートタブの色）
+                const rawVals = bmSumMonths(bm.data.byBranchMonth, branch, months);
+                const cumValForTab = rawVals.reduce((a, v, i) => a + (inFilter(months[i]) ? (v || 0) : 0), 0);
+                if (cumValForTab) ws.properties.tabColor = { argb: 'FF22C55E' };
 
                 // 拠点チャートを描画してキャプチャ
                 bm.branch = branch;
