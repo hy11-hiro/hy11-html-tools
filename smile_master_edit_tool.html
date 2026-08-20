@@ -2921,6 +2921,12 @@ let salesCheckResultList = [];
             const tbody = document.getElementById('blankCheckTbody');
             const thead = document.getElementById('blankCheckThead');
 
+            // 通常テーブル用の仮想スクロール状態をリセットしておく。
+            // これをしないと、このグループテーブルをスクロールした際に
+            // scrollイベントで bvsRender() が発火し、古い bvsData の内容で
+            // tbody.innerHTML が上書きされてグループ表示が消えてしまう。
+            bvsData = [];
+
             // ヘッダーをグループ用に差し替え
             thead.innerHTML = `<tr class="bg-teal-50 text-teal-900 text-xs font-bold uppercase">
                 <th class="px-3 py-2 text-left">種別</th>
@@ -3290,24 +3296,36 @@ let salesCheckResultList = [];
             const allResults = blankCheckResults;
 
             const wb = new ExcelJS.Workbook();
-            const ws = wb.addWorksheet('空欄チェック');
+            // シート名は日本語を避けASCII固定名にする（互換性問題の回避）。
+            // 詳細情報はA1セルのタイトル行に日本語で記載する。
+            const ws = wb.addWorksheet('BlankCheckAll');
 
             // 列幅
             const colWidths = [10,8,24,16,22, 16, 11,11,11, 14,14,14, 12,12, 12,12, 36,28];
             ws.columns = BLANK_EXPORT_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
 
-            // ヘッダー行スタイル
-            ws.getRow(1).eachCell(cell => {
+            // 1行目にタイトルを挿入し、ヘッダーを2行目にずらす
+            ws.insertRow(1, [`空欄チェック結果：全件（${allResults.length}件）`]);
+            ws.mergeCells(1, 1, 1, BLANK_EXPORT_HEADERS.length);
+            const titleCell = ws.getCell(1, 1);
+            titleCell.font      = { bold: true, size: 12, color: { argb: 'FF1E293B' } };
+            titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+            titleCell.fill      = makeFill('FFF1F5F9');
+
+            // ヘッダー行スタイル（2行目）
+            const hLen2 = BLANK_EXPORT_HEADERS.length;
+            for (let c = 1; c <= hLen2; c++) {
+                const cell = ws.getRow(2).getCell(c);
                 cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
                 cell.alignment = { vertical: 'middle', horizontal: 'center' };
                 cell.border = {
                     bottom: { style: 'medium', color: { argb: 'FF94A3B8' } }
                 };
-            });
-            // 末尾2列（問題項目・チェック種別）はヘッダーを赤系に col16=問題項目, col17=チェック種別
+            }
+            // 末尾2列（問題項目・チェック種別）はヘッダーを赤系に col17=問題項目, col18=チェック種別
             [17, 18].forEach(colNum => {
-                const cell = ws.getRow(1).getCell(colNum);
+                const cell = ws.getRow(2).getCell(colNum);
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF9F1239' } };
             });
 
@@ -3315,13 +3333,13 @@ let salesCheckResultList = [];
             allResults.forEach(({ row: r, issues }, rowIdx) => {
                 // 問題項目：全問題を列挙（全件出力なのでカード選択フィルタなし）
                 const allProblems = issues.map(i => i.label).join(' ／ ');
-                const values   = [r.code, r.subCode||'', r.m_c, r.m_f||'', r.m_w,
-                                  r.m_q||'',
+                const values   = [r.code, r.subCode, r.m_c, r.m_f, r.m_w,
+                                  r.m_q,
                                   r.m_ar, r.m_as, r.m_at,
-                                  r.m_ax, r.m_bb||'', r.m_bd,
-                                  r.m_be||'', r.m_bf||'',
+                                  r.m_ax, r.m_bb, r.m_bd,
+                                  r.m_be, r.m_bf,
                                   r.e_col, r.f_col,
-                                  allProblems, allProblems]; // 全件なので両列とも全問題
+                                  allProblems, allProblems].map(xlsxSafe); // 全件なので両列とも全問題／制御文字除去
                 const exRow = ws.addRow(values);
                 const exRowNum = rowIdx + 2;
 
@@ -3337,9 +3355,9 @@ let salesCheckResultList = [];
                 // 行全体の薄塗り（master_unmatched）
                 const hasUnmatched = issues.some(i => i.type === 'master_unmatched');
                 if (hasUnmatched) {
-                    exRow.eachCell({ includeEmpty: true }, cell => {
-                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F0FF' } };
-                    });
+                    for (let c = 1; c <= values.length; c++) {
+                        exRow.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F0FF' } };
+                    }
                 }
 
                 // 問題列のセル色付け
@@ -3364,7 +3382,8 @@ let salesCheckResultList = [];
             });
 
             // ウィンドウ枠固定（ヘッダー行）
-            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            // フリーズ枠(views)はExcelJSのバージョン・環境によりごく稀にOOXML互換性の問題を起こすことがあるため、
+            // 表示の便宜のみの機能でありデータには影響しないことから、安全のため付与しない。
 
             // ダウンロード
             const buf = await wb.xlsx.writeBuffer();
@@ -3389,6 +3408,16 @@ function sanitizeSheetName(str) {
 // ExcelJS用 fill オブジェクトを毎回新規生成（共有参照を避ける）
 function makeFill(argb) {
     return { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+}
+
+// Excel（XML）で許可されない制御文字を除去する。
+// SMILEデータや貼付データに混入した不可視の制御文字（0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F）が
+// そのままセルに書き込まれるとXMLとして不正になり、Excelで開いた際に
+// 「修復されたレコード：ワークシートのプロパティ」等の警告が出て内容が失われる原因になる。
+// 全てのExcel出力箇所でこの関数を通してから値を書き込むこと。
+function xlsxSafe(v) {
+    if (v === null || v === undefined) return '';
+    return String(v).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
 }
 
 async function downloadFilteredBlankCheckXLSX() {
@@ -3420,16 +3449,27 @@ async function downloadFilteredBlankCheckXLSX() {
     // 多選択：最初の選択ルールの色定義を使用（複数の場合はデフォルト）
     const firstType = [...blankCheckActiveFilters][0];
     const colorDef  = ISSUE_COL_COLOR[firstType] || null;
-    const sheetName = sanitizeSheetName(selectedLabels[0] || '選択カード');
+    // シート名は日本語・全角記号を含めるとExcelJS/Excel側の互換性問題で
+    // 「修復されたレコード」が発生することがあるため、安全のためASCII固定名にする。
+    // カード名などの詳細情報はA1セル（タイトル行）に日本語で記載する。
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet(sheetName);
+    const ws = wb.addWorksheet('BlankCheck');
 
     // 列定義（幅）
     const colWidths = [10,8,24,16,22, 16, 11,11,11, 14,14,14, 12,12, 12,12, 36,28];
     ws.columns = BLANK_EXPORT_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
 
-    // ヘッダー行スタイル
-    const hRow = ws.getRow(1);
+    // 1行目にタイトル（カード名・詳細情報）を日本語で挿入し、ヘッダーを2行目にずらす
+    const titleText = `空欄チェック結果：${selectedLabels.join(' ／ ')}（${filtered.length}件）`;
+    ws.insertRow(1, [titleText]);
+    ws.mergeCells(1, 1, 1, BLANK_EXPORT_HEADERS.length);
+    const titleCell = ws.getCell(1, 1);
+    titleCell.font      = { bold: true, size: 12, color: { argb: 'FF1E293B' } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    titleCell.fill       = makeFill('FFF1F5F9');
+
+    // ヘッダー行スタイル（挿入により2行目になっている）
+    const hRow = ws.getRow(2);
     const hLen = BLANK_EXPORT_HEADERS.length; // ヘッダーの総数(18)
     
     for (let c = 1; c <= hLen; c++) {
@@ -3450,25 +3490,24 @@ async function downloadFilteredBlankCheckXLSX() {
     [hLen - 1, hLen].forEach(c => {
         hRow.getCell(c).fill = makeFill(headerFill);
     });
-    hRow.commit();
 
-// データ行
+// データ行（タイトル行の分、開始位置が1行下がる点に注意。addRowは自動で最終行の次に追加されるため問題なし）
             filtered.forEach(({ row: r, issues }, rowIdx) => {
                 const allProblems  = issues.map(i => i.label).join(' ／ ');
                 const matchedTypes = blankCheckActiveFilters.size === 0
                     ? issues.map(i => i.label).join(' ／ ')
                     : issues.filter(i => blankCheckActiveFilters.has(i.type)).map(i => i.label).join(' ／ ');
                     
-                // 各値を配列に格納（17項目）
+                // 各値を配列に格納（17項目）／ Excelで不正となる制御文字を除去してから書込
                 const values = [
-                    r.code||'', r.subCode||'', r.m_c||'', r.m_f||'', r.m_w||'',
-                    r.m_q||'',
-                    r.m_ar||'', r.m_as||'', r.m_at||'',
-                    r.m_ax||'', r.m_bb||'', r.m_bd||'',
-                    r.m_be||'', r.m_bf||'',
-                    r.e_col||'', r.f_col||'',
+                    r.code, r.subCode, r.m_c, r.m_f, r.m_w,
+                    r.m_q,
+                    r.m_ar, r.m_as, r.m_at,
+                    r.m_ax, r.m_bb, r.m_bd,
+                    r.m_be, r.m_bf,
+                    r.e_col, r.f_col,
                     allProblems, matchedTypes
-                ];
+                ].map(xlsxSafe);
                 
                 const exRow  = ws.addRow(values);
                 const baseArgb = rowIdx % 2 === 0 ? 'FFFAFAFA' : 'FFFFFFFF';
@@ -3503,9 +3542,9 @@ async function downloadFilteredBlankCheckXLSX() {
                     cell.font = { bold: true, color: { argb: 'FF9F1239' }, size: 9 };
                 });
 
-                exRow.commit();
             });
-    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    // フリーズ枠(views)はExcelJSのバージョン・環境によりごく稀にOOXML互換性の問題を起こすことがあるため、
+    // 表示の便宜のみの機能でありデータには影響しないことから、安全のため付与しない。
 
     const buf  = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -3539,15 +3578,25 @@ async function downloadGroupCheckXLSX(selectedLabels) {
     // 完了日は列インデックス9（1始まり）
     const END_DATE_COL = 10; // 1-based
 
-    const sheetName = sanitizeSheetName(selectedLabels[0] || '親サブ完了日比較');
+    // シート名は日本語・全角記号を含めるとExcelJS/Excel側の互換性問題で
+    // 「修復されたレコード：ワークシートのプロパティ」が発生することがあるため、
+    // 安全のためASCII固定名にする。カード名などの詳細情報はA1セルに日本語で記載する。
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet(sheetName);
+    const ws = wb.addWorksheet('ParentSubCheck');
 
     const colWidths = [8, 10, 8, 24, 16, 22, 16, 11, 11, 14, 14, 14, 14, 12, 12, 12, 12, 28];
     ws.columns = GROUP_HEADERS.map((h, i) => ({ header: h, width: colWidths[i] }));
 
-    // ヘッダー行スタイル
-    const hRow = ws.getRow(1);
+    // 1行目にタイトル（カード名・グループ数）を挿入し、ヘッダーを2行目にずらす
+    ws.insertRow(1, [`親↔サブCD 完了日比較：${selectedLabels.join(' ／ ')}（${groups.length}グループ）`]);
+    ws.mergeCells(1, 1, 1, GROUP_HEADERS.length);
+    const titleCell = ws.getCell(1, 1);
+    titleCell.font      = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+    titleCell.fill      = makeFill('FF0F766E');
+
+    // ヘッダー行スタイル（挿入により2行目になっている）
+    const hRow = ws.getRow(2);
     for (let c = 1; c <= GROUP_HEADERS.length; c++) {
         const cell = hRow.getCell(c);
         cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -3557,7 +3606,6 @@ async function downloadGroupCheckXLSX(selectedLabels) {
     }
     // 完了日列ヘッダーを強調
     hRow.getCell(END_DATE_COL).fill = makeFill('FF065F46'); // teal-800
-    hRow.commit();
 
     const endOf   = r => (r.m_at||'').toString().trim().replace(/^0+$/, '');
     const fmtDate = v => {
@@ -3570,18 +3618,19 @@ async function downloadGroupCheckXLSX(selectedLabels) {
             ? '親→サブ未完了' : 'サブ→親未完了';
 
         // ── グループ区切り行 ──
+        const GROUP_COL_COUNT = 18; // GROUP_HEADERS.length と一致させる
         const sepRow = ws.addRow([
             `グループ ${gi + 1} / ${groups.length}`,
             g.parent.code, '', g.parent.m_c || '',
             '', '', '', '', '', '', '', '', '', '', '', '', '', typeLabel
-        ]);
-        sepRow.eachCell({ includeEmpty: true }, cell => {
+        ].map(xlsxSafe));
+        for (let c = 1; c <= GROUP_COL_COUNT; c++) {
+            const cell = sepRow.getCell(c);
             cell.fill      = makeFill('FF0F766E'); // teal-700
             cell.font      = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
             cell.alignment = { vertical: 'middle' };
             cell.border    = { bottom: { style: 'thin', color: { argb: 'FF99F6E4' } } };
-        });
-        sepRow.commit();
+        }
 
         // ── 親行 ──
         const parentHasEnd = endOf(g.parent) !== '';
@@ -3595,7 +3644,7 @@ async function downloadGroupCheckXLSX(selectedLabels) {
             g.parent.m_be||'', g.parent.m_bf||'',
             g.parent.e_col||'', g.parent.f_col||'',
             typeLabel
-        ]);
+        ].map(xlsxSafe));
         for (let c = 1; c <= GROUP_HEADERS.length; c++) {
             const cell = parentRow.getCell(c);
             cell.fill      = makeFill('FFF1F5F9'); // slate-100
@@ -3613,7 +3662,6 @@ async function downloadGroupCheckXLSX(selectedLabels) {
             parentEndCell.fill = makeFill('FFD1FAE5'); // green-100
             parentEndCell.font = { bold: false, color: { argb: 'FF065F46' } };
         }
-        parentRow.commit();
 
         // ── サブ行（全件） ──
         g.subs.forEach((s, si) => {
@@ -3628,7 +3676,7 @@ async function downloadGroupCheckXLSX(selectedLabels) {
                 s.m_be||'', s.m_bf||'',
                 s.e_col||'', s.f_col||'',
                 typeLabel
-            ]);
+            ].map(xlsxSafe));
             const subBase = si % 2 === 0 ? 'FFFFFFFF' : 'FFF0FDFA'; // 偶数は白、奇数はteal-50
             for (let c = 1; c <= GROUP_HEADERS.length; c++) {
                 const cell = subRow.getCell(c);
@@ -3648,11 +3696,11 @@ async function downloadGroupCheckXLSX(selectedLabels) {
                 subEndCell.fill = makeFill('FFD1FAE5');
                 subEndCell.font = { bold: false, color: { argb: 'FF065F46' } };
             }
-            subRow.commit();
         });
     });
 
-    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    // フリーズ枠(views)はExcelJSのバージョン・環境によりごく稀にOOXML互換性の問題を起こすことがあるため、
+    // 表示の便宜のみの機能でありデータには影響しないことから、安全のため付与しない。
 
     const buf  = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
