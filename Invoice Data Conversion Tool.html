@@ -204,10 +204,11 @@ input[type=checkbox]{accent-color:#2563eb;}
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-24">単価</th>
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-28">金額</th>
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-center w-20">仕入先</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-left w-28">区分/建材店</th>
               </tr>
             </thead>
             <tbody id="resultBody" class="divide-y divide-gray-100">
-              <tr><td colspan="9" class="px-6 py-16 text-center text-gray-300">
+              <tr><td colspan="10" class="px-6 py-16 text-center text-gray-300">
                 <i class="fas fa-file-arrow-up text-3xl mb-2 block"></i>
                 <p class="text-sm">ファイルをドロップして解析</p>
               </td></tr>
@@ -233,6 +234,16 @@ input[type=checkbox]{accent-color:#2563eb;}
               <option value="吉田東光">吉田東光</option>
               <option value="メイク">メイク</option>
             </select></div>
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">区分 <span class="text-blue-400">(吉田東光)</span></label>
+            <select id="trendCategory" onchange="updatePriceTable()"
+              class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none bg-white">
+              <option value="">すべて</option>
+            </select></div>
+          <div><label class="block text-[10px] font-bold text-gray-400 mb-1">建材店 <span class="text-blue-400">(吉田東光)</span></label>
+            <select id="trendDealer" onchange="updatePriceTable()"
+              class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none bg-white">
+              <option value="">すべて</option>
+            </select></div>
           <div><label class="block text-[10px] font-bold text-gray-400 mb-1">並び替え</label>
             <select id="trendSort" onchange="updatePriceTable()"
               class="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-blue-200 outline-none bg-white">
@@ -243,6 +254,9 @@ input[type=checkbox]{accent-color:#2563eb;}
             </select></div>
           <label class="flex items-center gap-1.5 cursor-pointer text-xs text-gray-600 self-end pb-1.5">
             <input type="checkbox" id="trendOnlyChange" onchange="updatePriceTable()">変動のある商品のみ</label>
+        </div>
+        <div class="px-4 py-1.5 border-b border-gray-100 bg-blue-50 text-[10px] text-blue-500">
+          <i class="fas fa-circle-info mr-1"></i>吉田東光のデータは「区分」「建材店」が異なると仕入条件が変わるため、商品名だけでなくこの2項目も合わせて単価の上下を比較しています。
         </div>
         <div class="px-4 py-1.5 border-b border-gray-100 bg-gray-50 flex gap-4 text-[10px] text-gray-400">
           <span><span class="inline-block w-3 h-3 rounded-sm bg-green-200 mr-1"></span>初回単価</span>
@@ -257,6 +271,7 @@ input[type=checkbox]{accent-color:#2563eb;}
               <tr>
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-left">商品名・規格</th>
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-center w-20">仕入先</th>
+                <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-left w-28">区分/建材店</th>
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-28">初回単価</th>
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-28">最新単価</th>
                 <th class="px-3 py-2.5 text-[10px] font-bold text-gray-400 text-right w-24">差額</th>
@@ -266,7 +281,7 @@ input[type=checkbox]{accent-color:#2563eb;}
               </tr>
             </thead>
             <tbody id="priceBody">
-              <tr><td colspan="8" class="px-6 py-16 text-center text-gray-300">
+              <tr><td colspan="9" class="px-6 py-16 text-center text-gray-300">
                 <i class="fas fa-chart-bar text-3xl mb-2 block"></i>
                 <p class="text-sm">請求書を読み込むと価格変動が表示されます</p>
               </td></tr>
@@ -394,6 +409,7 @@ if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc =
 let allParsedRows = [];
 let currentEncoding = 'AUTO';
 let openTrendRows = new Set();
+let yoshidaFileSeq = 0;
 // pending mapping state
 let _mapPending = null; // { rows: [[]], filename: '', resolve: fn }
 
@@ -455,7 +471,7 @@ async function processFiles(files) {
       } else if (format === 'SBIC') {
         parseSbicCSV(isExcel ? rowsToCSV(xlsxRows) : text, file.name); label='エスビック';
       } else if (format === 'YOSHIDA') {
-        parseYoshidaCSV(isExcel ? rowsToCSV(xlsxRows) : text, file.name); label='吉田東光';
+        parseYoshidaCSV(isExcel ? rowsToCSV(xlsxRows) : text, `yfile_${++yoshidaFileSeq}_${file.name}`); label='吉田東光';
       } else if (format === 'MAKE') {
         // PDF uses different item structure
         if (isPDF) parseMakePDF(text, file.name); else parseMakeInvoice(text, file.name);
@@ -479,6 +495,13 @@ async function processFiles(files) {
       logItem.className = 'log-item bg-red-50 text-red-700 fade-in';
       logItem.innerHTML = `<span class="truncate max-w-[130px]"><i class="fas fa-exclamation-circle mr-1"></i>${escHtml(file.name)}</span><span class="whitespace-nowrap text-[10px]">${escHtml(err.message)}</span>`;
     }
+  }
+  const removedDup = dedupeYoshidaRows();
+  if (removedDup > 0) {
+    const dupItem = document.createElement('div');
+    dupItem.className = 'log-item bg-amber-50 text-amber-700 fade-in';
+    dupItem.innerHTML = `<span class="truncate max-w-[140px]"><i class="fas fa-copy mr-1"></i>吉田東光 重複除外</span><span class="font-bold whitespace-nowrap">${removedDup}件除外</span>`;
+    list.insertBefore(dupItem, list.firstChild);
   }
   updateInvoiceTable(); updateStats();
 }
@@ -786,7 +809,7 @@ function parseSbicCSV(text) {
   });
 }
 
-function parseYoshidaCSV(text) {
+function parseYoshidaCSV(text, fileId) {
   const lines=text.split(/\r\n|\n|\r/); let hdr=false;
   lines.forEach(line=>{
     if(!line.trim()) return; const row=parseCSVLine(line);
@@ -795,8 +818,35 @@ function parseYoshidaCSV(text) {
     let ds=row[0]; if(ds.length===8)ds=`${ds.slice(0,4)}/${ds.slice(4,6)}/${ds.slice(6,8)}`;
     const amountNum=parseInt((row[13]||'').replace(/,/g,''),10)||0;
     const unitPriceNum=parseFloat((row[12]||'').replace(/,/g,''))||0;
-    allParsedRows.push({source:'吉田東光',date:ds,slipNo:row[2]||'',siteCode:(row[5]||'').replace('工番','').toLowerCase().trim(),siteName:row[6]||'',itemName:((row[8]||'')+' '+(row[9]||'')).trim(),unit:row[11]||'',qty:row[10]||'0',unitPrice:row[12]||'0',amount:row[13]||'0',amountNum,unitPriceNum,isZero:amountNum===0});
+    allParsedRows.push({source:'吉田東光',date:ds,slipNo:row[2]||'',siteCode:(row[5]||'').replace('工番','').toLowerCase().trim(),siteName:row[6]||'',itemName:((row[8]||'')+' '+(row[9]||'')).trim(),unit:row[11]||'',qty:row[10]||'0',unitPrice:row[12]||'0',amount:row[13]||'0',amountNum,unitPriceNum,isZero:amountNum===0,category:(row[3]||'').trim(),dealer:(row[14]||'').trim(),_file:fileId||''});
   });
+}
+
+// 吉田東光は取得期間が重なった複数ファイルを取り込むことがあるため、
+// 「請求済」列（B列。取り込んでいない）以外の全項目が一致する行を重複とみなして除外する。
+// 同一ファイル内に元々ある正当な同一内容の行（同じ伝票に同じ商品が複数行ある等）は残すため、
+// キーが一致する行数のうち「1ファイルあたりの最大出現回数」までは残し、それを超える分だけ重複として除外する。
+function dedupeYoshidaRows() {
+  const keyOf = r => [r.date,r.slipNo,r.siteCode,r.siteName,r.itemName,r.unit,r.qty,r.unitPrice,r.amount,r.category,r.dealer].join('|||');
+  const groups = new Map();
+  allParsedRows.forEach(r=>{
+    if (r.source !== '吉田東光') return;
+    const k = keyOf(r);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  });
+  const toRemove = new Set();
+  groups.forEach(rows=>{
+    if (rows.length < 2) return;
+    const perFile = new Map();
+    rows.forEach(r=>{ const f=r._file||''; perFile.set(f,(perFile.get(f)||0)+1); });
+    const maxCount = Math.max(...perFile.values());
+    if (rows.length <= maxCount) return; // 同一ファイル内の正当な重複行のみ→除外しない
+    rows.slice(maxCount).forEach(r=>toRemove.add(r));
+  });
+  if (!toRemove.size) return 0;
+  allParsedRows = allParsedRows.filter(r=>!toRemove.has(r));
+  return toRemove.size;
 }
 
 function parseMakeInvoice(text) {
@@ -975,15 +1025,16 @@ function updateInvoiceTable() {
       <td class="px-3 py-1.5 mono text-[11px] text-gray-600 text-right">${escHtml(row.qty)}</td>
       <td class="px-3 py-1.5 mono text-[11px] text-gray-600 text-right">${escHtml(row.unitPrice)}</td>
       <td class="px-3 py-1.5 mono text-xs font-semibold text-right amt">${escHtml(row.amount)}</td>
-      <td class="px-3 py-1.5 text-center"><span class="tag ${getTagClass(row.source)}">${escHtml(row.source)}</span></td>`;
+      <td class="px-3 py-1.5 text-center"><span class="tag ${getTagClass(row.source)}">${escHtml(row.source)}</span></td>
+      <td class="px-3 py-1.5 text-[10px] text-gray-500 leading-tight">${row.source==='吉田東光'?`<div class="truncate" title="${escHtml(row.category)}">${escHtml(row.category)}</div><div class="truncate text-gray-400" title="${escHtml(row.dealer)}">${escHtml(row.dealer)}</div>`:'<span class="text-gray-300">—</span>'}</td>`;
     frag.appendChild(tr);
   });
   if(count===0){tbody.innerHTML=allParsedRows.length>0
-    ?'<tr><td colspan="9" class="px-6 py-10 text-center text-gray-400 text-xs">絞り込み条件に該当するデータがありません</td></tr>'
-    :'<tr><td colspan="9" class="px-6 py-16 text-center text-gray-300"><i class="fas fa-file-arrow-up text-3xl mb-2 block"></i><p class="text-sm">ファイルをドロップして解析</p></td></tr>';
+    ?'<tr><td colspan="10" class="px-6 py-10 text-center text-gray-400 text-xs">絞り込み条件に該当するデータがありません</td></tr>'
+    :'<tr><td colspan="10" class="px-6 py-16 text-center text-gray-300"><i class="fas fa-file-arrow-up text-3xl mb-2 block"></i><p class="text-sm">ファイルをドロップして解析</p></td></tr>';
   }else{
     tbody.appendChild(frag);
-    tfoot.innerHTML=`<tr class="bg-gray-50 border-t-2 border-gray-300"><td colspan="7" class="px-3 py-2 text-xs text-right font-semibold text-gray-500">表示 ${count.toLocaleString()} 件　合計</td><td class="px-3 py-2 mono text-sm font-bold text-right ${total<0?'text-red-600':'text-gray-900'}">¥${total.toLocaleString()}</td><td></td></tr>`;
+    tfoot.innerHTML=`<tr class="bg-gray-50 border-t-2 border-gray-300"><td colspan="7" class="px-3 py-2 text-xs text-right font-semibold text-gray-500">表示 ${count.toLocaleString()} 件　合計</td><td class="px-3 py-2 mono text-sm font-bold text-right ${total<0?'text-red-600':'text-gray-900'}">¥${total.toLocaleString()}</td><td></td><td></td></tr>`;
   }
   document.getElementById('tableInfo').textContent=`全 ${allParsedRows.length.toLocaleString()} 件 ／ 表示 ${count.toLocaleString()} 件`;
 }
@@ -1007,8 +1058,12 @@ function buildPriceMap() {
     if (qtyNum !== 1 && up === Math.abs(row.amountNum)) return;
 
     const unit = (row.unit||'').trim();
-    const key=row.source+'|||'+normalizeItem(row.itemName)+'|||'+unit;
-    if(!map.has(key))map.set(key,{source:row.source,itemName:row.itemName,unit,history:[]});
+    // 吉田東光は「区分」「建材店(O列)」が異なれば単価水準が変わるため、商品名だけでなくこの2つも含めてグループ化する
+    const isYoshida = row.source==='吉田東光';
+    const category = isYoshida ? (row.category||'(区分なし)') : '';
+    const dealer   = isYoshida ? (row.dealer||'(建材店不明)') : '';
+    const key=row.source+'|||'+normalizeItem(row.itemName)+'|||'+unit+'|||'+category+'|||'+dealer;
+    if(!map.has(key))map.set(key,{source:row.source,itemName:row.itemName,unit,category,dealer,history:[]});
     map.get(key).history.push({date:row.date,ds:parseDateSort(row.date),unitPrice:up});
   });
   map.forEach(e=>e.history.sort((a,b)=>a.ds.localeCompare(b.ds)));
@@ -1033,9 +1088,11 @@ function updatePriceTable() {
   const tbody=document.getElementById('priceBody');
   const search=document.getElementById('trendSearch').value.toLowerCase();
   const srcF  =document.getElementById('trendSource').value;
+  const catF  =document.getElementById('trendCategory').value;
+  const dealF =document.getElementById('trendDealer').value;
   const sortM =document.getElementById('trendSort').value;
   const onlyC =document.getElementById('trendOnlyChange').checked;
-  if(!allParsedRows.length){tbody.innerHTML='<tr><td colspan="8" class="px-6 py-16 text-center text-gray-300"><i class="fas fa-chart-bar text-3xl mb-2 block"></i><p class="text-sm">請求書を読み込むと価格変動が表示されます</p></td></tr>';return;}
+  if(!allParsedRows.length){tbody.innerHTML='<tr><td colspan="9" class="px-6 py-16 text-center text-gray-300"><i class="fas fa-chart-bar text-3xl mb-2 block"></i><p class="text-sm">請求書を読み込むと価格変動が表示されます</p></td></tr>';return;}
   const priceMap=buildPriceMap();
   let entries=[...priceMap.values()].map(e=>{
     const prices=e.history.map(h=>h.unitPrice);
@@ -1044,12 +1101,14 @@ function updatePriceTable() {
   });
   if(search)  entries=entries.filter(e=>normalizeItem(e.itemName).includes(search));
   if(srcF)    entries=entries.filter(e=>e.source===srcF);
+  if(catF)    entries=entries.filter(e=>e.category===catF);
+  if(dealF)   entries=entries.filter(e=>e.dealer===dealF);
   if(onlyC)   entries=entries.filter(e=>Math.abs(e.pct)>=0.01);
   if(sortM==='change_desc')  entries.sort((a,b)=>b.pct-a.pct);
   else if(sortM==='change_asc')   entries.sort((a,b)=>a.pct-b.pct);
   else if(sortM==='name_asc')     entries.sort((a,b)=>a.itemName.localeCompare(b.itemName,'ja'));
   else if(sortM==='latest_desc')  entries.sort((a,b)=>b.lastPrice-a.lastPrice);
-  if(!entries.length){tbody.innerHTML='<tr><td colspan="8" class="px-6 py-10 text-center text-gray-400 text-xs">条件に合う商品がありません</td></tr>';return;}
+  if(!entries.length){tbody.innerHTML='<tr><td colspan="9" class="px-6 py-10 text-center text-gray-400 text-xs">条件に合う商品がありません</td></tr>';return;}
   tbody.innerHTML='';
   entries.forEach((e,idx)=>{
     const isUp=e.pct>0.01,isDown=e.pct<-0.01;
@@ -1068,6 +1127,7 @@ function updatePriceTable() {
         </div>
         <div class="text-[10px] text-gray-400">${e.history[0].date} 〜 ${e.history[e.history.length-1].date}</div></td>
       <td class="px-3 py-2 text-center"><span class="tag ${getTagClass(e.source)}">${escHtml(e.source)}</span></td>
+      <td class="px-3 py-2 text-[10px] text-gray-500 leading-tight">${e.source==='吉田東光'?`<div class="truncate" title="${escHtml(e.category)}">${escHtml(e.category)}</div><div class="truncate text-gray-400" title="${escHtml(e.dealer)}">${escHtml(e.dealer)}</div>`:'<span class="text-gray-300">—</span>'}</td>
       <td class="px-3 py-2 mono text-xs text-right"><span class="bg-green-100 text-green-800 px-1.5 py-0.5 rounded text-[11px]">¥${fmt2(e.firstPrice)}</span></td>
       <td class="px-3 py-2 mono text-xs text-right"><span class="${isUp?'bg-red-100 text-red-800':isDown?'bg-blue-100 text-blue-800':'bg-gray-100 text-gray-600'} px-1.5 py-0.5 rounded text-[11px]">¥${fmt2(e.lastPrice)}</span></td>
       <td class="px-3 py-2 mono text-xs text-right ${isUp?'text-red-600':isDown?'text-green-600':'text-gray-400'}">${diffStr}</td>
@@ -1086,8 +1146,8 @@ function updatePriceTable() {
         <td class="px-3 py-1 text-[11px] text-right ${hu?'text-red-500 font-bold':hdown?'text-green-600 font-bold':'text-gray-300'}">
           ${hd===null?'—':(hu?'▲ +':hdown?'▼ ':'')+Math.abs(hd).toFixed(2)}</td></tr>`;
     }).join('');
-    trD.innerHTML=`<td colspan="8" class="px-6 py-2 bg-slate-50">
-      <div class="text-[10px] font-bold text-gray-400 mb-1.5">「${escHtml(e.itemName)}」の単価履歴</div>
+    trD.innerHTML=`<td colspan="9" class="px-6 py-2 bg-slate-50">
+      <div class="text-[10px] font-bold text-gray-400 mb-1.5">「${escHtml(e.itemName)}」の単価履歴${e.source==='吉田東光'?`　<span class="font-normal text-gray-400">［${escHtml(e.category)} / ${escHtml(e.dealer)}］</span>`:''}</div>
       <table class="text-xs border border-gray-200 rounded overflow-hidden w-auto">
         <thead class="bg-gray-100"><tr>
           <th class="px-3 py-1 text-left text-[10px] text-gray-400">日付</th>
@@ -1146,13 +1206,26 @@ function updateStats(){
     }});
     sel.value=cur;
   });
+  // refresh 吉田東光 区分／建材店 dropdowns
+  const yRows=allParsedRows.filter(r=>r.source==='吉田東光');
+  const allCategories=[...new Set(yRows.map(r=>r.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  const allDealers=[...new Set(yRows.map(r=>r.dealer).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ja'));
+  refreshOptionList('trendCategory', allCategories);
+  refreshOptionList('trendDealer', allDealers);
+}
+
+function refreshOptionList(id, values) {
+  const sel=document.getElementById(id); if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">すべて</option>'+values.map(v=>`<option value="${escHtml(v)}">${escHtml(v)}</option>`).join('');
+  if(values.includes(cur)) sel.value=cur;
 }
 
 // ─── Clear ────────────────────────────────────────────────────────────────────
 function clearAllData(){
   if(!allParsedRows.length)return;
   if(!confirm('すべてのデータをクリアしますか？'))return;
-  allParsedRows=[];openTrendRows.clear();
+  allParsedRows=[];openTrendRows.clear();yoshidaFileSeq=0;
   document.getElementById('fileList').innerHTML='';
   updateInvoiceTable();updateStats();updatePriceTable();
 }
@@ -1163,17 +1236,17 @@ function exportCSV(filtered){
   let rows=getFilteredRows(filtered);
   if(!rows.length){alert('出力対象がありません');return;}
   const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-  const body=rows.map(r=>[r.source,r.date,r.siteCode,r.siteName,r.slipNo,r.itemName,r.qty,r.unitPrice,r.amount].map(esc).join(',')).join('\n');
-  dlBlob('参照元,日付,工番,現場名,伝票番号,商品名,数量,単価,金額\n'+body, `請求データ_${today()}_${rows.length}件.csv`,'text/csv');
+  const body=rows.map(r=>[r.source,r.date,r.siteCode,r.siteName,r.slipNo,r.itemName,r.qty,r.unitPrice,r.amount,r.category||'',r.dealer||''].map(esc).join(',')).join('\n');
+  dlBlob('参照元,日付,工番,現場名,伝票番号,商品名,数量,単価,金額,区分,建材店\n'+body, `請求データ_${today()}_${rows.length}件.csv`,'text/csv');
 }
 
 function exportPriceCSV(){
   const pm=buildPriceMap(); if(!pm.size){alert('価格データがありません');return;}
   const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-  let body='仕入先,商品名,単位,件数,初回日付,初回単価,最新日付,最新単価,差額,変動率(%),最安値,最高値\n';
+  let body='仕入先,区分,建材店,商品名,単位,件数,初回日付,初回単価,最新日付,最新単価,差額,変動率(%),最安値,最高値\n';
   pm.forEach(e=>{
     const prices=e.history.map(h=>h.unitPrice),fp=prices[0],lp=prices[prices.length-1],diff=lp-fp,pct=fp?(diff/fp*100).toFixed(1):'0';
-    body+=[e.source,e.itemName,e.unit||'',e.history.length,e.history[0].date,fp.toFixed(2),e.history[e.history.length-1].date,lp.toFixed(2),diff.toFixed(2),pct,Math.min(...prices).toFixed(2),Math.max(...prices).toFixed(2)].map(esc).join(',')+'\n';
+    body+=[e.source,e.category||'',e.dealer||'',e.itemName,e.unit||'',e.history.length,e.history[0].date,fp.toFixed(2),e.history[e.history.length-1].date,lp.toFixed(2),diff.toFixed(2),pct,Math.min(...prices).toFixed(2),Math.max(...prices).toFixed(2)].map(esc).join(',')+'\n';
   });
   dlBlob(body,`価格変動表_${today()}.csv`,'text/csv');
 }
@@ -1200,6 +1273,8 @@ async function exportInvoiceExcel(filtered) {
     {header:'数量',   key:'qty',      width:10},
     {header:'単価',   key:'up',       width:14},
     {header:'金額',   key:'amount',   width:14},
+    {header:'区分',   key:'category', width:14},
+    {header:'建材店', key:'dealer',   width:16},
   ];
 
   // Header style
@@ -1213,7 +1288,7 @@ async function exportInvoiceExcel(filtered) {
 
   const srcColors = {'太陽ｴｺﾌﾞﾛｯｸ':'FFdcfce7','エスビック':'FFede9fe','吉田東光':'FFdbeafe','メイク':'FFffedd5'};
   rows.forEach((row, i) => {
-    const r = ws.addRow([i+1, row.source, row.date, row.siteCode, row.siteName, row.slipNo, row.itemName, row.qty, row.unitPrice, row.amount]);
+    const r = ws.addRow([i+1, row.source, row.date, row.siteCode, row.siteName, row.slipNo, row.itemName, row.qty, row.unitPrice, row.amount, row.category||'', row.dealer||'']);
     r.height = 16;
     r.font = {size:10, name:'Arial'};
     const bgColor = srcColors[row.source] || 'FFF9FAFB';
@@ -1232,7 +1307,7 @@ async function exportInvoiceExcel(filtered) {
 
   // Freeze header
   ws.views = [{state:'frozen', ySplit:1}];
-  ws.autoFilter = {from:'A1', to:'J1'};
+  ws.autoFilter = {from:'A1', to:'L1'};
 
   const buf = await wb.xlsx.writeBuffer();
   dlBuffer(buf, `請求データ_${today()}_${rows.length}件.xlsx`);
@@ -1249,6 +1324,8 @@ async function exportPriceExcel() {
   const ws1 = wb.addWorksheet('価格変動サマリ');
   ws1.columns = [
     {header:'仕入先',   key:'source',    width:14},
+    {header:'区分',     key:'category',  width:14},
+    {header:'建材店',   key:'dealer',    width:16},
     {header:'商品名',   key:'item',      width:38},
     {header:'単位',     key:'unit',      width:8},
     {header:'件数',     key:'count',     width:7},
@@ -1277,7 +1354,7 @@ async function exportPriceExcel() {
   }).sort((a,b)=>b.pct-a.pct);
 
   entries.forEach((e, i) => {
-    const r = ws1.addRow([e.source, e.itemName, e.unit||'', e.history.length,
+    const r = ws1.addRow([e.source, e.category||'', e.dealer||'', e.itemName, e.unit||'', e.history.length,
       e.history[0].date, e.firstPrice,
       e.history[e.history.length-1].date, e.lastPrice,
       e.diff, e.pct/100, e.minP, e.maxP]);
@@ -1291,29 +1368,31 @@ async function exportPriceExcel() {
       cell.border = {bottom:{style:'hair',color:{argb:'FFE5E7EB'}}};
     });
     // Format numeric cells
-    [6, 8, 9, 11, 12].forEach(col => {
+    [8, 10, 11, 13, 14].forEach(col => {
       const c = r.getCell(col);
       c.alignment = {horizontal:'right'};
       c.numFmt = '#,##0.00';
     });
-    r.getCell(10).numFmt = '0.00%';
-    r.getCell(10).alignment = {horizontal:'right'};
-    r.getCell(10).font = {
+    r.getCell(12).numFmt = '0.00%';
+    r.getCell(12).alignment = {horizontal:'right'};
+    r.getCell(12).font = {
       size:10, name:'Arial', bold:true,
       color: {argb: isUp?'FFDC2626':isDown?'FF16A34A':'FF6B7280'}
     };
-    r.getCell(9).font = {
+    r.getCell(11).font = {
       size:10, name:'Arial',
       color: {argb: isUp?'FFDC2626':isDown?'FF16A34A':'FF6B7280'}
     };
   });
   ws1.views = [{state:'frozen', ySplit:1}];
-  ws1.autoFilter = {from:'A1', to:'L1'};
+  ws1.autoFilter = {from:'A1', to:'N1'};
 
   // ── Sheet 2: 価格履歴詳細 ──
   const ws2 = wb.addWorksheet('単価履歴詳細');
   ws2.columns = [
     {header:'仕入先',   key:'source',  width:14},
+    {header:'区分',     key:'category',width:14},
+    {header:'建材店',   key:'dealer',  width:16},
     {header:'商品名',   key:'item',    width:38},
     {header:'日付',     key:'date',    width:12},
     {header:'単価',     key:'price',   width:13},
@@ -1333,20 +1412,20 @@ async function exportPriceExcel() {
       const prev = hi > 0 ? e.history[hi-1].unitPrice : null;
       const diff = prev!==null ? h.unitPrice - prev : null;
       const pct  = prev && diff!==null ? diff/prev : null;
-      const r = ws2.addRow([e.source, e.itemName, h.date, h.unitPrice,
+      const r = ws2.addRow([e.source, e.category||'', e.dealer||'', e.itemName, h.date, h.unitPrice,
         diff!==null ? diff : '', pct!==null ? pct : '']);
       r.height = 16;
       r.font = {size:10, name:'Arial'};
       if (rowIdx%2===0) r.eachCell(c=>c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF9FAFB'}});
-      [4,5].forEach(col=>{r.getCell(col).numFmt='#,##0.00';r.getCell(col).alignment={horizontal:'right'};});
-      if(pct!==null){r.getCell(6).numFmt='0.00%';r.getCell(6).alignment={horizontal:'right'};}
-      if(diff!==null&&diff>0.005) r.getCell(5).font={size:10,name:'Arial',color:{argb:'FFDC2626'},bold:true};
-      if(diff!==null&&diff<-0.005) r.getCell(5).font={size:10,name:'Arial',color:{argb:'FF16A34A'},bold:true};
+      [6,7].forEach(col=>{r.getCell(col).numFmt='#,##0.00';r.getCell(col).alignment={horizontal:'right'};});
+      if(pct!==null){r.getCell(8).numFmt='0.00%';r.getCell(8).alignment={horizontal:'right'};}
+      if(diff!==null&&diff>0.005) r.getCell(7).font={size:10,name:'Arial',color:{argb:'FFDC2626'},bold:true};
+      if(diff!==null&&diff<-0.005) r.getCell(7).font={size:10,name:'Arial',color:{argb:'FF16A34A'},bold:true};
       rowIdx++;
     });
   });
   ws2.views = [{state:'frozen', ySplit:1}];
-  ws2.autoFilter = {from:'A1', to:'F1'};
+  ws2.autoFilter = {from:'A1', to:'H1'};
 
   const buf = await wb.xlsx.writeBuffer();
   dlBuffer(buf, `価格変動表_${today()}.xlsx`);
