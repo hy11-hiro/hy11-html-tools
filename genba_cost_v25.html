@@ -142,28 +142,35 @@
                         <span><strong>マスター全件基準：</strong>現場マスターに登録されている全工番を対象にしています。原価集計期間外の現場も含まれます。</span>
                     </div>
 
-                    <!-- 検索タイプ切り替えタブ -->
-                    <div class="flex gap-1 mb-4 bg-slate-100 p-1 rounded-lg w-fit">
-                        <button onclick="window.setBrowseTab('keyword')" id="btab-keyword" class="browse-tab-btn active px-4 py-2 rounded-md text-sm font-bold transition-all bg-white text-teal-700 shadow-sm">
-                            <i class="fa-solid fa-magnifying-glass mr-1"></i> キーワード
+                    <!-- 常時有効なキーワード検索（タブ切替に関係なく常に効きます） -->
+                    <div class="flex gap-3 items-center mb-3">
+                        <div class="relative flex-1">
+                            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                            <input type="text" id="browse-keyword-input" placeholder="現場名・施工主名・得意先名・担当者名などで検索（常時有効）..."
+                                class="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+                                oninput="window.applyBrowseFilterDebounced()">
+                        </div>
+                        <button onclick="window.applyBrowseFilter()" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 transition-colors">
+                            <i class="fa-solid fa-search"></i> 検索
                         </button>
-                        <button onclick="window.setBrowseTab('manager')" id="btab-manager" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                    </div>
+
+                    <!-- 絞り込みタイプ切り替えタブ -->
+                    <div class="flex gap-1 mb-4 bg-slate-100 p-1 rounded-lg w-fit flex-wrap">
+                        <button onclick="window.setBrowseTab('manager')" id="btab-manager" class="browse-tab-btn active px-4 py-2 rounded-md text-sm font-bold transition-all bg-white text-teal-700 shadow-sm">
                             <i class="fa-solid fa-user-tie mr-1"></i> 担当者
                         </button>
                         <button onclick="window.setBrowseTab('customer')" id="btab-customer" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-building mr-1"></i> 得意先
-                        </button>
-                        <button onclick="window.setBrowseTab('date')" id="btab-date" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
-                            <i class="fa-regular fa-calendar mr-1"></i> 着手日
-                        </button>
-                        <button onclick="window.setBrowseTab('enddate')" id="btab-enddate" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
-                            <i class="fa-regular fa-calendar-check mr-1"></i> 完工日
                         </button>
                         <button onclick="window.setBrowseTab('branch')" id="btab-branch" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-location-dot mr-1"></i> 拠点
                         </button>
                         <button onclick="window.setBrowseTab('estimator')" id="btab-estimator" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-compass-drafting mr-1"></i> 積算
+                        </button>
+                        <button onclick="window.setBrowseTab('date')" id="btab-date" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
+                            <i class="fa-regular fa-calendar mr-1"></i> 着手日・完工日
                         </button>
                         <button onclick="window.setBrowseTab('margin')" id="btab-margin" class="browse-tab-btn px-4 py-2 rounded-md text-sm font-bold transition-all text-slate-500 hover:bg-white">
                             <i class="fa-solid fa-percent mr-1"></i> 粗利率
@@ -173,23 +180,8 @@
                         </button>
                     </div>
 
-                    <!-- キーワード検索パネル -->
-                    <div id="browse-panel-keyword" class="browse-filter-panel">
-                        <div class="flex gap-3 items-center">
-                            <div class="relative flex-1">
-                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
-                                <input type="text" id="browse-keyword-input" placeholder="現場名・施工主名・得意先名・担当者名など..." 
-                                    class="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
-                                    oninput="window.applyBrowseFilterDebounced()">
-                            </div>
-                            <button onclick="window.applyBrowseFilter()" class="bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 transition-colors">
-                                <i class="fa-solid fa-search"></i> 検索
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- 担当者選択パネル -->
-                    <div id="browse-panel-manager" class="browse-filter-panel hidden">
+                    <div id="browse-panel-manager" class="browse-filter-panel">
                         <div class="mb-2 flex items-center justify-between">
                             <span class="text-xs text-slate-500 font-bold">担当者を選択してください</span>
                             <button onclick="window.clearBrowseSelection('manager')" class="text-xs text-slate-400 hover:text-slate-600 underline">全選択解除</button>
@@ -205,53 +197,18 @@
                         </div>
                         <div class="relative mb-3">
                             <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                            <input type="text" id="browse-customer-filter" placeholder="得意先名で絞り込み..." 
+                            <input type="text" id="browse-customer-filter" placeholder="得意先名で絞り込み..."
                                 class="w-full pl-8 pr-4 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
                                 oninput="window.filterCustomerButtons()">
                         </div>
                         <div id="browse-customer-buttons" class="flex flex-wrap gap-2 max-h-40 overflow-y-auto"></div>
                     </div>
 
-                    <!-- 着手日絞り込みパネル -->
-                    <div id="browse-panel-date" class="browse-filter-panel hidden">
-                        <div class="flex flex-wrap items-center gap-4">
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-bold text-slate-600">着手日:</span>
-                                <input type="date" id="browse-date-start" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
-                                <span class="text-slate-400">～</span>
-                                <input type="date" id="browse-date-end" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="window.setDatePreset('thisYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">今年</button>
-                                <button onclick="window.setDatePreset('lastYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">昨年</button>
-                                <button onclick="window.setDatePreset('last3')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">直近3年</button>
-                            </div>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-2">※ 現場マスターの着手日を基準に絞り込みます。</p>
-                    </div>
-
-                    <!-- 完工日絞り込みパネル -->
-                    <div id="browse-panel-enddate" class="browse-filter-panel hidden">
-                        <div class="flex flex-wrap items-center gap-4">
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm font-bold text-slate-600">完工日:</span>
-                                <input type="date" id="browse-enddate-start" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
-                                <span class="text-slate-400">～</span>
-                                <input type="date" id="browse-enddate-end" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="window.setEndDatePreset('thisYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">今年</button>
-                                <button onclick="window.setEndDatePreset('lastYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">昨年</button>
-                                <button onclick="window.setEndDatePreset('last3')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">直近3年</button>
-                            </div>
-                        </div>
-                        <p class="text-xs text-slate-400 mt-2">※ 現場マスターの完工日（完了日）を基準に絞り込みます。完工日が未入力の現場は対象外になります。</p>
-                    </div>
-
                     <!-- 拠点選択パネル -->
                     <div id="browse-panel-branch" class="browse-filter-panel hidden">
-                        <div class="mb-2">
+                        <div class="mb-2 flex items-center justify-between">
                             <span class="text-xs text-slate-500 font-bold">拠点を選択してください</span>
+                            <button onclick="window.clearBrowseSelection('branch')" class="text-xs text-slate-400 hover:text-slate-600 underline">全選択解除</button>
                         </div>
                         <div id="browse-branch-buttons" class="flex flex-wrap gap-2"></div>
                     </div>
@@ -263,6 +220,41 @@
                             <button onclick="window.clearBrowseSelection('estimator')" class="text-xs text-slate-400 hover:text-slate-600 underline">全選択解除</button>
                         </div>
                         <div id="browse-estimator-buttons" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- 着手日・完工日絞り込みパネル -->
+                    <div id="browse-panel-date" class="browse-filter-panel hidden">
+                        <div class="space-y-3">
+                            <div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                                <div class="flex flex-wrap items-center gap-4">
+                                    <span class="text-sm font-bold text-slate-600 w-20">着手日:</span>
+                                    <input type="date" id="browse-date-start" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                                    <span class="text-slate-400">～</span>
+                                    <input type="date" id="browse-date-end" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                                    <div class="flex gap-2">
+                                        <button onclick="window.setDatePreset('thisYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">今年</button>
+                                        <button onclick="window.setDatePreset('lastYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">昨年</button>
+                                        <button onclick="window.setDatePreset('last3')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">直近3年</button>
+                                        <button onclick="window.clearDatePreset()" class="text-xs text-slate-400 hover:text-slate-600 underline px-2">クリア</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+                                <div class="flex flex-wrap items-center gap-4">
+                                    <span class="text-sm font-bold text-slate-600 w-20">完工日:</span>
+                                    <input type="date" id="browse-enddate-start" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                                    <span class="text-slate-400">～</span>
+                                    <input type="date" id="browse-enddate-end" class="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white" onchange="window.applyBrowseFilter()">
+                                    <div class="flex gap-2">
+                                        <button onclick="window.setEndDatePreset('thisYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">今年</button>
+                                        <button onclick="window.setEndDatePreset('lastYear')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">昨年</button>
+                                        <button onclick="window.setEndDatePreset('last3')" class="text-xs bg-slate-100 hover:bg-teal-50 hover:text-teal-700 border border-slate-200 px-3 py-1.5 rounded-lg font-bold transition-colors">直近3年</button>
+                                        <button onclick="window.clearEndDatePreset()" class="text-xs text-slate-400 hover:text-slate-600 underline px-2">クリア</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2">※ 着手日・完工日はいずれも現場マスターの値を基準に絞り込みます。未入力の現場は対象外になります。</p>
                     </div>
 
                     <!-- 粗利率絞り込みパネル -->
@@ -323,30 +315,9 @@
                             </button>
                         </div>
                         <p class="text-xs text-slate-400 mb-3 -mt-2">※「未回収残高 &gt; 0 のみ」＝回収予定額のうち、まだ入金が確認できていない金額が残っている現場だけを表示します（回収完了済みの現場は除外）。</p>
-                        <!-- 行②：拠点・担当者絞り込み -->
-                        <div class="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 space-y-2">
-                            <div class="flex flex-wrap items-center gap-3">
-                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">拠点:</span>
-                                <div id="uncoll-branch-buttons" class="flex flex-wrap gap-1.5"></div>
-                                <button onclick="window.clearUncollSelection('branch')" class="text-[10px] text-slate-400 hover:text-slate-600 underline whitespace-nowrap">解除</button>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
-                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">担当者:</span>
-                                <div id="uncoll-manager-buttons" class="flex flex-wrap gap-1.5"></div>
-                                <button onclick="window.clearUncollSelection('manager')" class="text-[10px] text-slate-400 hover:text-slate-600 underline whitespace-nowrap">解除</button>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
-                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">積算:</span>
-                                <div id="uncoll-estimator-buttons" class="flex flex-wrap gap-1.5"></div>
-                                <button onclick="window.clearUncollSelection('estimator')" class="text-[10px] text-slate-400 hover:text-slate-600 underline whitespace-nowrap">解除</button>
-                            </div>
-                            <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-100">
-                                <span class="text-xs font-bold text-slate-500 whitespace-nowrap">キーワード:</span>
-                                <input type="text" id="uncoll-keyword-input" placeholder="現場名・施工主・工番など..."
-                                    class="flex-1 min-w-[180px] pl-3 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
-                                    oninput="window.applyBrowseFilterDebounced(); window.renderCollAnomalyTable(); window.renderUncollBranchDetail();">
-                            </div>
-                        </div>
+                        <p class="text-xs text-teal-600 mb-3 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
+                            <i class="fa-solid fa-circle-info mr-1"></i>拠点・担当者・積算・得意先・キーワードでの絞り込みは、上の「拠点・担当者・積算・得意先」タブや検索ボックスをお使いください（このタブでも自動的に反映されます）。
+                        </p>
                         <!-- 差異詳細テーブル -->
                         <div id="coll-anomaly-detail" class="hidden mt-4 overflow-x-auto">
                             <div class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1.5">
@@ -600,7 +571,6 @@
                             <div class="text-xs text-slate-500 mb-2 flex gap-2 flex-wrap">
                                 <span class="bg-violet-100 text-violet-700 px-2 py-1 rounded font-bold"><i class="fa-solid fa-building mr-1"></i>拠点: <span id="res-branch">-</span></span>
                                 <span class="bg-slate-100 px-2 py-1 rounded">現場サブ名称: <span id="res-sub-name" class="font-bold">-</span></span>
-                                <span class="bg-slate-100 px-2 py-1 rounded">サブコード: <span id="res-sub-code" class="font-bold font-mono">-</span></span>
                             </div>
                             <div class="flex gap-4 mb-4">
                                 <p class="text-slate-500"><span class="text-xs text-slate-400 block">施工主</span><span id="res-owner" class="font-bold">-</span></p>
@@ -870,6 +840,24 @@
                                     <tbody id="cs-table-monthly" class="divide-y divide-slate-100"></tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- 月別集計表：件数クリック時の内訳モーダル -->
+                    <div id="cs-monthly-drilldown-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <div class="absolute inset-0 bg-slate-900/50" onclick="window.csCloseMonthlyDrilldown()"></div>
+                        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
+                            <div class="px-5 py-3 border-b border-slate-200 flex items-center gap-3 bg-slate-50">
+                                <i class="fa-solid fa-magnifying-glass-chart text-blue-500"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div id="cs-monthly-drilldown-title" class="font-bold text-slate-700 truncate"></div>
+                                    <div id="cs-monthly-drilldown-subtitle" class="text-xs text-slate-400"></div>
+                                </div>
+                                <button onclick="window.csCloseMonthlyDrilldown()" class="text-slate-400 hover:text-slate-600 px-2 py-1">
+                                    <i class="fa-solid fa-xmark text-lg"></i>
+                                </button>
+                            </div>
+                            <div id="cs-monthly-drilldown-body" class="overflow-y-auto px-5 py-4 text-sm"></div>
                         </div>
                     </div>
 
@@ -4137,9 +4125,7 @@
             document.getElementById('res-name').textContent = master ? master.name : (cost ? cost.name : '-'); 
             
             const subNameEl = document.getElementById('res-sub-name');
-            const subCodeEl = document.getElementById('res-sub-code');
             if(subNameEl) subNameEl.textContent = master ? (master.subName || '-') : '-'; 
-            if(subCodeEl) subCodeEl.textContent = master ? (master.subCode || '-') : '-'; 
             
             document.getElementById('res-owner').textContent = master ? master.owner : '-'; 
             document.getElementById('res-customer').textContent = master ? master.customer : '-';
@@ -4629,6 +4615,61 @@
         if(currentCostVendor) window.executeCostSearch(currentCostVendor);
     }
 
+    // ── 月別集計表：件数クリック時の内訳表示（currentCostDetailsをそのまま使うのでDB再取得不要）──
+    window.csShowMonthlyDrilldown = function(ym) {
+        const modal = document.getElementById('cs-monthly-drilldown-modal');
+        const titleEl = document.getElementById('cs-monthly-drilldown-title');
+        const subEl = document.getElementById('cs-monthly-drilldown-subtitle');
+        const bodyEl = document.getElementById('cs-monthly-drilldown-body');
+        if (!modal || !bodyEl) return;
+
+        const items = currentCostDetails.filter(d => (d.date || '').substring(0, 6) === ym)
+            .slice()
+            .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.amount - a.amount));
+        const total = items.reduce((s, d) => s + (d.amount || 0), 0);
+
+        titleEl.textContent = `${currentCostVendor}　${ym.slice(0, 4)}/${ym.slice(4)}　内訳`;
+        subEl.textContent = `${items.length}件`;
+
+        const rowsHtml = items.map(d => `
+            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                <td class="px-3 py-1.5 text-center whitespace-nowrap">${d.date ? `${d.date.slice(0,4)}/${d.date.slice(4,6)}/${d.date.slice(6,8)}` : '-'}</td>
+                <td class="px-3 py-1.5 font-mono">${d.code && d.code !== '-' ? `<button class="text-blue-600 hover:text-blue-800 hover:underline font-bold" title="現場照会でこの工番を開く" onclick="window.csJumpToSiteFromDrilldown('${String(d.code).replace(/'/g, "\\'")}')">${d.code}</button>` : '-'}</td>
+                <td class="px-3 py-1.5">${d.name || '-'}</td>
+                <td class="px-3 py-1.5">${d.branch || '-'}</td>
+                <td class="px-3 py-1.5">${d.manager || '-'}</td>
+                <td class="px-3 py-1.5">${d.item || '-'}</td>
+                <td class="px-3 py-1.5 text-right font-mono font-bold">${window.formatCurrency(d.amount || 0)}</td>
+            </tr>`).join('');
+
+        bodyEl.innerHTML = `
+            <div class="flex items-center justify-between mb-2 text-xs text-slate-500">
+                <span>${items.length}件</span>
+                <span>合計：<span class="font-bold text-slate-700">${window.formatCurrency(total)}</span></span>
+            </div>
+            <table class="w-full text-xs border border-slate-200">
+                <thead class="bg-slate-100 sticky top-0"><tr>
+                    <th class="px-3 py-1.5 text-center">伝票日付</th>
+                    <th class="px-3 py-1.5 text-left">工番</th>
+                    <th class="px-3 py-1.5 text-left">現場名</th>
+                    <th class="px-3 py-1.5 text-left">拠点</th>
+                    <th class="px-3 py-1.5 text-left">担当者</th>
+                    <th class="px-3 py-1.5 text-left">品目</th>
+                    <th class="px-3 py-1.5 text-right">金額</th>
+                </tr></thead>
+                <tbody>${rowsHtml || `<tr><td colspan="7" class="px-3 py-6 text-center text-slate-400">該当データがありません</td></tr>`}</tbody>
+            </table>`;
+        modal.classList.remove('hidden');
+    };
+    window.csCloseMonthlyDrilldown = function() {
+        const modal = document.getElementById('cs-monthly-drilldown-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+    window.csJumpToSiteFromDrilldown = function(code) {
+        window.csCloseMonthlyDrilldown();
+        window.browseJumpToSite(code, 'cost-search', '原価検索の内訳に戻る');
+    };
+
     // ── コストサーチ内部タブ切り替え ──
     window.switchCsTab = function(tab) {
         document.querySelectorAll('.cs-tab-btn').forEach(b => {
@@ -4692,7 +4733,9 @@
             tbodyM.innerHTML += `<tr class="hover:bg-slate-50">
                 <td class="px-4 py-2 text-sm">${m.slice(0,4)}/${m.slice(4)}</td>
                 <td class="px-4 py-2 text-right font-mono text-sm">${window.formatCurrency(d.amt)}</td>
-                <td class="px-4 py-2 text-center text-sm">${d.cnt}</td>
+                <td class="px-4 py-2 text-center text-sm">
+                    <button class="text-blue-600 hover:text-blue-800 hover:underline font-bold" title="クリックで${m.slice(0,4)}/${m.slice(4)}の内訳を表示" onclick="window.csShowMonthlyDrilldown('${m}')">${d.cnt}件</button>
+                </td>
                 <td class="px-4 py-2 text-center">
                     <div class="flex items-center gap-2">
                         <div class="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden"><div class="bg-blue-400 h-1.5 rounded-full" style="width:${Math.min(ratio,100)}%"></div></div>
@@ -8711,15 +8754,17 @@
     let browseAllData = [];        // 結合済みデータ（原価+マスター）
     let browseFiltered = [];       // 絞り込み後
     let browseCurrentBasis = 'cost'; // 'cost' | 'master'
-    let browseCurrentTab = 'keyword';
+    let browseCurrentTab = 'manager';
     let browseSelectedManagers = new Set();
     let browseSelectedCustomers = new Set();
     let browseSelectedBranches = new Set();
     let browseSelectedEstimators = new Set();
-    // 未回収タブ専用フィルターセット
-    let uncollSelectedBranches = new Set();
-    let uncollSelectedManagers = new Set();
-    let uncollSelectedEstimators = new Set();
+    // 未回収タブ専用の拠点・担当者・積算フィルターは廃止し、共通の絞り込み（拠点・担当者・積算・得意先タブ）
+    // をそのまま参照する。同じSetオブジェクトを共有することで、既存の関連ロジックを大きく書き換えずに
+    // 「未回収タブ専用の重複フィルター」を実質的に無効化している。
+    let uncollSelectedBranches = browseSelectedBranches;
+    let uncollSelectedManagers = browseSelectedManagers;
+    let uncollSelectedEstimators = browseSelectedEstimators;
     const BROWSE_PAGE_SIZE = 50;
     let browseCurrentPage = 1;
 
@@ -8942,9 +8987,8 @@
         browseSelectedCustomers.clear();
         browseSelectedBranches.clear();
         browseSelectedEstimators.clear();
-        uncollSelectedBranches.clear();
-        uncollSelectedManagers.clear();
-        uncollSelectedEstimators.clear();
+        // uncollSelectedBranches/Managers/Estimators は上と同じSetを共有しているため、
+        // 個別にclear()する必要はない（未回収タブ専用フィルターは廃止済み）
     }
 
     window.buildBrowseButtons = function() {
@@ -9034,92 +9078,6 @@
             if (blankCnt > 0) eContainer.appendChild(blankBtnHtml(blankCnt, 'estimator'));
         }
 
-        // ★ 未回収タブ専用ボタン（回収データのある現場のみ対象）
-        const collData = browseAllData.filter(d => d.hasCollData);
-        // 拠点ボタン
-        const uncollBranches = [...new Set(collData.map(d => d.branch).filter(Boolean))].sort();
-        const ubContainer = document.getElementById('uncoll-branch-buttons');
-        if (ubContainer) {
-            ubContainer.innerHTML = '';
-            if (uncollBranches.length === 0) {
-                ubContainer.innerHTML = '<span class="text-[10px] text-slate-400">（データなし）</span>';
-            }
-            uncollBranches.forEach(br => {
-                const cnt = collData.filter(d => d.branch === br).length;
-                const btn = document.createElement('button');
-                btn.className = 'uncoll-branch-btn px-2.5 py-1 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-700 transition-all flex items-center gap-1';
-                btn.innerHTML = `${br} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
-                btn.dataset.value = br;
-                btn.onclick = () => window.toggleUncollButton(btn, 'branch');
-                ubContainer.appendChild(btn);
-            });
-        }
-        // 担当者ボタン
-        const uncollManagers = [...new Set(collData.map(d => d.manager).filter(Boolean))].sort();
-        const umContainer = document.getElementById('uncoll-manager-buttons');
-        if (umContainer) {
-            umContainer.innerHTML = '';
-            if (uncollManagers.length === 0) {
-                umContainer.innerHTML = '<span class="text-[10px] text-slate-400">（データなし）</span>';
-            }
-            uncollManagers.forEach(mgr => {
-                const cnt = collData.filter(d => d.manager === mgr).length;
-                const btn = document.createElement('button');
-                btn.className = 'uncoll-manager-btn px-2.5 py-1 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-700 transition-all flex items-center gap-1';
-                btn.innerHTML = `${mgr} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
-                btn.dataset.value = mgr;
-                btn.onclick = () => window.toggleUncollButton(btn, 'manager');
-                umContainer.appendChild(btn);
-            });
-        }
-        // 積算ボタン
-        const uncollEstimators = [...new Set(collData.map(d => d.estimator).filter(Boolean))].sort();
-        const ueContainer = document.getElementById('uncoll-estimator-buttons');
-        if (ueContainer) {
-            ueContainer.innerHTML = '';
-            if (uncollEstimators.length === 0) {
-                ueContainer.innerHTML = '<span class="text-[10px] text-slate-400">（データなし）</span>';
-            }
-            uncollEstimators.forEach(est => {
-                const cnt = collData.filter(d => d.estimator === est).length;
-                const btn = document.createElement('button');
-                btn.className = 'uncoll-estimator-btn px-2.5 py-1 rounded-full text-xs font-bold border border-slate-300 bg-white text-slate-600 hover:bg-orange-50 hover:border-orange-400 hover:text-orange-700 transition-all flex items-center gap-1';
-                btn.innerHTML = `${est} <span class="text-[10px] bg-slate-100 text-slate-400 px-1 rounded">${cnt}</span>`;
-                btn.dataset.value = est;
-                btn.onclick = () => window.toggleUncollButton(btn, 'estimator');
-                ueContainer.appendChild(btn);
-            });
-        }
-    }
-
-    window.toggleUncollButton = function(btn, group) {
-        const val = btn.dataset.value;
-        const selSet = group === 'branch' ? uncollSelectedBranches : group === 'manager' ? uncollSelectedManagers : uncollSelectedEstimators;
-        if (selSet.has(val)) {
-            selSet.delete(val);
-            btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
-            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
-        } else {
-            selSet.add(val);
-            btn.classList.add('bg-orange-500', 'border-orange-500', 'text-white');
-            btn.classList.remove('bg-white', 'border-slate-300', 'text-slate-600');
-        }
-        window.applyBrowseFilter();
-        window.renderCollAnomalyTable();
-        window.renderUncollBranchDetail();
-    }
-
-    window.clearUncollSelection = function(group) {
-        const selSet = group === 'branch' ? uncollSelectedBranches : group === 'manager' ? uncollSelectedManagers : uncollSelectedEstimators;
-        selSet.clear();
-        const cls = group === 'branch' ? '.uncoll-branch-btn' : group === 'manager' ? '.uncoll-manager-btn' : '.uncoll-estimator-btn';
-        document.querySelectorAll(cls).forEach(btn => {
-            btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
-            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
-        });
-        window.applyBrowseFilter();
-        window.renderCollAnomalyTable();
-        window.renderUncollBranchDetail();
     }
 
     window.renderCollAnomalyTable = function() {
@@ -9141,7 +9099,7 @@
             if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(m2.branch || '')) return false;
             if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(m2.manager || '')) return false;
             if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(m2.estimator || '')) return false;
-            const uncollKw = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
+            const uncollKw = window.normalizeStr((document.getElementById('browse-keyword-input') || {}).value || '');
             if (uncollKw) {
                 const hay = window.normalizeStr([d.code, d.siteName, m2.owner||'', m2.manager||'', m2.branch||''].join(' '));
                 if (!hay.includes(uncollKw)) return false;
@@ -9198,7 +9156,7 @@
         const masterMap = new Map();
         (window._browseRawData?.masters || []).forEach(m => masterMap.set(String(m.code||'').trim().toLowerCase(), m));
         const chkUncollOnly = document.getElementById('browse-chk-uncollected-only')?.checked;
-        const uncollKw = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
+        const uncollKw = window.normalizeStr((document.getElementById('browse-keyword-input') || {}).value || '');
 
         const rows = [];
         collectionArrayMap.forEach((recs) => {
@@ -9331,18 +9289,12 @@
     window.removeBrowseFilterValue = function(group, val) {
         const setMap = {
             manager: browseSelectedManagers, customer: browseSelectedCustomers, branch: browseSelectedBranches, estimator: browseSelectedEstimators,
-            'uncoll-branch': uncollSelectedBranches, 'uncoll-manager': uncollSelectedManagers, 'uncoll-estimator': uncollSelectedEstimators
         };
         const sel = setMap[group];
         if (sel) sel.delete(val);
-        const btnClassMap = {
-            manager: '.browse-sel-btn', customer: '.browse-sel-btn', branch: '.browse-sel-btn', estimator: '.browse-sel-btn',
-            'uncoll-branch': '.uncoll-branch-btn', 'uncoll-manager': '.uncoll-manager-btn', 'uncoll-estimator': '.uncoll-estimator-btn'
-        };
-        const activeColor = group.startsWith('uncoll') ? 'orange' : 'teal';
-        document.querySelectorAll(btnClassMap[group]).forEach(btn => {
-            if (btn.dataset.value === val) {
-                btn.classList.remove(`bg-${activeColor}-500`, `border-${activeColor}-500`, 'text-white');
+        document.querySelectorAll('.browse-sel-btn').forEach(btn => {
+            if (btn.dataset.group === group && btn.dataset.value === val) {
+                btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
                 btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
             }
         });
@@ -9356,7 +9308,6 @@
             keyword: 'browse-keyword-input',
             chkSub: 'browse-chk-subcodes', chkCostNoEnd: 'browse-chk-cost-and-no-end', chkNoEnd: 'browse-chk-no-end', chkNoStart: 'browse-chk-no-start',
             chkUncollected: 'browse-chk-uncollected-only', chkCollAnomaly: 'browse-chk-coll-anomaly',
-            uncollKeyword: 'uncoll-keyword-input',
         };
         if (field === 'dateRange') {
             const s = document.getElementById('browse-date-start'); const e = document.getElementById('browse-date-end');
@@ -9373,7 +9324,7 @@
         }
         window.applyBrowseFilter();
         if (field === 'chkCollAnomaly' && window.renderCollAnomalyTable) window.renderCollAnomalyTable();
-        if ((field === 'chkUncollected' || field === 'uncollKeyword') && window.renderUncollBranchDetail) window.renderUncollBranchDetail();
+        if (field === 'chkUncollected' && window.renderUncollBranchDetail) window.renderUncollBranchDetail();
     }
 
     window.renderActiveFilterChips = function() {
@@ -9386,7 +9337,7 @@
         };
 
         const keywordEl = document.getElementById('browse-keyword-input');
-        if (browseCurrentTab === 'keyword' && keywordEl && keywordEl.value) {
+        if (keywordEl && keywordEl.value) {
             addChip(`キーワード: 「${keywordEl.value}」`, `window.removeBrowseFilterField('keyword')`);
         }
 
@@ -9414,14 +9365,7 @@
         if (document.getElementById('browse-chk-no-start')?.checked) addChip('着手日なし', `window.removeBrowseFilterField('chkNoStart')`, 'bg-sky-50 text-sky-700 border-sky-200');
         if (document.getElementById('browse-chk-uncollected-only')?.checked) addChip('未回収残高あり', `window.removeBrowseFilterField('chkUncollected')`, 'bg-orange-50 text-orange-700 border-orange-200');
         if (document.getElementById('browse-chk-coll-anomaly')?.checked) addChip('回収差異あり', `window.removeBrowseFilterField('chkCollAnomaly')`, 'bg-red-50 text-red-700 border-red-200');
-
-        if (browseCurrentTab === 'uncollected') {
-            uncollSelectedBranches.forEach(v => addChip(`未回収-拠点: ${v}`, `window.removeBrowseFilterValue('uncoll-branch','${esc(v)}')`, 'bg-orange-50 text-orange-700 border-orange-200'));
-            uncollSelectedManagers.forEach(v => addChip(`未回収-担当者: ${v}`, `window.removeBrowseFilterValue('uncoll-manager','${esc(v)}')`, 'bg-orange-50 text-orange-700 border-orange-200'));
-            uncollSelectedEstimators.forEach(v => addChip(`未回収-積算: ${v}`, `window.removeBrowseFilterValue('uncoll-estimator','${esc(v)}')`, 'bg-orange-50 text-orange-700 border-orange-200'));
-            const uk = document.getElementById('uncoll-keyword-input')?.value;
-            if (uk) addChip(`未回収-キーワード: 「${uk}」`, `window.removeBrowseFilterField('uncollKeyword')`, 'bg-orange-50 text-orange-700 border-orange-200');
-        }
+        // ※ 未回収タブ専用の拠点・担当者・積算・キーワードチップは廃止（上の共通チップと重複するため）
 
         if (chips.length === 0) {
             wrap.classList.add('hidden');
@@ -9468,6 +9412,22 @@
         const e = document.getElementById('browse-enddate-end');
         if (s) s.value = start;
         if (e) e.value = end;
+        window.applyBrowseFilter();
+    }
+
+    window.clearDatePreset = function() {
+        const s = document.getElementById('browse-date-start');
+        const e = document.getElementById('browse-date-end');
+        if (s) s.value = '';
+        if (e) e.value = '';
+        window.applyBrowseFilter();
+    }
+
+    window.clearEndDatePreset = function() {
+        const s = document.getElementById('browse-enddate-start');
+        const e = document.getElementById('browse-enddate-end');
+        if (s) s.value = '';
+        if (e) e.value = '';
         window.applyBrowseFilter();
     }
 
@@ -9522,12 +9482,10 @@
         const marginOp = (document.getElementById('browse-margin-op') || {}).value || 'lte';
         const marginValRaw = (document.getElementById('browse-margin-value') || {}).value;
         const marginVal = marginValRaw !== '' && marginValRaw !== undefined && marginValRaw !== null ? parseFloat(marginValRaw) : null;
-        // 未回収タブ専用フィルター
-        const uncollKeyword = window.normalizeStr((document.getElementById('uncoll-keyword-input') || {}).value || '');
 
         browseFiltered = browseAllData.filter(d => {
-            // キーワードフィルター（キーワードタブ選択中のみ）
-            if (browseCurrentTab === 'keyword' && keyword) {
+            // キーワードフィルター（タブに関係なく常時有効）
+            if (keyword) {
                 const haystack = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.estimator, d.code, d.branch].join(' '));
                 if (!haystack.includes(keyword)) return false;
             }
@@ -9571,17 +9529,10 @@
             // 未回収フィルター
             if (chkUncollected  && !(d.uncollectedAmount > 0)) return false;
             if (chkCollAnomaly  && !d.hasCollAnomaly)           return false;
-            // 未回収タブ専用フィルター（タブ選択中のみ）
+            // 未回収タブの基本条件（回収データが紐づく現場のみ対象。拠点・担当者・積算・キーワードは
+            // 上の共通フィルターがタブに関係なく常時反映されるため、ここでは重複させない）
             if (browseCurrentTab === 'uncollected') {
-                // ★ 修正: 回収データが紐づく現場のみを対象とする（タブの基本条件）
                 if (!d.hasCollData) return false;
-                if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(d.branch)) return false;
-                if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(d.manager)) return false;
-                if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(d.estimator)) return false;
-                if (uncollKeyword) {
-                    const hay = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.code, d.branch].join(' '));
-                    if (!hay.includes(uncollKeyword)) return false;
-                }
             }
             return true;
         });
@@ -9591,59 +9542,6 @@
         const anomalyCount     = browseAllData.filter(d => d.hasCollAnomaly).length;
         const cntEl = document.getElementById('browse-uncollected-count');
         if (cntEl) cntEl.textContent = `未回収 ${uncollectedCount}件　差異あり ${anomalyCount}件`;
-
-        // ★ 修正: 未回収タブのボタンバッジ件数をチェックボックス状態に合わせて動的更新
-        if (browseCurrentTab === 'uncollected') {
-            // マスターマップ（差異詳細レコードの拠点・担当者取得用）
-            const _mmap = new Map();
-            (window._browseRawData?.masters || []).forEach(m => _mmap.set(String(m.code||'').trim(), m));
-
-            // 差異チェックON時: _browseAnomalyDetails（コレクションレコード単位）で集計
-            // → 枝番・親コード問わず1レコード=1件としてカウントするため詳細テーブルと一致する
-            // 未回収残高のみON時: browseAllData（親コード単位）で集計
-            const countPerBranch  = new Map();
-            const countPerManager = new Map();
-
-            if (chkCollAnomaly) {
-                // 差異詳細レコード単位でカウント
-                // ★ 差異テーブルは未回収フィルターを適用しないので、バッジも同様にしない
-                (window._browseAnomalyDetails || []).forEach(d => {
-                    if (!d.isAnomaly) return;
-                    const m = _mmap.get(d.code) || {};
-                    const br  = m.branch  || '';
-                    const mgr = m.manager || '';
-                    if (uncollKeyword) {
-                        const hay = window.normalizeStr([d.code, d.siteName, m.owner||'', mgr, br].join(' '));
-                        if (!hay.includes(uncollKeyword)) return;
-                    }
-                    if (br)  countPerBranch.set(br,   (countPerBranch.get(br)   || 0) + 1);
-                    if (mgr) countPerManager.set(mgr, (countPerManager.get(mgr) || 0) + 1);
-                });
-            } else {
-                // 親コード単位でカウント（未回収残高フィルターのみの場合）
-                browseAllData.forEach(d => {
-                    if (!d.hasCollData) return;
-                    if (chkUncollected && !(d.uncollectedAmount > 0)) return;
-                    if (uncollKeyword) {
-                        const hay = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.code, d.branch].join(' '));
-                        if (!hay.includes(uncollKeyword)) return;
-                    }
-                    const br  = d.branch  || '';
-                    const mgr = d.manager || '';
-                    if (br)  countPerBranch.set(br,   (countPerBranch.get(br)   || 0) + 1);
-                    if (mgr) countPerManager.set(mgr, (countPerManager.get(mgr) || 0) + 1);
-                });
-            }
-
-            document.querySelectorAll('.uncoll-branch-btn').forEach(btn => {
-                const sp = btn.querySelector('span');
-                if (sp) sp.textContent = countPerBranch.get(btn.dataset.value) || 0;
-            });
-            document.querySelectorAll('.uncoll-manager-btn').forEach(btn => {
-                const sp = btn.querySelector('span');
-                if (sp) sp.textContent = countPerManager.get(btn.dataset.value) || 0;
-            });
-        }
 
         // ソート
         browseFiltered.sort((a, b) => {
@@ -9830,11 +9728,7 @@
             btn.classList.remove('bg-teal-500', 'border-teal-500', 'text-white');
             btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
         });
-        document.querySelectorAll('.uncoll-branch-btn, .uncoll-manager-btn, .uncoll-estimator-btn').forEach(btn => {
-            btn.classList.remove('bg-orange-500', 'border-orange-500', 'text-white');
-            btn.classList.add('bg-white', 'border-slate-300', 'text-slate-600');
-        });
-        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-enddate-start','browse-enddate-end','browse-customer-filter','browse-margin-value','uncoll-keyword-input'];
+        const ids = ['browse-keyword-input','browse-date-start','browse-date-end','browse-enddate-start','browse-enddate-end','browse-customer-filter','browse-margin-value'];
         ids.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
         const marginOpEl = document.getElementById('browse-margin-op'); if (marginOpEl) marginOpEl.value = 'lte';
         window.filterCustomerButtons();
@@ -10805,12 +10699,17 @@ window.exportCostCheck = async function() {
         const allSales  = doVoucherOver || doStale ? await db.sales.toArray()     : [];
         const allPurch  = doVoucherOver || doStale ? await db.purchases.toArray() : [];
         // 工番マスターに加えて、サブコード（親の拠点・得意先・完了日をフォールバックとして持たせる）も
-        // 直接引けるようにしておく（原価・売上・仕入明細の工番がサブコードそのものであるケースに対応）
+        // 直接引けるようにしておく（原価・売上・仕入明細の工番がサブコードそのものであるケースに対応）。
+        // 原価データ（db.costs）の工番は取込時に小文字化されているが、現場マスターの工番は取込元の
+        // 表記のまま（大文字/小文字が混在しうる）保持されているため、ここでは小文字キーに統一して
+        // マッチングの取りこぼしを防ぐ（大文字コードが混じっていると①③で該当現場を見つけられず、
+        // 検出漏れになってしまうため）。
         const masterMap = new Map();
+        const mmKey = (v) => String(v || '').trim().toLowerCase();
         masters.forEach(m => {
-            masterMap.set(m.code, m);
+            masterMap.set(mmKey(m.code), m);
             (m.subCodes || []).forEach(s => {
-                masterMap.set(s.subCode, {
+                masterMap.set(mmKey(s.subCode), {
                     ...s, code: m.code,
                     branch: s.branch || m.branch, customer: s.customer || m.customer,
                     owner: s.owner || m.owner, manager: s.manager || m.manager,
@@ -10853,7 +10752,7 @@ window.exportCostCheck = async function() {
 
             let alertCount = 0;
             costs.forEach(c => {
-                const m = masterMap.get(c.code) || {};
+                const m = masterMap.get(mmKey(c.code)) || {};
                 if (!matchesCheckScope(m, scope, true)) return;
                 const rawEndDate = m.endDate;
                 const isCompleted = toTs(rawEndDate) !== null;
@@ -10904,7 +10803,7 @@ window.exportCostCheck = async function() {
             const DAY_MS = 24 * 60 * 60 * 1000;
             const checkRows = (rows, kind, amountKey, partnerKey) => {
                 rows.forEach(r => {
-                    const m = masterMap.get(r.siteCode);
+                    const m = masterMap.get(mmKey(r.siteCode));
                     if (!m || !matchesCheckScope(m, scope, true)) return;
                     const endTs = toTs(m.endDate);
                     if (endTs === null) return; // 完了日未入力の現場は対象外（③でカバー）
@@ -10945,23 +10844,26 @@ window.exportCostCheck = async function() {
             ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
 
             // 現場ごとの最終計上日（売上明細・仕入明細のうち、より新しい方）を収集
-            const lastDateMap = new Map(); // code -> 'YYYYMMDD'
+            // ※ sales/purchases の工番と現場マスターの工番とで大文字小文字の表記ゆれがあっても
+            //   正しく突き合わせられるよう、キーは小文字化して保持する（mmKeyで統一）
+            const lastDateMap = new Map(); // mmKey(code) -> 'YYYYMMDD'
             const updateLast = (code, dateStr) => {
                 if (!dateStr || String(dateStr).length !== 8) return;
-                const cur = lastDateMap.get(code);
-                if (!cur || dateStr > cur) lastDateMap.set(code, dateStr);
+                const key = mmKey(code);
+                const cur = lastDateMap.get(key);
+                if (!cur || dateStr > cur) lastDateMap.set(key, dateStr);
             };
             allSales.forEach(s => updateLast(s.siteCode, s.date));
             allPurch.forEach(p => updateLast(p.siteCode, p.date));
 
             const now = new Date();
             let staleCount = 0;
-            const costMap = new Map(); costs.forEach(c => costMap.set(c.code, c));
+            const costMap = new Map(); costs.forEach(c => costMap.set(mmKey(c.code), c));
 
             masters.forEach(m => {
                 if (toTs(m.endDate) !== null) return; // 完了日が入力済みなら対象外
                 if (!matchesCheckScope(m, scope, false)) return; // 完了日期間の判定は対象外（完了日が無い前提のチェックのため）
-                const lastDateStr = lastDateMap.get(m.code);
+                const lastDateStr = lastDateMap.get(mmKey(m.code));
                 if (!lastDateStr) return; // 計上実績が無ければ対象外（未着手の可能性が高い）
                 const lastTs = toTs(lastDateStr);
                 if (lastTs === null) return;
@@ -10970,7 +10872,7 @@ window.exportCostCheck = async function() {
                 if (elapsedMonths < staleMonths) return;
                 staleCount++;
                 flaggedCodes.add(m.code);
-                const c = costMap.get(m.code) || {};
+                const c = costMap.get(mmKey(m.code)) || {};
                 const row = ws.addRow({
                     code: m.code, name: m.name || '-', branch: m.branch || '-', manager: m.manager || '-',
                     lastDate: fmtDateDisp(lastDateStr), elapsedMonths, endDate: '（未入力）',
