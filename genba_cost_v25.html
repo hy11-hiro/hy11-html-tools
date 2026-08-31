@@ -15,6 +15,9 @@
     <!-- ExcelJS & FileSaver -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- PDF出力用（現場照会・分析） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
@@ -562,6 +565,7 @@
                         <div class="md:col-span-8 glass-panel p-6 rounded-xl border-l-4 border-blue-600 relative">
                             <div class="absolute top-4 right-4 flex gap-2">
                                 <button onclick="window.exportSiteReport()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow flex items-center gap-2"><i class="fa-solid fa-file-excel"></i> Excel出力</button>
+                                <button onclick="window.exportSiteReportPdf()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2 px-4 rounded shadow flex items-center gap-2"><i class="fa-solid fa-file-pdf"></i> PDF出力</button>
                                 <button onclick="window.clearSiteSearch()" class="bg-slate-500 hover:bg-slate-600 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2"><i class="fa-solid fa-xmark"></i> 閉じる</button>
                             </div>
                             <div class="flex justify-between items-start mb-2">
@@ -661,13 +665,36 @@
                         <div id="res-collection-body" class="space-y-2 text-sm"></div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="res-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4 border-l-4 border-indigo-500 pl-2">月次 売上/原価 推移 (税抜)</h4><div class="h-64"><canvas id="chart-trend"></canvas></div></div>
                         <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4 border-l-4 border-teal-500 pl-2">業者別 原価構成（全業者）</h4><div class="h-64 flex justify-center"><canvas id="chart-composition"></canvas></div></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">売上明細</h4><span class="text-[10px] text-slate-400">※税抜・税込を表示</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-sales">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3 whitespace-nowrap">伝票No</th><th class="px-3 py-3 whitespace-nowrap">工番（メイン）</th><th class="px-3 py-3 whitespace-nowrap">サブコード</th><th class="px-3 py-3">得意先</th><th class="px-3 py-3">商品名</th><th class="px-3 py-3 text-right">金額(税抜)</th><th class="px-3 py-3 text-right text-slate-400">金額(税込)</th></tr></thead><tbody id="table-sales-body" class="divide-y divide-slate-100"></tbody></table></div></div>
-                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">仕入明細 (原価)</h4><span class="text-[10px] text-slate-400">※データ値を表示(税抜+税)</span></div><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-purchase">0件</span></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3 whitespace-nowrap">伝票No</th><th class="px-3 py-3 whitespace-nowrap">明細区分名</th><th class="px-3 py-3 whitespace-nowrap">行</th><th class="px-3 py-3">業者名</th><th class="px-3 py-3">項目(材料/外注/残土)</th><th class="px-3 py-3">商品名</th><th class="px-3 py-3 text-right">金額(税抜+税)</th></tr></thead><tbody id="table-purchase-body" class="divide-y divide-slate-100"></tbody></table></div></div>
+                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">売上明細</h4><span class="text-[10px] text-slate-400">※税抜・税込を表示</span></div><div class="flex items-center gap-2"><button onclick="window.showFullDetailModal('sales')" class="text-xs bg-white border border-slate-300 hover:bg-slate-100 px-2 py-0.5 rounded text-slate-500 font-bold flex items-center gap-1" title="全件を小窓で表示"><i class="fa-solid fa-expand"></i>全件表示</button><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-sales">0件</span></div></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3 whitespace-nowrap">伝票No</th><th class="px-3 py-3 whitespace-nowrap">明細区分名</th><th class="px-3 py-3 whitespace-nowrap">工番（メイン）</th><th class="px-3 py-3 whitespace-nowrap">サブコード</th><th class="px-3 py-3">得意先</th><th class="px-3 py-3">商品名</th><th class="px-3 py-3 text-right">金額(税抜)</th><th class="px-3 py-3 text-right text-slate-400">金額(税込)</th></tr></thead><tbody id="table-sales-body" class="divide-y divide-slate-100"></tbody></table></div></div>
+                        <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-slate-50 px-6 py-3 border-b border-slate-200 flex justify-between items-center"><div><h4 class="font-bold text-slate-600">仕入明細 (原価)</h4><span class="text-[10px] text-slate-400">※データ値を表示(税抜+税)</span></div><div class="flex items-center gap-2"><button onclick="window.showFullDetailModal('purchase')" class="text-xs bg-white border border-slate-300 hover:bg-slate-100 px-2 py-0.5 rounded text-slate-500 font-bold flex items-center gap-1" title="全件を小窓で表示"><i class="fa-solid fa-expand"></i>全件表示</button><span class="text-xs bg-white border border-slate-300 px-2 py-0.5 rounded text-slate-500" id="count-purchase">0件</span></div></div><div class="overflow-y-auto max-h-80"><table class="w-full text-sm text-left"><thead class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"><tr><th class="px-3 py-3">日付</th><th class="px-3 py-3 whitespace-nowrap">伝票No</th><th class="px-3 py-3 whitespace-nowrap">明細区分名</th><th class="px-3 py-3 whitespace-nowrap">行</th><th class="px-3 py-3">業者名</th><th class="px-3 py-3">項目(材料/外注/残土)</th><th class="px-3 py-3">商品名</th><th class="px-3 py-3 text-right">金額(税抜+税)</th></tr></thead><tbody id="table-purchase-body" class="divide-y divide-slate-100"></tbody></table></div></div>
+                    </div>
+                </div>
+
+                <!-- 売上明細・仕入明細：全件表示モーダル -->
+                <div id="detail-full-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4">
+                    <div class="absolute inset-0 bg-slate-900/50" onclick="window.closeFullDetailModal()"></div>
+                    <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[85vh] flex flex-col overflow-hidden">
+                        <div class="px-5 py-3 border-b border-slate-200 flex items-center gap-3 bg-slate-50">
+                            <i class="fa-solid fa-table-list text-blue-500"></i>
+                            <div class="flex-1 min-w-0">
+                                <div id="detail-full-title" class="font-bold text-slate-700 truncate"></div>
+                                <div id="detail-full-subtitle" class="text-xs text-slate-400"></div>
+                            </div>
+                            <button onclick="window.closeFullDetailModal()" class="text-slate-400 hover:text-slate-600 px-2 py-1">
+                                <i class="fa-solid fa-xmark text-lg"></i>
+                            </button>
+                        </div>
+                        <div class="overflow-y-auto px-5 py-4 text-sm">
+                            <table class="w-full text-sm text-left">
+                                <thead id="detail-full-thead" class="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0"></thead>
+                                <tbody id="detail-full-body" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2507,6 +2534,8 @@
                                 <tbody>
                                     <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">A</td><td class="border border-slate-200 px-3 py-1.5">発生日 <code class="bg-slate-100 px-1 rounded">date</code></td><td class="border border-slate-200 px-3 py-1.5">月次推移の集計軸</td></tr>
                                     <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">C</td><td class="border border-slate-200 px-3 py-1.5">伝票No <code class="bg-slate-100 px-1 rounded">voucherNo</code></td><td class="border border-slate-200 px-3 py-1.5">現場照会・分析の明細表示用</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">F</td><td class="border border-slate-200 px-3 py-1.5">明細区分名 <code class="bg-slate-100 px-1 rounded">category</code></td><td class="border border-slate-200 px-3 py-1.5">仕入明細と同じ列位置。参考取得のみ（集計には未使用）</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">G</td><td class="border border-slate-200 px-3 py-1.5">行 <code class="bg-slate-100 px-1 rounded">lineNo</code></td><td class="border border-slate-200 px-3 py-1.5">仕入明細と同じ列位置。参考取得のみ（集計には未使用）</td></tr>
                                     <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">I</td><td class="border border-slate-200 px-3 py-1.5">得意先 <code class="bg-slate-100 px-1 rounded">customer</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
                                     <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">DG</td><td class="border border-slate-200 px-3 py-1.5">売上金額（税込） <code class="bg-slate-100 px-1 rounded">amountInc</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
                                     <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">DJ</td><td class="border border-slate-200 px-3 py-1.5">売上金額（税抜） <code class="bg-slate-100 px-1 rounded">amountExc</code></td><td class="border border-slate-200 px-3 py-1.5 text-blue-600 font-bold">集計・ランキングの売上基準</td></tr>
@@ -2838,6 +2867,19 @@
     };
     
     function excelColToIndex(col) { let n=0; for(let i=0;i<col.length;i++){n=n*26+(col.toUpperCase().charCodeAt(i)-64);} return n-1; }
+    // 明細区分名・行番号のセル値を正規化する。
+    // ・セル内に改行が入っている（2行で入力されている）場合は最初の行だけを採用
+    // ・全角英数字・全角スペースは半角に変換
+    // ・前後の空白と、内部の連続する空白（表記ゆれで増えがち）は1つに正規化
+    // これにより「明細区分を微妙に書き換えている人がいる」「行番号を2行で打っている人がいる」
+    // といった表記ゆれがあっても、同じ値として扱えるようにする。
+    function normalizeDetailField(v) {
+        if (v === null || v === undefined) return '';
+        let s = String(v).split(/\r\n|\r|\n/)[0];
+        s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+        s = s.replace(/　/g, ' ').trim().replace(/\s+/g, ' ');
+        return s;
+    }
 
     async function parseTextUTF16LE_ByIndex(file) {
         return new Promise((resolve) => {
@@ -3020,7 +3062,7 @@
                         // CF（商品コード）に数字がある行のみ、CG（商品名）を採用する
                         const prodCode = r[idxProductCode] ? String(r[idxProductCode]).trim() : '';
                         const productName = /\d/.test(prodCode) ? (r[idxProductName] ? String(r[idxProductName]).trim() : '') : '';
-                        purchaseData.push({ siteCode: String(r[idxSite]).trim(), date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', category: r[idxCategory] ? String(r[idxCategory]).trim() : '', lineNo: r[idxLineNo] ? String(r[idxLineNo]).trim() : '', vendor: r[idxVendor], item: itemName, productName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) });
+                        purchaseData.push({ siteCode: String(r[idxSite]).trim(), date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', category: normalizeDetailField(r[idxCategory]), lineNo: normalizeDetailField(r[idxLineNo]), vendor: r[idxVendor], item: itemName, productName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) });
                     }
                     raw = null; // 中間配列を即時解放
                     await new Promise(r => setTimeout(r, 50)); // GCに処理の隙間を与える
@@ -3030,6 +3072,8 @@
             if (pendingFiles.sales.length > 0) {
                 const idxDate = excelColToIndex('A');
                 const idxVoucher = excelColToIndex('C');
+                const idxCategory = excelColToIndex('F');
+                const idxLineNo = excelColToIndex('G');
                 const idxCustomer = excelColToIndex('I');
                 const idxAmountInc = excelColToIndex('DG');
                 const idxAmountExc = excelColToIndex('DJ');
@@ -3048,7 +3092,7 @@
                         // CH（商品コード）に数字がある行のみ、CI（商品名）を採用する
                         const prodCode = r[idxProductCode] ? String(r[idxProductCode]).trim() : '';
                         const productName = /\d/.test(prodCode) ? (r[idxProductName] ? String(r[idxProductName]).trim() : '') : '';
-                        salesData.push({ siteCode: String(r[idxSite]).trim(), subCode: sub, date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', customer: r[idxCustomer], productName, amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) });
+                        salesData.push({ siteCode: String(r[idxSite]).trim(), subCode: sub, date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', category: normalizeDetailField(r[idxCategory]), lineNo: normalizeDetailField(r[idxLineNo]), customer: r[idxCustomer], productName, amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) });
                     }
                     raw = null; // 中間配列を即時解放
                     await new Promise(r => setTimeout(r, 50)); // GCに処理の隙間を与える
@@ -3233,6 +3277,219 @@
             tbody.appendChild(tr); 
         }); 
     }
+
+    // 売上明細・仕入明細：小窓（モーダル）に全件を表示する
+    // （通常のパネルはmax-h-80で高さ制限しているため、行数が多いとバーで広げないと全体が見えない対策）
+    window.showFullDetailModal = function(kind) {
+        if (!currentSiteData) return;
+        const modal = document.getElementById('detail-full-modal');
+        const titleEl = document.getElementById('detail-full-title');
+        const subEl = document.getElementById('detail-full-subtitle');
+        const thead = document.getElementById('detail-full-thead');
+        if (!modal || !thead) return;
+
+        let data, cols, headers;
+        if (kind === 'sales') {
+            data = currentSiteData.salesDetails || [];
+            cols = ['date', 'voucherNo', 'category', 'siteCode', 'subCode', 'customer', 'productName', 'amountExc', 'amountInc'];
+            headers = ['日付', '伝票No', '明細区分名', '工番（メイン）', 'サブコード', '得意先', '商品名', '金額(税抜)', '金額(税込)'];
+            titleEl.textContent = `${currentSiteData.name || currentSiteData.code}　売上明細`;
+        } else {
+            data = currentSiteData.purchaseDetails || [];
+            cols = ['date', 'voucherNo', 'category', 'lineNo', 'vendor', 'item', 'productName', 'amount'];
+            headers = ['日付', '伝票No', '明細区分名', '行', '業者名', '項目(材料/外注/残土)', '商品名', '金額(税抜+税)'];
+            titleEl.textContent = `${currentSiteData.name || currentSiteData.code}　仕入明細 (原価)`;
+        }
+        subEl.textContent = `${data.length}件`;
+        thead.innerHTML = `<tr>${headers.map((h, i) => `<th class="px-3 py-3${cols[i].includes('amount') ? ' text-right' : ' whitespace-nowrap'}">${h}</th>`).join('')}</tr>`;
+        window.renderTable('detail-full-body', data, cols);
+        modal.classList.remove('hidden');
+    };
+    window.closeFullDetailModal = function() {
+        const modal = document.getElementById('detail-full-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    // ── 現場照会・分析：PDF出力 ──
+    // html2canvas でレポートをレンダリングし、jsPDFでA4横向きのPDFファイルとして直接保存する
+    // （ブラウザの印刷ダイアログは使わない。日本語フォントの埋め込み問題を避けるため、
+    //   実際にブラウザが描画したHTMLをそのまま画像化してPDFページに敷き詰める方式）
+    function _buildPdfReportHtml(data, chartsImg) {
+        const fmtDateDisp = (v) => {
+            const s = String(v || '').trim();
+            if (s.length === 8 && s !== '00000000') return `${s.slice(0,4)}/${s.slice(4,6)}/${s.slice(6,8)}`;
+            return '-';
+        };
+        const infoRow = (label, value) => `
+            <div style="flex:1; min-width:150px; padding:6px 10px; border-bottom:1px solid #e2e8f0;">
+                <div style="font-size:10px; color:#94a3b8; font-weight:bold;">${label}</div>
+                <div style="font-size:13px; color:#1e293b; font-weight:bold; white-space:nowrap;">${value ?? '-'}</div>
+            </div>`;
+        const summaryBox = (label, value, color) => `
+            <div style="flex:1; padding:10px 14px; background:#f8fafc; border-radius:8px; text-align:center;">
+                <div style="font-size:10px; color:#64748b; font-weight:bold; margin-bottom:4px;">${label}</div>
+                <div style="font-size:18px; font-weight:bold; color:${color || '#1e293b'}; white-space:nowrap;">${value}</div>
+            </div>`;
+        const salesRows = (data.salesDetails || []).map(s => `
+            <tr>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${fmtDateDisp(s.date)}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${s.voucherNo || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${s.category || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${s.siteCode || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${s.subCode || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9;">${s.customer || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9;">${s.productName || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${window.formatCurrency(s.amountExc)}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap; color:#94a3b8;">${window.formatCurrency(s.amountInc)}</td>
+            </tr>`).join('');
+        const purchaseRows = (data.purchaseDetails || []).map(p => `
+            <tr>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${fmtDateDisp(p.date)}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${p.voucherNo || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${p.category || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; white-space:nowrap;">${p.lineNo || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9;">${p.vendor || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9;">${p.item || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9;">${p.productName || '-'}</td>
+                <td style="padding:4px 8px; border-bottom:1px solid #f1f5f9; text-align:right; white-space:nowrap;">${window.formatCurrency(p.amount)}</td>
+            </tr>`).join('');
+
+        return `
+        <div style="width:1400px; background:#ffffff; font-family:'Hiragino Sans','Yu Gothic',sans-serif; color:#1e293b; padding:24px;">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; border-bottom:3px solid #1e3a5f; padding-bottom:10px;">
+                <div>
+                    <span style="font-size:11px; background:#dbeafe; color:#1e40af; font-weight:bold; padding:3px 8px; border-radius:4px;">${data.code}</span>
+                    <span style="font-size:20px; font-weight:bold; margin-left:10px;">${data.name}</span>
+                </div>
+                <div style="font-size:11px; color:#94a3b8;">現場詳細レポート　出力日：${new Date().toLocaleDateString('ja-JP')}</div>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; margin-bottom:16px;">
+                ${infoRow('施工主', data.owner)}
+                ${infoRow('得意先', data.customer)}
+                ${infoRow('担当者', data.manager)}
+                ${infoRow('拠点', data.branch)}
+                ${infoRow('着手日', fmtDateDisp(data.start))}
+                ${infoRow('完了日', fmtDateDisp(data.end))}
+                ${infoRow('納期', data.delivery)}
+            </div>
+
+            <div style="display:flex; gap:12px; margin-bottom:20px;">
+                ${summaryBox('売上累計（税抜）', data.sales)}
+                ${summaryBox('原価累計', data.cost)}
+                ${summaryBox('粗利益（税抜）', data.profit, (String(data.profit).includes('-') ? '#dc2626' : '#1e293b'))}
+                ${summaryBox('粗利率', data.margin, '#2563eb')}
+            </div>
+
+            ${chartsImg ? `
+            <div style="margin-bottom:20px;">
+                <img src="${chartsImg}" style="width:100%; display:block;">
+            </div>` : ''}
+
+            <div style="margin-bottom:10px; font-size:14px; font-weight:bold; border-left:4px solid #2563eb; padding-left:8px;">売上明細（${(data.salesDetails||[]).length}件）</div>
+            <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:20px;">
+                <thead>
+                    <tr style="background:#f1f5f9;">
+                        <th style="padding:6px 8px; text-align:left;">日付</th>
+                        <th style="padding:6px 8px; text-align:left;">伝票No</th>
+                        <th style="padding:6px 8px; text-align:left;">明細区分名</th>
+                        <th style="padding:6px 8px; text-align:left;">工番（メイン）</th>
+                        <th style="padding:6px 8px; text-align:left;">サブコード</th>
+                        <th style="padding:6px 8px; text-align:left;">得意先</th>
+                        <th style="padding:6px 8px; text-align:left;">商品名</th>
+                        <th style="padding:6px 8px; text-align:right;">金額(税抜)</th>
+                        <th style="padding:6px 8px; text-align:right;">金額(税込)</th>
+                    </tr>
+                </thead>
+                <tbody>${salesRows || '<tr><td colspan="9" style="padding:10px; text-align:center; color:#94a3b8;">データがありません</td></tr>'}</tbody>
+            </table>
+
+            <div style="margin-bottom:10px; font-size:14px; font-weight:bold; border-left:4px solid #dc2626; padding-left:8px;">仕入明細（原価）（${(data.purchaseDetails||[]).length}件）</div>
+            <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                <thead>
+                    <tr style="background:#f1f5f9;">
+                        <th style="padding:6px 8px; text-align:left;">日付</th>
+                        <th style="padding:6px 8px; text-align:left;">伝票No</th>
+                        <th style="padding:6px 8px; text-align:left;">明細区分名</th>
+                        <th style="padding:6px 8px; text-align:left;">行</th>
+                        <th style="padding:6px 8px; text-align:left;">業者名</th>
+                        <th style="padding:6px 8px; text-align:left;">項目</th>
+                        <th style="padding:6px 8px; text-align:left;">商品名</th>
+                        <th style="padding:6px 8px; text-align:right;">金額(税抜+税)</th>
+                    </tr>
+                </thead>
+                <tbody>${purchaseRows || '<tr><td colspan="8" style="padding:10px; text-align:center; color:#94a3b8;">データがありません</td></tr>'}</tbody>
+            </table>
+        </div>`;
+    }
+
+    window.exportSiteReportPdf = async function() {
+        if (!currentSiteData) { alert('現場を検索してから実行してください。'); return; }
+        if (typeof html2canvas === 'undefined' || !window.jspdf) {
+            alert('PDF出力に必要なライブラリの読み込みに失敗しました。通信環境をご確認のうえ、ページを再読み込みしてから再度お試しください。');
+            return;
+        }
+        const btn = document.querySelector('[onclick="window.exportSiteReportPdf()"]');
+        const origHtml = btn ? btn.innerHTML : '';
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 生成中...'; }
+
+        // レンダリング用の一時コンテナ（画面には表示しない）
+        const container = document.createElement('div');
+        container.style.cssText = 'position:fixed; left:-99999px; top:0; z-index:-1;';
+        document.body.appendChild(container);
+
+        try {
+            // 画面に実際に表示されているグラフ（トレンド＋業者別原価構成＋凡例）をそのままキャプチャして使う。
+            // 以前は _buildChartsForSite で円グラフだけを別途作り直しており、トレンドチャートが
+            // 欠落したり凡例が無かったりして画面表示と見た目が食い違っていたため、この方式に変更した。
+            const chartsGridEl = document.getElementById('res-charts-grid');
+            let chartsImg = null;
+            if (chartsGridEl) {
+                const chartsCanvas = await html2canvas(chartsGridEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+                chartsImg = chartsCanvas.toDataURL('image/png');
+            }
+            container.innerHTML = _buildPdfReportHtml(currentSiteData, chartsImg);
+
+            const canvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            const marginMm = 6;
+            const pageWidthMm = doc.internal.pageSize.getWidth() - marginMm * 2;
+            const pageHeightMm = doc.internal.pageSize.getHeight() - marginMm * 2;
+            const pxPerMm = canvas.width / pageWidthMm;
+            const pageHeightPx = Math.floor(pageHeightMm * pxPerMm);
+
+            let renderedPx = 0;
+            let pageIdx = 0;
+            const sliceCanvas = document.createElement('canvas');
+            const sliceCtx = sliceCanvas.getContext('2d');
+            sliceCanvas.width = canvas.width;
+
+            while (renderedPx < canvas.height) {
+                const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+                sliceCanvas.height = sliceHeightPx;
+                sliceCtx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+                sliceCtx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+                const sliceImg = sliceCanvas.toDataURL('image/png');
+                const sliceHeightMm = sliceHeightPx / pxPerMm;
+
+                if (pageIdx > 0) doc.addPage();
+                doc.addImage(sliceImg, 'PNG', marginMm, marginMm, pageWidthMm, sliceHeightMm);
+
+                renderedPx += sliceHeightPx;
+                pageIdx++;
+            }
+
+            doc.save(`現場詳細_${currentSiteData.code}_${new Date().toISOString().slice(0, 10)}.pdf`);
+        } catch (e) {
+            console.error('PDF出力エラー:', e);
+            alert('PDF出力中にエラーが発生しました。\n' + e.message);
+        } finally {
+            container.remove();
+            if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+        }
+    };
 
     window.renderCharts = function(sales, purchases) { 
         if (chartTrend) chartTrend = window.destroyChart(chartTrend); 
@@ -3495,11 +3752,14 @@
         summaryRows.forEach(({label, value, color, pct, size}, i) => {
             const r = 5 + i;
             ws.getRow(r).height = 24;  // infoRows と統一
+            // K列単体（幅8）だと「売上累計（税抜）」のような長いラベルが入りきらず、
+            // 右側の金額（L列）と文字が重なって見えるバグがあったため、K〜M列を結合してラベル用の幅を確保する
+            ws.mergeCells('K' + r + ':M' + r);
             const lc = ws.getCell('K' + r);
             lc.value = label;
             lc.style = {...lbl, font:{...lbl.font, bold:true}};
-            ws.mergeCells('L' + r + ':R' + r);
-            const vc = ws.getCell('L' + r);
+            ws.mergeCells('N' + r + ':R' + r);
+            const vc = ws.getCell('N' + r);
             vc.value = (pct && value === null) ? data.margin : value;
             vc.style = {
                 font:{bold:true, size, color:{argb:'FF'+color}},
@@ -4290,7 +4550,7 @@
             const salesTotal = cost ? cost.salesTotal : 0; const costTotal = cost ? cost.costTotal : 0; const profitTotal = cost ? cost.profitTotal : 0; const margin = salesTotal !== 0 ? (profitTotal / salesTotal * 100) : 0; 
             document.getElementById('res-sales').textContent = window.formatCurrency(salesTotal); document.getElementById('res-cost').textContent = window.formatCurrency(costTotal); document.getElementById('res-profit').textContent = window.formatCurrency(profitTotal); document.getElementById('res-margin').textContent = margin.toFixed(1) + '%'; document.getElementById('res-margin-bar').style.width = Math.min(Math.max(margin, 0), 100) + '%'; 
             
-            window.renderTable('table-sales-body', sales, ['date', 'voucherNo', 'siteCode', 'subCode', 'customer', 'productName', 'amountExc', 'amountInc']); 
+            window.renderTable('table-sales-body', sales, ['date', 'voucherNo', 'category', 'siteCode', 'subCode', 'customer', 'productName', 'amountExc', 'amountInc']); 
             window.renderTable('table-purchase-body', purchases, ['date', 'voucherNo', 'category', 'lineNo', 'vendor', 'item', 'productName', 'amount']); 
             document.getElementById('count-sales').textContent = sales.length + "件"; 
             // 仕入明細合計を件数バッジに表示
