@@ -9765,6 +9765,10 @@
         if (!isOn) { panel.classList.add('hidden'); return; }
         panel.classList.remove('hidden');
 
+        const dateStart = document.getElementById('browse-date-start')?.value || '';
+        const dateEnd = document.getElementById('browse-date-end')?.value || '';
+        const endDateStart = document.getElementById('browse-enddate-start')?.value || '';
+        const endDateEnd = document.getElementById('browse-enddate-end')?.value || '';
         const details = (window._browseAnomalyDetails || []).filter(d => {
             if (!d.isAnomaly) return false;
             // 未回収タブ専用フィルターを差異詳細テーブルにも適用
@@ -9778,6 +9782,20 @@
             if (uncollKw) {
                 const hay = window.normalizeStr([d.code, d.siteName, m2.owner||'', m2.manager||'', m2.branch||''].join(' '));
                 if (!hay.includes(uncollKw)) return false;
+            }
+            // 着手日フィルター（共通の絞り込みタブと同じ条件をこの差異詳細テーブルにも適用する）
+            if (dateStart || dateEnd) {
+                const dt = window.parseDateStr8(m2.startDate);
+                if (!dt) return false;
+                if (dateStart && dt < new Date(dateStart)) return false;
+                if (dateEnd && dt > new Date(dateEnd)) return false;
+            }
+            // 完工日フィルター
+            if (endDateStart || endDateEnd) {
+                const edt = window.parseDateStr8(m2.endDate);
+                if (!edt) return false;
+                if (endDateStart && edt < new Date(endDateStart)) return false;
+                if (endDateEnd && edt > new Date(endDateEnd)) return false;
             }
             return true;
         });
@@ -9832,6 +9850,10 @@
         (window._browseRawData?.masters || []).forEach(m => masterMap.set(String(m.code||'').trim().toLowerCase(), m));
         const chkUncollOnly = document.getElementById('browse-chk-uncollected-only')?.checked;
         const uncollKw = window.normalizeStr((document.getElementById('browse-keyword-input') || {}).value || '');
+        const dateStart = document.getElementById('browse-date-start')?.value || '';
+        const dateEnd = document.getElementById('browse-date-end')?.value || '';
+        const endDateStart = document.getElementById('browse-enddate-start')?.value || '';
+        const endDateEnd = document.getElementById('browse-enddate-end')?.value || '';
 
         const rows = [];
         collectionArrayMap.forEach((recs) => {
@@ -9845,6 +9867,20 @@
                 if (uncollKw) {
                     const hay = window.normalizeStr([r.code, r.siteName, m.name||'', m.owner||'', m.manager||'', m.branch||''].join(' '));
                     if (!hay.includes(uncollKw)) return;
+                }
+                // 着手日フィルター（共通の絞り込みタブと同じ条件をこの一覧にも適用する）
+                if (dateStart || dateEnd) {
+                    const dt = window.parseDateStr8(m.startDate);
+                    if (!dt) return;
+                    if (dateStart && dt < new Date(dateStart)) return;
+                    if (dateEnd && dt > new Date(dateEnd)) return;
+                }
+                // 完工日フィルター
+                if (endDateStart || endDateEnd) {
+                    const edt = window.parseDateStr8(m.endDate);
+                    if (!edt) return;
+                    if (endDateStart && edt < new Date(endDateStart)) return;
+                    if (endDateEnd && edt > new Date(endDateEnd)) return;
                 }
                 rows.push({
                     code: r.code, subCode: r.subCode || '',
@@ -10351,6 +10387,13 @@
                 pagination.classList.add('hidden');
             }
         }
+
+        // 未回収タブの「回収差異あり」「枝番別明細を表示」テーブルは browseFiltered とは別データから
+        // 独自に絞り込みを行っているため、拠点・担当者・積算・得意先・キーワード・着手日・完工日の
+        // いずれかが変わるたびに、ここで明示的に再描画して絞り込み条件のズレを防ぐ
+        // （表示中でない場合は各関数内で早期returnするので、常に呼んでも無駄な負荷にはならない）
+        if (window.renderCollAnomalyTable) window.renderCollAnomalyTable();
+        if (window.renderUncollBranchDetail) window.renderUncollBranchDetail();
     }
 
     window.browsePage = function(p) {
@@ -11043,6 +11086,10 @@
             // 枝番・マイナス差異を含むすべての差異レコードを対象にする
             const _mmap = new Map();
             (window._browseRawData?.masters || []).forEach(m => _mmap.set(String(m.code||'').trim(), m));
+            const dateStart = document.getElementById('browse-date-start')?.value || '';
+            const dateEnd = document.getElementById('browse-date-end')?.value || '';
+            const endDateStart = document.getElementById('browse-enddate-start')?.value || '';
+            const endDateEnd = document.getElementById('browse-enddate-end')?.value || '';
 
             const details = (window._browseAnomalyDetails || []).filter(d => {
                 if (!d.isAnomaly) return false;
@@ -11054,6 +11101,19 @@
                 if (uncollSelectedBranches.size  > 0 && !uncollSelectedBranches.has(br))  return false;
                 if (uncollSelectedManagers.size  > 0 && !uncollSelectedManagers.has(mgr)) return false;
                 if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(est)) return false;
+                // 着手日・完工日フィルター（共通の絞り込みタブと同じ条件をこの出力にも適用する）
+                if (dateStart || dateEnd) {
+                    const dt = window.parseDateStr8(m.startDate);
+                    if (!dt) return false;
+                    if (dateStart && dt < new Date(dateStart)) return false;
+                    if (dateEnd && dt > new Date(dateEnd)) return false;
+                }
+                if (endDateStart || endDateEnd) {
+                    const edt = window.parseDateStr8(m.endDate);
+                    if (!edt) return false;
+                    if (endDateStart && edt < new Date(endDateStart)) return false;
+                    if (endDateEnd && edt > new Date(endDateEnd)) return false;
+                }
                 // ★ 差異あり出力では未回収残高フィルターを適用しない
                 // （マイナス差異＝過払いも出力対象）
                 return true;
