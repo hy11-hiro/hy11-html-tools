@@ -3,10 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Photo Renamer Pro - v11</title>
+<title>Photo Renamer Pro - v12</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg-app: #f8fafc;       /* アプリ背景 */
@@ -18,7 +19,7 @@
     --accent-hover: #2563eb;
     --radius: 12px;          /* 丸みを少し抑えてシャープに */
     --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    
+
     /* パステルカラー定義 */
     --c-prep: #f59e0b;   /* 準備: オレンジ */
     --c-base: #64748b;   /* 基礎: グレーブルー */
@@ -28,10 +29,10 @@
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
-  
+
   body {
     height: 100vh;
-    font-family: 'Noto Sans JP', 'Inter', sans-serif; /* 標準的なゴシック体に変更 */
+    font-family: 'Noto Sans JP', 'Inter', sans-serif;
     background: var(--bg-app);
     color: var(--text-main);
     display: flex;
@@ -51,13 +52,15 @@
     justify-content: space-between;
     flex-shrink: 0;
     z-index: 20;
+    gap: 12px;
   }
-  .brand { 
+  .brand {
     font-family: 'Inter', sans-serif;
     font-weight: 800; font-size: 20px;
-    display: flex; align-items: center; gap: 10px; 
-    color: var(--text-main); 
+    display: flex; align-items: center; gap: 10px;
+    color: var(--text-main);
     letter-spacing: -0.02em;
+    min-width: 0;
   }
   .brand-icon {
     width: 36px; height: 36px;
@@ -67,14 +70,22 @@
     display: flex; align-items: center; justify-content: center;
     font-weight: 800; font-size: 16px;
     box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+    flex-shrink: 0;
   }
-  
-  .header-tools { display: flex; gap: 12px; }
+  .mode-badge {
+    font-size: 12px; font-weight: 700; color: var(--accent);
+    background: #eff6ff; border: 1px solid #bfdbfe;
+    padding: 5px 12px; border-radius: 20px; margin-left: 4px;
+    white-space: nowrap; display: none;
+  }
+  .mode-badge.compress { color: #b45309; background: #fffbeb; border-color: #fde68a; }
+
+  .header-tools { display: flex; gap: 12px; flex-shrink: 0; }
 
   .btn {
     padding: 0 24px;
     height: 40px;
-    border-radius: 8px; /* 少し角ばらせる */
+    border-radius: 8px;
     border: 1px solid var(--border);
     background: white;
     cursor: pointer;
@@ -87,10 +98,11 @@
     gap: 8px;
     color: var(--text-main);
     box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    white-space: nowrap;
   }
   .btn:hover { background: #f8fafc; border-color: #cbd5e1; transform: translateY(-1px); }
   .btn:active { transform: translateY(0); }
-  
+
   .btn.primary {
     background: var(--accent);
     color: white;
@@ -100,7 +112,23 @@
   .btn.primary:hover { background: var(--accent-hover); box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3); }
   .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; background: #cbd5e1; border-color: #cbd5e1; box-shadow: none; }
 
-  /* --- メインエリア --- */
+  /* --- 一覧エリア --- */
+  #view-grid-wrap {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .grid-toolbar {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: white;
+    font-size: 13px; font-weight: 700; color: var(--text-sub);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .grid-toolbar .hint { font-weight: 400; color: #94a3b8; font-size: 12px; }
+
   #view-grid {
     flex: 1;
     overflow-y: auto;
@@ -110,7 +138,7 @@
     gap: 20px;
     align-content: start;
   }
-  
+
   .card {
     background: var(--bg-panel);
     border: 1px solid var(--border);
@@ -132,6 +160,13 @@
     background: #10b981; color: white;
     font-size: 11px; padding: 4px 8px; border-radius: 4px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 2;
+  }
+  .card-index {
+    position: absolute; top: 8px; left: 8px;
+    background: rgba(15,23,42,0.6); color: white;
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+    font-family: 'Inter', sans-serif; z-index: 2; letter-spacing: 0.02em;
   }
   .card-thumb { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #f1f5f9; }
   .card-body { padding: 12px; }
@@ -142,6 +177,12 @@
     transition: all 0.2s;
   }
   .card-name:focus { border-color: var(--accent); background: white; }
+  .card-name-static {
+    width: 100%; font-size: 13px; font-weight: 500;
+    border: 1px solid #e2e8f0; background: #f8fafc;
+    padding: 8px; border-radius: 6px; color: var(--text-sub);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
 
   /* --- 集中モード --- */
   #view-focus {
@@ -198,7 +239,7 @@
   .page-info { font-size: 13px; font-weight: 700; color: var(--text-sub); font-family: 'Inter', sans-serif; letter-spacing: 0.5px; }
   .back-link { font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; display: flex; align-items: center; gap: 4px; }
   .back-link:hover { text-decoration: underline; }
-  
+
   .input-wrapper { position: relative; width: 100%; margin-top: 12px; }
   #focusInput {
     width: 100%; font-size: 16px; padding: 12px 40px 12px 12px;
@@ -206,7 +247,7 @@
     transition: all 0.2s; background: white; font-weight: 500; color: var(--text-main);
   }
   #focusInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
-  
+
   .clear-btn {
     position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
     background: transparent; border: none; color: #cbd5e1; cursor: pointer;
@@ -220,7 +261,7 @@
     display: flex; align-items: center; gap: 10px; margin-top: 16px;
     font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; user-select: none;
   }
-  .toggle-switch { width: 40px; height: 22px; background: #e2e8f0; border-radius: 20px; position: relative; transition: 0.2s; }
+  .toggle-switch { width: 40px; height: 22px; background: #e2e8f0; border-radius: 20px; position: relative; transition: 0.2s; flex-shrink: 0; }
   .toggle-switch::after {
       content: ''; position: absolute; top: 2px; left: 2px;
       width: 18px; height: 18px; background: white; border-radius: 50%;
@@ -229,7 +270,18 @@
   input:checked + .toggle-switch { background: var(--accent); }
   input:checked + .toggle-switch::after { transform: translateX(18px); }
 
+  /* 圧縮のみモード時のサイドバー調整 */
+  .mode-compress .clear-btn,
+  .mode-compress .option-toggle { display: none; }
+  .mode-compress #focusInput { background: #f1f5f9; color: var(--text-sub); cursor: default; }
+
   .sidebar-content { flex: 1; overflow-y: auto; padding: 20px; }
+
+  .compress-note {
+    background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+    font-size: 12.5px; line-height: 1.7; padding: 16px; border-radius: 10px;
+    display: none;
+  }
 
   /* タグUI */
   .category-group { margin-bottom: 24px; }
@@ -243,7 +295,7 @@
     content: ''; display: block; width: 8px; height: 8px;
     border-radius: 50%; background: var(--cat-color);
   }
-  
+
   .cat-add-btn {
     width: 24px; height: 24px; border-radius: 4px; background: #f1f5f9;
     display: flex; align-items: center; justify-content: center;
@@ -252,26 +304,26 @@
   .cat-add-btn:hover { background: var(--cat-color); color: white; }
 
   .tag-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-  
+
   .tag-btn {
     position: relative;
     padding: 8px 14px; padding-right: 30px;
     background: white;
     border: 1px solid var(--border);
-    border-bottom-width: 2px; /* 立体感少し抑えめ */
+    border-bottom-width: 2px;
     border-radius: 6px;
     font-size: 13px; font-weight: 500; color: var(--text-main);
     cursor: pointer; transition: all 0.15s; user-select: none;
     border-color: #e2e8f0; border-bottom-color: #cbd5e1;
   }
-  .tag-btn:hover { 
-      border-color: var(--cat-color); 
-      background: #f8fafc; 
-      transform: translateY(-1px); 
+  .tag-btn:hover {
+      border-color: var(--cat-color);
+      background: #f8fafc;
+      transform: translateY(-1px);
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   }
   .tag-btn:active { transform: translateY(1px); border-bottom-width: 1px; box-shadow: none; }
-  
+
   .tag-delete {
     position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
     width: 18px; height: 18px; border-radius: 50%;
@@ -280,35 +332,47 @@
   }
   .tag-delete:hover { color: #ef4444; background: #fee2e2; }
 
-  /* エクスポート設定（アコーディオン） */
-  .settings-area {
-      border-top: 1px solid var(--border);
-      background: #f9fafb;
-      transition: all 0.3s ease;
+  .reset-link {
+      display: inline-block; margin-top: 4px;
+      font-size: 12px; color: var(--text-sub); text-decoration: underline; cursor: pointer;
   }
-  .settings-header {
-      padding: 16px 20px;
-      display: flex; align-items: center; justify-content: space-between;
-      cursor: pointer; user-select: none;
-  }
-  .settings-header:hover { background: #f1f5f9; }
-  .settings-title { font-size: 13px; font-weight: 700; color: var(--text-sub); display:flex; align-items:center; gap:8px; }
-  .settings-icon { font-size: 10px; color: var(--text-sub); transition: transform 0.3s; }
-  
-  /* 開いている時のスタイル */
-  .settings-area.open .settings-icon { transform: rotate(180deg); }
-  .settings-content {
-      display: none; padding: 0 20px 20px 20px;
-      animation: slideDown 0.2s ease-out;
-  }
-  .settings-area.open .settings-content { display: block; }
 
-  @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
+  /* --- 設定モーダル --- */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200; padding: 20px;
   }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: white; border-radius: 16px; max-width: 480px; width: 100%;
+    max-height: 85vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.4);
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 24px; border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: white; z-index: 2;
+  }
+  .modal-head h2 { font-size: 16px; font-weight: 800; }
+  .modal-close {
+    background: none; border: none; font-size: 22px; color: var(--text-sub);
+    cursor: pointer; width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; transition: 0.2s;
+  }
+  .modal-close:hover { background: #fee2e2; color: #ef4444; }
+  .modal-body { padding: 20px 24px 28px; }
+  .modal-section { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .modal-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .modal-section h3 {
+    font-size: 12.5px; font-weight: 800; color: var(--text-main); margin-bottom: 12px;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .modal-hint { font-size: 12.5px; color: var(--text-sub); margin-bottom: 14px; line-height: 1.7; }
+  .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .modal-actions .btn { padding: 0 16px; height: 38px; font-size: 13px; }
 
   .setting-row { margin-bottom: 16px; }
+  .setting-row:last-child { margin-bottom: 0; }
   .setting-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-main); }
   .setting-select {
       width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);
@@ -317,12 +381,7 @@
   .setting-range { width: 100%; accent-color: var(--accent); height: 6px; }
   .range-value { font-size: 13px; color: var(--accent); font-weight: 700; float: right; }
 
-  .reset-link { 
-      display: block; text-align: center; margin-top: 16px;
-      font-size: 12px; color: var(--text-sub); text-decoration: underline; cursor: pointer;
-  }
-
-  /* 初期画面 */
+  /* --- 初期画面 --- */
   #empty-state {
     position: absolute; inset: 0;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -333,52 +392,80 @@
   .empty-content {
       max-width: 800px; width: 100%; margin: 40px auto;
   }
-  .empty-icon { font-size: 64px; margin-bottom: 16px; display: inline-block; }
-  .empty-title { font-size: 28px; font-weight: 800; margin-bottom: 12px; color: var(--text-main); }
-  .empty-desc { font-size: 16px; color: var(--text-sub); margin-bottom: 40px; font-weight: 400; }
-  
-  .steps-container {
-    display: flex; gap: 24px; margin-bottom: 40px; justify-content: center;
+  .empty-icon { font-size: 56px; margin-bottom: 12px; display: inline-block; }
+  .empty-title { font-size: 26px; font-weight: 800; margin-bottom: 8px; color: var(--text-main); }
+  .empty-desc { font-size: 15px; color: var(--text-sub); margin-bottom: 32px; font-weight: 400; }
+
+  /* モード選択 */
+  .mode-select { display: flex; gap: 18px; margin-bottom: 32px; justify-content: center; flex-wrap: wrap; }
+  .mode-btn {
+    flex: 1; min-width: 240px; max-width: 320px; background: white;
+    border: 2px solid var(--border); border-radius: 16px; padding: 22px;
+    cursor: pointer; text-align: left; transition: all 0.2s;
+    display: flex; flex-direction: column; gap: 6px;
   }
-  .step-item {
-    flex: 1; background: white; padding: 24px;
-    border-radius: 16px; border: 1px solid var(--border);
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  .mode-btn:hover { border-color: #93c5fd; transform: translateY(-2px); box-shadow: 0 8px 16px rgba(0,0,0,0.06); }
+  .mode-btn.active { border-color: var(--accent); background: #eff6ff; box-shadow: 0 4px 12px rgba(59,130,246,0.15); }
+  .mode-icon { font-size: 26px; }
+  .mode-title { font-size: 15.5px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px; }
+  .mode-check { font-size: 12px; color: var(--accent); font-weight: 800; display: none; }
+  .mode-btn.active .mode-check { display: inline; }
+  .mode-desc { font-size: 12.5px; color: var(--text-sub); line-height: 1.6; }
+
+  /* ドロップゾーン */
+  .dropzone {
+    max-width: 640px; margin: 0 auto 36px; border: 2px dashed #cbd5e1;
+    border-radius: 16px; padding: 36px; cursor: pointer; transition: all 0.2s; background: white;
   }
-  .step-num {
-    width: 36px; height: 36px; background: var(--accent); color: white;
-    border-radius: 50%; display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 18px;
-  }
-  .step-title { font-size: 16px; font-weight: 700; color: var(--text-main); }
-  .step-desc { font-size: 13px; color: var(--text-sub); line-height: 1.6; }
+  .dropzone:hover { border-color: var(--accent); background: #f8fafc; }
+  .dropzone-icon { font-size: 30px; margin-bottom: 8px; }
+  .dropzone-title { font-size: 15.5px; font-weight: 700; color: var(--text-main); }
+  .dropzone-sub { font-size: 12.5px; color: var(--text-sub); margin-top: 4px; }
 
   .tips-box {
-      background: white; padding: 24px; border-radius: 16px;
+      background: white; padding: 22px; border-radius: 16px;
       border: 1px solid var(--border); text-align: left; max-width: 600px; margin: 0 auto;
   }
   .tips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
   .tips-item { display: flex; gap: 12px; }
-  .tips-icon-box { 
+  .tips-icon-box {
       width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
       font-weight: 800; font-size: 20px; flex-shrink: 0;
+  }
+
+  /* ドラッグ&ドロップ全画面オーバーレイ */
+  .drop-overlay {
+    position: fixed; inset: 0; z-index: 999;
+    background: rgba(59,130,246,0.12); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.15s;
+  }
+  body.dragging .drop-overlay { opacity: 1; }
+  .drop-overlay-inner {
+    background: white; border: 3px dashed var(--accent); border-radius: 20px;
+    padding: 36px 56px; font-size: 19px; font-weight: 800; color: var(--accent);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
   }
 
   @media (max-width: 768px) {
     #view-focus { flex-direction: column; }
     .focus-stage { height: 40%; padding: 16px; }
     .focus-sidebar { width: 100%; height: 60%; border-left: none; }
-    .steps-container { flex-direction: column; gap: 16px; }
+    .mode-select { flex-direction: column; align-items: stretch; }
+    .mode-btn { max-width: none; }
+    .mode-badge { display: none !important; }
   }
 </style>
 </head>
 <body>
 
+<div id="dropOverlay" class="drop-overlay"><div class="drop-overlay-inner">📥 ここに写真をドロップして取り込み</div></div>
+
 <header>
   <div class="brand">
     <div class="brand-icon">PR</div>
     <span>Photo Renamer</span>
+    <span id="modeBadge" class="mode-badge">🏷️ 名前を付けて整理</span>
   </div>
   <div class="header-tools">
     <label class="btn primary">
@@ -386,6 +473,10 @@
       写真を追加
       <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
     </label>
+    <button class="btn" id="settingsBtn" title="設定">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24" style="margin-right:6px"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09A1.65 1.65 0 0015 4.6a1.65 1.65 0 001.82.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
+      設定
+    </button>
     <button class="btn" id="dlBtn" disabled>
       <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-right:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
       保存する
@@ -397,28 +488,29 @@
   <div class="empty-content">
     <div class="empty-icon">📷</div>
     <h1 class="empty-title">写真の名前付けツール</h1>
-    <p class="empty-desc">現場の写真を、ボタンを押すだけでサクサク名前付け。</p>
+    <p class="empty-desc">現場の写真を、ボタンを押すだけでサクサク名前付け・圧縮。</p>
 
-    <div class="steps-container">
-      <div class="step-item">
-        <div class="step-num">1</div>
-        <div class="step-title">写真を選ぶ</div>
-        <p class="step-desc">右上の<strong>「＋ 写真を追加」</strong>から<br>整理したい写真を選びます。</p>
-      </div>
-      <div class="step-item">
-        <div class="step-num">2</div>
-        <div class="step-title">タグで命名</div>
-        <p class="step-desc">写真をクリックして拡大。<br>右側のタグを押すと名前が入ります。</p>
-      </div>
-      <div class="step-item">
-        <div class="step-num">3</div>
-        <div class="step-title">保存する</div>
-        <p class="step-desc">終わったら<strong>「保存する」</strong>ボタン。<br>サイズ調整も自動でやってくれます。</p>
-      </div>
+    <div class="mode-select" id="modeSelect">
+      <button type="button" class="mode-btn active" data-mode="rename">
+        <div class="mode-icon">🏷️</div>
+        <div class="mode-title">名前を付けて整理 <span class="mode-check">✓ 選択中</span></div>
+        <div class="mode-desc">タグをタップして写真に名前を付けながら、サイズ調整して保存します。</div>
+      </button>
+      <button type="button" class="mode-btn" data-mode="compress">
+        <div class="mode-icon">📦</div>
+        <div class="mode-title">圧縮・リサイズのみ <span class="mode-check">✓ 選択中</span></div>
+        <div class="mode-desc">名前は変更せず、サイズや画質だけ調整してまとめて保存します。</div>
+      </button>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon">⬆️</div>
+      <div class="dropzone-title">ここに写真をドラッグ＆ドロップ</div>
+      <div class="dropzone-sub">またはクリックして選択（複数選択OK）</div>
     </div>
 
     <div class="tips-box">
-        <h3 style="font-size:14px; font-weight:700; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">💡 便利なタグの使い方</h3>
+        <h3 style="font-size:14px; font-weight:700; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">💡 便利なタグの使い方（名前を付けて整理モード）</h3>
         <div class="tips-grid">
             <div class="tips-item">
                 <div class="tips-icon-box" style="background:#eff6ff; color:#3b82f6;">＋</div>
@@ -431,7 +523,7 @@
                 <div class="tips-icon-box" style="background:#fee2e2; color:#ef4444;">×</div>
                 <div>
                     <strong style="font-size:14px;">タグを消す</strong>
-                    <p style="font-size:12px; color:var(--text-sub); margin-top:2px;">いらないタグは「×」で削除。<br>失敗してもリセットできます。</p>
+                    <p style="font-size:12px; color:var(--text-sub); margin-top:2px;">いらないタグは「×」で削除。<br>設定画面からいつでも初期化できます。</p>
                 </div>
             </div>
         </div>
@@ -439,7 +531,13 @@
   </div>
 </div>
 
-<div id="view-grid" style="display:none;"></div>
+<div id="view-grid-wrap">
+  <div class="grid-toolbar">
+    <span id="gridCount">写真一覧（0枚）</span>
+    <span class="hint">クリックすると拡大して編集できます</span>
+  </div>
+  <div id="view-grid"></div>
+</div>
 
 <div id="view-focus">
   <div class="focus-stage">
@@ -447,9 +545,9 @@
     <img id="focusImage" src="" alt="">
     <button class="nav-btn nav-next" id="nextBtn">❯</button>
   </div>
-  
+
   <div class="focus-sidebar">
-    <div class="sidebar-header">
+    <div class="sidebar-header" id="sidebarHeader">
       <div class="nav-bar">
         <span id="pageInfo" class="page-info">1 / 10</span>
         <a id="closeFocus" class="back-link">❮ 一覧に戻る</a>
@@ -465,34 +563,53 @@
       </label>
     </div>
 
-    <div class="sidebar-content" id="tagContainer">
-        <!-- Tags injected here -->
+    <div class="sidebar-content">
+      <div id="tagSection">
+        <div id="tagContainer"><!-- Tags injected here --></div>
+      </div>
+      <div id="compressNote" class="compress-note">
+        📦 「圧縮・リサイズのみ」モードのため、この画面では名前は変更されません。<br><br>
+        右上の「⚙ 設定」からサイズ・画質を調整してから「保存する」を押してください。
+      </div>
     </div>
+  </div>
+</div>
 
-    <!-- 圧縮・リサイズ設定（アコーディオン） -->
-    <div class="settings-area" id="settingsArea">
-        <div class="settings-header" id="settingsToggle">
-            <span class="settings-title">⚙️ 書き出し設定（サイズ・圧縮）</span>
-            <span class="settings-icon">▼</span>
+<!-- 設定モーダル -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>⚙ 設定</h2>
+      <button class="modal-close" id="closeSettingsModal">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-section">
+        <h3>書き出し設定（サイズ・圧縮）</h3>
+        <div class="setting-row">
+          <label class="setting-label">画像サイズ（長辺）</label>
+          <select id="resizeSelect" class="setting-select">
+            <option value="0">そのまま（オリジナル）</option>
+            <option value="1920">Full HD（1920px）</option>
+            <option value="1280">HD（1280px）</option>
+            <option value="800">軽量（800px）</option>
+          </select>
         </div>
-        <div class="settings-content">
-            <div class="setting-row">
-                <label class="setting-label">画像サイズ（長辺）</label>
-                <select id="resizeSelect" class="setting-select">
-                    <option value="0">そのまま (オリジナル)</option>
-                    <option value="1920">Full HD (1920px) - 推奨</option>
-                    <option value="1280">HD (1280px)</option>
-                    <option value="800">軽量 (800px)</option>
-                </select>
-            </div>
-
-            <div class="setting-row">
-                <label class="setting-label">画質 (圧縮率) <span id="qualityVal" class="range-value">80%</span></label>
-                <input type="range" id="qualityRange" class="setting-range" min="0.1" max="1.0" step="0.1" value="0.8">
-            </div>
-
-            <span id="resetSettingsBtn" class="reset-link">タグ設定を初期状態に戻す</span>
+        <div class="setting-row">
+          <label class="setting-label">画質（圧縮率） <span id="qualityVal" class="range-value">100%</span></label>
+          <input type="range" id="qualityRange" class="setting-range" min="0.1" max="1.0" step="0.1" value="1.0">
         </div>
+      </div>
+
+      <div class="modal-section">
+        <h3>タグ設定（Excelで一括管理）</h3>
+        <p class="modal-hint">現在のタグ設定をExcelでダウンロードして編集し、取り込むことでまとめて修正・追加できます。<br>1行目は見出し、2行目以降は「A列：カテゴリ名」「B列：タグ名」で入力してください。</p>
+        <div class="modal-actions">
+          <button class="btn" id="exportTagsBtn">📥 Excelでダウンロード</button>
+          <button class="btn" id="importTagsBtn">📤 Excelから取込む</button>
+          <input type="file" id="tagExcelInput" accept=".xlsx,.xls" style="display:none">
+        </div>
+        <span class="reset-link" id="resetSettingsBtn">タグ設定を初期状態に戻す</span>
+      </div>
     </div>
   </div>
 </div>
@@ -507,7 +624,13 @@ const DEFAULT_CATEGORIES = [
   { title: 'カスタム', color: 'var(--c-custom)', tags: [] }
 ];
 
+const CATEGORY_COLOR_PALETTE = [
+  'var(--c-prep)', 'var(--c-base)', 'var(--c-finish)', 'var(--c-done)', 'var(--c-custom)',
+  '#0ea5e9', '#f97316', '#a855f7', '#14b8a6', '#eab308'
+];
+
 const App = {
+  mode: 'rename', // 'rename' | 'compress'
   files: [],
   currentIndex: -1,
   isFocusMode: false,
@@ -520,13 +643,23 @@ const els = {
   fileInput: document.getElementById('fileInput'),
   dlBtn: document.getElementById('dlBtn'),
   emptyState: document.getElementById('empty-state'),
+  modeSelect: document.getElementById('modeSelect'),
+  modeButtons: document.querySelectorAll('.mode-btn'),
+  modeBadge: document.getElementById('modeBadge'),
+  dropzone: document.getElementById('dropzone'),
+  dropOverlay: document.getElementById('dropOverlay'),
+  viewGridWrap: document.getElementById('view-grid-wrap'),
   viewGrid: document.getElementById('view-grid'),
+  gridCount: document.getElementById('gridCount'),
   viewFocus: document.getElementById('view-focus'),
   focusImage: document.getElementById('focusImage'),
   focusInput: document.getElementById('focusInput'),
   clearInputBtn: document.getElementById('clearInputBtn'),
   pageInfo: document.getElementById('pageInfo'),
+  sidebarHeader: document.getElementById('sidebarHeader'),
+  tagSection: document.getElementById('tagSection'),
   tagContainer: document.getElementById('tagContainer'),
+  compressNote: document.getElementById('compressNote'),
   closeFocus: document.getElementById('closeFocus'),
   prevBtn: document.getElementById('prevBtn'),
   nextBtn: document.getElementById('nextBtn'),
@@ -535,43 +668,87 @@ const els = {
   resizeSelect: document.getElementById('resizeSelect'),
   qualityRange: document.getElementById('qualityRange'),
   qualityVal: document.getElementById('qualityVal'),
-  settingsToggle: document.getElementById('settingsToggle'),
-  settingsArea: document.getElementById('settingsArea')
+  settingsBtn: document.getElementById('settingsBtn'),
+  settingsModal: document.getElementById('settingsModal'),
+  closeSettingsModal: document.getElementById('closeSettingsModal'),
+  exportTagsBtn: document.getElementById('exportTagsBtn'),
+  importTagsBtn: document.getElementById('importTagsBtn'),
+  tagExcelInput: document.getElementById('tagExcelInput')
 };
 
 // 初期化
 function init() {
   loadSettings();
   renderTags();
-  
-  els.fileInput.addEventListener('change', handleFileSelect);
-  
+  applyModeToDOM();
+
+  els.fileInput.addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+
+  // モード選択
+  els.modeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (App.files.length) return; // 写真取込み後はロック
+      App.mode = btn.dataset.mode;
+      els.modeButtons.forEach(b => b.classList.toggle('active', b === btn));
+      applyModeToDOM();
+    });
+  });
+
+  // ドロップゾーン（初期画面）クリックで選択
+  els.dropzone.addEventListener('click', () => els.fileInput.click());
+
+  // 画面全体でのドラッグ&ドロップ
+  let dragCounter = 0;
+  document.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+      dragCounter++;
+      document.body.classList.add('dragging');
+    }
+  });
+  document.addEventListener('dragover', (e) => { e.preventDefault(); });
+  document.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    dragCounter = Math.max(0, dragCounter - 1);
+    if (dragCounter === 0) document.body.classList.remove('dragging');
+  });
+  document.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    document.body.classList.remove('dragging');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      addFiles(e.dataTransfer.files);
+    }
+  });
+
   els.closeFocus.addEventListener('click', toggleMode);
   els.prevBtn.addEventListener('click', () => navigate(-1));
   els.nextBtn.addEventListener('click', () => navigate(1));
   els.dlBtn.addEventListener('click', downloadAll);
-  
+
   els.focusInput.addEventListener('input', (e) => {
-    if(App.currentIndex >= 0) {
+    if (App.mode !== 'rename') return;
+    if (App.currentIndex >= 0) {
       App.files[App.currentIndex].name = e.target.value;
       updateGridCard(App.currentIndex);
     }
   });
-  
+
   els.clearInputBtn.addEventListener('click', () => {
+    if (App.mode !== 'rename') return;
     els.focusInput.value = '';
     els.focusInput.dispatchEvent(new Event('input'));
     els.focusInput.focus();
   });
 
-  els.focusInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') navigate(1); });
-  
+  els.focusInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigate(1); });
+
   document.addEventListener('keydown', (e) => {
-    if(!App.isFocusMode) return;
-    if(e.target.tagName === 'INPUT') return;
-    if(e.key === 'ArrowRight') navigate(1);
-    if(e.key === 'ArrowLeft') navigate(-1);
-    if(e.key === 'Escape') toggleMode();
+    if (!App.isFocusMode) return;
+    if (e.target.tagName === 'INPUT') return;
+    if (e.key === 'ArrowRight') navigate(1);
+    if (e.key === 'ArrowLeft') navigate(-1);
+    if (e.key === 'Escape') toggleMode();
   });
 
   els.autoNextCheck.addEventListener('change', (e) => {
@@ -580,28 +757,52 @@ function init() {
   });
 
   els.resetSettingsBtn.addEventListener('click', () => {
-    if(confirm('タグ設定を初期状態に戻しますか？\n（自分で追加したタグは消えます）')) {
-        App.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
-        saveSettings();
-        renderTags();
-        alert('初期状態に戻しました。');
+    if (confirm('タグ設定を初期状態に戻しますか？\n（自分で追加・編集したタグは消えます）')) {
+      App.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+      saveSettings();
+      renderTags();
+      alert('初期状態に戻しました。');
     }
   });
 
   els.qualityRange.addEventListener('input', (e) => {
-      els.qualityVal.textContent = Math.round(e.target.value * 100) + '%';
+    els.qualityVal.textContent = Math.round(e.target.value * 100) + '%';
   });
 
-  // 設定開閉ロジック
-  els.settingsToggle.addEventListener('click', () => {
-      els.settingsArea.classList.toggle('open');
+  // 設定モーダル
+  els.settingsBtn.addEventListener('click', () => els.settingsModal.classList.add('open'));
+  els.closeSettingsModal.addEventListener('click', () => els.settingsModal.classList.remove('open'));
+  els.settingsModal.addEventListener('click', (e) => {
+    if (e.target === els.settingsModal) els.settingsModal.classList.remove('open');
+  });
+
+  // Excelでタグ書き出し・取込み
+  els.exportTagsBtn.addEventListener('click', exportTagsToExcel);
+  els.importTagsBtn.addEventListener('click', () => els.tagExcelInput.click());
+  els.tagExcelInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) importTagsFromExcelFile(file);
+    e.target.value = '';
   });
 }
 
-// ファイル読み込み
-function handleFileSelect(e) {
-  const files = Array.from(e.target.files);
-  if(!files.length) return;
+// モード表示の切替
+function applyModeToDOM() {
+  const isCompress = App.mode === 'compress';
+  els.sidebarHeader.classList.toggle('mode-compress', isCompress);
+  els.tagSection.style.display = isCompress ? 'none' : '';
+  els.compressNote.style.display = isCompress ? 'block' : 'none';
+  els.modeBadge.textContent = isCompress ? '📦 圧縮・リサイズのみ' : '🏷️ 名前を付けて整理';
+  els.modeBadge.classList.toggle('compress', isCompress);
+  els.modeBadge.style.display = App.files.length ? 'inline-block' : 'none';
+}
+
+// ファイル読み込み（クリック選択・ドラッグ&ドロップ共通）
+function addFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
+  if (!files.length) return;
+
+  const startIdx = App.files.length;
   files.forEach(f => {
     App.files.push({
       file: f,
@@ -610,41 +811,69 @@ function handleFileSelect(e) {
       url: URL.createObjectURL(f)
     });
   });
+
   renderGrid();
-  updateView();
-  e.target.value = '';
+  applyModeToDOM();
+
+  if (App.mode === 'rename') {
+    // 一覧選択を挟まず、追加した1枚目からすぐ名前付けを開始
+    openFocusMode(startIdx);
+  } else {
+    // 圧縮のみモードは一覧表示のまま
+    App.isFocusMode = false;
+    updateView();
+  }
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
 }
 
 function renderGrid() {
+  els.gridCount.textContent = `写真一覧（${App.files.length}枚）`;
   els.viewGrid.innerHTML = '';
   App.files.forEach((item, idx) => {
     const card = document.createElement('div');
     card.className = 'card';
     card.id = `card-${idx}`;
     card.onclick = () => openFocusMode(idx);
+
+    const bodyHtml = App.mode === 'rename'
+      ? `<input class="card-name" value="${escapeHtml(item.name)}" onclick="event.stopPropagation()" onchange="updateName(${idx}, this.value)">`
+      : `<div class="card-name-static" title="${escapeHtml(item.originalName)}">${escapeHtml(item.originalName)}</div>`;
+
     card.innerHTML = `
+      <div class="card-index">#${idx + 1}</div>
       <img class="card-thumb" src="${item.url}" loading="lazy">
-      <div class="card-body">
-        <input class="card-name" value="${item.name}" onclick="event.stopPropagation()" onchange="updateName(${idx}, this.value)">
-      </div>
+      <div class="card-body">${bodyHtml}</div>
     `;
+    if (App.mode === 'rename' && item.name !== item.originalName.replace(/\.[^/.]+$/, "")) {
+      card.classList.add('done');
+    }
     els.viewGrid.appendChild(card);
   });
 }
 
-window.updateName = (idx, val) => { App.files[idx].name = val; };
+window.updateName = (idx, val) => {
+  App.files[idx].name = val;
+  const card = document.getElementById(`card-${idx}`);
+  if (card) {
+    const isModified = val !== App.files[idx].originalName.replace(/\.[^/.]+$/, "");
+    card.classList.toggle('done', isModified);
+  }
+};
 
 function updateGridCard(idx) {
   const card = document.getElementById(`card-${idx}`);
-  if(card) {
+  if (card) {
     const input = card.querySelector('.card-name');
-    if(input) input.value = App.files[idx].name;
+    if (input) input.value = App.files[idx].name;
     const isModified = App.files[idx].name !== App.files[idx].originalName.replace(/\.[^/.]+$/, "");
-    if(isModified) card.classList.add('done'); else card.classList.remove('done');
+    if (isModified) card.classList.add('done'); else card.classList.remove('done');
   }
 }
 
-// モード切替
+// モード切替（画面: 一覧 ⇔ 集中）
 function openFocusMode(idx) {
   App.currentIndex = idx;
   App.isFocusMode = true;
@@ -655,9 +884,9 @@ function openFocusMode(idx) {
 function toggleMode() {
   App.isFocusMode = !App.isFocusMode;
   updateView();
-  if(!App.isFocusMode && App.currentIndex >= 0) {
+  if (!App.isFocusMode && App.currentIndex >= 0) {
     const card = document.getElementById(`card-${App.currentIndex}`);
-    if(card) card.scrollIntoView({behavior: 'auto', block: 'center'});
+    if (card) card.scrollIntoView({ behavior: 'auto', block: 'center' });
   }
 }
 
@@ -665,13 +894,16 @@ function updateView() {
   const hasFiles = App.files.length > 0;
   els.emptyState.style.display = hasFiles ? 'none' : 'flex';
   els.dlBtn.disabled = !hasFiles;
-  
+  applyModeToDOM();
+
   if (App.isFocusMode && hasFiles) {
-    els.viewGrid.style.display = 'none';
+    els.viewGridWrap.style.display = 'none';
     els.viewFocus.style.display = 'flex';
-    setTimeout(() => els.focusInput.focus(), 50);
+    if (App.mode === 'rename') {
+      setTimeout(() => els.focusInput.focus(), 50);
+    }
   } else {
-    els.viewGrid.style.display = hasFiles ? 'grid' : 'none';
+    els.viewGridWrap.style.display = hasFiles ? 'flex' : 'none';
     els.viewFocus.style.display = 'none';
   }
 }
@@ -680,7 +912,13 @@ function loadFocusItem() {
   if (App.currentIndex < 0 || App.currentIndex >= App.files.length) return;
   const item = App.files[App.currentIndex];
   els.focusImage.src = item.url;
-  els.focusInput.value = item.name;
+  if (App.mode === 'compress') {
+    els.focusInput.value = item.originalName;
+    els.focusInput.readOnly = true;
+  } else {
+    els.focusInput.value = item.name;
+    els.focusInput.readOnly = false;
+  }
   els.pageInfo.textContent = `${App.currentIndex + 1} / ${App.files.length}`;
   els.prevBtn.style.display = App.currentIndex === 0 ? 'none' : 'flex';
   els.nextBtn.style.display = App.currentIndex === App.files.length - 1 ? 'none' : 'flex';
@@ -688,10 +926,10 @@ function loadFocusItem() {
 
 function navigate(dir) {
   const newIdx = App.currentIndex + dir;
-  if(newIdx >= 0 && newIdx < App.files.length) {
+  if (newIdx >= 0 && newIdx < App.files.length) {
     App.currentIndex = newIdx;
     loadFocusItem();
-    els.focusInput.select(); 
+    if (App.mode === 'rename') els.focusInput.select();
   }
 }
 
@@ -702,8 +940,7 @@ function renderTags() {
     const group = document.createElement('div');
     group.className = 'category-group';
     group.style.setProperty('--cat-color', cat.color);
-    
-    // ヘッダー
+
     const header = document.createElement('div');
     header.className = 'category-header';
     const title = document.createElement('div');
@@ -714,24 +951,23 @@ function renderTags() {
     addBtn.textContent = '＋';
     addBtn.title = 'タグを追加';
     addBtn.onclick = () => addTagToCategory(catIdx);
-    
+
     header.appendChild(title);
     header.appendChild(addBtn);
     group.appendChild(header);
 
-    // グリッド
     const grid = document.createElement('div');
     grid.className = 'tag-grid';
     cat.tags.forEach((tag, tagIdx) => {
       const btn = document.createElement('div');
       btn.className = 'tag-btn';
       btn.textContent = tag;
-      
+
       const delBtn = document.createElement('span');
       delBtn.className = 'tag-delete';
       delBtn.textContent = '×';
       delBtn.onclick = (e) => { e.stopPropagation(); removeTag(catIdx, tagIdx); };
-      
+
       btn.appendChild(delBtn);
       btn.onclick = () => applyTag(tag);
       grid.appendChild(btn);
@@ -742,6 +978,7 @@ function renderTags() {
 }
 
 function applyTag(text) {
+  if (App.mode !== 'rename') return;
   const currentVal = els.focusInput.value.trim();
   const originalBaseName = App.files[App.currentIndex].originalName.replace(/\.[^/.]+$/, "");
   let newVal;
@@ -753,82 +990,150 @@ function applyTag(text) {
   els.focusInput.value = newVal;
   App.files[App.currentIndex].name = newVal;
   updateGridCard(App.currentIndex);
-  if(App.autoNext) navigate(1); else els.focusInput.focus();
+  if (App.autoNext) navigate(1); else els.focusInput.focus();
 }
 
 function addTagToCategory(catIdx) {
-    const val = prompt(`「${App.categories[catIdx].title}」に新しいタグを追加:`);
-    if(val && val.trim()) {
-        App.categories[catIdx].tags.push(val.trim());
-        saveSettings();
-        renderTags();
-    }
+  const val = prompt(`「${App.categories[catIdx].title}」に新しいタグを追加:`);
+  if (val && val.trim()) {
+    App.categories[catIdx].tags.push(val.trim());
+    saveSettings();
+    renderTags();
+  }
 }
 
 function removeTag(catIdx, tagIdx) {
-    if(confirm('このタグを削除しますか？')) {
-        App.categories[catIdx].tags.splice(tagIdx, 1);
-        saveSettings();
-        renderTags();
-    }
+  if (confirm('このタグを削除しますか？')) {
+    App.categories[catIdx].tags.splice(tagIdx, 1);
+    saveSettings();
+    renderTags();
+  }
 }
 
 // 設定保存
 function saveSettings() {
   const settings = { categories: App.categories, autoNext: App.autoNext };
-  localStorage.setItem('pr_settings_v11', JSON.stringify(settings));
+  localStorage.setItem('pr_settings_v12', JSON.stringify(settings));
 }
 
 function loadSettings() {
-  const json = localStorage.getItem('pr_settings_v11');
-  if(json) {
+  const json = localStorage.getItem('pr_settings_v12');
+  if (json) {
     try {
-        const s = JSON.parse(json);
-        if(s.categories) {
-             App.categories.forEach(def => {
-                 const saved = s.categories.find(c => c.title === def.title);
-                 if(saved) def.tags = saved.tags;
-             });
-        }
-        if(s.autoNext !== undefined) {
-            App.autoNext = s.autoNext;
-            els.autoNextCheck.checked = s.autoNext;
-        }
-    } catch(e) {}
+      const s = JSON.parse(json);
+      if (s.categories && Array.isArray(s.categories)) {
+        App.categories = s.categories;
+      }
+      if (s.autoNext !== undefined) {
+        App.autoNext = s.autoNext;
+        els.autoNextCheck.checked = s.autoNext;
+      }
+    } catch (e) {}
   }
+}
+
+// --- タグ設定のExcel書き出し・取込み ---
+function exportTagsToExcel() {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel機能の読み込みに失敗しました。インターネット接続をご確認のうえ、再度お試しください。');
+    return;
+  }
+  const wsData = [['カテゴリ', 'タグ']];
+  App.categories.forEach(cat => {
+    if (cat.tags.length === 0) {
+      wsData.push([cat.title, '']);
+    } else {
+      cat.tags.forEach(tag => wsData.push([cat.title, tag]));
+    }
+  });
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  ws['!cols'] = [{ wch: 16 }, { wch: 20 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'タグ設定');
+  XLSX.writeFile(wb, 'タグ設定.xlsx');
+}
+
+function importTagsFromExcelFile(file) {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel機能の読み込みに失敗しました。インターネット接続をご確認のうえ、再度お試しください。');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+      const order = [];
+      const map = new Map();
+      let count = 0;
+      rows.slice(1).forEach(r => {
+        const cat = (r && r[0] !== undefined ? String(r[0]) : '').trim();
+        const tag = (r && r[1] !== undefined ? String(r[1]) : '').trim();
+        if (!cat || !tag) return;
+        if (!map.has(cat)) { order.push(cat); map.set(cat, []); }
+        map.get(cat).push(tag);
+        count++;
+      });
+
+      if (order.length === 0) {
+        alert('有効なデータが見つかりませんでした。\nA列：カテゴリ名／B列：タグ名の形式で入力してください。');
+        return;
+      }
+
+      const newCategories = order.map((title, i) => {
+        const existing = App.categories.find(c => c.title === title);
+        return {
+          title,
+          color: existing ? existing.color : CATEGORY_COLOR_PALETTE[i % CATEGORY_COLOR_PALETTE.length],
+          tags: map.get(title)
+        };
+      });
+
+      App.categories = newCategories;
+      saveSettings();
+      renderTags();
+      els.settingsModal.classList.remove('open');
+      alert(`タグ設定を取り込みました（${order.length}カテゴリ / ${count}件）`);
+    } catch (err) {
+      console.error(err);
+      alert('Excelファイルの読み込みに失敗しました。ファイル形式をご確認ください。');
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 // 圧縮・保存処理
 async function downloadAll() {
-  if(!App.files.length) return;
+  if (!App.files.length) return;
   const btn = els.dlBtn;
   const originalHtml = btn.innerHTML;
-  
+
   const maxWidth = parseInt(els.resizeSelect.value, 10);
   const quality = parseFloat(els.qualityRange.value);
 
   btn.disabled = true;
 
-  for(let i=0; i<App.files.length; i++) {
+  for (let i = 0; i < App.files.length; i++) {
     const item = App.files[i];
-    btn.innerHTML = `<span>保存中... ${i+1}/${App.files.length}</span>`;
-    
+    btn.innerHTML = `<span>保存中... ${i + 1}/${App.files.length}</span>`;
+
     const ext = item.originalName.split('.').pop();
     const safeName = item.name.replace(/[\\/:*?"<>|]/g, '_').trim() || 'Untitled';
     const fullName = `${safeName}.${ext}`;
 
-    // Compression Logic
     let downloadUrl = item.url;
     let isProcessed = false;
 
-    // サイズ指定があるか、画質が100%未満でjpg/pngの場合に処理
-    if (maxWidth > 0 || (quality < 1.0 && ['jpg','jpeg','png'].includes(ext.toLowerCase()))) {
-       try {
-           downloadUrl = await processImage(item.url, maxWidth, quality, ext);
-           isProcessed = true;
-       } catch(e) {
-           console.error("Compression failed, using original", e);
-       }
+    if (maxWidth > 0 || (quality < 1.0 && ['jpg', 'jpeg', 'png'].includes(ext.toLowerCase()))) {
+      try {
+        downloadUrl = await processImage(item.url, maxWidth, quality, ext);
+        isProcessed = true;
+      } catch (e) {
+        console.error("Compression failed, using original", e);
+      }
     }
 
     const a = document.createElement('a');
@@ -837,52 +1142,52 @@ async function downloadAll() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    
-    if(isProcessed) URL.revokeObjectURL(downloadUrl);
-    
+
+    if (isProcessed) URL.revokeObjectURL(downloadUrl);
+
     await new Promise(r => setTimeout(r, 200));
   }
-  
+
   btn.innerHTML = originalHtml;
   btn.disabled = false;
   alert("保存が完了しました！");
 }
 
 function processImage(url, maxWidth, quality, ext) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            let w = img.width;
-            let h = img.height;
-            
-            if (maxWidth > 0 && (w > maxWidth || h > maxWidth)) {
-                const ratio = w / h;
-                if (w > h) {
-                    w = maxWidth;
-                    h = w / ratio;
-                } else {
-                    h = maxWidth;
-                    w = h * ratio;
-                }
-            }
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width;
+      let h = img.height;
 
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
+      if (maxWidth > 0 && (w > maxWidth || h > maxWidth)) {
+        const ratio = w / h;
+        if (w > h) {
+          w = maxWidth;
+          h = w / ratio;
+        } else {
+          h = maxWidth;
+          w = h * ratio;
+        }
+      }
 
-            let mime = 'image/jpeg';
-            if(ext.toLowerCase() === 'png') mime = 'image/png';
-            
-            canvas.toBlob((blob) => {
-                if(blob) resolve(URL.createObjectURL(blob));
-                else reject(new Error('Canvas to Blob failed'));
-            }, mime, quality);
-        };
-        img.onerror = reject;
-        img.src = url;
-    });
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      let mime = 'image/jpeg';
+      if (ext.toLowerCase() === 'png') mime = 'image/png';
+
+      canvas.toBlob((blob) => {
+        if (blob) resolve(URL.createObjectURL(blob));
+        else reject(new Error('Canvas to Blob failed'));
+      }, mime, quality);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
 }
 
 init();
