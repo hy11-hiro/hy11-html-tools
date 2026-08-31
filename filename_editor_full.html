@@ -3,509 +3,889 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>画像ファイル名ツール（改） - Light Theme</title>
+<title>Photo Renamer Pro - v11</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-  /* ▼▼▼ 修正点2: 明るいカラーテーマに変更 ▼▼▼ */
   :root {
-    --bg-dark: #f9fafb;      /* Main background (was dark, now very light gray) */
-    --bg-med: #ffffff;      /* Card background (was medium, now white) */
-    --bg-light: #f3f4f6;     /* Hover background (was light, now light gray) */
-    --border-color: rgba(0, 0, 0, 0.1); /* Border color (inverted) */
-    --text-primary: #1f2937; /* Primary text (was light, now dark gray) */
-    --text-muted: #6b7280;   /* Muted text (was light gray, now medium gray) */
-    --accent1: #38bdf8;
-    --accent2: #818cf8;
-    --shadow-color: rgba(0, 0, 0, 0.1); /* Softer shadow for light theme */
-    --radius: 12px;
-  }
-  /* ▲▲▲ 修正点2 ▲▲▲ */
-
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-
-  html, body {
-    height: 100%;
-    font-family: "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif;
-    background: var(--bg-dark);
-    color: var(--text-primary);
-    font-size: 16px;
+    --bg-app: #f8fafc;       /* アプリ背景 */
+    --bg-panel: #ffffff;     /* パネル背景 */
+    --border: #e2e8f0;
+    --text-main: #1e293b;    /* 文字色 */
+    --text-sub: #475569;     /* サブ文字 */
+    --accent: #3b82f6;       /* メインアクセント */
+    --accent-hover: #2563eb;
+    --radius: 12px;          /* 丸みを少し抑えてシャープに */
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    
+    /* パステルカラー定義 */
+    --c-prep: #f59e0b;   /* 準備: オレンジ */
+    --c-base: #64748b;   /* 基礎: グレーブルー */
+    --c-finish: #10b981; /* 仕上げ: グリーン */
+    --c-done: #8b5cf6;   /* 完了: パープル */
+    --c-custom: #ec4899; /* カスタム: ピンク */
   }
 
-  .page-wrapper {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 24px;
+  * { box-sizing: border-box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
+  
+  body {
+    height: 100vh;
+    font-family: 'Noto Sans JP', 'Inter', sans-serif; /* 標準的なゴシック体に変更 */
+    background: var(--bg-app);
+    color: var(--text-main);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    line-height: 1.5;
   }
 
   /* --- ヘッダー --- */
-  .top-bar {
+  header {
+    height: 64px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
     align-items: center;
-    gap: 16px;
-    margin-bottom: 24px;
-    padding: 12px 0; /* Adjusted padding */
+    padding: 0 24px;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 20;
   }
-  .logo {
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius);
-    background: linear-gradient(135deg, var(--accent1), var(--accent2));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 20px;
-    color: white; /* Changed logo text to white for better contrast */
+  .brand { 
+    font-family: 'Inter', sans-serif;
+    font-weight: 800; font-size: 20px;
+    display: flex; align-items: center; gap: 10px; 
+    color: var(--text-main); 
+    letter-spacing: -0.02em;
   }
-  .title-block {
-    display: flex;
-    flex-direction: column;
-  }
-  .title {
-    font-weight: 700;
-    font-size: 22px;
-  }
-  .sub {
-    font-size: 14px;
-    color: var(--text-muted);
-    margin-top: 4px;
-  }
-
-  /* --- 固定ツールバー --- */
-  /* ▼▼▼ 調整ヒント1: バーの高さを変えるにはここを調整 ▼▼▼ */
-  .fixed-toolbar {
-    position: sticky;
-    top: 16px;
-    z-index: 100;
-    width: 100%;
-    padding: 12px; /* ← この数値を小さくするとバー自体の余白が減ります */
-    border-radius: var(--radius);
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    background: rgba(255, 255, 255, 0.8); /* White transparent background */
-    backdrop-filter: blur(10px);
-    border: 1px solid var(--border-color);
-    box-shadow: 0 8px 32px var(--shadow-color);
+  .brand-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
   }
   
-  .label-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 8px;
-    width: 100%;
-    align-items: center;
-  }
+  .header-tools { display: flex; gap: 12px; }
 
-  .btn, .label-btn {
-    padding: 6px 10px; /* ← ボタンの上下の余白を小さくすると、ボタン自体の背が低くなります */
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: var(--text-muted);
+  .btn {
+    padding: 0 24px;
+    height: 40px;
+    border-radius: 8px; /* 少し角ばらせる */
+    border: 1px solid var(--border);
+    background: white;
     cursor: pointer;
-    font-size: 13px; /* ← 文字サイズも高さに影響します */
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: background-color 0.2s, color 0.2s;
-  }
-  /* ▲▲▲ 調整ヒント1 ▲▲▲ */
-
-  .btn:hover, .label-btn:hover {
-    background: var(--bg-light);
-    color: var(--text-primary);
-  }
-
-  .btn.primary {
-    background: linear-gradient(90deg, var(--accent1), var(--accent2));
-    color: white;
-    border: none;
-    font-weight: 600;
-    padding: 8px 14px;
     font-size: 14px;
-  }
-
-  .input {
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-light);
-    color: var(--text-primary);
-    min-width: 180px;
-  }
-  .input::placeholder {
-    color: var(--text-muted);
-  }
-
-  .toolbar-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-  }
-  .view-controls .btn.active {
-      background-color: var(--accent2);
-      color: white;
-      border-color: var(--accent2);
-  }
-
-  .download-btn {
+    font-weight: 700;
+    transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    padding: 10px 20px;
-    background: linear-gradient(90deg, var(--accent1), var(--accent2));
+    color: var(--text-main);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .btn:hover { background: #f8fafc; border-color: #cbd5e1; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  
+  .btn.primary {
+    background: var(--accent);
     color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 16px;
-    cursor: pointer;
-    transition: transform 0.2s ease;
+    border-color: var(--accent);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
   }
-  .download-btn:hover {
-      transform: scale(1.05);
-  }
-  .download-btn svg {
-      width: 1.0em;
-      height: 1.0em;
-      stroke: white;
-      stroke-width: 2.5;
-  }
+  .btn.primary:hover { background: var(--accent-hover); box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3); }
+  .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; background: #cbd5e1; border-color: #cbd5e1; box-shadow: none; }
 
-  /* --- メインコンテンツ --- */
-  .main-content {
-    margin-top: 24px;
-  }
-
-  #empty-state {
-      text-align: center;
-      padding: 80px 20px;
-      background: var(--bg-med);
-      border-radius: var(--radius);
-      border: 2px dashed var(--border-color); /* Dashed border for light theme */
-  }
-  #empty-state p {
-      color: var(--text-muted);
-      font-size: 18px;
-  }
-
-  #containers {
+  /* --- メインエリア --- */
+  #view-grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+    align-content: start;
   }
-  #containers.size-s { grid-template-columns: repeat(4, 1fr); }
-  #containers.size-m { grid-template-columns: repeat(3, 1fr); }
-  #containers.size-l { grid-template-columns: repeat(2, 1fr); }
-
-
+  
   .card {
-    background: var(--bg-med);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 12px;
-    border: 1px solid var(--border-color);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 12px;
     cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: all 0.2s;
+    position: relative;
+    box-shadow: var(--shadow);
   }
-  .card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 12px 24px var(--shadow-color);
+  .card:hover { transform: translateY(-3px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-color: #cbd5e1; }
+  .card.done::after {
+    content: '完了';
+    font-weight: 700;
+    position: absolute;
+    top: 8px; right: 8px;
+    background: #10b981; color: white;
+    font-size: 11px; padding: 4px 8px; border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
-  .card.selected {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--accent1), 0 12px 24px var(--shadow-color);
+  .card-thumb { width: 100%; aspect-ratio: 4/3; object-fit: cover; background: #f1f5f9; }
+  .card-body { padding: 12px; }
+  .card-name {
+    width: 100%; font-size: 14px; font-weight: 500;
+    border: 1px solid #e2e8f0; background: #f8fafc;
+    padding: 8px; border-radius: 6px; color: var(--text-main);
+    transition: all 0.2s;
+  }
+  .card-name:focus { border-color: var(--accent); background: white; }
+
+  /* --- 集中モード --- */
+  #view-focus {
+    flex: 1;
+    display: none;
+    flex-direction: row;
+    height: calc(100vh - 64px);
   }
 
-  .thumb {
-    width: 100%;
-    height: 240px;
-    object-fit: contain;
-    border-radius: 8px;
-    background: var(--bg-dark);
-  }
-  #containers.size-s .thumb { height: 180px; }
-  #containers.size-m .thumb { height: 240px; }
-  #containers.size-l .thumb { height: 360px; }
-
-  .filename {
-    width: 100%;
-    padding: 10px;
-    font-size: 14px;
-  }
-  .meta {
+  .focus-stage {
+    flex: 1;
+    background: #0f172a;
     display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--text-muted);
-    padding: 0 4px;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 32px;
+  }
+  #focusImage {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    border-radius: 4px;
+  }
+  .nav-btn {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.1); backdrop-filter: blur(4px);
+    color: white; border: 1px solid rgba(255,255,255,0.2);
+    width: 60px; height: 60px; border-radius: 50%;
+    cursor: pointer; font-size: 24px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.25); transform: translateY(-50%) scale(1.1); }
+  .nav-prev { left: 24px; }
+  .nav-next { right: 24px; }
+
+  /* サイドバー */
+  .focus-sidebar {
+    width: 400px;
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 10;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.03);
   }
 
-  @media (max-width: 1200px) {
-    #containers.size-l { grid-template-columns: 1fr; }
+  .sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    background: #ffffff;
   }
-  @media (max-width: 980px) {
-    .toolbar-group { flex-direction: column; align-items: stretch; }
-    #containers, #containers.size-s, #containers.size-m { grid-template-columns: repeat(2, 1fr); }
+  .nav-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .page-info { font-size: 13px; font-weight: 700; color: var(--text-sub); font-family: 'Inter', sans-serif; letter-spacing: 0.5px; }
+  .back-link { font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  .back-link:hover { text-decoration: underline; }
+  
+  .input-wrapper { position: relative; width: 100%; margin-top: 12px; }
+  #focusInput {
+    width: 100%; font-size: 16px; padding: 12px 40px 12px 12px;
+    border: 2px solid var(--border); border-radius: 8px;
+    transition: all 0.2s; background: white; font-weight: 500; color: var(--text-main);
   }
+  #focusInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+  
+  .clear-btn {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    background: transparent; border: none; color: #cbd5e1; cursor: pointer;
+    font-size: 18px; width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .clear-btn:hover { color: #ef4444; background: #fee2e2; }
+
+  .option-toggle {
+    display: flex; align-items: center; gap: 10px; margin-top: 16px;
+    font-size: 13px; font-weight: 600; color: var(--text-main); cursor: pointer; user-select: none;
+  }
+  .toggle-switch { width: 40px; height: 22px; background: #e2e8f0; border-radius: 20px; position: relative; transition: 0.2s; }
+  .toggle-switch::after {
+      content: ''; position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; background: white; border-radius: 50%;
+      transition: 0.2s cubic-bezier(0.4, 0.0, 0.2, 1); box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  input:checked + .toggle-switch { background: var(--accent); }
+  input:checked + .toggle-switch::after { transform: translateX(18px); }
+
+  .sidebar-content { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* タグUI */
+  .category-group { margin-bottom: 24px; }
+  .category-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .category-title {
+    font-size: 12px; font-weight: 700; color: var(--cat-color);
+    display: flex; align-items: center; gap: 6px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .category-title::before {
+    content: ''; display: block; width: 8px; height: 8px;
+    border-radius: 50%; background: var(--cat-color);
+  }
+  
+  .cat-add-btn {
+    width: 24px; height: 24px; border-radius: 4px; background: #f1f5f9;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-sub); cursor: pointer; transition: 0.2s; font-weight: bold; font-size: 14px;
+  }
+  .cat-add-btn:hover { background: var(--cat-color); color: white; }
+
+  .tag-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  
+  .tag-btn {
+    position: relative;
+    padding: 8px 14px; padding-right: 30px;
+    background: white;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px; /* 立体感少し抑えめ */
+    border-radius: 6px;
+    font-size: 13px; font-weight: 500; color: var(--text-main);
+    cursor: pointer; transition: all 0.15s; user-select: none;
+    border-color: #e2e8f0; border-bottom-color: #cbd5e1;
+  }
+  .tag-btn:hover { 
+      border-color: var(--cat-color); 
+      background: #f8fafc; 
+      transform: translateY(-1px); 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+  .tag-btn:active { transform: translateY(1px); border-bottom-width: 1px; box-shadow: none; }
+  
+  .tag-delete {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #cbd5e1; transition: 0.2s; font-weight: bold;
+  }
+  .tag-delete:hover { color: #ef4444; background: #fee2e2; }
+
+  /* エクスポート設定（アコーディオン） */
+  .settings-area {
+      border-top: 1px solid var(--border);
+      background: #f9fafb;
+      transition: all 0.3s ease;
+  }
+  .settings-header {
+      padding: 16px 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      cursor: pointer; user-select: none;
+  }
+  .settings-header:hover { background: #f1f5f9; }
+  .settings-title { font-size: 13px; font-weight: 700; color: var(--text-sub); display:flex; align-items:center; gap:8px; }
+  .settings-icon { font-size: 10px; color: var(--text-sub); transition: transform 0.3s; }
+  
+  /* 開いている時のスタイル */
+  .settings-area.open .settings-icon { transform: rotate(180deg); }
+  .settings-content {
+      display: none; padding: 0 20px 20px 20px;
+      animation: slideDown 0.2s ease-out;
+  }
+  .settings-area.open .settings-content { display: block; }
+
+  @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+  }
+
+  .setting-row { margin-bottom: 16px; }
+  .setting-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text-main); }
+  .setting-select {
+      width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border);
+      font-size: 14px; background: white; color: var(--text-main);
+  }
+  .setting-range { width: 100%; accent-color: var(--accent); height: 6px; }
+  .range-value { font-size: 13px; color: var(--accent); font-weight: 700; float: right; }
+
+  .reset-link { 
+      display: block; text-align: center; margin-top: 16px;
+      font-size: 12px; color: var(--text-sub); text-decoration: underline; cursor: pointer;
+  }
+
+  /* 初期画面 */
+  #empty-state {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg-app);
+    z-index: 5; text-align: center;
+    padding: 20px; overflow-y: auto;
+  }
+  .empty-content {
+      max-width: 800px; width: 100%; margin: 40px auto;
+  }
+  .empty-icon { font-size: 64px; margin-bottom: 16px; display: inline-block; }
+  .empty-title { font-size: 28px; font-weight: 800; margin-bottom: 12px; color: var(--text-main); }
+  .empty-desc { font-size: 16px; color: var(--text-sub); margin-bottom: 40px; font-weight: 400; }
+  
+  .steps-container {
+    display: flex; gap: 24px; margin-bottom: 40px; justify-content: center;
+  }
+  .step-item {
+    flex: 1; background: white; padding: 24px;
+    border-radius: 16px; border: 1px solid var(--border);
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .step-num {
+    width: 36px; height: 36px; background: var(--accent); color: white;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 18px;
+  }
+  .step-title { font-size: 16px; font-weight: 700; color: var(--text-main); }
+  .step-desc { font-size: 13px; color: var(--text-sub); line-height: 1.6; }
+
+  .tips-box {
+      background: white; padding: 24px; border-radius: 16px;
+      border: 1px solid var(--border); text-align: left; max-width: 600px; margin: 0 auto;
+  }
+  .tips-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 16px; }
+  .tips-item { display: flex; gap: 12px; }
+  .tips-icon-box { 
+      width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 20px; flex-shrink: 0;
+  }
+
   @media (max-width: 768px) {
-    .fixed-toolbar { flex-direction: column; gap: 16px; }
-    #containers, #containers.size-s, #containers.size-m, #containers.size-l { grid-template-columns: 1fr; }
-    .thumb, #containers.size-s .thumb, #containers.size-m .thumb, #containers.size-l .thumb {
-        height: 280px;
-    }
+    #view-focus { flex-direction: column; }
+    .focus-stage { height: 40%; padding: 16px; }
+    .focus-sidebar { width: 100%; height: 60%; border-left: none; }
+    .steps-container { flex-direction: column; gap: 16px; }
   }
 </style>
 </head>
 <body>
-  <div class="page-wrapper">
-    <header class="top-bar" id="topbar">
-      <div class="logo">FN</div>
-      <div class="title-block">
-        <div class="title">画像ファイル名修正ツール</div>
-        <div class="sub">画像を選択し、ボタンで素早く名前を付け、一括ダウンロード</div>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">PR</div>
+    <span>Photo Renamer</span>
+  </div>
+  <div class="header-tools">
+    <label class="btn primary">
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-right:8px"><path d="M12 4v16m8-8H4"></path></svg>
+      写真を追加
+      <input type="file" id="fileInput" multiple accept="image/*" style="display:none">
+    </label>
+    <button class="btn" id="dlBtn" disabled>
+      <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="margin-right:8px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+      保存する
+    </button>
+  </div>
+</header>
+
+<div id="empty-state">
+  <div class="empty-content">
+    <div class="empty-icon">📷</div>
+    <h1 class="empty-title">写真の名前付けツール</h1>
+    <p class="empty-desc">現場の写真を、ボタンを押すだけでサクサク名前付け。</p>
+
+    <div class="steps-container">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-title">写真を選ぶ</div>
+        <p class="step-desc">右上の<strong>「＋ 写真を追加」</strong>から<br>整理したい写真を選びます。</p>
       </div>
-      <div class="toolbar-group">
-        <label for="imageInput" class="btn primary">画像を選択</label>
-        <input id="imageInput" type="file" accept="image/*" multiple style="display:none">
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-title">タグで命名</div>
+        <p class="step-desc">写真をクリックして拡大。<br>右側のタグを押すと名前が入ります。</p>
       </div>
-    </header>
-    <div class="fixed-toolbar" id="fixedToolbar" role="toolbar">
-      <div class="label-grid" id="labelGrid"></div>
-      <div class="toolbar-group">
-        <div style="display:flex; gap: 8px;">
-            <input id="newLabelInput" class="input" placeholder="カスタム" />
-            <button class="btn" id="addLabelBtn">追加</button>
-        </div>
-        <div class="view-controls" id="viewControls">
-            <button class="btn" data-size="s">小</button>
-            <button class="btn active" data-size="m">中</button>
-            <button class="btn" data-size="l">大</button>
-        </div>
-<button class="download-btn" id="downloadBtn">
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-    <polyline points="7 10 12 15 17 10"></polyline>
-    <line x1="12" y1="15" x2="12" y2="3"></line>
-  </svg>
-  <span>DL</span>
-</button>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-title">保存する</div>
+        <p class="step-desc">終わったら<strong>「保存する」</strong>ボタン。<br>サイズ調整も自動でやってくれます。</p>
+      </div>
+    </div>
+
+    <div class="tips-box">
+        <h3 style="font-size:14px; font-weight:700; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">💡 便利なタグの使い方</h3>
+        <div class="tips-grid">
+            <div class="tips-item">
+                <div class="tips-icon-box" style="background:#eff6ff; color:#3b82f6;">＋</div>
+                <div>
+                    <strong style="font-size:14px;">タグを増やす</strong>
+                    <p style="font-size:12px; color:var(--text-sub); margin-top:2px;">項目の横の「＋」で<br>新しい言葉を追加できます。</p>
+                </div>
+            </div>
+            <div class="tips-item">
+                <div class="tips-icon-box" style="background:#fee2e2; color:#ef4444;">×</div>
+                <div>
+                    <strong style="font-size:14px;">タグを消す</strong>
+                    <p style="font-size:12px; color:var(--text-sub); margin-top:2px;">いらないタグは「×」で削除。<br>失敗してもリセットできます。</p>
+                </div>
+            </div>
         </div>
     </div>
-    <main class="main-content">
-        <div id="empty-state">
-            <p>上の「画像を選択」ボタンからファイルを選んでください。</p>
-        </div>
-        <div id="containers" class="size-m"></div>
-    </main>
   </div>
-<script>
-// JavaScriptは変更なし
-document.addEventListener('DOMContentLoaded', () => {
-    const imageInput = document.getElementById('imageInput');
-    const containers = document.getElementById('containers');
-    const labelGrid = document.getElementById('labelGrid');
-    const newLabelInput = document.getElementById('newLabelInput');
-    const addLabelBtn = document.getElementById('addLabelBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const emptyState = document.getElementById('empty-state');
-    const viewControls = document.getElementById('viewControls');
-    const defaultLabels = [
-        '解体作業前', '解体作業状況', '解体作業後', '掘削', '転圧', '砕石転圧',
-        '基礎配筋', 'ベース', '基礎', '横筋', '天端', '完了', '土間補修', '砂利埋め戻し',
-        '完了 全景','完了 境界','完了 水道','完了 道路','造成状況','除草'
+</div>
 
-    ];　
-    let selectedCards = new Set();
-    let filesData = [];
-    let objectUrls = [];
-    function renderLabels() {
-        labelGrid.innerHTML = '';
-        defaultLabels.forEach(label => addLabelButton(label));
+<div id="view-grid" style="display:none;"></div>
+
+<div id="view-focus">
+  <div class="focus-stage">
+    <button class="nav-btn nav-prev" id="prevBtn">❮</button>
+    <img id="focusImage" src="" alt="">
+    <button class="nav-btn nav-next" id="nextBtn">❯</button>
+  </div>
+  
+  <div class="focus-sidebar">
+    <div class="sidebar-header">
+      <div class="nav-bar">
+        <span id="pageInfo" class="page-info">1 / 10</span>
+        <a id="closeFocus" class="back-link">❮ 一覧に戻る</a>
+      </div>
+      <div class="input-wrapper">
+        <input type="text" id="focusInput" placeholder="ファイル名を入力..." autocomplete="off">
+        <button id="clearInputBtn" class="clear-btn" title="クリア">×</button>
+      </div>
+      <label class="option-toggle">
+        <input type="checkbox" id="autoNextCheck" checked style="display:none">
+        <div class="toggle-switch"></div>
+        <span>タグを押したら自動で次へ</span>
+      </label>
+    </div>
+
+    <div class="sidebar-content" id="tagContainer">
+        <!-- Tags injected here -->
+    </div>
+
+    <!-- 圧縮・リサイズ設定（アコーディオン） -->
+    <div class="settings-area" id="settingsArea">
+        <div class="settings-header" id="settingsToggle">
+            <span class="settings-title">⚙️ 書き出し設定（サイズ・圧縮）</span>
+            <span class="settings-icon">▼</span>
+        </div>
+        <div class="settings-content">
+            <div class="setting-row">
+                <label class="setting-label">画像サイズ（長辺）</label>
+                <select id="resizeSelect" class="setting-select">
+                    <option value="0">そのまま (オリジナル)</option>
+                    <option value="1920">Full HD (1920px) - 推奨</option>
+                    <option value="1280">HD (1280px)</option>
+                    <option value="800">軽量 (800px)</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <label class="setting-label">画質 (圧縮率) <span id="qualityVal" class="range-value">80%</span></label>
+                <input type="range" id="qualityRange" class="setting-range" min="0.1" max="1.0" step="0.1" value="0.8">
+            </div>
+
+            <span id="resetSettingsBtn" class="reset-link">タグ設定を初期状態に戻す</span>
+        </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// データと設定
+const DEFAULT_CATEGORIES = [
+  { title: '準備・解体', color: 'var(--c-prep)', tags: ['着工前', '解体前', '解体中', '解体完了', '除草', '養生', '遣方'] },
+  { title: '基礎・造成', color: 'var(--c-base)', tags: ['掘削', '砕石転圧', '配筋', 'コンクリート打設', 'ブロック積', '埋め戻し', '整地'] },
+  { title: '仕上げ', color: 'var(--c-finish)', tags: ['土間コン', 'アプローチ', 'フェンス', 'カーポート', '植栽', '照明', '機能門柱'] },
+  { title: '完了・検査', color: 'var(--c-done)', tags: ['完了 全景', '完了 近景', '完了 道路', '完了 境界', '清掃状況', '是正'] },
+  { title: 'カスタム', color: 'var(--c-custom)', tags: [] }
+];
+
+const App = {
+  files: [],
+  currentIndex: -1,
+  isFocusMode: false,
+  autoNext: true,
+  categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES))
+};
+
+// DOM要素
+const els = {
+  fileInput: document.getElementById('fileInput'),
+  dlBtn: document.getElementById('dlBtn'),
+  emptyState: document.getElementById('empty-state'),
+  viewGrid: document.getElementById('view-grid'),
+  viewFocus: document.getElementById('view-focus'),
+  focusImage: document.getElementById('focusImage'),
+  focusInput: document.getElementById('focusInput'),
+  clearInputBtn: document.getElementById('clearInputBtn'),
+  pageInfo: document.getElementById('pageInfo'),
+  tagContainer: document.getElementById('tagContainer'),
+  closeFocus: document.getElementById('closeFocus'),
+  prevBtn: document.getElementById('prevBtn'),
+  nextBtn: document.getElementById('nextBtn'),
+  autoNextCheck: document.getElementById('autoNextCheck'),
+  resetSettingsBtn: document.getElementById('resetSettingsBtn'),
+  resizeSelect: document.getElementById('resizeSelect'),
+  qualityRange: document.getElementById('qualityRange'),
+  qualityVal: document.getElementById('qualityVal'),
+  settingsToggle: document.getElementById('settingsToggle'),
+  settingsArea: document.getElementById('settingsArea')
+};
+
+// 初期化
+function init() {
+  loadSettings();
+  renderTags();
+  
+  els.fileInput.addEventListener('change', handleFileSelect);
+  
+  els.closeFocus.addEventListener('click', toggleMode);
+  els.prevBtn.addEventListener('click', () => navigate(-1));
+  els.nextBtn.addEventListener('click', () => navigate(1));
+  els.dlBtn.addEventListener('click', downloadAll);
+  
+  els.focusInput.addEventListener('input', (e) => {
+    if(App.currentIndex >= 0) {
+      App.files[App.currentIndex].name = e.target.value;
+      updateGridCard(App.currentIndex);
     }
-    function addLabelButton(text) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'label-btn';
-        b.title = text;
-        b.textContent = text;
-        labelGrid.appendChild(b);
-        b.animate([{ opacity: 0, transform: 'scale(0.9)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 200 });
+  });
+  
+  els.clearInputBtn.addEventListener('click', () => {
+    els.focusInput.value = '';
+    els.focusInput.dispatchEvent(new Event('input'));
+    els.focusInput.focus();
+  });
+
+  els.focusInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') navigate(1); });
+  
+  document.addEventListener('keydown', (e) => {
+    if(!App.isFocusMode) return;
+    if(e.target.tagName === 'INPUT') return;
+    if(e.key === 'ArrowRight') navigate(1);
+    if(e.key === 'ArrowLeft') navigate(-1);
+    if(e.key === 'Escape') toggleMode();
+  });
+
+  els.autoNextCheck.addEventListener('change', (e) => {
+    App.autoNext = e.target.checked;
+    saveSettings();
+  });
+
+  els.resetSettingsBtn.addEventListener('click', () => {
+    if(confirm('タグ設定を初期状態に戻しますか？\n（自分で追加したタグは消えます）')) {
+        App.categories = JSON.parse(JSON.stringify(DEFAULT_CATEGORIES));
+        saveSettings();
+        renderTags();
+        alert('初期状態に戻しました。');
     }
-    labelGrid.addEventListener('click', (e) => {
-        if (e.target.classList.contains('label-btn')) {
-            applyLabelAndMoveToNext(e.target.textContent);
-        }
+  });
+
+  els.qualityRange.addEventListener('input', (e) => {
+      els.qualityVal.textContent = Math.round(e.target.value * 100) + '%';
+  });
+
+  // 設定開閉ロジック
+  els.settingsToggle.addEventListener('click', () => {
+      els.settingsArea.classList.toggle('open');
+  });
+}
+
+// ファイル読み込み
+function handleFileSelect(e) {
+  const files = Array.from(e.target.files);
+  if(!files.length) return;
+  files.forEach(f => {
+    App.files.push({
+      file: f,
+      name: f.name.replace(/\.[^/.]+$/, ""),
+      originalName: f.name,
+      url: URL.createObjectURL(f)
     });
-    addLabelBtn.addEventListener('click', () => {
-        const text = newLabelInput.value.trim();
-        if (!text) return;
-        if (!defaultLabels.includes(text)) {
-            defaultLabels.push(text);
-            addLabelButton(text);
-        }
-        newLabelInput.value = '';
+  });
+  renderGrid();
+  updateView();
+  e.target.value = '';
+}
+
+function renderGrid() {
+  els.viewGrid.innerHTML = '';
+  App.files.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.id = `card-${idx}`;
+    card.onclick = () => openFocusMode(idx);
+    card.innerHTML = `
+      <img class="card-thumb" src="${item.url}" loading="lazy">
+      <div class="card-body">
+        <input class="card-name" value="${item.name}" onclick="event.stopPropagation()" onchange="updateName(${idx}, this.value)">
+      </div>
+    `;
+    els.viewGrid.appendChild(card);
+  });
+}
+
+window.updateName = (idx, val) => { App.files[idx].name = val; };
+
+function updateGridCard(idx) {
+  const card = document.getElementById(`card-${idx}`);
+  if(card) {
+    const input = card.querySelector('.card-name');
+    if(input) input.value = App.files[idx].name;
+    const isModified = App.files[idx].name !== App.files[idx].originalName.replace(/\.[^/.]+$/, "");
+    if(isModified) card.classList.add('done'); else card.classList.remove('done');
+  }
+}
+
+// モード切替
+function openFocusMode(idx) {
+  App.currentIndex = idx;
+  App.isFocusMode = true;
+  updateView();
+  loadFocusItem();
+}
+
+function toggleMode() {
+  App.isFocusMode = !App.isFocusMode;
+  updateView();
+  if(!App.isFocusMode && App.currentIndex >= 0) {
+    const card = document.getElementById(`card-${App.currentIndex}`);
+    if(card) card.scrollIntoView({behavior: 'auto', block: 'center'});
+  }
+}
+
+function updateView() {
+  const hasFiles = App.files.length > 0;
+  els.emptyState.style.display = hasFiles ? 'none' : 'flex';
+  els.dlBtn.disabled = !hasFiles;
+  
+  if (App.isFocusMode && hasFiles) {
+    els.viewGrid.style.display = 'none';
+    els.viewFocus.style.display = 'flex';
+    setTimeout(() => els.focusInput.focus(), 50);
+  } else {
+    els.viewGrid.style.display = hasFiles ? 'grid' : 'none';
+    els.viewFocus.style.display = 'none';
+  }
+}
+
+function loadFocusItem() {
+  if (App.currentIndex < 0 || App.currentIndex >= App.files.length) return;
+  const item = App.files[App.currentIndex];
+  els.focusImage.src = item.url;
+  els.focusInput.value = item.name;
+  els.pageInfo.textContent = `${App.currentIndex + 1} / ${App.files.length}`;
+  els.prevBtn.style.display = App.currentIndex === 0 ? 'none' : 'flex';
+  els.nextBtn.style.display = App.currentIndex === App.files.length - 1 ? 'none' : 'flex';
+}
+
+function navigate(dir) {
+  const newIdx = App.currentIndex + dir;
+  if(newIdx >= 0 && newIdx < App.files.length) {
+    App.currentIndex = newIdx;
+    loadFocusItem();
+    els.focusInput.select(); 
+  }
+}
+
+// タグ描画
+function renderTags() {
+  els.tagContainer.innerHTML = '';
+  App.categories.forEach((cat, catIdx) => {
+    const group = document.createElement('div');
+    group.className = 'category-group';
+    group.style.setProperty('--cat-color', cat.color);
+    
+    // ヘッダー
+    const header = document.createElement('div');
+    header.className = 'category-header';
+    const title = document.createElement('div');
+    title.className = 'category-title';
+    title.innerHTML = `${cat.title}`;
+    const addBtn = document.createElement('div');
+    addBtn.className = 'cat-add-btn';
+    addBtn.textContent = '＋';
+    addBtn.title = 'タグを追加';
+    addBtn.onclick = () => addTagToCategory(catIdx);
+    
+    header.appendChild(title);
+    header.appendChild(addBtn);
+    group.appendChild(header);
+
+    // グリッド
+    const grid = document.createElement('div');
+    grid.className = 'tag-grid';
+    cat.tags.forEach((tag, tagIdx) => {
+      const btn = document.createElement('div');
+      btn.className = 'tag-btn';
+      btn.textContent = tag;
+      
+      const delBtn = document.createElement('span');
+      delBtn.className = 'tag-delete';
+      delBtn.textContent = '×';
+      delBtn.onclick = (e) => { e.stopPropagation(); removeTag(catIdx, tagIdx); };
+      
+      btn.appendChild(delBtn);
+      btn.onclick = () => applyTag(tag);
+      grid.appendChild(btn);
     });
-    newLabelInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') addLabelBtn.click();
-    });
-    function applyLabelAndMoveToNext(text) {
-        if (containers.children.length === 0) return;
-        let targetElements = [];
-        if (selectedCards.size === 0) {
-            const firstCard = containers.querySelector('.card');
-            if(firstCard) {
-                targetElements.push(firstCard);
-                highlightSingle(firstCard);
-            }
-        } else {
-            selectedCards.forEach(id => {
-                const card = document.getElementById(id);
-                if (card) targetElements.push(card);
-            });
-        }
-        let maxIndex = -1;
-        targetElements.forEach(card => {
-            const input = card.querySelector('.filename');
-            input.value = (input.value ? input.value + ' ' : '') + text;
-            const cardIndex = parseInt(card.id.split('-')[1], 10);
-            if (cardIndex > maxIndex) maxIndex = cardIndex;
-        });
-        if (maxIndex > -1) {
-            moveToNext(maxIndex);
-        }
+    group.appendChild(grid);
+    els.tagContainer.appendChild(group);
+  });
+}
+
+function applyTag(text) {
+  const currentVal = els.focusInput.value.trim();
+  const originalBaseName = App.files[App.currentIndex].originalName.replace(/\.[^/.]+$/, "");
+  let newVal;
+  if (currentVal === originalBaseName) {
+    newVal = text;
+  } else {
+    newVal = currentVal ? `${currentVal} ${text}` : text;
+  }
+  els.focusInput.value = newVal;
+  App.files[App.currentIndex].name = newVal;
+  updateGridCard(App.currentIndex);
+  if(App.autoNext) navigate(1); else els.focusInput.focus();
+}
+
+function addTagToCategory(catIdx) {
+    const val = prompt(`「${App.categories[catIdx].title}」に新しいタグを追加:`);
+    if(val && val.trim()) {
+        App.categories[catIdx].tags.push(val.trim());
+        saveSettings();
+        renderTags();
     }
-    function highlightSingle(card) {
-        if (!card) return;
-        selectedCards.clear();
-        selectedCards.add(card.id);
-        Array.from(containers.querySelectorAll('.card')).forEach(c => {
-            c.classList.toggle('selected', c.id === card.id);
-        });
+}
+
+function removeTag(catIdx, tagIdx) {
+    if(confirm('このタグを削除しますか？')) {
+        App.categories[catIdx].tags.splice(tagIdx, 1);
+        saveSettings();
+        renderTags();
     }
-    function toggleCardSelection(card) {
-        if (selectedCards.has(card.id)) {
-            selectedCards.delete(card.id);
-            card.classList.remove('selected');
-        } else {
-            selectedCards.add(card.id);
-            card.classList.add('selected');
+}
+
+// 設定保存
+function saveSettings() {
+  const settings = { categories: App.categories, autoNext: App.autoNext };
+  localStorage.setItem('pr_settings_v11', JSON.stringify(settings));
+}
+
+function loadSettings() {
+  const json = localStorage.getItem('pr_settings_v11');
+  if(json) {
+    try {
+        const s = JSON.parse(json);
+        if(s.categories) {
+             App.categories.forEach(def => {
+                 const saved = s.categories.find(c => c.title === def.title);
+                 if(saved) def.tags = saved.tags;
+             });
         }
+        if(s.autoNext !== undefined) {
+            App.autoNext = s.autoNext;
+            els.autoNextCheck.checked = s.autoNext;
+        }
+    } catch(e) {}
+  }
+}
+
+// 圧縮・保存処理
+async function downloadAll() {
+  if(!App.files.length) return;
+  const btn = els.dlBtn;
+  const originalHtml = btn.innerHTML;
+  
+  const maxWidth = parseInt(els.resizeSelect.value, 10);
+  const quality = parseFloat(els.qualityRange.value);
+
+  btn.disabled = true;
+
+  for(let i=0; i<App.files.length; i++) {
+    const item = App.files[i];
+    btn.innerHTML = `<span>保存中... ${i+1}/${App.files.length}</span>`;
+    
+    const ext = item.originalName.split('.').pop();
+    const safeName = item.name.replace(/[\\/:*?"<>|]/g, '_').trim() || 'Untitled';
+    const fullName = `${safeName}.${ext}`;
+
+    // Compression Logic
+    let downloadUrl = item.url;
+    let isProcessed = false;
+
+    // サイズ指定があるか、画質が100%未満でjpg/pngの場合に処理
+    if (maxWidth > 0 || (quality < 1.0 && ['jpg','jpeg','png'].includes(ext.toLowerCase()))) {
+       try {
+           downloadUrl = await processImage(item.url, maxWidth, quality, ext);
+           isProcessed = true;
+       } catch(e) {
+           console.error("Compression failed, using original", e);
+       }
     }
-    imageInput.addEventListener('change', function(e) {
-        objectUrls.forEach(url => URL.revokeObjectURL(url));
-        objectUrls = [];
-        containers.innerHTML = '';
-        selectedCards.clear();
-        filesData = Array.from(e.target.files).filter(f => f.type.startsWith('image/')).slice(0, 200);
-        if (filesData.length > 0) {
-            emptyState.style.display = 'none';
-        } else {
-            emptyState.style.display = 'block';
-            return;
-        }
-        filesData.forEach((file, idx) => {
-            const card = document.createElement('div');
-            card.className = 'card';
-            card.id = 'card-' + idx;
-            const img = document.createElement('img');
-            img.className = 'thumb';
-            img.alt = file.name;
-            const url = URL.createObjectURL(file);
-            img.src = url;
-            objectUrls.push(url);
-            const fname = document.createElement('input');
-            fname.type = 'text';
-            fname.className = 'filename input';
-            fname.placeholder = file.name.replace(/\.[^/.]+$/, '');
-            fname.dataset.index = idx;
-            fname.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    moveToNext(idx);
-                }
-            });
-            const meta = document.createElement('div');
-            meta.className = 'meta';
-            meta.innerHTML = `<span>${Math.round(file.size / 1024)} KB</span><span>${file.type.split('/')[1] || ''}</span>`;
-            card.append(img, fname, meta);
-            card.addEventListener('click', (e) => {
-                if (e.target.tagName === 'INPUT') return;
-                if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                    toggleCardSelection(card);
+
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = fullName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    if(isProcessed) URL.revokeObjectURL(downloadUrl);
+    
+    await new Promise(r => setTimeout(r, 200));
+  }
+  
+  btn.innerHTML = originalHtml;
+  btn.disabled = false;
+  alert("保存が完了しました！");
+}
+
+function processImage(url, maxWidth, quality, ext) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            
+            if (maxWidth > 0 && (w > maxWidth || h > maxWidth)) {
+                const ratio = w / h;
+                if (w > h) {
+                    w = maxWidth;
+                    h = w / ratio;
                 } else {
-                    highlightSingle(card);
-                    fname.focus();
-                    fname.select();
+                    h = maxWidth;
+                    w = h * ratio;
                 }
-            });
-            containers.appendChild(card);
-        });
-        setTimeout(() => {
-            const firstCard = containers.querySelector('.card');
-            if (firstCard) {
-                highlightSingle(firstCard);
-                const firstInput = firstCard.querySelector('.filename');
-                firstInput.focus();
-                firstInput.select();
             }
-        }, 100);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+
+            let mime = 'image/jpeg';
+            if(ext.toLowerCase() === 'png') mime = 'image/png';
+            
+            canvas.toBlob((blob) => {
+                if(blob) resolve(URL.createObjectURL(blob));
+                else reject(new Error('Canvas to Blob failed'));
+            }, mime, quality);
+        };
+        img.onerror = reject;
+        img.src = url;
     });
-    function moveToNext(currentIdx) {
-        const nextCard = document.getElementById('card-' + (currentIdx + 1));
-        if (nextCard) {
-            highlightSingle(nextCard);
-            const nextInput = nextCard.querySelector('.filename');
-            nextInput.focus();
-            nextInput.select();
-        } else {
-            const currentCard = document.getElementById('card-' + currentIdx);
-            if(currentCard) currentCard.querySelector('.filename').blur();
-        }
-    }
-    viewControls.addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON') {
-            const size = e.target.dataset.size;
-            if (!size) return;
-            containers.className = `size-${size}`;
-            viewControls.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
-        }
-    });
-    downloadBtn.addEventListener('click', async () => {
-        if (filesData.length === 0) {
-            alert('ダウンロードする画像がありません。');
-            return;
-        }
-        for (let i = 0; i < filesData.length; i++) {
-            const card = document.getElementById('card-' + i);
-            const file = filesData[i];
-            if (!card || !file) continue;
-            const input = card.querySelector('.filename');
-            const originalExtension = file.name.split('.').pop() || 'jpg';
-            const nameBase = (input.value.trim() || input.placeholder).replace(/[\\/:*?"<>|]/g, '_');
-            const finalName = `${nameBase}.${originalExtension}`;
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(file);
-            link.download = finalName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-            await new Promise(resolve => setTimeout(resolve, 150));
-        }
-    });
-    renderLabels();
-});
+}
+
+init();
 </script>
 </body>
 </html>
