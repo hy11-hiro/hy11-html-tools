@@ -2406,6 +2406,16 @@
                         </div>
                     </div>
 
+                    <!-- 拠点上書き設定の適用 -->
+                    <div class="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
+                        <label class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer select-none">
+                            <input type="checkbox" id="merge-apply-branch-override" class="w-4 h-4 text-rose-600 rounded" onchange="window.updateMergePreviewCount(); window.renderMergeOrderList?.();">
+                            <i class="fa-solid fa-map-location-dot text-rose-500"></i>
+                            拠点上書き設定を適用する（工番単位）
+                        </label>
+                        <p class="text-xs text-slate-500 mt-1 ml-6">集計・ランキングの「支店長会議資料」で設定した拠点上書き（工番ごとに拠点を別の拠点に置き換える設定）と同じものを、この「拠点」列にも適用します。設定していない工番マスターの拠点はそのまま出力されます。</p>
+                    </div>
+
                     <!-- 出力ボタン -->
                     <div class="flex items-center justify-between pt-2 border-t border-slate-100">
                         <div id="merge-preview-count" class="text-sm text-slate-500"></div>
@@ -2428,6 +2438,15 @@
                                 <i class="fa-solid fa-file-excel"></i> Excel出力
                             </button>
                         </div>
+                    </div>
+
+                    <!-- 出力列の並び替え -->
+                    <div class="pt-3 border-t border-slate-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xs font-bold text-slate-500"><i class="fa-solid fa-arrows-up-down mr-1"></i>出力列の順番（左が1列目）</span>
+                            <button onclick="window.resetMergeFieldOrder()" class="text-[10px] text-slate-400 hover:text-slate-600 underline">選択順にリセット</button>
+                        </div>
+                        <div id="merge-order-list" class="flex flex-wrap gap-1.5"></div>
                     </div>
                     <!-- プレビューテーブル -->
                     <div id="merge-preview-area" class="hidden overflow-x-auto rounded-lg border border-slate-200">
@@ -10629,11 +10648,13 @@
             sel.appendChild(div);
         }
         window.updateMergePreviewCount();
+        window.renderMergeOrderList?.();
     };
 
     window.toggleMergeGroup = function(srcKey, on) {
         document.querySelectorAll(`.merge-col-chk[data-src="${srcKey}"]`).forEach(c => c.checked = on);
         window.updateMergePreviewCount();
+        window.renderMergeOrderList?.();
     };
 
     window.updateMergePreviewCount = async function() {
@@ -10674,6 +10695,10 @@
         const salesAll  = await db.sales.toArray();
         const purchAll  = await db.purchases.toArray();
         const collAll   = await db.collections.toArray();
+
+        // 拠点上書き設定（支店長会議資料と共通の設定）を適用するかどうか
+        const applyBranchOverride = document.getElementById('merge-apply-branch-override')?.checked;
+        if (applyBranchOverride) await bmLoadBranchOverrides();
 
         const costMap  = new Map(costs.map(c => [String(c.code||'').trim().toLowerCase(), c]));
         // 売上: 親コード単位 と サブコード単位 の両方でMap化
@@ -10776,7 +10801,9 @@
                 // ★ 枝番行はすべて枝番自身のデータのみ使用（親コードからの引継ぎなし）
                 name:         sub ? (sub.name        || '') : (m.name        || ''),
                 subName:      sub ? (sub.subName      || '') : (m.subName     || ''),
-                branch:       sub ? (sub.branch       || '') : (m.branch      || ''),
+                branch:       applyBranchOverride
+                                ? bmEffectiveBranch(m.code, sub ? (sub.branch || '') : (m.branch || ''))
+                                : (sub ? (sub.branch       || '') : (m.branch      || '')),
                 manager:      sub ? (sub.manager      || '') : (m.manager     || ''),
                 estimator:    sub ? (sub.estimator    || '') : (m.estimator   || ''),
                 designer:     sub ? (sub.designer     || '') : (m.designer    || ''),
@@ -10793,7 +10820,7 @@
                 cost_salesTotal:  getCost(cost.salesTotal),
                 cost_costTotal:   getCost(cost.costTotal),
                 cost_profitTotal: getCost(cost.profitTotal),
-                cost_marginRatio: getCost(cost.marginRatio != null ? (cost.marginRatio * 100).toFixed(1) + '%' : ''),
+                cost_marginRatio: getCost(cost.marginRatio),
                 sales_count:  sale.count  || 0,
                 sales_sumEx:  sale.sum_ex || 0,
                 sales_sumInc: sale.sum_inc|| 0,
@@ -10862,10 +10889,20 @@
         return rows;
     };
 
-    window.getSelectedMergeFields = function() {
-        // disabled なチェックボックス（必須）も含めて取得
+    // ── 出力列の並び替え ──
+    // 選択されている列は checkbox の並び順（データソースごとにグループ化された順）がデフォルトの並びだが、
+    // ここではユーザーが独自に指定した並び順（mergeFieldOrder）を優先して使う。
+    // mergeFieldOrder はチェック状態の変化に追従して自動更新される：
+    //   ・新しく選択された列は末尾に追加
+    //   ・選択解除された列は取り除く
+    //   ・既存の並びはそのまま維持
+    let mergeFieldOrder = []; // [{src, key}, ...]
+
+    function mergeFieldKey(f) { return f.src + ':' + f.key; }
+
+    // チェック状態から「選択されている列（データソース順）」を取得する内部ヘルパー
+    function getCheckedMergeFieldsRaw() {
         const checked = [...document.querySelectorAll('.merge-col-chk:checked, .merge-col-chk[disabled]')];
-        // 重複排除（必須列がdisabled+checkedで2回入る場合）
         const seen = new Set();
         return checked.filter(c => {
             const key = c.dataset.src + ':' + c.dataset.key;
@@ -10879,6 +10916,91 @@
             const field = srcDef?.fields.find(f => f.key === key);
             return { key, src, label: field?.label || key };
         });
+    }
+
+    window.getSelectedMergeFields = function() {
+        const rawFields = getCheckedMergeFieldsRaw();
+        const rawMap = new Map(rawFields.map(f => [mergeFieldKey(f), f]));
+
+        // mergeFieldOrder を現在の選択状態に同期する
+        // （選択解除された列は除去、新規選択された列は末尾に追加）
+        mergeFieldOrder = mergeFieldOrder.filter(o => rawMap.has(mergeFieldKey(o)));
+        const orderedKeys = new Set(mergeFieldOrder.map(mergeFieldKey));
+        rawFields.forEach(f => { if (!orderedKeys.has(mergeFieldKey(f))) mergeFieldOrder.push({ src: f.src, key: f.key }); });
+
+        return mergeFieldOrder.map(o => rawMap.get(mergeFieldKey(o))).filter(Boolean);
+    };
+
+    // 出力列の並び替えUI（チップ＋左右移動ボタン）を再描画する
+    window.renderMergeOrderList = function() {
+        const fields = window.getSelectedMergeFields(); // 呼ぶことで mergeFieldOrder が最新の選択状態に同期される
+        const list = document.getElementById('merge-order-list');
+        if (!list) return;
+        if (fields.length === 0) {
+            list.innerHTML = '<span class="text-xs text-slate-400">列を選択すると、ここでつかんで順番を入れ替えられます</span>';
+            return;
+        }
+        list.innerHTML = fields.map((f, i) => {
+            const colorCls = COLOR_MAP[MERGE_FIELDS[f.src]?.color] || '';
+            return `
+            <span class="merge-order-chip inline-flex items-center gap-1 text-xs pl-1.5 pr-1 py-1 rounded-full border ${colorCls} cursor-grab active:cursor-grabbing"
+                draggable="true" data-index="${i}"
+                ondragstart="window.mergeOrderDragStart(event, ${i})"
+                ondragover="window.mergeOrderDragOver(event, ${i})"
+                ondragleave="window.mergeOrderDragLeave(event)"
+                ondrop="window.mergeOrderDrop(event, ${i})"
+                ondragend="window.mergeOrderDragEnd(event)">
+                <i class="fa-solid fa-grip-vertical text-[9px] text-slate-400"></i>
+                <span class="text-[10px] text-slate-400 font-mono">${i + 1}</span>
+                <span class="font-bold">${f.label}</span>
+                <button onclick="window.moveMergeField(${i}, -1)" ${i === 0 ? 'disabled' : ''} class="w-4 h-4 flex items-center justify-center rounded hover:bg-white/60 disabled:opacity-20 disabled:cursor-not-allowed" title="左へ移動"><i class="fa-solid fa-chevron-left text-[9px]"></i></button>
+                <button onclick="window.moveMergeField(${i}, 1)" ${i === fields.length - 1 ? 'disabled' : ''} class="w-4 h-4 flex items-center justify-center rounded hover:bg-white/60 disabled:opacity-20 disabled:cursor-not-allowed" title="右へ移動"><i class="fa-solid fa-chevron-right text-[9px]"></i></button>
+            </span>`;
+        }).join('');
+    };
+
+    window.moveMergeField = function(index, dir) {
+        const target = index + dir;
+        if (target < 0 || target >= mergeFieldOrder.length) return;
+        [mergeFieldOrder[index], mergeFieldOrder[target]] = [mergeFieldOrder[target], mergeFieldOrder[index]];
+        window.renderMergeOrderList();
+    };
+
+    // ── 出力列チップのドラッグ&ドロップ並び替え ──
+    let _mergeDragFromIndex = null;
+    window.mergeOrderDragStart = function(e, index) {
+        _mergeDragFromIndex = index;
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(index)); } catch (err) {}
+        e.currentTarget.classList.add('opacity-40');
+    };
+    window.mergeOrderDragOver = function(e, index) {
+        e.preventDefault(); // これが無いとdropイベントが発火しない
+        e.dataTransfer.dropEffect = 'move';
+        if (_mergeDragFromIndex === null || _mergeDragFromIndex === index) return;
+        e.currentTarget.classList.add('ring-2', 'ring-blue-400');
+    };
+    window.mergeOrderDragLeave = function(e) {
+        e.currentTarget.classList.remove('ring-2', 'ring-blue-400');
+    };
+    window.mergeOrderDrop = function(e, dropIndex) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('ring-2', 'ring-blue-400');
+        if (_mergeDragFromIndex === null || _mergeDragFromIndex === dropIndex) return;
+        const [moved] = mergeFieldOrder.splice(_mergeDragFromIndex, 1);
+        mergeFieldOrder.splice(dropIndex, 0, moved);
+        _mergeDragFromIndex = null;
+        window.renderMergeOrderList();
+    };
+    window.mergeOrderDragEnd = function(e) {
+        e.currentTarget.classList.remove('opacity-40');
+        document.querySelectorAll('.merge-order-chip').forEach(el => el.classList.remove('ring-2', 'ring-blue-400'));
+        _mergeDragFromIndex = null;
+    };
+
+    window.resetMergeFieldOrder = function() {
+        mergeFieldOrder = getCheckedMergeFieldsRaw().map(f => ({ src: f.src, key: f.key }));
+        window.renderMergeOrderList();
     };
 
     window.previewMerge = async function() {
@@ -10892,7 +11014,12 @@
         const area = document.getElementById('merge-preview-area');
         head.innerHTML = '<tr>' + fields.map(f => `<th class="p-1.5 border border-slate-200 bg-slate-100 text-slate-600 whitespace-nowrap">${f.label}</th>`).join('') + '</tr>';
         body.innerHTML = preview.map(r =>
-            '<tr>' + fields.map(f => `<td class="p-1.5 border border-slate-200 whitespace-nowrap">${r[f.key] ?? ''}</td>`).join('') + '</tr>'
+            '<tr>' + fields.map(f => {
+                let v = r[f.key] ?? '';
+                // 粗利率はデータ上は小数（0.31）で保持しているので、プレビュー表示のときだけ「31.0%」に変換する
+                if (f.key === 'cost_marginRatio' && v !== '' && v !== null && !isNaN(v)) v = (Number(v) * 100).toFixed(1) + '%';
+                return `<td class="p-1.5 border border-slate-200 whitespace-nowrap">${v}</td>`;
+            }).join('') + '</tr>'
         ).join('');
         area.classList.remove('hidden');
         const el = document.getElementById('merge-preview-count');
@@ -10939,6 +11066,17 @@
             });
             const ws = XLSX.utils.json_to_sheet(exportData);
             ws['!cols'] = fields.map(() => ({ wch: 16 }));
+            // 粗利率列は数値（0.31など）で入っているので、Excelのパーセント表示形式を適用する
+            // （文字列"31%"ではなく、実際に計算に使える数値として出力するための対応）
+            const marginColIdx = fields.findIndex(f => f.key === 'cost_marginRatio');
+            if (marginColIdx !== -1) {
+                const colLetter = XLSX.utils.encode_col(marginColIdx);
+                for (let i = 0; i < exportData.length; i++) {
+                    const cellAddr = `${colLetter}${i + 2}`; // 1行目はヘッダー
+                    const cell = ws[cellAddr];
+                    if (cell && typeof cell.v === 'number') cell.z = '0.0%';
+                }
+            }
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, 'データ結合');
             XLSX.writeFile(wb, `データ結合_${subMode}_${dateStr}.xlsx`);
@@ -10993,12 +11131,20 @@
                         // ＋はネイビー、－は赤
                         const fontColor = numVal < 0 ? 'FFDC2626' : numVal > 0 ? 'FF1E3A5F' : 'FF64748B';
                         cell.font   = { color: { argb: fontColor }, size: 10, bold: numVal < 0 };
-                    } else if (f.key === 'cost_marginRatio' && String(val).includes('%')) {
-                        // 粗利率: 色分け
-                        const pct = parseFloat(String(val).replace('%','')) || 0;
-                        cell.value  = val;
-                        const fontColor = pct < 0 ? 'FFDC2626' : pct >= 30 ? 'FF059669' : 'FF1E3A5F';
-                        cell.font   = { color: { argb: fontColor }, size: 10, bold: pct < 0 };
+                    } else if (f.key === 'cost_marginRatio') {
+                        // 粗利率: データは小数（0.31など）で保持しているので、文字列にせず
+                        // 数値のままExcelのパーセント表示形式を適用する（計算に使える実数値として出力）
+                        if (val !== '' && val !== null && val !== undefined && !isNaN(val)) {
+                            const marginNum = Number(val);
+                            cell.value  = marginNum;
+                            cell.numFmt = '0.0%';
+                            const pct = marginNum * 100;
+                            const fontColor = pct < 0 ? 'FFDC2626' : pct >= 30 ? 'FF059669' : 'FF1E3A5F';
+                            cell.font   = { color: { argb: fontColor }, size: 10, bold: pct < 0 };
+                        } else {
+                            cell.value = '';
+                            cell.font  = { size: 10, color: { argb: 'FF1E293B' } };
+                        }
                     } else {
                         cell.value = val;
                         cell.font  = { size: 10, color: { argb: 'FF1E293B' } };
@@ -11032,9 +11178,10 @@
 
     // 列チェック変更 → プレビュー件数更新
     document.addEventListener('change', function(e) {
-        if (e.target.classList.contains('merge-col-chk') || e.target.name === 'merge-subcode' || e.target.name === 'merge-nosubcode' || e.target.name === 'merge-base' || e.target.name === 'merge-blank-end' || e.target.name === 'merge-end-base') {
+        if (e.target.classList.contains('merge-col-chk') || e.target.name === 'merge-subcode' || e.target.name === 'merge-nosubcode' || e.target.name === 'merge-base' || e.target.name === 'merge-blank-end' || e.target.name === 'merge-end-base' || e.target.id === 'merge-apply-branch-override') {
             updateMergeRadioStyles();
             window.updateMergePreviewCount?.();
+            if (e.target.classList.contains('merge-col-chk')) window.renderMergeOrderList?.();
         }
         if (e.target.id === 'merge-end-date-from' || e.target.id === 'merge-end-date-to') {
             window.updateMergePreviewCount?.();
