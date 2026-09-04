@@ -266,7 +266,36 @@ hr{border:none;border-top:1px solid var(--bd);margin:14px 0}
   body{background:#fff;font-size:11px}
   .card{box-shadow:none;border-color:#ccc}
   .smt thead th{background:var(--pri);color:#fff;-webkit-print-color-adjust:exact}
+  /* LINE解析結果の専用印刷モード：通常のタブ画面は隠し、印刷用エリアだけを表示する */
+  body.printing-li .pg{display:none!important}
+  body.printing-li #li-print-area{display:block!important}
 }
+
+/* LINE解析結果 印刷（PDF出力）専用レイアウト。通常は非表示で、
+   印刷（PDF出力）ボタン押下時にだけ内容を差し込んで表示する。
+   現場ごとのカードを2カラムで並べ、横に間延びしないようにする。 */
+#li-print-area{display:none}
+.li-print-hdr{text-align:center;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid var(--pri)}
+.li-print-co{font-size:11px;color:var(--muted);letter-spacing:.3px}
+.li-print-ti{font-size:17px;font-weight:700;color:var(--text);margin:3px 0}
+.li-print-sub{font-size:10.5px;color:var(--muted)}
+.li-print-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.li-print-group{border:1px solid #ccc;border-radius:4px;overflow:hidden;
+  break-inside:avoid;page-break-inside:avoid;font-size:10px}
+.li-print-meta{width:100%;border-collapse:collapse;background:var(--pri-l)}
+.li-print-meta td{padding:5px 8px;border-bottom:1px solid #dde}
+.li-print-meta tr+tr td{border-top:1px solid #dde}
+.li-print-meta td b{display:inline-block;min-width:34px;color:var(--pri);font-weight:700;
+  font-size:9px;margin-right:3px}
+.li-print-meta .li-pm-name{font-weight:700}
+.li-print-tbl{width:100%;border-collapse:collapse}
+.li-print-tbl th{background:#f2f4f8;color:var(--text);text-align:left;padding:4px 8px;
+  border-bottom:1px solid #ccc;font-weight:700;font-size:9.5px}
+.li-print-tbl td{padding:4px 8px;border-bottom:1px solid #eee}
+.li-print-tbl td.r{text-align:right;font-family:var(--mono);white-space:nowrap}
+.li-print-tbl td.c{text-align:center;color:var(--muted);white-space:nowrap}
+.li-print-tbl td.nm{word-break:break-all}
+.li-print-ftr{margin-top:12px;font-size:9.5px;color:var(--muted2);text-align:right}
 
 /* HELP MODAL */
 .help-overlay{display:none;position:fixed;inset:0;background:rgba(20,24,38,.55);
@@ -485,6 +514,7 @@ D10 4m　50"></textarea>
       <div class="flex mt8">
         <button class="btn btn-g btn-sm" onclick="liAddAllTf()">全件を持ち出しに追加</button>
         <button class="btn btn-o btn-sm" onclick="liCopy()">TSVコピー</button>
+        <button class="btn btn-o btn-sm" onclick="printLiResult()">PDF出力（A4）</button>
       </div>
     </div>
   </div>
@@ -747,6 +777,9 @@ D10 4m　50"></textarea>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+
+<!-- LINE解析結果 PDF出力用（印刷時のみ表示） -->
+<div id="li-print-area"></div>
 
 <!-- HELP MODAL（使い方マニュアル） -->
 <div class="help-overlay" id="help-overlay" onclick="if(event.target===this)closeHelp()">
@@ -1379,7 +1412,9 @@ function rdTfList(){
   const tb=document.getElementById('tf-list');
   if(!fl.length){tb.innerHTML=`<tr><td colspan="7"><div class="emp">記録がありません</div></td></tr>`;return}
   tb.innerHTML=fl.sort((a,b)=>b.date.localeCompare(a.date)).map(r=>{
-    const ms=Object.entries(r.mats||{}).map(([id,q])=>{const m=ALL.find(x=>x.id===id);return m?`${m.short}:${q}${m.unit}`:''}).filter(Boolean).slice(0,5).join(' ');
+    const entries=Object.entries(r.mats||{}).map(([id,q])=>{const m=ALL.find(x=>x.id===id);return m?`${m.short}:${q}${m.unit}`:''}).filter(Boolean);
+    const shown=entries.slice(0,8);
+    const ms=shown.join(' ')+(entries.length>8?` +${entries.length-8}件`:'');
     return`<tr>
       <td class="mn sm">${r.date}</td>
       <td><span class="bdg bb">${esc(r.code)}</span></td>
@@ -1441,8 +1476,8 @@ const MKW = [
   { id: 'suna', re: /^砂(?!利)/ },
   { id: 'jari', re: /^砂利/ },
   { id: 'cmt',  re: /セメント|ｾﾒﾝﾄ/ },
-  { id: 'mg',   re: /(伸縮)?目地.*(グレー|グレ|ｸﾞﾚｰ|gray)/i },
-  { id: 'mb',   re: /(伸縮)?目地.*(黒|ブラック|ﾌﾞﾗｯｸ|black)/i },
+  { id: 'mg',   re: /(伸縮目地|伸縮|目地)?.{0,3}(グレー|グレ|ｸﾞﾚｰ|gray)/i },
+  { id: 'mb',   re: /(伸縮目地|伸縮|目地)?.{0,3}(黒|ブラック|ﾌﾞﾗｯｸ|black)/i },
   // D10 with explicit 5m first, then 4m, then bare D10 → default 4m
   { id: 'd5',   re: /D[-\s]?10.{0,3}5m/i },
   { id: 'd4',   re: /D[-\s]?10/i },          // catches "D10 15", "D10　4" etc.
@@ -1474,14 +1509,20 @@ function mMat(t) {
 function splitNameQty(raw) {
   // Normalize: full-width space → half
   const s = raw.replace(/　/g, ' ').trim();
-  // 単位文字（数量の直後にのみ付く可能性がある）。
+  // 単位（数量の直後にのみ付く可能性がある）。
   // ※以前は行全体から無条件にこれらの文字を除去していたため、
   //   「基本」の「本」まで消えて r1y/r2y が認識できなくなる不具合があった。
   //   数量の直後（末尾）に限定して除去するよう修正。
-  const UNIT = '袋本巻枚缶箱ｹｰｽ㎥個';
+  // 「ケース」のような複数文字の単位語にも対応するため、
+  // 単一文字の集合に加えて代表的な複数文字の単位語も候補に含め、
+  // 長い単位語から優先的にマッチするよう長さ降順で並べる
+  // （例："5ケース" が先に "ケ" 1文字だけにマッチして "ース" が残ってしまうのを防ぐ）。
+  const UNIT_CHARS = '袋本巻枚缶箱ｹｰｽ㎥個';
+  const UNIT_WORDS = ['ケース', 'ｹｰｽ', ...UNIT_CHARS.split('')].sort((a, b) => b.length - a.length);
+  const UNIT_ALT = UNIT_WORDS.map(u => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 
   // Pattern A: "名前 数量[単位]" with space before the number
-  const pA = s.match(new RegExp(`^(.+?)\\s+([\\d]+(?:\\.\\d+)?)\\s*[${UNIT}]?\\s*$`));
+  const pA = s.match(new RegExp(`^(.+?)\\s+([\\d]+(?:\\.\\d+)?)\\s*(?:${UNIT_ALT})?\\s*$`));
   if (pA) return { name: pA[1].trim(), qty: parseFloat(pA[2]) };
 
   // Pattern B: number then name "20 砂"
@@ -1489,7 +1530,7 @@ function splitNameQty(raw) {
   if (pB) return { name: pB[2].trim(), qty: parseFloat(pB[1]) };
 
   // Pattern C: trailing number glued to name "砂50" "120CB基本6" "100CB基本84"
-  const pC = s.match(new RegExp(`^(.+?)(\\d+(?:\\.\\d+)?)\\s*[${UNIT}]?\\s*$`));
+  const pC = s.match(new RegExp(`^(.+?)(\\d+(?:\\.\\d+)?)\\s*(?:${UNIT_ALT})?\\s*$`));
   if (pC) return { name: pC[1].trim(), qty: parseFloat(pC[2]) };
 
   return null;
@@ -1523,6 +1564,17 @@ function isSenderLine(line) {
   return true;
 }
 
+// LINEのメッセージには全角の英数字・記号（Ｄ１０、－　など）が混じることがある。
+// 資材名・数量・工番の判定はすべて半角前提のため、行を解析する前に
+// 全角英数字と代表的な全角記号を半角へ正規化しておく。
+function normalizeLine(line) {
+  return line
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/[－‐−]/g, '-')
+    .replace(/／/g, '/')
+    .replace(/：/g, ':');
+}
+
 // ── 「発言者 [読み] 現場名」の文字列を発言者部分と現場名部分に分割する。
 //    例: "田口肇 東深井先行"        → sender:"田口肇"        site:"東深井先行"
 //        "石橋　さとし 習志野市藤崎" → sender:"石橋　さとし"  site:"習志野市藤崎"
@@ -1547,6 +1599,10 @@ function parseLi() {
   // ブロック資材（120CB/CB120等）のヘッダーが単独行で、
   // 「基本」「コーナー」が別行に続くケース用の継続状態
   let curBlockPrefix = null;
+  // "10:43 幅野 松戸市日暮8丁目33番" のように、時刻+発言者+現場名が
+  // 同じ行にあるが工番がその行に無い（工番が次の行に単独で来る）書式に対応するため、
+  // 現場名だけを一時的に保持しておく変数。次に工番単独行が来たときに使用する。
+  let pendingSiteName = '';
 
   function pushGroup() {
     if (curCode || curItems.length > 0) {
@@ -1554,9 +1610,10 @@ function parseLi() {
     }
     curCode = ''; curName = ''; curItems = [];
     curBlockPrefix = null;
+    pendingSiteName = '';
   }
 
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+  const lines = text.split('\n').map(l => normalizeLine(l.trim())).filter(l => l);
 
   for (const line of lines) {
     // Skip system messages
@@ -1600,7 +1657,12 @@ function parseLi() {
     const cm = line.match(/^(.*?)([a-zA-Z]\d{3,5})\s*$/);
     const cmValidBoundary = cm && (cm[1] === '' || /[\s　]$/.test(cm[1]));
     if (cm && cmValidBoundary) {
-      if (!isNewMsg) pushGroup(); // 既に isNewMsg で確定済みでなければここで確定
+      // グループの確定（pushGroup）は、直前の isNewMsg 判定や
+      // isSenderLine 判定の時点で既に行われているため、ここでは行わない。
+      // （かつては旧形式向けにここでも pushGroup() していたが、
+      //   「時刻+発言者+現場名（工番なし）」の行の直後に工番単独行が
+      //   続く書式で、せっかく保持した現場名（pendingSiteName）が
+      //   このタイミングで消されてしまう不具合があったため削除した）
       curCode = cm[2];
       let rest = cm[1].replace(/[\s　]+$/, '').trim();
 
@@ -1614,13 +1676,22 @@ function parseLi() {
       // tmIn がない場合は rest は現場名のみ（発言者は直前の行で確定済み）
 
       const found = sites.find(s => s.code.toLowerCase() === curCode.toLowerCase());
-      curName = found ? found.name : (rest || curCode);
+      curName = found ? found.name : (rest || pendingSiteName || curCode);
+      pendingSiteName = ''; // 消費したのでクリア
       continue;
     }
 
     // ── Time + sender only line（工番が別行のケース、または工番のない業務連絡）: "09:30 田口監督"
+    //    "10:43 幅野 松戸市日暮8丁目33番" のように、発言者名（姓のみ等どんな長さでも）に
+    //    続けて現場名が同じ行に書かれ、工番だけが次の行に単独で来る書式にも対応するため、
+    //    splitSenderSite() で発言者と現場名を分離し、現場名は pendingSiteName に保持しておく。
     const tm = line.match(/^(\d{1,2}:\d{2})\s+(.+)/);
-    if (tm) { curSender = tm[2].trim(); continue; }
+    if (tm) {
+      const { sender, site } = splitSenderSite(tm[2].trim());
+      curSender = sender || tm[2].trim();
+      if (site) pendingSiteName = site;
+      continue;
+    }
 
     // ── Sender-name-only line（旧形式：発言者名だけの行）
     //    このような行は必ず「新しい現場のメッセージの先頭」を意味するため、
@@ -1837,6 +1908,53 @@ function liCopy() {
   });
   navigator.clipboard.writeText(rows.join('\n')).then(() => toast('コピーしました'));
 }
+
+// LINE解析結果を、A4に整えた見やすいレイアウトで印刷（PDF保存）する。
+// ブラウザの印刷ダイアログで「PDFとして保存」を選ぶことでPDFファイルとして出力できる。
+function printLiResult() {
+  const visible = liGroups.filter(g => g.items.length > 0 || g.code || g.name);
+  if (!visible.length) { toast('印刷する解析結果がありません', 'w'); return; }
+
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}年${today.getMonth() + 1}月${today.getDate()}日`;
+  const[y, m] = (typeof month === 'string' && month.includes('-')) ? month.split('-') : ['----', '--'];
+
+  let html = `
+    <div class="li-print-hdr">
+      <div class="li-print-co">ヒューマンヤード 松戸支店</div>
+      <div class="li-print-ti">LINE資材報告 解析結果一覧</div>
+      <div class="li-print-sub">対象月：${esc(y)}年${parseInt(m) || ''}月　／　出力日：${todayStr}</div>
+    </div>
+    <div class="li-print-grid">`;
+
+  visible.forEach(g => {
+    const rows = g.items.map(it => {
+      const mt = ALL.find(x => x.id === it.matId);
+      return `<tr><td class="nm">${esc(mt ? (mt.short || mt.label) : it.matId)}</td><td class="r">${it.qty}</td><td class="c">${esc(mt ? mt.unit : '')}</td></tr>`;
+    }).join('') || `<tr><td colspan="3" class="c mu">資材の記載なし</td></tr>`;
+
+    html += `
+      <div class="li-print-group">
+        <table class="li-print-meta">
+          <tr><td><b>日付</b>${esc(g.date || '—')}</td><td><b>工番</b>${esc(g.code || '—')}</td></tr>
+          <tr><td><b>発言者</b>${esc(g.sender || '—')}</td><td class="li-pm-name"><b>現場名</b>${esc(g.name || '—')}</td></tr>
+        </table>
+        <table class="li-print-tbl">
+          <thead><tr><th>資材名</th><th class="r">数量</th><th class="c">単位</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  });
+
+  html += `</div><div class="li-print-ftr">全 ${visible.length} 件</div>`;
+
+  document.getElementById('li-print-area').innerHTML = html;
+  document.body.classList.add('printing-li');
+  window.print();
+}
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('printing-li');
+});
 
 function liSmp() {
   document.getElementById('li-in').value =
