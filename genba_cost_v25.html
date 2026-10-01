@@ -565,7 +565,10 @@
                         <div class="md:col-span-8 glass-panel p-6 rounded-xl border-l-4 border-blue-600 relative">
                             <div class="absolute top-4 right-4 flex gap-2">
                                 <button onclick="window.exportSiteReport()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-2 px-4 rounded shadow flex items-center gap-2"><i class="fa-solid fa-file-excel"></i> Excel出力</button>
-                                <button onclick="window.exportSiteReportPdf()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2 px-4 rounded shadow flex items-center gap-2"><i class="fa-solid fa-file-pdf"></i> PDF出力</button>
+                                <div class="flex rounded shadow overflow-hidden">
+                                    <button onclick="window.exportSiteReportPdf('landscape')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2 px-3 flex items-center gap-2 border-r border-rose-500" title="A4横向き"><i class="fa-solid fa-file-pdf"></i> PDF出力（横）</button>
+                                    <button onclick="window.exportSiteReportPdf('portrait')" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2 px-3 flex items-center gap-2" title="A4縦向き"><i class="fa-solid fa-file-pdf"></i> 縦</button>
+                                </div>
                                 <button onclick="window.clearSiteSearch()" class="bg-slate-500 hover:bg-slate-600 text-white text-xs font-bold py-2 px-3 rounded shadow flex items-center gap-2"><i class="fa-solid fa-xmark"></i> 閉じる</button>
                             </div>
                             <div class="flex justify-between items-start mb-2">
@@ -590,6 +593,7 @@
                                         <button onclick="document.getElementById('res-subcode-detail').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
                                     </div>
                                     <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
+                                        <div><span class="block text-slate-400 text-[10px]">工番</span><span class="font-bold text-slate-700 font-mono" id="sd-code">-</span></div>
                                         <div><span class="block text-slate-400 text-[10px]">サブコード名</span><span class="font-bold text-slate-700" id="sd-name">-</span></div>
                                         <div><span class="block text-slate-400 text-[10px]">拠点</span><span class="font-bold text-slate-700" id="sd-branch">-</span></div>
                                         <div><span class="block text-slate-400 text-[10px]">着手日</span><span class="font-bold text-slate-700" id="sd-start">-</span></div>
@@ -665,7 +669,7 @@
                         <div id="res-collection-body" class="space-y-2 text-sm"></div>
                     </div>
 
-                    <div id="res-charts-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div id="res-charts-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4 border-l-4 border-indigo-500 pl-2">月次 売上/原価 推移 (税抜)</h4><div class="h-64"><canvas id="chart-trend"></canvas></div></div>
                         <div class="glass-panel p-6 rounded-xl"><h4 class="font-bold text-slate-600 mb-4 border-l-4 border-teal-500 pl-2">業者別 原価構成（全業者）</h4><div class="h-64 flex justify-center"><canvas id="chart-composition"></canvas></div></div>
                     </div>
@@ -2125,11 +2129,11 @@
                 <!-- 2. Cost Integrity Check -->
                 <div class="glass-panel p-6 rounded-xl border-l-4 border-red-500">
                     <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-file-invoice-dollar text-red-500"></i> 原価データ整合性チェック</h4>
-                    <p class="text-[10px] text-slate-400 mb-3">※①②③すべて、上の「対象範囲設定」（拠点・得意先・完了日期間）が適用されます。</p>
+                    <p class="text-[10px] text-slate-400 mb-3">※①〜⑤すべて、上の「対象範囲設定」（拠点・得意先・着手日期間・完了日期間）が適用されます。</p>
                     <div class="bg-red-50 p-4 rounded-lg mb-4 space-y-4">
 
                         <div>
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-zero" checked class="check-input"><label for="chk-cost-zero" class="check-label font-bold">① 売上/原価 0円検出</label></div>
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-zero" class="check-input"><label for="chk-cost-zero" class="check-label font-bold">① 売上/原価 0円検出</label></div>
                             <ul class="list-disc list-inside space-y-1 text-xs text-red-700 ml-6">
                                 <li><strong>完了済かつデータ0:</strong> 8桁の完了日が入力されているのに、売上または原価が「0」のデータ</li>
                                 <li><strong>進行中・未計上:</strong> 完了日が未入力(または0)だが、売上または原価が「0」のデータ</li>
@@ -2137,23 +2141,53 @@
                         </div>
 
                         <div class="border-t border-red-100 pt-3">
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-voucher-after-end" checked class="check-input"><label for="chk-cost-voucher-after-end" class="check-label font-bold">② 完了日より後の伝票日付を検出</label></div>
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-voucher-after-end" class="check-input"><label for="chk-cost-voucher-after-end" class="check-label font-bold">② 完了日より後の伝票日付を検出</label></div>
                             <p class="text-xs text-red-700 ml-6 mb-2">売上明細・仕入明細の<strong>伝票日付（発生日）が、その工番の完了日より後</strong>になっているものを検出します（完了日の入力誤り、または完了後の追加計上の見落としの可能性）。</p>
                             <div class="flex items-center gap-3 ml-6">
                                 <span class="text-xs font-bold text-slate-700">チェック対象の伝票:</span>
-                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-voucher-sales" checked class="check-input">売上明細</label>
-                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-voucher-purchase" checked class="check-input">仕入明細（原価）</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-voucher-sales" class="check-input">売上明細</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-voucher-purchase" class="check-input">仕入明細（原価）</label>
                             </div>
                         </div>
 
                         <div class="border-t border-red-100 pt-3">
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-stale-no-end" checked class="check-input"><label for="chk-cost-stale-no-end" class="check-label font-bold">③ 完了日未入力の放置現場を検出</label></div>
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-stale-no-end" class="check-input"><label for="chk-cost-stale-no-end" class="check-label font-bold">③ 完了日未入力の放置現場を検出</label></div>
                             <p class="text-xs text-red-700 ml-6 mb-2"><strong>完了日が未入力</strong>なのに、<strong>最終の原価・売上計上日から一定期間が経過</strong>している現場を検出します（例：3〜4月に原価が計上されたきり、8月になっても完了日が入力されていない現場）。</p>
                             <div class="flex items-center gap-2 ml-6">
                                 <span class="text-xs font-bold text-slate-700">経過月数のしきい値:</span>
                                 <input type="number" id="chk-stale-months" value="2" min="0" class="text-xs border rounded p-1 w-16 bg-white focus:outline-none focus:ring-1 focus:ring-red-500">
                                 <span class="text-xs text-slate-500">ヶ月以上（最終計上日から現在日付まで）</span>
                             </div>
+                        </div>
+
+                        <div class="border-t border-red-100 pt-3">
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-parent-child-mismatch" class="check-input"><label for="chk-cost-parent-child-mismatch" class="check-label font-bold">④ 親工番と枝番の項目不一致を検出</label></div>
+                            <p class="text-xs text-red-700 ml-6 mb-2">親工番の値が、紐づく<strong>枝番（サブコード）</strong>の値と異なっているものを検出します（例：親は松戸支店だが、枝番03だけ川口支店になっている、など）。枝番側が空欄の場合は対象外です。</p>
+                            <div class="flex items-center gap-3 ml-6 flex-wrap">
+                                <span class="text-xs font-bold text-slate-700">比較する項目:</span>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-branch" class="check-input">拠点</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-manager" class="check-input">担当者</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-estimator" class="check-input">積算</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-designer" class="check-input">設計</label>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-red-100 pt-3">
+                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-enddate-sales" class="check-input"><label for="chk-cost-enddate-sales" class="check-label font-bold">⑤ 完了日と売上の整合性を検出（親工番＋枝工番）</label></div>
+                            <p class="text-xs text-red-700 ml-6 mb-2">親工番と<strong>すべての枝工番</strong>を1グループとして、<strong>完了日</strong>と<strong>売上（売上明細・税抜）</strong>の状態を突き合わせます（決算資料の作成前チェック用）。</p>
+                            <ul class="list-disc list-inside space-y-1 text-xs text-red-700 ml-6 mb-2">
+                                <li><strong>売上あり・完了日未入力:</strong> 売上を計上しているのに、その工番（親／枝番それぞれ）の完了日が未入力</li>
+                                <li><strong>同一工番内に売上あり・完了日未入力:</strong> 親工番または枝番のどこかに売上があるのに、同じ工番グループ内で完了日が未入力の親／枝番（その行自身に売上が無くても対象。例：売上は枝番01にだけあり、親の完了日が空）</li>
+                                <li><strong>完了日あり・売上なし:</strong> 完了日が入力されているのに、売上の計上が無い（0円含む）</li>
+                                <li><strong>グループ内で完了日が一部未入力:</strong> 親工番と枝工番のうち、完了日が入力済みのものと未入力のものが混在している</li>
+                                <li><strong>枝番マスター未登録の売上:</strong> 売上明細に枝番があるが、現場マスターに該当する枝番が無い</li>
+                            </ul>
+                            <div class="flex items-center gap-3 ml-6 flex-wrap">
+                                <span class="text-xs font-bold text-slate-700">出力対象:</span>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-enddate-sales-output" id="chk-enddate-sales-out-group" value="group" class="check-input" checked>異常のあるグループの全行（親＋枝番）</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-enddate-sales-output" id="chk-enddate-sales-out-row" value="row" class="check-input">異常のある行のみ</label>
+                            </div>
+                            <p class="text-[10px] text-slate-400 ml-6 mt-1">※売上明細の取込が必要です。完了日期間を指定した場合、「完了日あり・売上なし」と「グループ内一部未入力」は期間内に完了日を持つ工番のみが対象、「売上あり・完了日未入力」は③と同様に完了日期間の絞込みを行いません。</p>
                         </div>
 
                         <p class="text-[10px] text-red-600 border-t border-red-100 pt-3">※チェックONにした項目ごとに、Excelの別シートとして出力されます。</p>
@@ -3252,6 +3286,8 @@
         const endDate   = fmtDate(subEntry?.endDate);
         const startDate = fmtDate(subEntry?.startDate);
 
+        // 工番：親工番とサブコード番号を組み合わせて表示する（例: j0041 - 01）
+        document.getElementById('sd-code').textContent      = `${parentCode}${subCode ? ' - ' + subCode : ''}`;
         document.getElementById('sd-name').textContent     = fmtVal(subEntry?.subName)   || subName || '-';
         // 拠点：サブコード行に無い場合は親コードの拠点をフォールバックとして表示する
         document.getElementById('sd-branch').textContent   = fmtVal(subEntry?.branch) !== '-' ? fmtVal(subEntry?.branch) : fmtVal(parentMaster?.branch);
@@ -3377,7 +3413,7 @@
         <div style="width:1400px; background:#ffffff; font-family:'Hiragino Sans','Yu Gothic',sans-serif; color:#1e293b; padding:24px;">
             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; border-bottom:3px solid #1e3a5f; padding-bottom:10px;">
                 <div>
-                    <span style="font-size:11px; background:#dbeafe; color:#1e40af; font-weight:bold; padding:3px 8px; border-radius:4px;">${data.code}</span>
+                    <span style="font-size:22px; background:#dbeafe; color:#1e40af; font-weight:bold; padding:4px 12px; border-radius:6px;">${data.code}</span>
                     <span style="font-size:20px; font-weight:bold; margin-left:10px;">${data.name}</span>
                 </div>
                 <div style="font-size:11px; color:#94a3b8;">現場詳細レポート　出力日：${new Date().toLocaleDateString('ja-JP')}</div>
@@ -3442,13 +3478,14 @@
         </div>`;
     }
 
-    window.exportSiteReportPdf = async function() {
+    window.exportSiteReportPdf = async function(orientation) {
+        orientation = orientation === 'portrait' ? 'portrait' : 'landscape';
         if (!currentSiteData) { alert('現場を検索してから実行してください。'); return; }
         if (typeof html2canvas === 'undefined' || !window.jspdf) {
             alert('PDF出力に必要なライブラリの読み込みに失敗しました。通信環境をご確認のうえ、ページを再読み込みしてから再度お試しください。');
             return;
         }
-        const btn = document.querySelector('[onclick="window.exportSiteReportPdf()"]');
+        const btn = document.querySelector(`[onclick="window.exportSiteReportPdf('${orientation}')"]`);
         const origHtml = btn ? btn.innerHTML : '';
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 生成中...'; }
 
@@ -3461,18 +3498,40 @@
             // 画面に実際に表示されているグラフ（トレンド＋業者別原価構成＋凡例）をそのままキャプチャして使う。
             // 以前は _buildChartsForSite で円グラフだけを別途作り直しており、トレンドチャートが
             // 欠落したり凡例が無かったりして画面表示と見た目が食い違っていたため、この方式に変更した。
+            //
+            // ただし、ブラウザのウィンドウ幅が狭い（画面を半分にして使っている等）状態でそのままキャプチャすると、
+            // Chart.jsの凡例（業者名など）が詰まって潰れた状態のまま画像として固定されてしまう。
+            // そのため、キャプチャ直前だけグラフ枠を十分広い幅に強制して再描画させ、
+            // 常にウィンドウを広げた状態と同じ余裕のあるレイアウトでキャプチャしてから元に戻す。
             const chartsGridEl = document.getElementById('res-charts-grid');
             let chartsImg = null;
             if (chartsGridEl) {
+                const originalWidth = chartsGridEl.style.width;
+                const originalMaxWidth = chartsGridEl.style.maxWidth;
+                chartsGridEl.style.width = '1300px';
+                chartsGridEl.style.maxWidth = 'none';
+                if (typeof chartTrend !== 'undefined' && chartTrend) chartTrend.resize();
+                if (typeof chartComposition !== 'undefined' && chartComposition) chartComposition.resize();
+                // resize()の再描画が反映されるのを1フレーム待つ
+                await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
                 const chartsCanvas = await html2canvas(chartsGridEl, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
                 chartsImg = chartsCanvas.toDataURL('image/png');
+
+                // 画面表示を元の幅に戻す
+                chartsGridEl.style.width = originalWidth;
+                chartsGridEl.style.maxWidth = originalMaxWidth;
+                if (typeof chartTrend !== 'undefined' && chartTrend) chartTrend.resize();
+                if (typeof chartComposition !== 'undefined' && chartComposition) chartComposition.resize();
             }
             container.innerHTML = _buildPdfReportHtml(currentSiteData, chartsImg);
 
             const canvas = await html2canvas(container.firstElementChild, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
 
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            // 横（landscape）はA4横向き、縦（portrait）はA4縦向き。
+            // 縦向きはページ幅が狭くなる分、同じ内容でもページ数が多くなります。
+            const doc = new jsPDF({ orientation, unit: 'mm', format: 'a4' });
             const marginMm = 6;
             const pageWidthMm = doc.internal.pageSize.getWidth() - marginMm * 2;
             const pageHeightMm = doc.internal.pageSize.getHeight() - marginMm * 2;
@@ -11560,15 +11619,17 @@ window.exportCostCheck = async function() {
     try {
         if ((await db.costs.count()) === 0) { alert("原価データがありません。"); return; }
 
-        const doZero        = document.getElementById('chk-cost-zero')?.checked ?? true;
-        const doVoucherOver = document.getElementById('chk-cost-voucher-after-end')?.checked ?? true;
-        const doVoucherSales    = document.getElementById('chk-voucher-sales')?.checked ?? true;
-        const doVoucherPurchase = document.getElementById('chk-voucher-purchase')?.checked ?? true;
-        const doStale       = document.getElementById('chk-cost-stale-no-end')?.checked ?? true;
+        const doZero        = document.getElementById('chk-cost-zero')?.checked ?? false;
+        const doVoucherOver = document.getElementById('chk-cost-voucher-after-end')?.checked ?? false;
+        const doVoucherSales    = document.getElementById('chk-voucher-sales')?.checked ?? false;
+        const doVoucherPurchase = document.getElementById('chk-voucher-purchase')?.checked ?? false;
+        const doStale       = document.getElementById('chk-cost-stale-no-end')?.checked ?? false;
         const staleMonths   = Number(document.getElementById('chk-stale-months')?.value) || 0;
+        const doParentChild = document.getElementById('chk-cost-parent-child-mismatch')?.checked ?? false;
+        const doEndSales    = document.getElementById('chk-cost-enddate-sales')?.checked ?? false;
         const scope = getCheckScope();
 
-        if (!doZero && !doVoucherOver && !doStale) { alert('チェック項目を1つ以上選択してください。'); return; }
+        if (!doZero && !doVoucherOver && !doStale && !doParentChild && !doEndSales) { alert('チェック項目を1つ以上選択してください。'); return; }
 
         const doAttachDetail = document.getElementById('chk-cost-attach-detail')?.checked ?? false;
         const flaggedCodes = new Set(); // 検出された工番（詳細レポート同時出力オプション用）
@@ -11578,7 +11639,7 @@ window.exportCostCheck = async function() {
 
         const costs     = await db.costs.toArray();
         const masters   = await db.masters.toArray();
-        const allSales  = doVoucherOver || doStale ? await db.sales.toArray()     : [];
+        const allSales  = doVoucherOver || doStale || doEndSales ? await db.sales.toArray()     : [];
         const allPurch  = doVoucherOver || doStale ? await db.purchases.toArray() : [];
         // 工番マスターに加えて、サブコード（親の拠点・得意先・完了日をフォールバックとして持たせる）も
         // 直接引けるようにしておく（原価・売上・仕入明細の工番がサブコードそのものであるケースに対応）。
@@ -11599,6 +11660,40 @@ window.exportCostCheck = async function() {
                 });
             });
         });
+
+        // 原価データの工番 → 現場マスターを引くための解決関数（①で使用）。
+        // 原価データの工番は親工番そのもののほか、枝番付きの形（"i0087 -01" / "i0087-01" / "i008701" / "i0087_01"）
+        // で入っていることがあり、完全一致だけでは現場マスターを見つけられず、拠点・担当者などが「-」になっていた。
+        //   ①完全一致（親工番 or サブコード）→ ②空白・ハイフン・アンダーバーを除いた形で 親+枝番 に一致
+        //   → ③同じ形で親工番に一致 の順に探す。
+        const compact = (v) => mmKey(v).replace(/[\s\-_－ー]/g, '');
+        const compactSubMap = new Map();   // 親+枝番(区切り除去) -> マスター（サブコード行）
+        const compactParentMap = new Map(); // 親(区切り除去) -> マスター（親）
+        masters.forEach(m => {
+            const pk = compact(m.code);
+            if (pk && !compactParentMap.has(pk)) compactParentMap.set(pk, masterMap.get(mmKey(m.code)) || m);
+            (m.subCodes || []).forEach(sc => {
+                const sk = compact(String(m.code || '') + String(sc.subCode || ''));
+                if (sk && !compactSubMap.has(sk)) compactSubMap.set(sk, {
+                    ...sc, code: m.code,
+                    name: sc.subName || sc.name || m.name,
+                    branch: sc.branch || m.branch, customer: sc.customer || m.customer,
+                    owner: sc.owner || m.owner, manager: sc.manager || m.manager,
+                    startDate: sc.startDate || m.startDate, endDate: sc.endDate || m.endDate,
+                    _isSub: true, _parentName: m.name,
+                });
+            });
+        });
+        const resolveMaster = (code) => {
+            const exact = masterMap.get(mmKey(code));
+            if (exact) return exact;
+            const ck = compact(code);
+            const hit = compactSubMap.get(ck) || compactParentMap.get(ck);
+            if (hit) return hit;
+            // 枝番がマスター未登録でも、"親工番 -01" のように区切り文字で枝番が分かれていれば親工番に解決する
+            const mm = String(code || '').trim().match(/^(.*?)[\s\-_－ー]+(\d{1,3})$/);
+            return mm ? (compactParentMap.get(compact(mm[1])) || null) : null;
+        };
 
         // 8桁日付文字列(YYYYMMDD) → タイムスタンプ。不正/空は null。
         const toTs = (v) => {
@@ -11634,7 +11729,7 @@ window.exportCostCheck = async function() {
 
             let alertCount = 0;
             costs.forEach(c => {
-                const m = masterMap.get(mmKey(c.code)) || {};
+                const m = resolveMaster(c.code) || {};
                 if (!matchesCheckScope(m, scope, true)) return;
                 const rawEndDate = m.endDate;
                 const isCompleted = toTs(rawEndDate) !== null;
@@ -11652,7 +11747,7 @@ window.exportCostCheck = async function() {
                     else if (sales === 0) comment += ' (売上0)';
                     else if (cost === 0) comment += ' (原価0)';
 
-                    const newRow = ws.addRow({ code: c.code, name: c.name, owner: m.owner || '-', manager: m.manager || '-', branch: m.branch || '-', end: rawEndDate || '-', sales, cost, comment });
+                    const newRow = ws.addRow({ code: c.code, name: (c.name && c.name.trim()) || m.name || m._parentName || '-', owner: m.owner || '-', manager: m.manager || '-', branch: m.branch || '-', end: fmtDateDisp(rawEndDate), sales, cost, comment });
                     if (isCritical) {
                         newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
                         newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
@@ -11771,6 +11866,195 @@ window.exportCostCheck = async function() {
                 for (let i = 0; i < sorted.length; i++) { ws.getRow(i + 2).values = sorted[i]; }
             }
             summaryLines.push(`③完了日未入力の放置現場：${staleCount}件（しきい値${staleMonths}ヶ月以上）`);
+        }
+
+        // ━━ ④ 親工番と枝番の項目不一致を検出 ━━
+        if (doParentChild) {
+            const doMismatchBranch    = document.getElementById('chk-mismatch-branch')?.checked ?? false;
+            const doMismatchManager   = document.getElementById('chk-mismatch-manager')?.checked ?? false;
+            const doMismatchEstimator = document.getElementById('chk-mismatch-estimator')?.checked ?? false;
+            const doMismatchDesigner  = document.getElementById('chk-mismatch-designer')?.checked ?? false;
+            const mismatchFields = [
+                { on: doMismatchBranch,    key: 'branch',    label: '拠点',  fill: 'FFFFE6E6' },
+                { on: doMismatchManager,   key: 'manager',   label: '担当者', fill: 'FFFFF3CD' },
+                { on: doMismatchEstimator, key: 'estimator', label: '積算',  fill: 'FFE0F2FE' },
+                { on: doMismatchDesigner,  key: 'designer',  label: '設計',  fill: 'FFEDE9FE' },
+            ].filter(f => f.on);
+
+            if (mismatchFields.length === 0) {
+                alert('④のチェック項目（拠点・担当者・積算・設計）を1つ以上選択してください。');
+                return;
+            }
+
+            const ws = wb.addWorksheet('④親子項目不一致');
+            ws.columns = [
+                { header: '工番（親）', key: 'code', width: 14 },
+                { header: 'サブコード', key: 'subCode', width: 12 },
+                { header: '現場名', key: 'name', width: 30 },
+                { header: '不一致項目', key: 'kind', width: 14 },
+                { header: '親の値', key: 'parentVal', width: 16 },
+                { header: '枝番の値', key: 'childVal', width: 16 },
+            ];
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+
+            let mismatchCount = 0;
+            masters.forEach(m => {
+                if (!matchesCheckScope(m, scope, true)) return;
+                (m.subCodes || []).forEach(s => {
+                    mismatchFields.forEach(f => {
+                        const parentVal = m[f.key];
+                        const childVal = s[f.key];
+                        if (!childVal || !parentVal || childVal === parentVal) return;
+                        mismatchCount++;
+                        flaggedCodes.add(m.code);
+                        const row = ws.addRow({ code: m.code, subCode: s.subCode || '-', name: s.subName || m.name || '-', kind: f.label, parentVal, childVal });
+                        row.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: f.fill } }; });
+                        row.getCell('childVal').font = { color: { argb: 'FFFF0000' }, bold: true };
+                    });
+                });
+            });
+            summaryLines.push(`④親子項目不一致（${mismatchFields.map(f=>f.label).join('/')}）：${mismatchCount}件`);
+        }
+
+
+        // ━━ ⑤ 完了日と売上の整合性（親工番＋枝工番） ━━
+        if (doEndSales) {
+            if (allSales.length === 0) { alert('⑤のチェックには売上明細の取込が必要です。売上明細を取り込んでから再度実行してください。'); return; }
+            const outMode = document.querySelector('input[name="chk-enddate-sales-output"]:checked')?.value || 'group';
+
+            // 枝番の表記ゆれ吸収（"01"と"1"を同一視。"00"は親自身＝空として扱う）
+            const normSub = (v) => {
+                const t = String(v || '').trim().toLowerCase();
+                if (/^\d+$/.test(t)) { const n = parseInt(t, 10); return n === 0 ? '' : String(n); }
+                return t;
+            };
+            // 売上明細を 親工番 → 枝番 ごとに集計（金額は税抜）
+            const salesByParent = new Map(); // mmKey(siteCode) -> Map(normSub -> {amount,count,last})
+            allSales.forEach(r => {
+                const pk = mmKey(r.siteCode);
+                if (!pk) return;
+                let subMap = salesByParent.get(pk);
+                if (!subMap) { subMap = new Map(); salesByParent.set(pk, subMap); }
+                const sk = normSub(r.subCode);
+                let a = subMap.get(sk);
+                if (!a) { a = { amount: 0, count: 0, last: '', raw: String(r.subCode || '').trim() }; subMap.set(sk, a); }
+                a.amount += Number(r.amountExc) || 0;
+                a.count++;
+                const d = String(r.date || '').trim();
+                if (d.length === 8 && d > a.last) a.last = d;
+            });
+            const emptyAgg = { amount: 0, count: 0, last: '', raw: '' };
+            const hasSalesAmt = (a) => Math.round(a.amount) !== 0; // 明細があっても合計0円なら「売上なし」扱い
+
+            // 完了日期間指定時：完了日が入力済みで、かつ期間内か
+            const endInPeriod = (v) => {
+                if (!scope.hasPeriodFilter) return true;
+                if (toTs(v) === null) return false;
+                const n = parseInt(String(v).trim());
+                return n >= scope.nStart && n <= scope.nEnd;
+            };
+            const costMapE = new Map(); costs.forEach(c => costMapE.set(mmKey(c.code), c));
+
+            const ws = wb.addWorksheet('⑤完了日・売上チェック');
+            ws.columns = [
+                { header: '工番（親）', key: 'code', width: 14 },
+                { header: '枝番', key: 'sub', width: 8 },
+                { header: '区分', key: 'kind', width: 10 },
+                { header: '現場名', key: 'name', width: 32 },
+                { header: '拠点', key: 'branch', width: 10 },
+                { header: '担当者', key: 'manager', width: 12 },
+                { header: '完了日', key: 'end', width: 12 },
+                { header: '売上累計(税抜)', key: 'sales', width: 16, style: { numFmt: '#,##0' } },
+                { header: '売上明細件数', key: 'cnt', width: 12 },
+                { header: '最終売上日', key: 'last', width: 12 },
+                { header: '判定コメント', key: 'comment', width: 44 },
+                { header: 'グループ内 完了日入力状況', key: 'progress', width: 22 },
+                { header: '原価データ売上累計(親のみ)', key: 'costSales', width: 20, style: { numFmt: '#,##0' } },
+            ];
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: 'A1', to: 'M1' };
+
+            const FILL = { A: 'FFFFE6E6', B: 'FFFFF3CD', C: 'FFFFE8D1', D: 'FFEDE9FE', E: 'FFFDE2E2' };
+            const cnt = { A: 0, B: 0, C: 0, D: 0, E: 0, groups: 0, rows: 0 };
+
+            const sortedMasters = masters.slice().sort((a, b) => String(a.code || '').localeCompare(String(b.code || ''), 'ja'));
+            sortedMasters.forEach(m => {
+                if (!m.code) return;
+                // 拠点・得意先・着手日期間は親工番で判定（完了日期間は下で個別に扱う）
+                if (!matchesCheckScope(m, scope, false)) return;
+
+                const subMap = salesByParent.get(mmKey(m.code)) || new Map();
+                const members = [{ kind: '親', sub: '', nsub: '', name: m.name, branch: m.branch, manager: m.manager, endDate: m.endDate }];
+                const seenSub = new Set(['']);
+                (m.subCodes || []).forEach(sc => {
+                    const ns = normSub(sc.subCode);
+                    if (seenSub.has(ns)) return; // 同一枝番の重複登録は1件に統合
+                    seenSub.add(ns);
+                    members.push({ kind: '枝番', sub: sc.subCode || '', nsub: ns, name: sc.subName || m.name, branch: sc.branch || m.branch, manager: sc.manager || m.manager, endDate: sc.endDate });
+                });
+                const hasSubs = members.length > 1;
+
+                // 枝番マスターに無い枝番の売上
+                const unregistered = [];
+                subMap.forEach((agg, sk) => { if (!seenSub.has(sk) && hasSalesAmt(agg)) unregistered.push({ sk, agg }); });
+
+                const groupHasSales = members.some(mem => hasSalesAmt(subMap.get(mem.nsub) || emptyAgg)) || unregistered.length > 0;
+                const filledCount = members.filter(mem => toTs(mem.endDate) !== null).length;
+                const isMixed = filledCount > 0 && filledCount < members.length
+                    && members.some(mem => endInPeriod(mem.endDate));
+
+                const gRows = [];
+                members.forEach(mem => {
+                    const agg = subMap.get(mem.nsub) || emptyAgg;
+                    const filled = toTs(mem.endDate) !== null;
+                    const hasS = hasSalesAmt(agg);
+                    const issues = [];
+                    if (!filled && hasS) issues.push({ t: 'A', msg: '【売上あり・完了日未入力】' });
+                    if (filled && !hasS && endInPeriod(mem.endDate)) {
+                        // 枝番を持つ親で、売上が枝番側だけに立っているのは正常なので対象外
+                        const parentShell = mem.kind === '親' && hasSubs && groupHasSales;
+                        if (!parentShell) issues.push({ t: 'B', msg: agg.count > 0 ? '【完了日あり・売上0円】' : '【完了日あり・売上なし】' });
+                    }
+                    // 自身に売上は無いが、同一工番内（親／他の枝番）に売上があるのに完了日が未入力
+                    if (!filled && !hasS && groupHasSales) issues.push({ t: 'E', msg: '【同一工番内に売上あり・完了日未入力】この行の売上は無し' });
+                    if (!filled && isMixed) issues.push({ t: 'C', msg: `【完了日未入力】同一工番内の${filledCount}/${members.length}件は入力済` });
+                    gRows.push({ mem, agg, filled, issues });
+                });
+                unregistered.forEach(u => {
+                    gRows.push({ mem: { kind: '枝番(未登録)', sub: u.agg.raw || u.sk, name: m.name, branch: m.branch, manager: m.manager, endDate: '' }, agg: u.agg, filled: false, issues: [{ t: 'D', msg: '【枝番マスター未登録】売上明細に枝番あり・完了日を確認できません' }] });
+                });
+
+                if (!gRows.some(g => g.issues.length > 0)) return;
+                cnt.groups++;
+                flaggedCodes.add(m.code);
+
+                const parentCost = costMapE.get(mmKey(m.code));
+                const progress = `${filledCount}/${members.length}件入力済`;
+                gRows.forEach(g => {
+                    if (g.issues.length > 0) { cnt.rows++; g.issues.forEach(i => cnt[i.t]++); }
+                    else if (outMode === 'row') return;
+                    const row = ws.addRow({
+                        code: m.code, sub: g.mem.sub || '-', kind: g.mem.kind, name: g.mem.name || '-',
+                        branch: g.mem.branch || '-', manager: g.mem.manager || '-',
+                        end: g.filled ? fmtDateDisp(g.mem.endDate) : '（未入力）',
+                        sales: Math.round(g.agg.amount), cnt: g.agg.count, last: fmtDateDisp(g.agg.last),
+                        comment: g.issues.length > 0 ? g.issues.map(i => i.msg).join(' ') : '問題なし',
+                        progress: g.mem.kind === '枝番(未登録)' ? '-' : progress,
+                        costSales: g.mem.kind === '親' ? (parentCost ? (parentCost.salesTotal || 0) : 0) : null,
+                    });
+                    if (g.issues.length > 0) {
+                        const fillColor = FILL[g.issues[0].t];
+                        row.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } }; });
+                        row.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
+                        if (!g.filled) row.getCell('end').font = { color: { argb: 'FFFF0000' }, bold: true };
+                    } else {
+                        row.getCell('comment').font = { color: { argb: 'FF808080' } };
+                    }
+                    if (g.mem.kind === '親') row.eachCell({ includeEmpty: true }, (cell) => { cell.border = { top: { style: 'thin', color: { argb: 'FF999999' } } }; });
+                });
+            });
+            summaryLines.push(`⑤完了日・売上：異常${cnt.groups}工番（${cnt.rows}行）／売上あり・完了日未入力${cnt.A}件、同一工番内に売上あり・完了日未入力${cnt.E}件、完了日あり・売上なし${cnt.B}件、グループ内一部未入力${cnt.C}件、枝番未登録売上${cnt.D}件`);
         }
 
         if (wb.worksheets.length === 0) { alert('出力するデータがありません'); return; }
