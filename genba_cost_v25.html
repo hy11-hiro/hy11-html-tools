@@ -55,6 +55,15 @@
         .check-group { @apply flex items-center mb-2; }
         .check-input { @apply w-4 h-4 text-orange-600 bg-gray-100 border-gray-300 rounded focus:ring-orange-500 focus:ring-2; }
         .check-label { @apply ml-2 text-sm font-medium text-gray-900 cursor-pointer; }
+        /* 整合性チェック：簡易説明を常時表示し、詳細はカーソルを合わせたとき（またはフォーカス時）に表示 */
+        .chk-tip { position: relative; outline: none; }
+        .chk-tip-brief { margin-left: 1.5rem; font-size: 0.75rem; line-height: 1.25rem; color: #b91c1c; }
+        .chk-tip-hint { display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem; font-size: 0.6875rem; color: #64748b; border-bottom: 1px dotted #94a3b8; cursor: help; white-space: nowrap; }
+        .chk-tip-body { display: none; position: absolute; left: 1.5rem; top: 100%; z-index: 60; width: min(36rem, 90vw); margin-top: 0.25rem; padding: 0.75rem 1rem; background: #ffffff; border: 1px solid #cbd5e1; border-top: 3px solid #1e3a5f; border-radius: 0.5rem; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18); font-size: 0.75rem; line-height: 1.55; color: #334155; }
+        .chk-tip:hover .chk-tip-body, .chk-tip:focus .chk-tip-body, .chk-tip:focus-within .chk-tip-body { display: block; }
+        .chk-tip-body ul { list-style: disc; margin: 0.25rem 0 0.25rem 1.1rem; padding: 0; }
+        .chk-tip-body li { margin-bottom: 0.2rem; }
+        .chk-tip-body .chk-tip-note { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 0.6875rem; }
 
         .pagination-btn { @apply px-3 py-1 border border-slate-300 bg-white text-slate-600 rounded text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors; }
         .pagination-btn.active { @apply bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700; }
@@ -103,6 +112,7 @@
                 <div class="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm border border-blue-100"><i class="fa-solid fa-shield-halved mr-1"></i> ローカルセキュアモード</div>
             </div>
         </header>
+        <div id="data-freshness-banner" class="hidden flex-shrink-0 bg-orange-50 border-b border-orange-300 border-l-4 border-l-orange-500 px-8 py-2"></div>
 
         <div class="flex-1 overflow-auto p-6 relative">
 
@@ -610,7 +620,14 @@
                                         <div><span class="block text-slate-400 text-[10px]">設計担当</span><span class="font-bold text-slate-700" id="sd-designer">-</span></div>
                                         <div><span class="block text-slate-400 text-[10px]">積算担当</span><span class="font-bold text-slate-700" id="sd-estimator">-</span></div>
                                         <div><span class="block text-slate-400 text-[10px]">売上分類①</span><span class="font-bold text-slate-700" id="sd-sales-class1">-</span></div>
-                                        <div><span class="block text-slate-400 text-[10px]">売上分類②</span><span class="font-bold text-slate-700" id="sd-sales-class2">-</span></div>
+                                        <div><span class="block text-slate-400 text-[10px]">ランク名</span><span class="font-bold text-slate-700" id="sd-rank">-</span></div>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-blue-100">
+                                        <div><span class="block text-slate-400 text-[10px]">元請工番</span><span class="font-bold text-slate-700 font-mono" id="sd-motouke">-</span></div>
+                                        <div class="col-span-2"><span class="block text-slate-400 text-[10px]">紹介元請会社</span><span class="font-bold text-slate-700" id="sd-introducer">-</span></div>
+                                        <div><span class="block text-slate-400 text-[10px]">有効期間開始日</span><span class="font-bold text-slate-700" id="sd-valid-start">-</span></div>
+                                        <div><span class="block text-slate-400 text-[10px]">有効期間終了日</span><span class="font-bold text-slate-700" id="sd-valid-end">-</span></div>
+                                        <div class="col-span-3"><span class="block text-slate-400 text-[10px]">備考</span><span class="font-bold text-slate-700 whitespace-pre-wrap break-words" id="sd-remarks">-</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -628,7 +645,14 @@
                                 <div><span class="block text-slate-400 text-xs">設計担当</span><span class="font-bold text-slate-700" id="res-designer">-</span></div>
                                 <div><span class="block text-slate-400 text-xs">積算担当</span><span class="font-bold text-slate-700" id="res-estimator">-</span></div>
                                 <div><span class="block text-slate-400 text-xs">売上分類①</span><span class="font-bold text-slate-700" id="res-sales-class1">-</span></div>
-                                <div><span class="block text-slate-400 text-xs">売上分類②</span><span class="font-bold text-slate-700" id="res-sales-class2">-</span></div>
+                                <div><span class="block text-slate-400 text-xs">ランク名</span><span class="font-bold text-slate-700" id="res-rank">-</span></div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-4 text-sm bg-slate-50 p-3 rounded-lg border border-slate-200 mt-2">
+                                <div><span class="block text-slate-400 text-xs">元請工番</span><span class="font-bold text-slate-700 font-mono" id="res-motouke">-</span></div>
+                                <div class="col-span-2"><span class="block text-slate-400 text-xs">紹介元請会社</span><span class="font-bold text-slate-700" id="res-introducer">-</span></div>
+                                <div><span class="block text-slate-400 text-xs">有効期間開始日</span><span class="font-bold text-slate-700" id="res-valid-start">-</span></div>
+                                <div><span class="block text-slate-400 text-xs">有効期間終了日</span><span class="font-bold text-slate-700" id="res-valid-end">-</span></div>
+                                <div class="col-span-3"><span class="block text-slate-400 text-xs">備考</span><span class="font-bold text-slate-700 whitespace-pre-wrap break-words" id="res-remarks">-</span></div>
                             </div>
                         </div>
                         
@@ -2115,7 +2139,6 @@
                             <div class="check-group"><input type="checkbox" id="chk-designer" class="check-input"><label for="chk-designer" class="check-label">設計担当名</label></div>
                             <div class="check-group"><input type="checkbox" id="chk-estimator" class="check-input"><label for="chk-estimator" class="check-label">積算担当名</label></div>
                             <div class="check-group"><input type="checkbox" id="chk-sales-class1" class="check-input"><label for="chk-sales-class1" class="check-label">売上分類①</label></div>
-                            <div class="check-group"><input type="checkbox" id="chk-sales-class2" class="check-input"><label for="chk-sales-class2" class="check-label">売上分類②</label></div>
                         </div>
                         <p class="text-[10px] text-orange-600">※チェックONにした項目が「空欄」または「0」の場合に不備としてリストアップします。</p>
                     </div>
@@ -2129,20 +2152,41 @@
                 <!-- 2. Cost Integrity Check -->
                 <div class="glass-panel p-6 rounded-xl border-l-4 border-red-500">
                     <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-file-invoice-dollar text-red-500"></i> 原価データ整合性チェック</h4>
-                    <p class="text-[10px] text-slate-400 mb-3">※①〜⑤すべて、上の「対象範囲設定」（拠点・得意先・着手日期間・完了日期間）が適用されます。</p>
+                    <p class="text-[10px] text-slate-400 mb-1">※①〜⑥すべて、上の「対象範囲設定」（拠点・得意先・着手日期間・完了日期間）が適用されます。</p>
+                    <p class="text-[11px] text-slate-500 mb-3">使い分けの目安: 決算前の確認は ⑤・⑥ ／ 日々の入力漏れ確認は ③ ／ 数字や日付がおかしい現場探しは ①・② ／ マスターの設定ミス確認は ④。各項目にカーソルを合わせると詳細が表示されます。</p>
                     <div class="bg-red-50 p-4 rounded-lg mb-4 space-y-4">
 
                         <div>
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-zero" class="check-input"><label for="chk-cost-zero" class="check-label font-bold">① 売上/原価 0円検出</label></div>
-                            <ul class="list-disc list-inside space-y-1 text-xs text-red-700 ml-6">
-                                <li><strong>完了済かつデータ0:</strong> 8桁の完了日が入力されているのに、売上または原価が「0」のデータ</li>
-                                <li><strong>進行中・未計上:</strong> 完了日が未入力(または0)だが、売上または原価が「0」のデータ</li>
-                            </ul>
+                            <div class="chk-tip" tabindex="0">
+                                <div class="check-group mb-1"><input type="checkbox" id="chk-cost-zero" class="check-input"><label for="chk-cost-zero" class="check-label font-bold">① 売上/原価 0円検出</label></div>
+                                <p class="chk-tip-brief">完了済の親工番・枝番で、売上または原価が0円のものを探す（原価データの数字チェック）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                                <div class="chk-tip-body">
+                                    <strong>原価データ（現場ごとの売上累計・原価累計）</strong>が0円の、<strong>完了済の現場</strong>を検出します。
+                                    <ul>
+                                        <li>完了日が入力済み（親は親、枝番は枝番自身の完了日）で、売上または原価が「0」のデータが対象です</li>
+                                        <li>親工番が完了済で、<strong>未完了の枝番がある</strong>場合は、「枝番の完了状況」とコメントに表示します（親の0円は、枝番側に計上されている可能性があります）</li>
+                                        <li>完了日が未入力のものは対象外です（完了日と計上の食い違いは⑤、完了日未入力の現場の一覧は⑥で確認）</li>
+                                        <li>現場マスターに無い工番は、完了日が分からないため対象外です（件数のみ集計メッセージに表示）</li>
+                                    </ul>
+                                    <div class="chk-tip-note">原価データに枝番付きの工番（例: i0087 -01）が含まれていても、現場マスターと突き合わせて親・枝番を判別します。</div>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="border-t border-red-100 pt-3">
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-voucher-after-end" class="check-input"><label for="chk-cost-voucher-after-end" class="check-label font-bold">② 完了日より後の伝票日付を検出</label></div>
-                            <p class="text-xs text-red-700 ml-6 mb-2">売上明細・仕入明細の<strong>伝票日付（発生日）が、その工番の完了日より後</strong>になっているものを検出します（完了日の入力誤り、または完了後の追加計上の見落としの可能性）。</p>
+                            <div class="chk-tip" tabindex="0">
+                                <div class="check-group mb-1"><input type="checkbox" id="chk-cost-voucher-after-end" class="check-input"><label for="chk-cost-voucher-after-end" class="check-label font-bold">② 完了日より後の伝票日付を検出</label></div>
+                                <p class="chk-tip-brief">完了日より後の日付が入っている売上・仕入伝票を探す（親は親、枝番は枝番の完了日で比較）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                                <div class="chk-tip-body">
+                                    売上明細・仕入明細の<strong>伝票日付（発生日）が、その工番の完了日より後</strong>になっているものを検出します（完了日の入力誤り、または完了後の追加計上の見落としの可能性）。
+                                    <ul>
+                                        <li><strong>親工番の伝票</strong>は親工番の完了日、<strong>枝番の伝票</strong>はその枝番の完了日とそれぞれ比較します（枝番の伝票を親の完了日とは比べません）</li>
+                                        <li>完了日が未入力の親／枝番は対象外です（③・⑥でカバー）</li>
+                                        <li>枝番マスター未登録の枝番の伝票は、比べる完了日が無いため対象外です（件数のみ集計メッセージに表示）</li>
+                                    </ul>
+                                    <div class="chk-tip-note">仕入明細の枝番は取込時にEC列から読み込みます。古い取込データの場合は仕入明細を再取込してください。</div>
+                                </div>
+                            </div>
                             <div class="flex items-center gap-3 ml-6">
                                 <span class="text-xs font-bold text-slate-700">チェック対象の伝票:</span>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-voucher-sales" class="check-input">売上明細</label>
@@ -2151,43 +2195,103 @@
                         </div>
 
                         <div class="border-t border-red-100 pt-3">
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-stale-no-end" class="check-input"><label for="chk-cost-stale-no-end" class="check-label font-bold">③ 完了日未入力の放置現場を検出</label></div>
-                            <p class="text-xs text-red-700 ml-6 mb-2"><strong>完了日が未入力</strong>なのに、<strong>最終の原価・売上計上日から一定期間が経過</strong>している現場を検出します（例：3〜4月に原価が計上されたきり、8月になっても完了日が入力されていない現場）。</p>
-                            <div class="flex items-center gap-2 ml-6">
-                                <span class="text-xs font-bold text-slate-700">経過月数のしきい値:</span>
-                                <input type="number" id="chk-stale-months" value="2" min="0" class="text-xs border rounded p-1 w-16 bg-white focus:outline-none focus:ring-1 focus:ring-red-500">
-                                <span class="text-xs text-slate-500">ヶ月以上（最終計上日から現在日付まで）</span>
+                            <div class="chk-tip" tabindex="0">
+                                <div class="check-group mb-1"><input type="checkbox" id="chk-cost-stale-no-end" class="check-input"><label for="chk-cost-stale-no-end" class="check-label font-bold">③ 完了日未入力の放置現場を検出</label></div>
+                                <p class="chk-tip-brief">完了日が空のまま、最後の計上から長く止まっている親工番・枝番を探す（日々の入力漏れ確認）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                                <div class="chk-tip-body">
+                                    <strong>完了日が未入力</strong>なのに、<strong>最終の売上・仕入計上日から一定期間が経過</strong>している現場を検出します（例：3〜4月に原価が計上されたきり、8月になっても完了日が入力されていない現場）。
+                                    <ul>
+                                        <li>親工番と枝番を1行ずつ判定し、未入力なのが「親」か「枝番」かを区分列で判別できます</li>
+                                        <li>最終計上日は、親／枝番それぞれ自身の売上・仕入明細で判定します</li>
+                                        <li>その行に計上が1件も無い親／枝番は対象外です（未着手・未使用とみなす）</li>
+                                        <li>期間は「経過月数」または「基準日（YYYYMMDD）」のどちらかで指定します。基準日の場合は、最終計上日が基準日以前のものを検出します</li>
+                                    </ul>
+                                    <div class="chk-tip-note">仕入明細の枝番は取込時にEC列から読み込みます。古い取込データの場合は仕入明細を再取込してください。</div>
+                                </div>
+                            </div>
+                            <div class="ml-6 space-y-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <label class="flex items-center gap-1 text-xs font-bold text-slate-700"><input type="radio" name="chk-stale-mode" id="chk-stale-mode-months" value="months" class="check-input" checked>経過月数で指定:</label>
+                                    <input type="number" id="chk-stale-months" value="2" min="0" class="text-xs border rounded p-1 w-16 bg-white focus:outline-none focus:ring-1 focus:ring-red-500">
+                                    <span class="text-xs text-slate-500">ヶ月以上（最終計上日から現在日付まで）</span>
+                                </div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <label class="flex items-center gap-1 text-xs font-bold text-slate-700"><input type="radio" name="chk-stale-mode" id="chk-stale-mode-date" value="date" class="check-input">基準日で指定:</label>
+                                    <input type="number" id="chk-stale-date" placeholder="例:20250630" class="text-xs border rounded p-1 w-28 bg-white focus:outline-none focus:ring-1 focus:ring-red-500">
+                                    <span class="text-xs text-slate-500">以前（最終計上日がこの日付以前のもの）</span>
+                                </div>
                             </div>
                         </div>
 
                         <div class="border-t border-red-100 pt-3">
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-parent-child-mismatch" class="check-input"><label for="chk-cost-parent-child-mismatch" class="check-label font-bold">④ 親工番と枝番の項目不一致を検出</label></div>
-                            <p class="text-xs text-red-700 ml-6 mb-2">親工番の値が、紐づく<strong>枝番（サブコード）</strong>の値と異なっているものを検出します（例：親は松戸支店だが、枝番03だけ川口支店になっている、など）。枝番側が空欄の場合は対象外です。</p>
+                            <div class="chk-tip" tabindex="0">
+                                <div class="check-group mb-1"><input type="checkbox" id="chk-cost-parent-child-mismatch" class="check-input"><label for="chk-cost-parent-child-mismatch" class="check-label font-bold">④ 親工番と枝番の項目不一致を検出</label></div>
+                                <p class="chk-tip-brief">親工番と枝番で、拠点・担当者・着手日・完了日などの設定が食い違っている現場を探す（マスターの設定ミス確認）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                                <div class="chk-tip-body">
+                                    親工番の値が、紐づく<strong>枝番（サブコード）</strong>の値と異なっているものを検出します（例：親は松戸支店だが、枝番03だけ川口支店になっている、など）。
+                                    <ul>
+                                        <li>親と枝番の<strong>両方に値があり、値が異なる</strong>ものが対象です。どちらかが空欄の場合は対象外です</li>
+                                        <li>比較する項目（拠点・担当者・積算・設計・着手日・完了日）は下のチェックで選びます</li>
+                                        <li><strong>着手日・完了日</strong>は、親と枝番の日付が異なるものを検出します（親だけ先に完了している、など）。完了日の入力の有無の食い違いは、⑤・⑥で確認します</li>
+                                        <li>出力シートには、どの項目でも、親と枝番の着手日・完了日を参考として並べます</li>
+                                    </ul>
+                                </div>
+                            </div>
                             <div class="flex items-center gap-3 ml-6 flex-wrap">
                                 <span class="text-xs font-bold text-slate-700">比較する項目:</span>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-branch" class="check-input">拠点</label>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-manager" class="check-input">担当者</label>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-estimator" class="check-input">積算</label>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-designer" class="check-input">設計</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-startdate" class="check-input">着手日</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-mismatch-enddate" class="check-input">完了日</label>
                             </div>
                         </div>
 
                         <div class="border-t border-red-100 pt-3">
-                            <div class="check-group mb-1"><input type="checkbox" id="chk-cost-enddate-sales" class="check-input"><label for="chk-cost-enddate-sales" class="check-label font-bold">⑤ 完了日と売上の整合性を検出（親工番＋枝工番）</label></div>
-                            <p class="text-xs text-red-700 ml-6 mb-2">親工番と<strong>すべての枝工番</strong>を1グループとして、<strong>完了日</strong>と<strong>売上（売上明細・税抜）</strong>の状態を突き合わせます（決算資料の作成前チェック用）。</p>
-                            <ul class="list-disc list-inside space-y-1 text-xs text-red-700 ml-6 mb-2">
-                                <li><strong>売上あり・完了日未入力:</strong> 売上を計上しているのに、その工番（親／枝番それぞれ）の完了日が未入力</li>
-                                <li><strong>同一工番内に売上あり・完了日未入力:</strong> 親工番または枝番のどこかに売上があるのに、同じ工番グループ内で完了日が未入力の親／枝番（その行自身に売上が無くても対象。例：売上は枝番01にだけあり、親の完了日が空）</li>
-                                <li><strong>完了日あり・売上なし:</strong> 完了日が入力されているのに、売上の計上が無い（0円含む）</li>
-                                <li><strong>グループ内で完了日が一部未入力:</strong> 親工番と枝工番のうち、完了日が入力済みのものと未入力のものが混在している</li>
-                                <li><strong>枝番マスター未登録の売上:</strong> 売上明細に枝番があるが、現場マスターに該当する枝番が無い</li>
-                            </ul>
+                            <div class="chk-tip" tabindex="0">
+                                <div class="check-group mb-1"><input type="checkbox" id="chk-cost-enddate-sales" class="check-input"><label for="chk-cost-enddate-sales" class="check-label font-bold">⑤ 完了日と売上の整合性を検出（親工番＋枝工番）</label></div>
+                                <p class="chk-tip-brief">完了日の有無と売上の有無が食い違う親・枝番を探す（決算前の突き合わせ）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                                <div class="chk-tip-body">
+                                    親工番と<strong>すべての枝工番</strong>を1グループとして、<strong>完了日</strong>と<strong>売上（売上明細・税抜）</strong>の状態を突き合わせます。
+                                    <ul>
+                                        <li><strong>売上あり・完了日未入力:</strong> 売上を計上しているのに、その親／枝番の完了日が未入力</li>
+                                        <li><strong>同一工番内に売上あり・完了日未入力:</strong> 親または枝番のどこかに売上があるのに、同じグループ内で完了日が未入力の親／枝番（その行自身に売上が無くても対象。例：売上は枝番01にだけあり、親の完了日が空）</li>
+                                        <li><strong>完了日あり・売上なし:</strong> 完了日が入力されているのに、売上の計上が無い（0円含む）</li>
+                                        <li><strong>グループ内で完了日が一部未入力:</strong> 完了日が入力済みのものと未入力のものが混在している</li>
+                                        <li><strong>枝番マスター未登録の売上:</strong> 売上明細に枝番があるが、現場マスターに該当する枝番が無い</li>
+                                    </ul>
+                                    <div class="chk-tip-note">売上明細の取込が必要です。完了日期間を指定した場合、「完了日あり・売上なし」と「グループ内一部未入力」は期間内に完了日を持つ工番のみが対象です。「売上あり・完了日未入力」は完了日期間の絞込みを行いません。</div>
+                                </div>
+                            </div>
                             <div class="flex items-center gap-3 ml-6 flex-wrap">
                                 <span class="text-xs font-bold text-slate-700">出力対象:</span>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-enddate-sales-output" id="chk-enddate-sales-out-group" value="group" class="check-input" checked>異常のあるグループの全行（親＋枝番）</label>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-enddate-sales-output" id="chk-enddate-sales-out-row" value="row" class="check-input">異常のある行のみ</label>
                             </div>
-                            <p class="text-[10px] text-slate-400 ml-6 mt-1">※売上明細の取込が必要です。完了日期間を指定した場合、「完了日あり・売上なし」と「グループ内一部未入力」は期間内に完了日を持つ工番のみが対象、「売上あり・完了日未入力」は③と同様に完了日期間の絞込みを行いません。</p>
+                        </div>
+
+                        <div class="border-t border-red-100 pt-3">
+                            <div class="chk-tip" tabindex="0">
+                                <div class="check-group mb-1"><input type="checkbox" id="chk-cost-enddate-status" class="check-input"><label for="chk-cost-enddate-status" class="check-label font-bold">⑥ 完了日の入力状況一覧（親・枝番別）</label></div>
+                                <p class="chk-tip-brief">完了日が未入力の親・枝番を、売上あり／仕入のみ／計上なしに分けて一覧にする（決算前の仕分け確認）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                                <div class="chk-tip-body">
+                                    <strong>完了日が未入力の親工番・枝番</strong>を1行ずつ一覧にし、計上状況で分類します。決算前に、完成工事と未成工事の仕分けを確認する用途です。
+                                    <ul>
+                                        <li><strong>売上あり:</strong> その親／枝番に売上（売上明細・税抜）の計上がある（仕入の有無は問わない）</li>
+                                        <li><strong>仕入のみ:</strong> 売上は無いが、仕入明細（原価）の計上がある</li>
+                                        <li><strong>計上なし:</strong> 売上も仕入も無い。未着手の工番が大量に出るため、「着手日が入力済みのものに限る」で絞れます（枝番の着手日が空の場合は親の着手日を使用）</li>
+                                    </ul>
+                                    <div class="chk-tip-note">売上・仕入明細の取込が必要です。完了日期間の絞込みは対象外（完了日が無い行が対象のため）。仕入明細の枝番は取込時にEC列から読み込むため、古い取込データの場合は再取込してください。</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 ml-6 flex-wrap">
+                                <span class="text-xs font-bold text-slate-700">出力する分類:</span>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-status-sales" class="check-input" checked>売上あり</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-status-purchase" class="check-input" checked>仕入のみ</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-status-none" class="check-input">計上なし</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-500 ml-2"><input type="checkbox" id="chk-status-none-started" class="check-input" checked>計上なしは着手日が入力済みのものに限る</label>
+                            </div>
                         </div>
 
                         <p class="text-[10px] text-red-600 border-t border-red-100 pt-3">※チェックONにした項目ごとに、Excelの別シートとして出力されます。</p>
@@ -2201,6 +2305,92 @@
                         <button onclick="window.exportCostCheck()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg shadow flex items-center gap-2 ml-auto">
                             <i class="fa-solid fa-file-circle-xmark"></i> 整合性チェックレポート出力
                         </button>
+                    </div>
+                </div>
+
+                <!-- 3. Owner name reconciliation -->
+                <div class="glass-panel p-6 rounded-xl border-l-4 border-slate-600">
+                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-building-user text-slate-600"></i> 施工主名の突合一覧</h4>
+                    <div class="bg-slate-50 p-4 rounded-lg mb-4">
+                        <div class="chk-tip" tabindex="0">
+                            <p class="chk-tip-brief" style="margin-left:0;color:#334155;">施工主名の表記ゆれ、旧施工主と新施工主の食い違い、施工主が未設定の現場を一覧にする（施工主別の集計を見る前の確認用）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                            <div class="chk-tip-body" style="left:0;">
+                                <strong>施工主の扱い（現場マスター取込時に適用）</strong>
+                                <ul>
+                                    <li><strong>AE列「施工主名」に値があれば、着手日に関係なく常にAE列</strong>を施工主として扱います</li>
+                                    <li>AE列が空のときだけ、着手日が<strong>20260930まで</strong>（または着手日なし）の現場に限り、旧施工主（47列目「紹介元請会社名」）で補います</li>
+                                    <li>着手日が<strong>20261001以降</strong>でAE列が空の現場は、施工主なしです（旧列は紹介元請会社として扱い、施工主には使いません）</li>
+                                    <li>AE列と旧列の名前が異なる現場は、旧列を紹介元請会社とみなします（一覧は下の「新旧の施工主名が異なる現場」で出力）</li>
+                                    <li>旧と新で表記が違う会社（例: ﾀｸﾄﾎｰﾑ㈱ と タクトホーム㈱）は、同じ会社として1つの表記に統一し、施工主別集計で分かれないようにします</li>
+                                </ul>
+                                <strong>出力するシート</strong>
+                                <ul>
+                                    <li><strong>施工主一覧:</strong> 施工主ごとの現場数、旧／新の登録状況（新旧一致・旧のみ・新のみ）、元の表記、コード</li>
+                                    <li><strong>未一致の候補:</strong> 旧のみの施工主について、新のみの施工主の中で同じ会社と思われるもの（コード一致・ほぼ同名）</li>
+                                    <li><strong>施工主未設定の現場:</strong> 施工主が決まらない現場（新運用でAE列が空のものなど）</li>
+                                </ul>
+                                <div class="chk-tip-note">新しいレイアウトで取り込んだ現場マスターが必要です。取り込み後は、この一覧で未一致が残っていないか確認してください。</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-end gap-3 flex-wrap">
+                        <div class="chk-tip" tabindex="0">
+                            <button onclick="window.exportOwnerDiff()" class="bg-white hover:bg-slate-50 text-slate-700 font-bold py-2 px-5 rounded-lg shadow border border-slate-300 flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel"></i> 新旧の施工主名が異なる現場を出力
+                            </button>
+                            <div class="chk-tip-body" style="left:auto;right:0;">
+                                <strong>10/1より前の現場で、AE列（新施工主）と旧列（47列目）の両方に名前があり、かつ別の会社名になっているもの</strong>を出力します（着手日なしの現場を含む）。表記の違い（全角・半角、㈱ と 株式会社 など）だけのものは含みません。
+                                <ul>
+                                    <li>旧列の名前は紹介元請会社の可能性があり、施工主としてはAE列の名前を使います</li>
+                                    <li>名前が似ているもの（類似度が高いもの）から先に並べます。表記ゆれの取りこぼしの確認にも使えます</li>
+                                    <li>コードが一致するか、着手日の出所（BV列／AR列）も合わせて出力します</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <button onclick="window.exportOwnerCheck()" class="bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-6 rounded-lg shadow flex items-center gap-2">
+                            <i class="fa-solid fa-file-excel"></i> 施工主名の突合一覧を出力
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4. Owner / start date rule test -->
+                <div class="glass-panel p-6 rounded-xl border-l-4 border-slate-600">
+                    <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-flask text-slate-600"></i> 施工主・着手日の判定テスト</h4>
+                    <div class="bg-slate-50 p-4 rounded-lg mb-4">
+                        <div class="chk-tip" tabindex="0">
+                            <p class="chk-tip-brief" style="margin-left:0;color:#334155;">現場マスター取込時の「着手日の決め方」「施工主の決め方」「表記の統一」を、値を入れて1段階ずつ確認する（データ出力なしで処理の中身を見るためのページ）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                            <div class="chk-tip-body" style="left:0;">
+                                取込処理と<strong>同じ関数</strong>を使って判定しているので、ここで見える結果が、そのまま取込時の動きになります。
+                                <ul>
+                                    <li><strong>手入力で確認:</strong> 着手日（AR列）、BV列、施工主名（AE列）、旧施工主（47列目）を入力すると、どの値が採用されるかを順に表示します</li>
+                                    <li><strong>パターン一覧を自動テスト:</strong> 代表的なパターンをまとめて判定し、想定どおりかを表示します</li>
+                                    <li><strong>取込済みデータで確認:</strong> 工番を入れると、取り込み済みの現場マスターの元の値と、採用された値を表示します</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="text-xs font-bold text-slate-700 mb-2">手入力で確認</div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <label class="block text-xs text-slate-500">着手日（AR列・43列目）<input type="text" id="sim-ar" placeholder="例: 20260801" class="mt-1 w-full text-sm border rounded p-1.5 bg-white font-mono focus:outline-none focus:ring-1 focus:ring-slate-500"></label>
+                        <label class="block text-xs text-slate-500">BV列（&lt;00056&gt;）<input type="text" id="sim-bv" placeholder="例: 20261005" class="mt-1 w-full text-sm border rounded p-1.5 bg-white font-mono focus:outline-none focus:ring-1 focus:ring-slate-500"></label>
+                        <label class="block text-xs text-slate-500">施工主名（AE列）<input type="text" id="sim-ae" placeholder="例: タクトホーム㈱" class="mt-1 w-full text-sm border rounded p-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-500"></label>
+                        <label class="block text-xs text-slate-500">旧施工主（47列目）<input type="text" id="sim-old" placeholder="例: ﾀｸﾄﾎｰﾑ㈱" class="mt-1 w-full text-sm border rounded p-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-slate-500"></label>
+                    </div>
+                    <div class="flex items-center gap-3 mb-3">
+                        <button onclick="window.simRunManual()" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold py-1.5 px-5 rounded-lg shadow">判定する</button>
+                        <button onclick="window.simRunPatterns()" class="bg-white hover:bg-slate-50 text-slate-700 text-sm font-bold py-1.5 px-5 rounded-lg shadow border border-slate-300">パターン一覧を自動テスト</button>
+                    </div>
+                    <div id="sim-result" class="mb-2"></div>
+                    <div id="sim-patterns" class="mb-4 overflow-x-auto"></div>
+
+                    <div class="border-t border-slate-200 pt-4">
+                        <div class="text-xs font-bold text-slate-700 mb-2">取込済みデータで確認</div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <input type="text" id="sim-code" placeholder="工番（親）を入力" class="text-sm border rounded p-1.5 bg-white font-mono w-48 focus:outline-none focus:ring-1 focus:ring-slate-500" onkeydown="if(event.key==='Enter') window.simLookup()">
+                            <button onclick="window.simLookup()" class="bg-white hover:bg-slate-50 text-slate-700 text-sm font-bold py-1.5 px-5 rounded-lg shadow border border-slate-300">取込済みデータで確認</button>
+                        </div>
+                        <div id="sim-lookup-result" class="overflow-x-auto"></div>
                     </div>
                 </div>
             </div>
@@ -2538,18 +2728,24 @@
                                     <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">1</td><td class="border border-slate-200 px-3 py-1.5">サブコード <code class="bg-slate-100 px-1 rounded">subCode</code></td><td class="border border-slate-200 px-3 py-1.5">空=親コード行</td></tr>
                                     <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">2</td><td class="border border-slate-200 px-3 py-1.5">現場名 <code class="bg-slate-100 px-1 rounded">name</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
                                     <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">5</td><td class="border border-slate-200 px-3 py-1.5">サブコード名 <code class="bg-slate-100 px-1 rounded">subName</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">16</td><td class="border border-slate-200 px-3 py-1.5">当初売上 <code class="bg-slate-100 px-1 rounded">initialSales</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">22</td><td class="border border-slate-200 px-3 py-1.5">得意先 <code class="bg-slate-100 px-1 rounded">customer</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">43</td><td class="border border-slate-200 px-3 py-1.5">着工日 <code class="bg-slate-100 px-1 rounded">startDate</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">44</td><td class="border border-slate-200 px-3 py-1.5">納期 <code class="bg-slate-100 px-1 rounded">delivery</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">45</td><td class="border border-slate-200 px-3 py-1.5">完了日 <code class="bg-slate-100 px-1 rounded">endDate</code></td><td class="border border-slate-200 px-3 py-1.5 text-red-600 font-bold">集計期間フィルターの基準</td></tr>
-                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">47</td><td class="border border-slate-200 px-3 py-1.5">施工主 <code class="bg-slate-100 px-1 rounded">owner</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">49</td><td class="border border-slate-200 px-3 py-1.5">担当者 <code class="bg-slate-100 px-1 rounded">manager</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">51</td><td class="border border-slate-200 px-3 py-1.5">設計者 <code class="bg-slate-100 px-1 rounded">designer</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">53</td><td class="border border-slate-200 px-3 py-1.5">積算者 <code class="bg-slate-100 px-1 rounded">estimator</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">55</td><td class="border border-slate-200 px-3 py-1.5">拠点 <code class="bg-slate-100 px-1 rounded">branch</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
-                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">59</td><td class="border border-slate-200 px-3 py-1.5">売上分類① <code class="bg-slate-100 px-1 rounded">salesClass1</code></td><td class="border border-slate-200 px-3 py-1.5">ラベル列（コード列+1）</td></tr>
-                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">61</td><td class="border border-slate-200 px-3 py-1.5">売上分類② <code class="bg-slate-100 px-1 rounded">salesClass2</code></td><td class="border border-slate-200 px-3 py-1.5">ラベル列（コード列+1）</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">9</td><td class="border border-slate-200 px-3 py-1.5">備考（メモ） <code class="bg-slate-100 px-1 rounded">remarks</code></td><td class="border border-slate-200 px-3 py-1.5">J列。現場照会に表示（社内のメモ欄）</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">16</td><td class="border border-slate-200 px-3 py-1.5">当初売上 <code class="bg-slate-100 px-1 rounded">initialSales</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">22</td><td class="border border-slate-200 px-3 py-1.5">得意先 <code class="bg-slate-100 px-1 rounded">customer</code></td><td class="border border-slate-200 px-3 py-1.5">得意先名</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">30</td><td class="border border-slate-200 px-3 py-1.5">施工主 <code class="bg-slate-100 px-1 rounded">owner</code></td><td class="border border-slate-200 px-3 py-1.5">AE列「施工主名」（AD列は施工主ｺｰﾄﾞ）。値があれば常にこの列を使用。空のときだけ、10/1より前（着手日なし含む）の現場は47列目（旧施工主）で補う。表記ゆれは統一して施工主別集計の基準にする</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">32</td><td class="border border-slate-200 px-3 py-1.5">ランク名 <code class="bg-slate-100 px-1 rounded">rank</code></td><td class="border border-slate-200 px-3 py-1.5">AG列。親・枝工番ごとに設定</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">43</td><td class="border border-slate-200 px-3 py-1.5">着手日 <code class="bg-slate-100 px-1 rounded">startDate</code></td><td class="border border-slate-200 px-3 py-1.5">従来の着手日。BV列（73列目）が空のときに使用</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">44</td><td class="border border-slate-200 px-3 py-1.5">納期 <code class="bg-slate-100 px-1 rounded">delivery</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">45</td><td class="border border-slate-200 px-3 py-1.5">完了日 <code class="bg-slate-100 px-1 rounded">endDate</code></td><td class="border border-slate-200 px-3 py-1.5 text-red-600 font-bold">集計期間フィルターの基準</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">47</td><td class="border border-slate-200 px-3 py-1.5">紹介元請会社名 <code class="bg-slate-100 px-1 rounded">referrer</code></td><td class="border border-slate-200 px-3 py-1.5">旧レイアウトの「施工主」。&lt;00023&gt;紹介元請会社ｺｰﾄﾞ（46列）の次列</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">49</td><td class="border border-slate-200 px-3 py-1.5">担当者 <code class="bg-slate-100 px-1 rounded">manager</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">51</td><td class="border border-slate-200 px-3 py-1.5">設計者 <code class="bg-slate-100 px-1 rounded">designer</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">53</td><td class="border border-slate-200 px-3 py-1.5">積算者 <code class="bg-slate-100 px-1 rounded">estimator</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">55</td><td class="border border-slate-200 px-3 py-1.5">拠点 <code class="bg-slate-100 px-1 rounded">branch</code></td><td class="border border-slate-200 px-3 py-1.5"></td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">59</td><td class="border border-slate-200 px-3 py-1.5">売上分類① <code class="bg-slate-100 px-1 rounded">salesClass1</code></td><td class="border border-slate-200 px-3 py-1.5">ラベル列（コード列+1）</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">66</td><td class="border border-slate-200 px-3 py-1.5">元請工番 <code class="bg-slate-100 px-1 rounded">motoukeNo</code></td><td class="border border-slate-200 px-3 py-1.5">BO列。親・枝工番ごとに設定</td></tr>
+                                    <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">71</td><td class="border border-slate-200 px-3 py-1.5">有効期間開始日 <code class="bg-slate-100 px-1 rounded">validStart</code></td><td class="border border-slate-200 px-3 py-1.5">BT列。0 は未設定（表示しない）</td></tr>
+                                    <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">72</td><td class="border border-slate-200 px-3 py-1.5">有効期間終了日 <code class="bg-slate-100 px-1 rounded">validEnd</code></td><td class="border border-slate-200 px-3 py-1.5">BU列。99999999 は未設定（表示しない）</td></tr>
+                                <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">73</td><td class="border border-slate-200 px-3 py-1.5">着手日（BV列） <code class="bg-slate-100 px-1 rounded">startDate</code></td><td class="border border-slate-200 px-3 py-1.5">BV列 &lt;00056&gt;（契約日）。9/30頃から着手日として使用。入っていれば優先、空なら43列目の着手日</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -2710,6 +2906,12 @@
     let currentWorstList = []; 
     let currentSiteData = null; 
     let multiCompareData = [];
+    // 8桁日付 → "YYYY/MM/DD"。空・0・00000000・99999999（有効期間の「未設定」値）は null を返し、そのまま表示しない。
+    window.fmtValidDate = function(v) {
+        const d = String(v == null ? '' : v).replace(/\D/g, '');
+        if (!d || /^0+$/.test(d) || d === '99999999') return null;
+        return d.length === 8 ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : null;
+    };
     let currentViewMode = 'card';
     // ── 複数現場 簡易比較・一覧：表示項目カスタマイズ ──
     const MULTI_COMPARE_FIELDS = [
@@ -2737,6 +2939,176 @@
     }
     window.formatCurrency = function(n) { return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(n); }
     window.normalizeStr = function(s) { return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); }).toLowerCase().replace(/\s+/g, ''); }
+
+    // ── 親工番＋枝番（グループ）の共通処理 ─────────────────────────────
+    // 整合性チェック①〜⑥・施工主の突合・判定テストなど、「親工番と枝番を1グループとして扱う」処理はすべてここを通す。
+    // 枝番の番号の同一視・重複登録の除外・親の値で補う項目を1か所で決めておき、画面ごとに判定が食い違わないようにする。
+    //   ・枝番の番号：「01」と「1」は同じ枝番。「00」や空は親自身
+    //   ・同じ枝番が重複して登録されている場合は、先に登録されたものを1件として扱う
+    //   ・親の値で補う項目（INHERIT）：枝番側が空なら親の値を使う
+    //   ・完了日（endDate）は補わない：親は親、枝番は枝番自身の完了日で判定する
+    //   ・枝番が存在しない（マスター未登録）ときは find() が null を返す。呼び出し側で「対象外」などを決める
+    window.SiteGroup = (function() {
+        const normSub = (v) => {
+            const t = String(v == null ? '' : v).trim().toLowerCase();
+            if (/^\d+$/.test(t)) { const n = parseInt(t, 10); return n === 0 ? '' : String(n); }
+            return t;
+        };
+        const INHERIT = ['owner', 'customer', 'estimator', 'designer', 'branch', 'manager', 'startDate'];
+        const cache = new WeakMap();
+        const build = (m) => {
+            const mk = (rec, isSub) => {
+                const mem = {
+                    kind: isSub ? '枝番' : '親', isSub, code: m.code, parent: m, rec,
+                    sub: isSub ? String(rec.subCode == null ? '' : rec.subCode) : '',   // 元の枝番（表示用）
+                    nsub: isSub ? normSub(rec.subCode) : '',                             // 同一視した枝番（照合用）
+                    name: isSub ? (rec.subName || rec.name || m.name) : m.name,
+                    endDate: rec.endDate,                                                // 完了日は自身の値のみ
+                };
+                INHERIT.forEach(k => { mem[k] = isSub ? (rec[k] || m[k]) : m[k]; });
+                return mem;
+            };
+            const members = [mk(m, false)];
+            const seen = new Set(['']);
+            (m.subCodes || []).forEach(sc => {
+                const ns = normSub(sc.subCode);
+                if (seen.has(ns)) return;
+                seen.add(ns); members.push(mk(sc, true));
+            });
+            return { parent: m, members, subs: members.slice(1), has: (ns) => seen.has(ns), get: (ns) => members.find(x => x.nsub === ns) || null };
+        };
+        return {
+            normSub,
+            INHERIT,
+            of: (m) => { let g = cache.get(m); if (!g) { g = build(m); cache.set(m, g); } return g; },
+            find: (m, subCode) => { const g = window.SiteGroup.of(m); return g.get(normSub(subCode)); },
+            records: (m) => [m].concat(m.subCodes || []),   // 重複を含む生のレコード（取込データの更新用）
+        };
+    })();
+
+    // ── 工番の先頭0の補完 ───────────────────────────────────────
+    // Excelで出力すると、数字だけの5桁の工番（例: 00036）は先頭の0が省略されて「36」になる。
+    // 現場マスター（00036）と別のデータとして扱われないよう、取込時に、数字だけで5桁未満の工番は先頭に0を補って5桁にそろえる。
+    // 英字を含む工番（例: i0087）や、5桁以上の工番は変更しない。
+    window.padSiteCode = function(v) {
+        const t = String(v == null ? '' : v).trim();
+        return /^\d{1,4}$/.test(t) ? t.padStart(5, '0') : t;
+    };
+    window.isUnpaddedSiteCode = function(v) { return /^\d{1,4}$/.test(String(v == null ? '' : v).trim()); };
+
+    // ── 取込データの版チェック ───────────────────────────────────
+    // レイアウトや判定ルールの変更で「取り込み直さないと反映されない」ものがあるため、古い形式のまま残っていないかを検出して警告する。
+    //   master  : 現場マスターに付ける版（取込時に layoutVer として各レコードに保存）
+    //             v2 = 新レイアウト（施工主=AE列・ランク名・元請工番・有効期間・備考・紹介元請会社）
+    //             v3 = 着手日をBV列優先に変更、施工主を「AE列優先・空のとき10/1前は旧列」に変更
+    //   purchase: 仕入明細に枝番（EC列）を保存しているか（subCode の有無で判定）
+    // ※ 取込形式を変えたら、ここの版を上げる（上げると、取り込み直しが必要な旨が自動で表示される）
+    window.DATA_LAYOUT = { master: 3 };
+    window.checkDataFreshness = async function() {
+        const issues = [];
+        const m1 = await db.masters.limit(1).first();
+        if (m1 && m1.layoutVer !== window.DATA_LAYOUT.master) {
+            issues.push({ target: '現場マスター', reason: '現在のレイアウト（施工主=AE列、着手日=BV列優先、ランク名・元請工番・有効期間・備考・紹介元請会社）で取り込まれていません。',
+                          impact: '施工主・着手日・上記の表示項目が正しく反映されません（施工主別ランキングにも影響します）。' });
+        }
+        const p1 = await db.purchases.limit(1).first();
+        if (p1 && p1.subCode === undefined) {
+            issues.push({ target: '仕入明細', reason: '枝番（EC列）を取り込む前の形式のデータです。',
+                          impact: '仕入が、すべて親工番の計上として扱われます（整合性チェック②③⑥の枝番ごとの判定に影響します）。' });
+        }
+        // 原価集計・回収データ：先頭の0が省略された工番（例: 36）が残っていないか
+        const pad = [['原価集計', db.costs], ['回収データ', db.collections]];
+        for (const [name, tbl] of pad) {
+            if (!tbl) continue;
+            const hit = await tbl.filter(r => window.isUnpaddedSiteCode(r.code)).first();
+            if (hit) issues.push({ target: name, reason: `先頭の0が省略された工番（例: ${hit.code}）が含まれています。`,
+                                   impact: `現場マスターの工番（例: ${window.padSiteCode(hit.code)}）と別のデータとして扱われ、結び付きません。取り込み直すと5桁に補われます。` });
+        }
+        return issues;
+    };
+    window.renderDataFreshness = async function() {
+        const box = document.getElementById('data-freshness-banner');
+        if (!box) return;
+        try {
+            const issues = await window.checkDataFreshness();
+            if (!issues.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            const items = issues.map(i => `<li><strong>${i.target}</strong>：${i.reason}${i.impact}</li>`).join('');
+            box.innerHTML = `<div class="flex items-start justify-between gap-4">` +
+                `<div><div class="text-sm font-bold text-slate-800"><i class="fa-solid fa-triangle-exclamation text-orange-500 mr-1"></i>取込済みのデータが古い形式です。取り込み直してください</div>` +
+                `<ul class="list-disc list-inside text-xs text-slate-700 mt-1 space-y-0.5">${items}</ul></div>` +
+                `<button onclick="window.showPage('import')" class="flex-shrink-0 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold py-1.5 px-4 rounded shadow">データ取込画面へ</button></div>`;
+            box.classList.remove('hidden');
+        } catch (e) { console.error(e); }
+    };
+
+    // ── 施工主名の整合 ─────────────────────────────────────────────
+    // 2026/10/01 以降、施工主の登録先が変わった：
+    //   着手日 20260930 まで … 旧施工主（47列目「紹介元請会社名」）を施工主として扱う
+    //   着手日 20261001 以降 … 新施工主（AE列「施工主名」）を施工主として扱う（空でも旧列では補わない）
+    //   着手日が無い        … AE列を優先し、空なら旧列
+    // あわせて、旧と新で異なる表記（半角カナ／全角カナ、全角／半角英数、㈱ と 株式会社 など）を統一し、
+    // 施工主別の集計で同じ会社が別々に分かれないようにする。
+    window.OWNER_SWITCH_DATE = 20261001;
+    window.ownerDisplay = function(s) {
+        // 半角カナ・全角英数記号だけを正規化（㈱ などの表記は変えない）。前後の空白は除去
+        return String(s == null ? '' : s).replace(/[\uFF01-\uFF5E\uFF61-\uFF9F]+/g, seg => seg.normalize('NFKC')).replace(/[\s\u3000]+/g, ' ').trim();
+    };
+    window.ownerKey = function(s) {
+        // 同一会社の判定キー：NFKC（全角半角・半角カナ・㈱→(株)）、空白除去、小文字化、法人格（株式会社/(株)/有限会社/(有)）除去
+        return String(s == null ? '' : s).normalize('NFKC').replace(/\s+/g, '').toLowerCase()
+            .replace(/株式会社|\(株\)/g, '').replace(/有限会社|\(有\)/g, '');
+    };
+    window.ownerEra = function(startDate) {
+        const sd = parseInt(String(startDate == null ? '' : startDate).replace(/\D/g, ''), 10) || 0;
+        return sd === 0 ? 'none' : (sd >= window.OWNER_SWITCH_DATE ? 'new' : 'old');
+    };
+    // 8桁日付の正規化。空・0・00000000 は '' （未入力）
+    window.normDateOrEmpty = function(v) { const d = String(v == null ? '' : v).replace(/\D/g, ''); return (!d || /^0+$/.test(d)) ? '' : d; };
+    // 着手日：BV列（<00056>）が入っていればそれを使い、空なら従来の着手日（AR列・43列目）
+    window.pickStartDate = function(bv, old) { return window.normDateOrEmpty(bv) || String(old == null ? '' : old); };
+    // 施工主：AE列（新施工主）に値があれば、着手日に関係なく常にAE列を使う。
+    //   AE列が空のときだけ、10/1より前の現場（着手日が20260930以前・着手日なしを含む）に限り旧列（47列目）で補う。
+    //   10/1以降でAE列が空の現場は施工主なし（旧列は紹介元請会社として扱い、施工主には使わない）。
+    window.resolveOwnerName = function(startDate, newName, oldName) {
+        const nn = window.ownerDisplay(newName), on = window.ownerDisplay(oldName);
+        if (nn) return nn;
+        return window.ownerEra(startDate) === 'new' ? '' : on;
+    };
+    // 紹介元請会社：47列目は、10/1以降は「紹介元請会社」。10/1より前（着手日なしを含む）は施工主として使っていた列なので、
+    //   AE列（新施工主）と別の名前のときだけ紹介元請会社とみなす（AE列が空の旧運用の現場では、旧列は施工主なので紹介元請ではない）
+    window.introducerOf = function(rec) {
+        if (!rec) return '';
+        const ref = window.ownerDisplay(rec.referrer);
+        if (!ref) return '';
+        if (window.ownerEra(rec.startDate) === 'new') return ref;
+        const ae = window.ownerDisplay(rec.ownerNew);
+        return (ae && window.ownerKey(ae) !== window.ownerKey(ref)) ? ref : '';
+    };
+    // 取込直後の現場マスター全体に対して、施工主名の表記を統一する（同じ会社の表記を1つの代表表記にそろえる）
+    //   代表表記 = 新施工主（AE列）にある表記のうち最も多いもの。新側に無ければ旧側で最も多い表記
+    window.canonicalizeOwners = function(masters) {
+        const recs = [];
+        masters.forEach(m => { window.SiteGroup.records(m).forEach(r => recs.push(r)); });
+        const forms = new Map(); // key -> { n: Map(表記->件数), o: Map(表記->件数) }
+        const add = (name, kind) => {
+            const d = window.ownerDisplay(name); if (!d) return;
+            const k = window.ownerKey(d) || d;
+            let e = forms.get(k); if (!e) { e = { n: new Map(), o: new Map() }; forms.set(k, e); }
+            const mp = e[kind]; mp.set(d, (mp.get(d) || 0) + 1);
+        };
+        recs.forEach(r => {
+            add(r.ownerNew, 'n');
+            // 旧列を施工主として使うのは「AE列が空の旧運用の現場」のみ（AE列と名前が異なる旧列は紹介元請会社なので代表表記に含めない）
+            if (window.ownerEra(r.startDate) !== 'new' && (!window.ownerDisplay(r.ownerNew) || window.ownerKey(r.referrer) === window.ownerKey(r.ownerNew))) add(r.referrer, 'o');
+        });
+        const pick = (mp) => [...mp.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja'))[0][0];
+        const rep = new Map();
+        forms.forEach((e, k) => rep.set(k, e.n.size ? pick(e.n) : pick(e.o)));
+        recs.forEach(r => {
+            const d = window.ownerDisplay(r.owner);
+            r.owner = d ? (rep.get(window.ownerKey(d) || d) || d) : '';
+        });
+    };
 
     window.toISODate = function(m) { 
         const y = parseInt(m[1]) + 2000; 
@@ -2800,6 +3172,7 @@
     }
 
     window.updateDBStats = async function() {
+        window.renderDataFreshness(); // 古い形式のデータが残っていれば画面上部に警告を表示
         const elCost = document.getElementById('db-count-cost'); if (elCost) elCost.textContent = (await db.costs.count()) + "件";
         const elMaster = document.getElementById('db-count-master'); if (elMaster) elMaster.textContent = (await db.masters.count()) + "件";
         const elPurchase = document.getElementById('db-count-purchase'); if (elPurchase) elPurchase.textContent = (await db.purchases.count()) + "件";
@@ -2996,7 +3369,7 @@
                      }
                 }
                 costData = validRows.map(r => ({
-                    code: String(r['コード'] || '').trim().toLowerCase(),
+                    code: window.padSiteCode(r['コード']).toLowerCase(),   // Excelで先頭の0が省略された工番（36 → 00036）を補う
                     name: String(r['現場メイン名'] || ''),
                     salesTotal: parseFloat(String(r['売上累計'] || '0').replace(/,/g, '')),
                     costTotal: parseFloat(String(r['原価累計'] || '0').replace(/,/g, '')),
@@ -3030,6 +3403,11 @@
                 }
 
                 const mastersMap = new Map();
+                // 有効期間：開始日が 0、終了日が 99999999 のときは「未設定」。空文字として保持し、画面・Excelに数字を出さない。
+                // 着手日：9/30頃から BV列（<00056>）を着手日として扱う。BV列が入っていればそれを使い、空（0・00000000含む）なら従来の着手日（AR列・43列目）を使う
+                const normDateOrEmpty = window.normDateOrEmpty;
+                const pickStartDate = window.pickStartDate;
+                const normValidDate = (v) => { const d = String(v == null ? '' : v).replace(/\D/g, ''); return (!d || /^0+$/.test(d) || d === '99999999') ? '' : d; };
                 rawData.forEach(r => {
                     const code = String(r[0] || ''); 
                     if (!code) return;
@@ -3038,6 +3416,7 @@
                     const subName = r[5]; 
                     const isParent = (subCode === '');
                     
+                    const startResolved = pickStartDate(r[73], r[43]);   // 着手日（BV列優先、空ならAR列）
                     const rowObj = {
                         code: code,
                         name: r[2],       
@@ -3045,14 +3424,26 @@
                         subName: subName,
                         customer: r[22],  
                         delivery: r[44],  
-                        owner: r[47],     
+                        // 施工主：着手日 20261001 以降はAE列（新）、20260930 まではr[47]（旧＝現在の「紹介元請会社名」）。canonicalizeOwners で表記を統一
+                        owner: window.resolveOwnerName(startResolved, r[30], r[47]),
+                        ownerNew: window.ownerDisplay(r[30]),          // 施工主名（AE列）
+                        ownerCode: String(r[29] == null ? '' : r[29]).trim(),    // 施工主ｺｰﾄﾞ（AD列）
+                        referrer: window.ownerDisplay(r[47]),          // 紹介元請会社名（47列目。10/1より前は施工主として使用していた列）
+                        referrerCode: String(r[46] == null ? '' : r[46]).trim(),  // 紹介元請会社ｺｰﾄﾞ（46列目）
                         manager: r[49],   
                         designer: r[51],  
                         estimator: r[53], 
                         branch: r[55],    
                         salesClass1: r[59],
-                        salesClass2: r[61],
-                        startDate: r[43], 
+                        rank: String(r[32] == null ? '' : r[32]).trim(),          // ランク名（AG列）
+                        motoukeNo: String(r[66] == null ? '' : r[66]).trim(),     // 元請工番（BO列）
+                        validStart: normValidDate(r[71]),                         // 有効期間開始日（BT列）：0 は未設定
+                        validEnd: normValidDate(r[72]),                           // 有効期間終了日（BU列）：99999999 は未設定
+                        remarks: String(r[9] == null ? '' : r[9]).trim(),         // 備考（J列・メモ）
+                        startDate: startResolved,
+                        startDateBv: normDateOrEmpty(r[73]),                       // BV列（<00056>）
+                        startDateOld: String(r[43] == null ? '' : r[43]).trim(),   // 従来の着手日（AR列・43列目）
+
                         endDate: r[45],   
                         initialSales: r[16]
                     };
@@ -3070,13 +3461,23 @@
                             existing.customer = rowObj.customer;
                             existing.delivery = rowObj.delivery;
                             existing.owner = rowObj.owner;
+                            existing.ownerNew = rowObj.ownerNew;
+                            existing.ownerCode = rowObj.ownerCode;
+                            existing.referrer = rowObj.referrer;
+                            existing.referrerCode = rowObj.referrerCode;
                             existing.manager = rowObj.manager;
                             existing.designer = rowObj.designer;
                             existing.estimator = rowObj.estimator;
                             existing.branch = rowObj.branch;
                             existing.salesClass1 = rowObj.salesClass1;
-                            existing.salesClass2 = rowObj.salesClass2;
+                            existing.rank = rowObj.rank;
+                            existing.motoukeNo = rowObj.motoukeNo;
+                            existing.validStart = rowObj.validStart;
+                            existing.validEnd = rowObj.validEnd;
+                            existing.remarks = rowObj.remarks;
                             existing.startDate = rowObj.startDate;
+                            existing.startDateBv = rowObj.startDateBv;
+                            existing.startDateOld = rowObj.startDateOld;
                             existing.endDate = rowObj.endDate;
                             existing.initialSales = rowObj.initialSales;
                         } else { 
@@ -3088,6 +3489,8 @@
                     }
                 });
                 masterData = Array.from(mastersMap.values());
+                window.canonicalizeOwners(masterData); // 施工主名の表記ゆれを統一
+                masterData.forEach(m => { m.layoutVer = window.DATA_LAYOUT.master; }); // 取込データの版（古い形式の検出用）
             }
 
             if (pendingFiles.purchase.length > 0) {
@@ -3100,7 +3503,8 @@
                 const idxItemO = excelColToIndex('O');
                 const idxItemQ = excelColToIndex('Q');
                 const idxAmount = excelColToIndex('DE');
-                const idxSite = excelColToIndex('EB');
+                const idxSite = excelColToIndex('EB');      // 現場メインｺｰﾄﾞ
+                const idxSubCode = excelColToIndex('EC');   // 現場サブｺｰﾄﾞ（枝番）
                 const idxProductCode = excelColToIndex('CF');
                 const idxProductName = excelColToIndex('CG');
                 for (const purchaseFile of pendingFiles.purchase) {
@@ -3115,7 +3519,7 @@
                         // CF（商品コード）に数字がある行のみ、CG（商品名）を採用する
                         const prodCode = r[idxProductCode] ? String(r[idxProductCode]).trim() : '';
                         const productName = /\d/.test(prodCode) ? (r[idxProductName] ? String(r[idxProductName]).trim() : '') : '';
-                        purchaseData.push({ siteCode: String(r[idxSite]).trim(), date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', category: normalizeDetailField(r[idxCategory]), lineNo: normalizeDetailField(r[idxLineNo]), vendor: r[idxVendor], item: itemName, productName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) });
+                        purchaseData.push({ siteCode: window.padSiteCode(r[idxSite]), subCode: r[idxSubCode] ? String(r[idxSubCode]).trim() : '', date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', category: normalizeDetailField(r[idxCategory]), lineNo: normalizeDetailField(r[idxLineNo]), vendor: r[idxVendor], item: itemName, productName, amount: parseFloat(String(r[idxAmount] || '0').replace(/,/g, '')) });
                     }
                     raw = null; // 中間配列を即時解放
                     await new Promise(r => setTimeout(r, 50)); // GCに処理の隙間を与える
@@ -3145,7 +3549,7 @@
                         // CH（商品コード）に数字がある行のみ、CI（商品名）を採用する
                         const prodCode = r[idxProductCode] ? String(r[idxProductCode]).trim() : '';
                         const productName = /\d/.test(prodCode) ? (r[idxProductName] ? String(r[idxProductName]).trim() : '') : '';
-                        salesData.push({ siteCode: String(r[idxSite]).trim(), subCode: sub, date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', category: normalizeDetailField(r[idxCategory]), lineNo: normalizeDetailField(r[idxLineNo]), customer: r[idxCustomer], productName, amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) });
+                        salesData.push({ siteCode: window.padSiteCode(r[idxSite]), subCode: sub, date: d.trim(), voucherNo: r[idxVoucher] ? String(r[idxVoucher]).trim() : '', category: normalizeDetailField(r[idxCategory]), lineNo: normalizeDetailField(r[idxLineNo]), customer: r[idxCustomer], productName, amountInc: parseFloat(String(r[idxAmountInc] || '0').replace(/,/g, '')), amountExc: parseFloat(String(r[idxAmountExc] || '0').replace(/,/g, '')) });
                     }
                     raw = null; // 中間配列を即時解放
                     await new Promise(r => setTimeout(r, 50)); // GCに処理の隙間を与える
@@ -3213,6 +3617,7 @@
                         mainCode = rawCode.toLowerCase();
                         subCode  = '';
                     }
+                    mainCode = window.padSiteCode(mainCode).toLowerCase();   // 先頭の0が省略された工番（36 → 00036）を補う
                     if (!mainCode) continue;
                     // ★ 複数列名に対応（列名の揺れを吸収）
                     const getVal = (...keys) => {
@@ -3313,7 +3718,14 @@
         const sdDes = document.getElementById('sd-designer');     if(sdDes)  sdDes.textContent  = fmtVal(subEntry?.designer);
         const sdEst = document.getElementById('sd-estimator');    if(sdEst)  sdEst.textContent  = fmtVal(subEntry?.estimator);
         const sdSc1 = document.getElementById('sd-sales-class1'); if(sdSc1)  sdSc1.textContent  = fmtVal(parentMaster?.salesClass1 || subEntry?.salesClass1);
-        const sdSc2 = document.getElementById('sd-sales-class2'); if(sdSc2)  sdSc2.textContent  = fmtVal(parentMaster?.salesClass2 || subEntry?.salesClass2);
+        // ランク名・元請工番・有効期間・備考は親／枝工番ごとに設定されているため、サブコード自身の値を表示する
+        const setTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+        setTxt('sd-rank',        fmtVal(subEntry?.rank));
+        setTxt('sd-motouke',     fmtVal(subEntry?.motoukeNo));
+        setTxt('sd-introducer',  fmtVal(window.introducerOf(subEntry)));
+        setTxt('sd-valid-start', window.fmtValidDate(subEntry?.validStart) || '-');
+        setTxt('sd-valid-end',   window.fmtValidDate(subEntry?.validEnd)   || '-');
+        setTxt('sd-remarks',     fmtVal(subEntry?.remarks));
 
         if (title) title.textContent = `📋 ${subCode} のマスター情報`;
         panel.classList.remove('hidden');
@@ -3427,6 +3839,15 @@
                 ${infoRow('着手日', fmtDateDisp(data.start))}
                 ${infoRow('完了日', fmtDateDisp(data.end))}
                 ${infoRow('納期', data.delivery)}
+                ${infoRow('元請工番', data.motoukeNo || '-')}
+                ${infoRow('ランク名', data.rank || '-')}
+                ${infoRow('有効期間開始日', window.fmtValidDate(data.validStart) || '-')}
+                ${infoRow('有効期間終了日', window.fmtValidDate(data.validEnd) || '-')}
+                ${infoRow('紹介元請会社', data.introducer || '-')}
+                <div style="width:100%; padding:6px 10px; border-bottom:1px solid #e2e8f0;">
+                    <div style="font-size:10px; color:#94a3b8; font-weight:bold;">備考</div>
+                    <div style="font-size:12px; color:#1e293b; font-weight:bold; white-space:pre-wrap; word-break:break-all;">${data.remarks || '-'}</div>
+                </div>
             </div>
 
             <div style="display:flex; gap:12px; margin-bottom:20px;">
@@ -3847,6 +4268,24 @@
             };
         });
 
+
+        // ─ 紹介元請会社・元請工番・ランク・有効期間・備考（右側 行9〜13。行14以降の既存レイアウトは変えない） ─
+        const extraRows = [
+            ['紹介元請会社',   data.introducer || '-'],
+            ['元請工番',       data.motoukeNo || '-'],
+            ['ランク名',       data.rank || '-'],
+            ['有効期間',       (window.fmtValidDate(data.validStart) || '-') + ' ～ ' + (window.fmtValidDate(data.validEnd) || '-')],
+            ['備考',           data.remarks || '-'],
+        ];
+        extraRows.forEach(([label, value], i) => {
+            const r = 9 + i;
+            ws.getRow(r).height = 24;
+            ws.mergeCells('K' + r + ':M' + r);
+            const lc = ws.getCell('K' + r); lc.value = label; lc.style = {...lbl, font:{...lbl.font, bold:true}};
+            ws.mergeCells('N' + r + ':R' + r);
+            const vc = ws.getCell('N' + r); vc.value = value;
+            vc.style = {...val, alignment:{horizontal:'left', vertical:'middle', wrapText:true, indent:1}, font:{...(val.font||{}), size: label === '備考' ? 9 : (val.font?.size || 10)}};
+        });
 
         // ━━ 行14〜: 左=仕入品目一覧テーブル, 右=円グラフ ━━
         ws.mergeCells('B14:I14');
@@ -4303,6 +4742,34 @@
                 ws.getCell('P'+row).value = fmtDateExcel(sc.endDate); ws.getCell('P'+row).style = {...cell, fill:bgF};
                 row++;
             });
+
+            // ── 補足：元請工番・ランク名・有効期間・備考（枝番ごとの設定） ──
+            row++;
+            ws.mergeCells('B'+row+':R'+row);
+            ws.getCell('B'+row).value = '■ 関連サブコード　マスター補足情報（元請工番・ランク・有効期間・備考）';
+            ws.getCell('B'+row).style = {
+                font:{bold:true, size:11, color:{argb:'FFFFFFFF'}},
+                fill:{type:'pattern',pattern:'solid', fgColor:{argb:'FF'+C.navy}},
+                alignment:{horizontal:'left', vertical:'middle', indent:1}
+            };
+            ws.getRow(row).height = 28; row++;
+            const extraCols = [['サブコード','B','B'],['元請工番','C','D'],['ランク名','E','F'],['紹介元請会社','G','I'],['有効期間開始日','J','K'],['有効期間終了日','L','M'],['備考','N','R']];
+            extraCols.forEach(([h,a,b]) => {
+                if (a !== b) ws.mergeCells(a+row+':'+b+row);
+                ws.getCell(a+row).value = h; ws.getCell(a+row).style = hdr(C.blue);
+            });
+            ws.getRow(row).height = 24; row++;
+            const fmtVP = (v) => window.fmtValidDate(v) || '-';
+            subCodesForExcel.forEach((sc, i) => {
+                ws.getRow(row).height = 22;
+                const bgF = {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+(i%2===0 ? 'FFFFFF' : 'EFF6FF')}};
+                [[sc.subCode || '-','B','B'],[sc.motoukeNo || '-','C','D'],[sc.rank || '-','E','F'],[window.introducerOf(sc) || '-','G','I'],[fmtVP(sc.validStart),'J','K'],[fmtVP(sc.validEnd),'L','M'],[sc.remarks || '-','N','R']].forEach(([v,a,b]) => {
+                    if (a !== b) ws.mergeCells(a+row+':'+b+row);
+                    ws.getCell(a+row).value = v;
+                    ws.getCell(a+row).style = {...cell, fill:bgF, alignment:{...(cell.alignment||{}), vertical:'middle', wrapText:true}};
+                });
+                row++;
+            });
         }
 
         return ws;
@@ -4374,6 +4841,12 @@
                 end:      master ? master.endDate  : '-',
                 customer: master ? master.customer : '-',
                 delivery: master ? master.delivery : '-',
+                rank:       master ? (master.rank || '')       : '',
+                motoukeNo:  master ? (master.motoukeNo || '')  : '',
+                validStart: master ? (master.validStart || '') : '',
+                validEnd:   master ? (master.validEnd || '')   : '',
+                remarks:    master ? (master.remarks || '')    : '',
+                introducer: master ? window.introducerOf(master) : '',
                 sales:    window.formatCurrency(sVal3),
                 cost:     window.formatCurrency(cost ? cost.costTotal : 0),
                 profit:   window.formatCurrency(pVal3),
@@ -4514,6 +4987,12 @@
                 end: master ? master.endDate : '-',
                 customer: master ? master.customer : '-',
                 delivery: master ? master.delivery : '-',
+                rank:       master ? (master.rank || '')       : '',
+                motoukeNo:  master ? (master.motoukeNo || '')  : '',
+                validStart: master ? (master.validStart || '') : '',
+                validEnd:   master ? (master.validEnd || '')   : '',
+                remarks:    master ? (master.remarks || '')    : '',
+                introducer: master ? window.introducerOf(master) : '',
                 sales: window.formatCurrency(cost ? cost.salesTotal : 0),
                 cost: window.formatCurrency(cost ? cost.costTotal : 0),
                 profit: window.formatCurrency(cost ? cost.profitTotal : 0),
@@ -4543,7 +5022,13 @@
             const elDes = document.getElementById('res-designer');    if(elDes)    elDes.textContent    = fmtMasterVal(master?.designer);
             const elEst = document.getElementById('res-estimator');   if(elEst)    elEst.textContent    = fmtMasterVal(master?.estimator);
             const elSc1 = document.getElementById('res-sales-class1');if(elSc1)    elSc1.textContent    = fmtMasterVal(master?.salesClass1);
-            const elSc2 = document.getElementById('res-sales-class2');if(elSc2)    elSc2.textContent    = fmtMasterVal(master?.salesClass2);
+            const setResTxt = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+            setResTxt('res-rank',        fmtMasterVal(master?.rank));
+            setResTxt('res-motouke',     fmtMasterVal(master?.motoukeNo));
+            setResTxt('res-introducer',  fmtMasterVal(window.introducerOf(master)));
+            setResTxt('res-valid-start', window.fmtValidDate(master?.validStart) || '-');
+            setResTxt('res-valid-end',   window.fmtValidDate(master?.validEnd)   || '-');
+            setResTxt('res-remarks',     fmtMasterVal(master?.remarks));
 
             // 回収情報パネル（常に表示 - データなし時はその旨を表示）
             const colPanel = document.getElementById('res-collection-panel');
@@ -10561,7 +11046,6 @@
                 { key: 'startDate',   label: '着手日' },
                 { key: 'endDate',     label: '完了日' },
                 { key: 'salesClass1', label: '売上分類①' },
-                { key: 'salesClass2', label: '売上分類②' },
                 { key: 'initialSales',label: '当初請負金額' },
             ]
         },
@@ -10874,7 +11358,6 @@
                 _endDateRaw:  sub ? (sub.endDate || '') : (m.endDate || ''),
                 _parentEndRaw: m.endDate || '',
                 salesClass1:  sub ? (sub.salesClass1  || '') : (m.salesClass1 || ''),
-                salesClass2:  sub ? (sub.salesClass2  || '') : (m.salesClass2 || ''),
                 initialSales: sub ? (sub.initialSales || '') : (m.initialSales|| ''),
                 cost_salesTotal:  getCost(cost.salesTotal),
                 cost_costTotal:   getCost(cost.costTotal),
@@ -11475,7 +11958,6 @@
                 designer: getChecked('chk-designer'),
                 estimator: getChecked('chk-estimator'),
                 salesClass1: getChecked('chk-sales-class1'),
-                salesClass2: getChecked('chk-sales-class2')
             };
 
             if (!Object.values(checks).includes(true)) { alert("少なくとも1つのチェック項目を選択してください。"); return; }
@@ -11503,7 +11985,6 @@
                 { header: '積算担当', key: 'estimator', width: 12 },
                 { header: '拠点', key: 'branch', width: 10 },
                 { header: '売上分類①', key: 'salesClass1', width: 15 },
-                { header: '売上分類②', key: 'salesClass2', width: 15 },
                 { header: '着手日', key: 'start', width: 12 },
                 { header: '完了日', key: 'end', width: 12 },
                 { header: '納期', key: 'delivery', width: 12 },
@@ -11553,7 +12034,6 @@
                 if (checks.estimator && !checkItem(rec.estimator)) missing.push('積算担当名');
                 if (checks.branch && !checkItem(rec.branch)) missing.push('拠点');
                 if (checks.salesClass1 && !checkItem(rec.salesClass1)) missing.push('売上分類①');
-                if (checks.salesClass2 && !checkItem(rec.salesClass2)) missing.push('売上分類②');
                 if (checks.start && !checkItem(rec.startDate)) missing.push('着手日');
                 if (checks.end && !checkItem(rec.endDate)) missing.push('完了日');
                 if (checks.delivery && !checkItem(rec.delivery)) missing.push('納期');
@@ -11577,7 +12057,6 @@
                     estimator: rec.estimator,
                     branch: rec.branch,
                     salesClass1: rec.salesClass1,
-                    salesClass2: rec.salesClass2,
                     start: rec.startDate,
                     end: rec.endDate,
                     delivery: rec.delivery
@@ -11614,6 +12093,337 @@
         }
     }
 
+    // ── 施工主名の突合一覧 ─────────────────────────────────────────
+    window.exportOwnerCheck = async function() {
+        try {
+            const masters = await db.masters.toArray();
+            if (masters.length === 0) { alert('現場マスターデータがありません。'); return; }
+            const hasNewFields = masters.some(m => m.ownerNew !== undefined || (m.subCodes || []).some(sc => sc.ownerNew !== undefined));
+            if (!hasNewFields) { alert('新しいレイアウトで取り込んだ現場マスターが必要です。現場マスターを取り込み直してから実行してください。'); return; }
+
+            const SW = window.OWNER_SWITCH_DATE;
+            const oKey = window.ownerKey, oDisp = window.ownerDisplay, era = window.ownerEra;
+            const fmtD = (v) => { const d = String(v == null ? '' : v).replace(/\D/g, ''); return (d.length === 8 && !/^0+$/.test(d)) ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : '-'; };
+            const codeDisp = (v) => String(v == null ? '' : v).normalize('NFKC').replace(/\s+/g, '');
+            const codeKey = (v) => codeDisp(v).toLowerCase();
+
+            const recs = [];
+            masters.forEach(m => { window.SiteGroup.of(m).members.forEach(mem => recs.push({ r: mem.rec, parent: m, isSub: mem.isSub })); });
+
+            // 施工主（同一会社キー）ごとの集計
+            const info = new Map();
+            const getInfo = (k) => {
+                let e = info.get(k);
+                if (!e) { e = { display: '', parents: 0, subs: 0, oldEra: 0, newEra: 0, rawForms: new Set(), oldNames: new Set(), newNames: new Set(), oldCodes: new Set(), newCodes: new Set() }; info.set(k, e); }
+                return e;
+            };
+            recs.forEach(({ r, parent, isSub }) => {
+                // 採用している施工主（取込時に確定済み）の現場数
+                const own = oDisp(r.owner);
+                if (own) {
+                    const e = getInfo(oKey(own) || own);
+                    e.display = e.display || own;
+                    if (!isSub) { e.parents++; if (era(r.startDate) === 'new') e.newEra++; else e.oldEra++; }
+                    else e.subs++;
+                }
+                // 新（AE列）に登録されている会社名・コード
+                const nn = oDisp(r.ownerNew);
+                if (nn) { const e = getInfo(oKey(nn) || nn); e.display = e.display || nn; e.rawForms.add(String(r.ownerNew || '').trim()); e.newNames.add(nn); if (r.ownerCode) e.newCodes.add(codeDisp(r.ownerCode)); }
+                // 旧（47列目）に登録されている会社名・コード：旧運用（着手日20260930まで／着手日なし）の現場のみが施工主として使われていた
+                if (era(r.startDate) !== 'new') {
+                    const on = oDisp(r.referrer);
+                    // AE列と名前が異なる旧列は紹介元請会社なので、旧施工主としては数えない（差異は「新旧の施工主名が異なる現場」で確認）
+                    if (on && (!nn || oKey(on) === oKey(nn))) { const e = getInfo(oKey(on) || on); e.display = e.display || on; e.rawForms.add(String(r.referrer || '').trim()); e.oldNames.add(on); if (r.referrerCode) e.oldCodes.add(codeDisp(r.referrerCode)); }
+                }
+            });
+
+            const wb = new ExcelJS.Workbook();
+            const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } };
+            const setupSheet = (ws, lastCol) => { ws.getRow(1).eachCell(c => { c.style = headerStyle; }); ws.views = [{ state: 'frozen', ySplit: 1 }]; ws.autoFilter = { from: 'A1', to: lastCol + '1' }; };
+            const statusOf = (e) => (e.oldNames.size && e.newNames.size) ? '新旧一致' : (e.oldNames.size ? '旧のみ' : (e.newNames.size ? '新のみ' : '-'));
+
+            // ── シート1：施工主一覧 ──
+            const ws1 = wb.addWorksheet('施工主一覧');
+            ws1.columns = [
+                { header: '施工主（採用表記）', key: 'name', width: 30 },
+                { header: '親工番数', key: 'parents', width: 10 },
+                { header: '枝番数', key: 'subs', width: 9 },
+                { header: '旧運用(〜20260930・着手日なし含む)の親工番数', key: 'oldEra', width: 18 },
+                { header: '新運用(20261001〜)の親工番数', key: 'newEra', width: 16 },
+                { header: '旧施工主として登録', key: 'hasOld', width: 12 },
+                { header: '新施工主として登録', key: 'hasNew', width: 12 },
+                { header: '判定', key: 'status', width: 10 },
+                { header: '表記ゆれ', key: 'merged', width: 14 },
+                { header: '元の表記（旧・新）', key: 'forms', width: 36 },
+                { header: '旧コード', key: 'oldCodes', width: 16 },
+                { header: '新コード', key: 'newCodes', width: 16 },
+            ];
+            const list = [...info.entries()].map(([k, e]) => ({ k, e })).sort((a, b) => b.e.parents - a.e.parents || String(a.e.display).localeCompare(String(b.e.display), 'ja'));
+            let cMatch = 0, cOld = 0, cNew = 0, cMerged = 0;
+            list.forEach(({ e }) => {
+                const st = statusOf(e);
+                if (st === '新旧一致') cMatch++; else if (st === '旧のみ') cOld++; else if (st === '新のみ') cNew++;
+                const merged = e.rawForms.size > 1 ? '統合あり' : '';
+                if (merged) cMerged++;
+                const row = ws1.addRow({
+                    name: e.display || '-', parents: e.parents, subs: e.subs, oldEra: e.oldEra, newEra: e.newEra,
+                    hasOld: e.oldNames.size ? 'あり' : '-', hasNew: e.newNames.size ? 'あり' : '-', status: st, merged,
+                    forms: [...e.rawForms].join(' / '), oldCodes: [...e.oldCodes].join(' / '), newCodes: [...e.newCodes].join(' / '),
+                });
+                if (st === '旧のみ' || st === '新のみ') row.getCell('status').font = { bold: true, color: { argb: 'FFC2410C' } };
+                if (merged) row.getCell('merged').font = { bold: true };
+            });
+            setupSheet(ws1, 'L');
+
+            // ── シート2：未一致の候補（旧のみ ⇔ 新のみ） ──
+            const ws2 = wb.addWorksheet('未一致の候補');
+            ws2.columns = [
+                { header: '旧のみの施工主', key: 'oldName', width: 28 },
+                { header: '旧コード', key: 'oldCode', width: 14 },
+                { header: '旧の親工番数', key: 'oldParents', width: 12 },
+                { header: '候補（新のみの施工主）', key: 'newName', width: 28 },
+                { header: '新コード', key: 'newCode', width: 14 },
+                { header: '新の親工番数', key: 'newParents', width: 12 },
+                { header: '候補の根拠', key: 'reason', width: 26 },
+                { header: '類似度', key: 'sim', width: 9 },
+            ];
+            const bigrams = (k) => { const set = new Set(); for (let i = 0; i < k.length - 1; i++) set.add(k.slice(i, i + 2)); return set; };
+            const jaccard = (a, b) => { if (!a.size || !b.size) return 0; let inter = 0; a.forEach(x => { if (b.has(x)) inter++; }); return inter / (a.size + b.size - inter); };
+            const oldOnly = list.filter(({ e }) => statusOf(e) === '旧のみ');
+            const newOnly = list.filter(({ e }) => statusOf(e) === '新のみ');
+            let cCand = 0;
+            oldOnly.forEach(({ k: ok, e: oe }) => {
+                const ob = bigrams(ok);
+                newOnly.forEach(({ k: nk, e: ne }) => {
+                    const reasons = [];
+                    const newCodeKeys = new Set([...ne.newCodes].map(codeKey));
+                    const sharedCode = [...oe.oldCodes].find(c => c && newCodeKeys.has(codeKey(c)));
+                    if (sharedCode) reasons.push('コード一致');
+                    const sim = jaccard(ob, bigrams(nk));
+                    if (sim >= 0.5) reasons.push('ほぼ同名');
+                    if (ok.length >= 3 && nk.length >= 3 && (nk.includes(ok) || ok.includes(nk))) reasons.push('一方が他方を含む');
+                    if (!reasons.length) return;
+                    cCand++;
+                    const row = ws2.addRow({
+                        oldName: oe.display, oldCode: [...oe.oldCodes].join(' / '), oldParents: oe.parents,
+                        newName: ne.display, newCode: [...ne.newCodes].join(' / '), newParents: ne.parents,
+                        reason: [...new Set(reasons)].join('・'), sim: Math.round(sim * 100) + '%',
+                    });
+                    row.getCell('reason').font = { bold: true };
+                });
+            });
+            if (cCand === 0) ws2.addRow({ oldName: '（候補なし：旧のみの施工主と同じ会社と思われる新施工主は見つかりませんでした）' });
+            setupSheet(ws2, 'H');
+
+            // ── シート3：施工主未設定の現場 ──
+            const ws3 = wb.addWorksheet('施工主未設定の現場');
+            ws3.columns = [
+                { header: '工番（親）', key: 'code', width: 12 },
+                { header: '枝番', key: 'sub', width: 8 },
+                { header: '区分', key: 'kind', width: 8 },
+                { header: '現場名', key: 'name', width: 30 },
+                { header: '拠点', key: 'branch', width: 10 },
+                { header: '担当者', key: 'manager', width: 12 },
+                { header: '着手日', key: 'start', width: 12 },
+                { header: '新施工主（AE列）', key: 'nn', width: 22 },
+                { header: '旧施工主（47列目）', key: 'on', width: 22 },
+                { header: '判定', key: 'why', width: 46 },
+            ];
+            let cUnset = 0, cUnsetNew = 0;
+            recs.forEach(({ r, parent, isSub }) => {
+                const eff = oDisp(r.owner) || (isSub ? oDisp(parent.owner) : '');
+                if (eff) return;
+                const e = era(r.startDate);
+                const why = e === 'new' ? '着手日が20261001以降だが、新施工主（AE列）が空' : (e === 'old' ? '着手日が20260930以前だが、旧施工主（47列目）・新施工主（AE列）とも空' : '着手日が無く、新施工主（AE列）・旧施工主（47列目）とも空');
+                cUnset++; if (e === 'new') cUnsetNew++;
+                const row = ws3.addRow({
+                    code: parent.code, sub: isSub ? (r.subCode || '-') : '-', kind: isSub ? '枝番' : '親',
+                    name: (isSub ? (r.subName || parent.name) : r.name) || '-', branch: r.branch || parent.branch || '-', manager: r.manager || parent.manager || '-',
+                    start: fmtD(r.startDate), nn: r.ownerNew || '-', on: r.referrer || '-', why,
+                });
+                if (e === 'new') row.getCell('why').font = { bold: true, color: { argb: 'FFC2410C' } };
+            });
+            if (cUnset === 0) ws3.addRow({ code: '（施工主が未設定の現場はありません）' });
+            setupSheet(ws3, 'J');
+
+            const buffer = await wb.xlsx.writeBuffer();
+            const t = new Date(); const ymd = t.getFullYear() + String(t.getMonth() + 1).padStart(2, '0') + String(t.getDate()).padStart(2, '0');
+            saveAs(new Blob([buffer]), `施工主名突合一覧_${ymd}.xlsx`);
+            alert(`出力完了\n施工主：${list.length}社（新旧一致${cMatch}／旧のみ${cOld}／新のみ${cNew}）\n表記ゆれを統合した施工主：${cMerged}社\n未一致の候補：${cCand}件\n施工主が未設定の現場：${cUnset}件（うち新運用でAE列が空：${cUnsetNew}件）`);
+        } catch (e) { console.error(e); alert('出力エラー: ' + e.message); }
+    };
+
+    // ── 新旧の施工主名が異なる現場の一覧（10/1より前の現場で、AE列と旧列に別の会社名があるもの） ──
+    window.exportOwnerDiff = async function() {
+        try {
+            const masters = await db.masters.toArray();
+            if (masters.length === 0) { alert('現場マスターデータがありません。'); return; }
+            const hasNewFields = masters.some(m => m.ownerNew !== undefined || (m.subCodes || []).some(sc => sc.ownerNew !== undefined));
+            if (!hasNewFields) { alert('新しいレイアウトで取り込んだ現場マスターが必要です。現場マスターを取り込み直してから実行してください。'); return; }
+            const oKey = window.ownerKey, oDisp = window.ownerDisplay, era = window.ownerEra;
+            const fmtD = (v) => { const d = String(v == null ? '' : v).replace(/\D/g, ''); return (d.length === 8 && !/^0+$/.test(d)) ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : '-'; };
+            const codeDisp = (v) => String(v == null ? '' : v).normalize('NFKC').replace(/\s+/g, '');
+            const bigrams = (k) => { const set = new Set(); for (let i = 0; i < k.length - 1; i++) set.add(k.slice(i, i + 2)); return set; };
+            const jaccard = (a, b) => { if (!a.size || !b.size) return 0; let inter = 0; a.forEach(x => { if (b.has(x)) inter++; }); return inter / (a.size + b.size - inter); };
+
+            const out = [];
+            const pushRec = (r, parent, isSub) => {
+                const e = era(r.startDate);
+                if (e === 'new') return;                       // 10/1以降は対象外
+                const nn = oDisp(r.ownerNew), on = oDisp(r.referrer);
+                if (!nn || !on) return;                        // 片方が空は対象外
+                if (oKey(nn) === oKey(on)) return;             // 表記の違いだけ（同じ会社）は対象外
+                const sim = jaccard(bigrams(oKey(nn)), bigrams(oKey(on)));
+                const nc = codeDisp(r.ownerCode), oc = codeDisp(r.referrerCode);
+                out.push({
+                    code: parent.code, sub: isSub ? (r.subCode || '-') : '-', kind: isSub ? '枝番' : '親',
+                    name: (isSub ? (r.subName || parent.name) : r.name) || '-',
+                    start: fmtD(r.startDate),
+                    startSrc: r.startDateBv ? 'BV列' : (window.normDateOrEmpty(r.startDateOld) ? 'AR列（43列目）' : 'なし'),
+                    era: e === 'old' ? '旧運用（20260930以前）' : '着手日なし',
+                    nn, nc: nc || '-', on, oc: oc || '-',
+                    codeMatch: (nc && oc) ? (nc.toLowerCase() === oc.toLowerCase() ? '一致' : '不一致') : '比較できず',
+                    sim: sim, used: oDisp(r.owner) || '-',
+                });
+            };
+            masters.forEach(m => { window.SiteGroup.of(m).members.forEach(mem => pushRec(mem.rec, m, mem.isSub)); });
+            out.sort((a, b) => b.sim - a.sim || String(a.code).localeCompare(String(b.code), 'ja'));
+
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('新旧の施工主名が異なる現場');
+            ws.columns = [
+                { header: '工番（親）', key: 'code', width: 12 },
+                { header: '枝番', key: 'sub', width: 8 },
+                { header: '区分', key: 'kind', width: 8 },
+                { header: '現場名', key: 'name', width: 30 },
+                { header: '着手日', key: 'start', width: 12 },
+                { header: '着手日の出所', key: 'startSrc', width: 16 },
+                { header: '運用区分', key: 'era', width: 20 },
+                { header: '新施工主（AE列）', key: 'nn', width: 26 },
+                { header: '新コード', key: 'nc', width: 12 },
+                { header: '旧施工主（47列目）', key: 'on', width: 26 },
+                { header: '旧コード', key: 'oc', width: 12 },
+                { header: 'コード', key: 'codeMatch', width: 11 },
+                { header: '名前の類似度', key: 'sim', width: 12 },
+                { header: '採用した施工主', key: 'used', width: 26 },
+            ];
+            out.forEach(o => {
+                const row = ws.addRow({ ...o, sim: Math.round(o.sim * 100) + '%' });
+                if (o.codeMatch === '一致') row.getCell('codeMatch').font = { bold: true, color: { argb: 'FFC2410C' } };
+                if (o.sim >= 0.5) row.getCell('sim').font = { bold: true, color: { argb: 'FFC2410C' } };
+            });
+            if (out.length === 0) ws.addRow({ code: '（10/1より前の現場で、AE列と旧列の名前が異なるものはありません）' });
+            ws.getRow(1).eachCell(c => { c.style = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A5F' } }, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } }; });
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: 'A1', to: 'N1' };
+            const buffer = await wb.xlsx.writeBuffer();
+            const t = new Date(); const ymd = t.getFullYear() + String(t.getMonth() + 1).padStart(2, '0') + String(t.getDate()).padStart(2, '0');
+            saveAs(new Blob([buffer]), `新旧の施工主名が異なる現場_${ymd}.xlsx`);
+            const nearCnt = out.filter(o => o.sim >= 0.5).length, codeCnt = out.filter(o => o.codeMatch === '一致').length;
+            alert(`出力完了\n新旧の施工主名が異なる現場：${out.length}件（親${out.filter(o => o.kind === '親').length}／枝番${out.filter(o => o.kind === '枝番').length}）\n名前が似ているもの（類似度50%以上）：${nearCnt}件\nコードが一致しているもの：${codeCnt}件`);
+        } catch (e) { console.error(e); alert('出力エラー: ' + e.message); }
+    };
+
+    // ── 施工主・着手日の判定テスト（取込処理と同じ関数で判定し、段階ごとに説明を返す） ──
+    window.explainOwnerStart = function(ar, bv, ae, old) {
+        const N = window.normDateOrEmpty;
+        const fmt8 = (v) => { const d = String(v == null ? '' : v).replace(/\D/g, ''); return d.length === 8 ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : String(v == null ? '' : v); };
+        const bvN = N(bv), arN = N(ar);
+        const start = window.pickStartDate(bv, ar);
+        const startSrc = bvN ? 'BV列' : (arN ? 'AR列（43列目）' : 'なし');
+        const era = window.ownerEra(start);
+        const eraLabel = era === 'new' ? '新運用（20261001以降）' : (era === 'old' ? '旧運用（20260930以前）' : '着手日なし');
+        const aeD = window.ownerDisplay(ae), oldD = window.ownerDisplay(old);
+        const owner = window.resolveOwnerName(start, ae, old);
+        const same = aeD && oldD && window.ownerKey(aeD) === window.ownerKey(oldD);
+        const steps = [];
+        steps.push({ t: '1. 着手日の決定', d: `BV列「${bvN ? fmt8(bvN) : '空'}」／AR列「${arN ? fmt8(arN) : '空'}」 → ` + (bvN ? `BV列が入っているので、BV列「${fmt8(bvN)}」を着手日にします` : (arN ? `BV列が空なので、AR列「${fmt8(arN)}」を着手日にします` : 'どちらも空なので、着手日なしです')) });
+        steps.push({ t: '2. 運用区分', d: `着手日が${start ? `「${fmt8(start)}」` : 'なし'} → ${eraLabel}` });
+        let rule;
+        if (aeD) rule = `AE列に施工主名「${aeD}」があるので、着手日に関係なくAE列を採用します`;
+        else if (era === 'new') rule = `AE列が空で、着手日が20261001以降なので、施工主なしです（旧列${oldD ? `「${oldD}」` : ''}は紹介元請会社として扱い、施工主には使いません）`;
+        else rule = oldD ? `AE列が空で、10/1より前（着手日なしを含む）の現場なので、旧列「${oldD}」を施工主として引き継ぎます` : 'AE列も旧列も空なので、施工主なしです';
+        steps.push({ t: '3. 施工主の決定', d: rule });
+        steps.push({ t: '4. 表記の統一', d: owner ? `採用した名前「${owner}」（半角カナ・全角英数などを統一した表示名） ／ 同一会社の判定キー「${window.ownerKey(owner)}」` : '施工主なしのため対象外' });
+        let rel = '';
+        if (aeD && oldD) rel = same ? 'AE列と旧列は同じ会社です（表記の違いのみ）' : (era === 'new' ? 'AE列と旧列は異なる名前です（新運用の現場なので、旧列は紹介元請会社です）' : 'AE列と旧列は異なる名前です（旧列は紹介元請会社の可能性があり、施工主はAE列を採用します）');
+        else if (aeD || oldD) rel = 'AE列と旧列のどちらか一方のみ入力されています';
+        else rel = 'AE列・旧列とも空です';
+        steps.push({ t: '5. AE列と旧列の比較', d: rel });
+        return { start, startSrc, era, eraLabel, owner, steps, same };
+    };
+    const _esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    window.simRunManual = function() {
+        const g = (id) => (document.getElementById(id)?.value || '').trim();
+        const r = window.explainOwnerStart(g('sim-ar'), g('sim-bv'), g('sim-ae'), g('sim-old'));
+        const rows = r.steps.map(st => `<tr><td class="border border-slate-200 px-3 py-1.5 font-bold whitespace-nowrap bg-slate-50 align-top">${_esc(st.t)}</td><td class="border border-slate-200 px-3 py-1.5">${_esc(st.d)}</td></tr>`).join('');
+        document.getElementById('sim-result').innerHTML =
+            `<table class="w-full text-xs border-collapse mb-2">${rows}</table>` +
+            `<div class="text-sm font-bold text-slate-800">結果： 着手日 ${_esc(r.start || 'なし')}（${_esc(r.startSrc)}） ／ ${_esc(r.eraLabel)} ／ 施工主 ${_esc(r.owner || '（なし）')}</div>`;
+    };
+    window.simRunPatterns = function() {
+        // [説明, AR列, BV列, AE列, 旧列, 期待する着手日, 期待する施工主]
+        const P = [
+            ['BV列だけ入力（新運用）', '', '20261005', '新A商事', '旧A商事', '20261005', '新A商事'],
+            ['AR列だけ入力・AE列が空（旧運用）→ 旧列を引き継ぐ', '20260801', '', '', 'ﾀｸﾄﾎｰﾑ㈱', '20260801', 'タクトホーム㈱'],
+            ['旧運用でAE列あり・旧列と同じ会社（半角/全角の違い）', '20260801', '', 'タクトホーム㈱', 'ﾀｸﾄﾎｰﾑ㈱', '20260801', 'タクトホーム㈱'],
+            ['旧運用でAE列あり・旧列は別の会社（紹介元請）→ AE列を採用', '20260801', '', '新施工主X', '紹介元請Y', '20260801', '新施工主X'],
+            ['新運用でAE列が空 → 施工主なし（旧列は使わない）', '', '20261005', '', '紹介元請Z', '20261005', ''],
+            ['新運用でAE列あり・旧列は別の会社 → AE列を採用', '', '20261005', '新B商事', '紹介元請Z', '20261005', '新B商事'],
+            ['AR列とBV列の両方 → BV列を優先', '20260801', '20261005', '新C商事', '旧C商事', '20261005', '新C商事'],
+            ['BV列が0 → 空扱いでAR列を使う', '20260801', '0', '', '旧D商事', '20260801', '旧D商事'],
+            ['BV列が00000000 → 空扱いでAR列を使う', '20260801', '00000000', '', '旧E商事', '20260801', '旧E商事'],
+            ['着手日なし・AE列あり → AE列', '', '', '新F商事', '旧F商事', '', '新F商事'],
+            ['着手日なし・AE列が空 → 旧列', '', '', '', '旧G商事', '', '旧G商事'],
+            ['境界：着手日20260930・AE列が空 → 旧列', '20260930', '', '', '旧H商事', '20260930', '旧H商事'],
+            ['境界：着手日20261001・AE列が空 → 施工主なし', '20261001', '', '', '旧I商事', '20261001', ''],
+            ['全角英数字の統一（Ｎｅｗ商事 → New商事）', '', '20261005', 'Ｎｅｗ商事', '', '20261005', 'New商事'],
+            ['半角カナの統一（ﾏﾙﾏﾙ商事 → マルマル商事）', '20260801', '', '', 'ﾏﾙﾏﾙ商事', '20260801', 'マルマル商事'],
+        ];
+        let ng = 0;
+        const body = P.map((p, i) => {
+            const r = window.explainOwnerStart(p[1], p[2], p[3], p[4]);
+            const ok = r.start === p[5] && r.owner === p[6];
+            if (!ok) ng++;
+            return `<tr class="${i % 2 ? 'bg-slate-50' : ''}"><td class="border border-slate-200 px-2 py-1 text-center">${i + 1}</td><td class="border border-slate-200 px-2 py-1">${_esc(p[0])}</td>` +
+                `<td class="border border-slate-200 px-2 py-1 font-mono">${_esc(p[1])}</td><td class="border border-slate-200 px-2 py-1 font-mono">${_esc(p[2])}</td><td class="border border-slate-200 px-2 py-1">${_esc(p[3])}</td><td class="border border-slate-200 px-2 py-1">${_esc(p[4])}</td>` +
+                `<td class="border border-slate-200 px-2 py-1 font-mono">${_esc(r.start || '-')}<span class="text-slate-400">（${_esc(r.startSrc)}）</span></td><td class="border border-slate-200 px-2 py-1">${_esc(r.owner || '（なし）')}</td>` +
+                `<td class="border border-slate-200 px-2 py-1">${_esc(p[6] || '（なし）')}</td><td class="border border-slate-200 px-2 py-1 text-center font-bold ${ok ? 'text-slate-700' : 'text-red-600'}">${ok ? 'OK' : 'NG'}</td></tr>`;
+        }).join('');
+        document.getElementById('sim-patterns').innerHTML =
+            `<div class="text-sm font-bold text-slate-800 mb-2">パターン自動テスト：${P.length}件中 ${P.length - ng}件が想定どおり${ng ? `（想定と違うもの ${ng}件）` : ''}</div>` +
+            `<table class="w-full text-xs border-collapse min-w-[880px]"><thead><tr class="bg-slate-700 text-white">` +
+            ['No', 'パターン', 'AR列', 'BV列', 'AE列', '旧列', '採用した着手日', '採用した施工主', '想定の施工主', '判定'].map(h => `<th class="border border-slate-600 px-2 py-1">${h}</th>`).join('') + `</tr></thead><tbody>${body}</tbody></table>`;
+    };
+    window.simLookup = async function() {
+        const box = document.getElementById('sim-lookup-result');
+        const code = (document.getElementById('sim-code')?.value || '').trim().toLowerCase();
+        if (!code) { box.innerHTML = '<div class="text-xs text-slate-500">工番を入力してください。</div>'; return; }
+        const masters = await db.masters.toArray();
+        const m = masters.find(x => String(x.code || '').trim().toLowerCase() === code);
+        if (!m) { box.innerHTML = `<div class="text-xs text-slate-500">工番「${_esc(code)}」は取込済みの現場マスターにありません。</div>`; return; }
+        const recs = window.SiteGroup.of(m).members.map(mem => ({ r: mem.rec, isSub: mem.isSub }));
+        if (recs.every(x => x.r.ownerNew === undefined)) { box.innerHTML = '<div class="text-xs text-red-600">この現場は新しいレイアウトで取り込む前のデータです。現場マスターを取り込み直してから確認してください。</div>'; return; }
+        const fmt8 = (v) => { const d = String(v == null ? '' : v).replace(/\D/g, ''); return d.length === 8 && !/^0+$/.test(d) ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : '-'; };
+        const td = 'border border-slate-200 px-2 py-1';
+        const body = recs.map(({ r, isSub }, i) => {
+            const e = window.ownerEra(r.startDate);
+            const rule = window.resolveOwnerName(r.startDate, r.ownerNew, r.referrer);
+            const saved = window.ownerDisplay(r.owner);
+            const unified = (rule && saved && rule !== saved) ? `「${_esc(rule)}」→「${_esc(saved)}」に表記を統一` : (rule ? '変更なし' : '-');
+            const aeD = window.ownerDisplay(r.ownerNew), oldD = window.ownerDisplay(r.referrer);
+            const rel = (aeD && oldD) ? (window.ownerKey(aeD) === window.ownerKey(oldD) ? '同じ会社' : '異なる名前') : '-';
+            return `<tr class="${i % 2 ? 'bg-slate-50' : ''}"><td class="${td} text-center font-bold">${isSub ? '枝番 ' + _esc(r.subCode || '') : '親'}</td>` +
+                `<td class="${td} font-mono">${fmt8(r.startDate)}</td><td class="${td} font-mono">${fmt8(r.startDateBv)}</td><td class="${td} font-mono">${fmt8(r.startDateOld)}</td>` +
+                `<td class="${td}">${e === 'new' ? '新運用' : (e === 'old' ? '旧運用' : '着手日なし')}</td>` +
+                `<td class="${td}">${_esc(r.ownerNew || '（空）')}</td><td class="${td}">${_esc(r.referrer || '（空）')}</td><td class="${td}">${rel}</td>` +
+                `<td class="${td} font-bold">${_esc(saved || '（なし）')}</td><td class="${td}">${unified}</td></tr>`;
+        }).join('');
+        box.innerHTML = `<div class="text-sm font-bold text-slate-800 mb-2">${_esc(m.code)} ${_esc(m.name || '')}</div>` +
+            `<table class="w-full text-xs border-collapse min-w-[880px]"><thead><tr class="bg-slate-700 text-white">` +
+            ['区分', '採用した着手日', 'BV列', 'AR列', '運用区分', 'AE列（新施工主）', '旧列（47列目）', 'AEと旧列', '採用した施工主', '表記の統一'].map(h => `<th class="border border-slate-600 px-2 py-1">${h}</th>`).join('') + `</tr></thead><tbody>${body}</tbody></table>`;
+    };
+
 // 変更箇所: JS (exportCostCheck関数全体を置き換え)
 window.exportCostCheck = async function() {
     try {
@@ -11627,9 +12437,26 @@ window.exportCostCheck = async function() {
         const staleMonths   = Number(document.getElementById('chk-stale-months')?.value) || 0;
         const doParentChild = document.getElementById('chk-cost-parent-child-mismatch')?.checked ?? false;
         const doEndSales    = document.getElementById('chk-cost-enddate-sales')?.checked ?? false;
+        const doStatus      = document.getElementById('chk-cost-enddate-status')?.checked ?? false;
         const scope = getCheckScope();
 
-        if (!doZero && !doVoucherOver && !doStale && !doParentChild && !doEndSales) { alert('チェック項目を1つ以上選択してください。'); return; }
+        if (!doZero && !doVoucherOver && !doStale && !doParentChild && !doEndSales && !doStatus) { alert('チェック項目を1つ以上選択してください。'); return; }
+
+        // ③：経過月数 または 基準日（YYYYMMDD）のどちらで放置を判定するか
+        const staleMode = document.querySelector('input[name="chk-stale-mode"]:checked')?.value || 'months';
+        const staleDateStr = (document.getElementById('chk-stale-date')?.value || '').trim();
+        if (doStale && staleMode === 'date') {
+            const dt = /^\d{8}$/.test(staleDateStr) ? new Date(`${staleDateStr.slice(0,4)}-${staleDateStr.slice(4,6)}-${staleDateStr.slice(6,8)}T00:00:00`) : null;
+            if (!dt || isNaN(dt.getTime()) || dt.getFullYear() !== +staleDateStr.slice(0,4) || dt.getMonth() + 1 !== +staleDateStr.slice(4,6) || dt.getDate() !== +staleDateStr.slice(6,8)) {
+                alert('③の基準日は、8桁の日付（例: 20250630）で正しく入力してください。'); return;
+            }
+        }
+        // ⑥：出力する分類
+        const stSales = document.getElementById('chk-status-sales')?.checked ?? true;
+        const stPurch = document.getElementById('chk-status-purchase')?.checked ?? true;
+        const stNone  = document.getElementById('chk-status-none')?.checked ?? false;
+        const stNoneStartedOnly = document.getElementById('chk-status-none-started')?.checked ?? true;
+        if (doStatus && !stSales && !stPurch && !stNone) { alert('⑥で出力する分類（売上あり／仕入のみ／計上なし）を1つ以上選択してください。'); return; }
 
         const doAttachDetail = document.getElementById('chk-cost-attach-detail')?.checked ?? false;
         const flaggedCodes = new Set(); // 検出された工番（詳細レポート同時出力オプション用）
@@ -11639,8 +12466,8 @@ window.exportCostCheck = async function() {
 
         const costs     = await db.costs.toArray();
         const masters   = await db.masters.toArray();
-        const allSales  = doVoucherOver || doStale || doEndSales ? await db.sales.toArray()     : [];
-        const allPurch  = doVoucherOver || doStale ? await db.purchases.toArray() : [];
+        const allSales  = doVoucherOver || doStale || doEndSales || doStatus ? await db.sales.toArray()     : [];
+        const allPurch  = doVoucherOver || doStale || doStatus ? await db.purchases.toArray() : [];
         // 工番マスターに加えて、サブコード（親の拠点・得意先・完了日をフォールバックとして持たせる）も
         // 直接引けるようにしておく（原価・売上・仕入明細の工番がサブコードそのものであるケースに対応）。
         // 原価データ（db.costs）の工番は取込時に小文字化されているが、現場マスターの工番は取込元の
@@ -11649,39 +12476,24 @@ window.exportCostCheck = async function() {
         // 検出漏れになってしまうため）。
         const masterMap = new Map();
         const mmKey = (v) => String(v || '').trim().toLowerCase();
-        masters.forEach(m => {
-            masterMap.set(mmKey(m.code), m);
-            (m.subCodes || []).forEach(s => {
-                masterMap.set(mmKey(s.subCode), {
-                    ...s, code: m.code,
-                    branch: s.branch || m.branch, customer: s.customer || m.customer,
-                    owner: s.owner || m.owner, manager: s.manager || m.manager,
-                    startDate: s.startDate || m.startDate, endDate: s.endDate || m.endDate,
-                });
-            });
-        });
+        // ※ 枝番は「親工番＋枝番」の形でのみ引く（下の compactSubMap）。枝番コードだけをキーにすると、別の親工番の同じ枝番（01 など）と衝突するため
+        masters.forEach(m => { masterMap.set(mmKey(m.code), window.SiteGroup.of(m).members[0]); });
 
-        // 原価データの工番 → 現場マスターを引くための解決関数（①で使用）。
+        // 原価データの工番 → 現場マスター（親／枝番のメンバー）を引くための解決関数（①で使用）。
         // 原価データの工番は親工番そのもののほか、枝番付きの形（"i0087 -01" / "i0087-01" / "i008701" / "i0087_01"）
-        // で入っていることがあり、完全一致だけでは現場マスターを見つけられず、拠点・担当者などが「-」になっていた。
-        //   ①完全一致（親工番 or サブコード）→ ②空白・ハイフン・アンダーバーを除いた形で 親+枝番 に一致
-        //   → ③同じ形で親工番に一致 の順に探す。
+        // で入っていることがあり、完全一致だけでは現場マスターを見つけられない。
+        //   ①完全一致（親工番）→ ②空白・ハイフン・アンダーバーを除いた形で 親+枝番 に一致
+        //   → ③同じ形で親工番に一致 → ④"親工番 -01" の形なら親工番に解決 の順に探す。
         const compact = (v) => mmKey(v).replace(/[\s\-_－ー]/g, '');
-        const compactSubMap = new Map();   // 親+枝番(区切り除去) -> マスター（サブコード行）
-        const compactParentMap = new Map(); // 親(区切り除去) -> マスター（親）
+        const compactSubMap = new Map();   // 親+枝番(区切り除去) -> 枝番メンバー
+        const compactParentMap = new Map(); // 親(区切り除去) -> 親メンバー
         masters.forEach(m => {
+            const g = window.SiteGroup.of(m);
             const pk = compact(m.code);
-            if (pk && !compactParentMap.has(pk)) compactParentMap.set(pk, masterMap.get(mmKey(m.code)) || m);
-            (m.subCodes || []).forEach(sc => {
-                const sk = compact(String(m.code || '') + String(sc.subCode || ''));
-                if (sk && !compactSubMap.has(sk)) compactSubMap.set(sk, {
-                    ...sc, code: m.code,
-                    name: sc.subName || sc.name || m.name,
-                    branch: sc.branch || m.branch, customer: sc.customer || m.customer,
-                    owner: sc.owner || m.owner, manager: sc.manager || m.manager,
-                    startDate: sc.startDate || m.startDate, endDate: sc.endDate || m.endDate,
-                    _isSub: true, _parentName: m.name,
-                });
+            if (pk && !compactParentMap.has(pk)) compactParentMap.set(pk, g.members[0]);
+            g.subs.forEach(mem => {
+                const sk = compact(String(m.code || '') + String(mem.sub || ''));
+                if (sk && !compactSubMap.has(sk)) compactSubMap.set(sk, mem);
             });
         });
         const resolveMaster = (code) => {
@@ -11690,11 +12502,12 @@ window.exportCostCheck = async function() {
             const ck = compact(code);
             const hit = compactSubMap.get(ck) || compactParentMap.get(ck);
             if (hit) return hit;
-            // 枝番がマスター未登録でも、"親工番 -01" のように区切り文字で枝番が分かれていれば親工番に解決する
             const mm = String(code || '').trim().match(/^(.*?)[\s\-_－ー]+(\d{1,3})$/);
             return mm ? (compactParentMap.get(compact(mm[1])) || null) : null;
         };
 
+        // 枝番の表記ゆれ吸収（"01"と"1"を同一視。"00"は親自身＝空として扱う）。親＋枝番の扱いは window.SiteGroup（共通処理）を使う
+        const normSub = window.SiteGroup.normSub;
         // 8桁日付文字列(YYYYMMDD) → タイムスタンプ。不正/空は null。
         const toTs = (v) => {
             if (!v) return null;
@@ -11711,161 +12524,239 @@ window.exportCostCheck = async function() {
 
         let summaryLines = [];
 
-        // ━━ ① 売上/原価 0円検出（既存ロジック） ━━
+        // ━━ ① 売上/原価 0円検出（完了済の親工番・枝番で、原価データの売上または原価が0円のもの） ━━
+        //   ・完了日は「親は親、枝番は枝番」それぞれ自身の完了日で判定（親の完了日で補わない）
+        //   ・完了日が未入力のものは対象外（完了日の入力状況は⑤・⑥で確認）
+        //   ・親工番が完了済で、未完了の枝番がある場合は、その旨を「枝番の完了状況」とコメントに表示（親の0円は枝番側に計上されている可能性があるため）
         if (doZero) {
             const ws = wb.addWorksheet('①0円検出');
             ws.columns = [
-                { header: '工番', key: 'code', width: 12 },
-                { header: '現場名', key: 'name', width: 35 },
-                { header: '施工主', key: 'owner', width: 15 },
+                { header: '工番（親）', key: 'code', width: 12 },
+                { header: '枝番', key: 'sub', width: 8 },
+                { header: '区分', key: 'level', width: 8 },
+                { header: '現場名', key: 'name', width: 32 },
+                { header: '施工主', key: 'owner', width: 16 },
+                { header: '得意先', key: 'customer', width: 20 },
+                { header: '積算担当', key: 'estimator', width: 12 },
                 { header: '担当者', key: 'manager', width: 12 },
                 { header: '拠点', key: 'branch', width: 10 },
                 { header: '完了日', key: 'end', width: 12 },
                 { header: '売上累計(税抜)', key: 'sales', width: 15 },
                 { header: '原価累計', key: 'cost', width: 15 },
-                { header: '判定コメント', key: 'comment', width: 25 },
+                { header: '枝番の完了状況', key: 'subStatus', width: 30 },
+                { header: '判定コメント', key: 'comment', width: 44 },
+                { header: '原価データの工番', key: 'rawCode', width: 20 },
             ];
             ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: 'A1', to: 'O1' };
 
-            let alertCount = 0;
+            let alertCount = 0, parentCnt = 0, subCnt = 0, unresolved = 0, withIncompleteSub = 0;
             costs.forEach(c => {
-                const m = resolveMaster(c.code) || {};
-                if (!matchesCheckScope(m, scope, true)) return;
-                const rawEndDate = m.endDate;
-                const isCompleted = toTs(rawEndDate) !== null;
+                const mem = resolveMaster(c.code);                 // 判定の単位（親 or 枝番）。完了日は mem 自身の値
+                if (!mem) { unresolved++; return; }                // 現場マスターに無い工番は、完了日が分からないため対象外
+                const isSub = mem.isSub;
+                const parent = mem.parent;
+                if (toTs(mem.endDate) === null) return;            // 完了日が未入力 → 対象外
+                // 拠点・得意先・着手日期間は親工番で、完了日期間は判定単位自身の完了日で絞り込む
+                if (!matchesCheckScope({ ...parent, endDate: mem.endDate }, scope, true)) return;
                 const sales = c.salesTotal || 0;
                 const cost = c.costTotal || 0;
+                if (!(sales === 0 || cost === 0)) return;
 
-                if (sales === 0 || cost === 0) {
-                    alertCount++;
-                    flaggedCodes.add(m.code || c.code);
-                    let comment = '';
-                    let isCritical = false;
-                    if (isCompleted) { comment = '【要注意】完了済だが0円'; isCritical = true; }
-                    else { comment = '進行中・未計上'; }
-                    if (sales === 0 && cost === 0) comment += ' (売上・原価共に0)';
-                    else if (sales === 0) comment += ' (売上0)';
-                    else if (cost === 0) comment += ' (原価0)';
-
-                    const newRow = ws.addRow({ code: c.code, name: (c.name && c.name.trim()) || m.name || m._parentName || '-', owner: m.owner || '-', manager: m.manager || '-', branch: m.branch || '-', end: fmtDateDisp(rawEndDate), sales, cost, comment });
-                    if (isCritical) {
-                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
-                        newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
-                    } else {
-                        newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFE0' } }; });
+                // 親の行：枝番の完了状況（未完了の枝番があるか）
+                let subStatus = '-', incompleteSubs = [];
+                if (!isSub) {
+                    const subs = window.SiteGroup.of(parent).subs;
+                    if (subs.length === 0) subStatus = '枝番なし';
+                    else {
+                        incompleteSubs = subs.filter(x => toTs(x.endDate) === null);
+                        subStatus = incompleteSubs.length === 0 ? `枝番${subs.length}件すべて完了済`
+                            : `枝番${subs.length}件中${incompleteSubs.length}件が未完了（${incompleteSubs.map(x => x.sub || '-').join('・')}）`;
                     }
                 }
+                alertCount++; if (isSub) subCnt++; else parentCnt++;
+                if (incompleteSubs.length > 0) withIncompleteSub++;
+                flaggedCodes.add(parent.code || c.code);
+                let comment = '【要注意】完了済だが0円';
+                if (sales === 0 && cost === 0) comment += ' (売上・原価共に0)';
+                else if (sales === 0) comment += ' (売上0)';
+                else comment += ' (原価0)';
+                if (incompleteSubs.length > 0) comment += ' ／ 未完了の枝番あり（枝番側に計上されている可能性）';
+
+                const newRow = ws.addRow({
+                    code: parent.code || c.code, sub: isSub ? (mem.sub || '-') : '-', level: mem.kind,
+                    name: (c.name && c.name.trim()) || mem.name || parent.name || '-',
+                    owner: mem.owner || '-', customer: mem.customer || '-', estimator: mem.estimator || '-', manager: mem.manager || '-', branch: mem.branch || '-',
+                    end: fmtDateDisp(mem.endDate), sales, cost, subStatus, comment, rawCode: c.code,
+                });
+                newRow.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
+                newRow.getCell('comment').font = { color: { argb: 'FFFF0000' }, bold: true };
+                newRow.getCell('level').font = { bold: true };
+                newRow.getCell('sales').numFmt = '#,##0'; newRow.getCell('cost').numFmt = '#,##0';
             });
-            summaryLines.push(`①0円検出：${alertCount}件`);
+            summaryLines.push(`①0円検出：${alertCount}件（親工番${parentCnt}／枝番${subCnt}）` + (withIncompleteSub > 0 ? `／うち未完了の枝番あり${withIncompleteSub}件` : '') + (unresolved > 0 ? `　※現場マスター未登録の工番${unresolved}件は判定対象外` : ''));
         }
 
         // ━━ ② 完了日より後の伝票日付を検出 ━━
         if (doVoucherOver) {
             const ws = wb.addWorksheet('②完了日超過伝票');
             ws.columns = [
-                { header: '工番', key: 'code', width: 12 },
+                { header: '工番（親）', key: 'code', width: 12 },
+                { header: '枝番', key: 'sub', width: 8 },
+                { header: '区分', key: 'level', width: 8 },
                 { header: '現場名', key: 'name', width: 30 },
+                { header: '施工主', key: 'owner', width: 16 },
+                { header: '得意先', key: 'customer', width: 20 },
+                { header: '積算担当', key: 'estimator', width: 12 },
                 { header: '拠点', key: 'branch', width: 10 },
                 { header: '担当者', key: 'manager', width: 12 },
                 { header: '種別', key: 'kind', width: 8 },
                 { header: '伝票日付', key: 'voucherDate', width: 12 },
                 { header: '完了日', key: 'endDate', width: 12 },
                 { header: '超過日数', key: 'overDays', width: 10 },
-                { header: '得意先/業者名', key: 'partner', width: 22 },
+                { header: '取引先（伝票）', key: 'partner', width: 22 },
                 { header: '金額', key: 'amount', width: 15 },
             ];
             ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: 'A1', to: 'O1' };
 
-            let overCount = 0;
+            // 親工番ごとのマスター（枝番のコードと取り違えないよう、親工番だけで引く）
+            const parentMapV = new Map(); masters.forEach(m => parentMapV.set(mmKey(m.code), m));
+            let overCount = 0, overParent = 0, overSub = 0, skippedUnregSub = 0;
             const DAY_MS = 24 * 60 * 60 * 1000;
+            // 伝票は「親工番の伝票 → 親の完了日」「枝番の伝票 → その枝番の完了日」とそれぞれ比較する
+            // （枝番が空・00 の伝票は親の伝票。枝番付きの伝票を親の完了日と比べてはいけない）
             const checkRows = (rows, kind, amountKey, partnerKey) => {
                 rows.forEach(r => {
-                    const m = masterMap.get(mmKey(r.siteCode));
-                    if (!m || !matchesCheckScope(m, scope, true)) return;
-                    const endTs = toTs(m.endDate);
-                    if (endTs === null) return; // 完了日未入力の現場は対象外（③でカバー）
+                    const m = parentMapV.get(mmKey(r.siteCode));
+                    if (!m) return;
+                    // 拠点・得意先・着手日期間は親工番で判定。完了日期間は、比較対象（親／枝番）自身の完了日で判定する
+                    if (!matchesCheckScope(m, scope, false)) return;
+                    const mem = window.SiteGroup.find(m, r.subCode);   // 枝番が空・00 の伝票は親、枝番付きの伝票はその枝番
+                    if (!mem) { skippedUnregSub++; return; }            // 枝番マスター未登録の枝番は比較する完了日が無い
+                    const target = { level: mem.kind, sub: mem.sub || (mem.isSub ? r.subCode : ''), name: mem.name, owner: mem.owner, customer: mem.customer, estimator: mem.estimator, branch: mem.branch, manager: mem.manager, endDate: mem.endDate };
+                    const endTs = toTs(target.endDate);
+                    if (endTs === null) return; // その親／枝番の完了日が未入力 → 対象外（③でカバー）
+                    if (!matchesCheckScope({ endDate: target.endDate }, { ...scope, branch: 'ALL', customer: 'ALL', hasStartPeriodFilter: false }, true, false)) return;
                     const vTs = toTs(r.date);
                     if (vTs === null) return;
                     if (vTs <= endTs) return;
-                    overCount++;
+                    overCount++; if (target.level === '親') overParent++; else overSub++;
                     flaggedCodes.add(m.code);
                     const overDays = Math.round((vTs - endTs) / DAY_MS);
                     const row = ws.addRow({
-                        code: r.siteCode, name: m?.name || r.siteName || '-', branch: m?.branch || '-', manager: m?.manager || '-',
-                        kind, voucherDate: fmtDateDisp(r.date), endDate: fmtDateDisp(m.endDate), overDays,
+                        code: r.siteCode, sub: target.sub || '-', level: target.level, name: target.name || r.siteName || '-',
+                        owner: target.owner || '-', customer: target.customer || '-', estimator: target.estimator || '-', branch: target.branch || '-', manager: target.manager || '-',
+                        kind, voucherDate: fmtDateDisp(r.date), endDate: fmtDateDisp(target.endDate), overDays,
                         partner: r[partnerKey] || '-', amount: r[amountKey] || 0,
                     });
                     row.getCell('overDays').font = { color: { argb: 'FFFF0000' }, bold: true };
+                    row.getCell('level').font = { bold: true };
                     row.eachCell({ includeEmpty: true }, (cell) => { if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
                 });
             };
             if (doVoucherSales)    checkRows(allSales, '売上', 'amountExc', 'customer');
             if (doVoucherPurchase) checkRows(allPurch, '仕入', 'amount', 'vendor');
-            summaryLines.push(`②完了日超過伝票：${overCount}件`);
+            summaryLines.push(`②完了日超過伝票：${overCount}件（親工番${overParent}件／枝番${overSub}件）` + (skippedUnregSub > 0 ? `　※枝番マスター未登録の枝番の伝票${skippedUnregSub}件は比較対象外` : ''));
         }
 
-        // ━━ ③ 完了日未入力の放置現場を検出 ━━
+        // ━━ ③ 完了日未入力の放置現場を検出（親工番／枝番のどちらが未入力かを判別） ━━
         if (doStale) {
             const ws = wb.addWorksheet('③完了日未入力の放置現場');
             ws.columns = [
-                { header: '工番', key: 'code', width: 12 },
+                { header: '工番（親）', key: 'code', width: 12 },
+                { header: '枝番', key: 'sub', width: 8 },
+                { header: '区分', key: 'kind', width: 8 },
                 { header: '現場名', key: 'name', width: 30 },
+                { header: '施工主', key: 'owner', width: 16 },
+                { header: '得意先', key: 'customer', width: 20 },
+                { header: '積算担当', key: 'estimator', width: 12 },
                 { header: '拠点', key: 'branch', width: 10 },
                 { header: '担当者', key: 'manager', width: 12 },
-                { header: '最終計上日', key: 'lastDate', width: 12 },
+                { header: '最終計上日(この行)', key: 'lastDate', width: 16 },
                 { header: '経過月数', key: 'elapsedMonths', width: 10 },
                 { header: '完了日', key: 'endDate', width: 10 },
-                { header: '原価累計', key: 'cost', width: 15 },
-                { header: '売上累計(税抜)', key: 'sales', width: 15 },
+                { header: 'グループ内 完了日入力状況', key: 'progress', width: 22 },
+                { header: '原価累計(工番全体)', key: 'cost', width: 16 },
+                { header: '売上累計(工番全体・税抜)', key: 'sales', width: 18 },
+                { header: '売上累計(この行・税抜)', key: 'rowSales', width: 18 },
             ];
             ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: 'A1', to: 'P1' };
 
             // 現場ごとの最終計上日（売上明細・仕入明細のうち、より新しい方）を収集
             // ※ sales/purchases の工番と現場マスターの工番とで大文字小文字の表記ゆれがあっても
             //   正しく突き合わせられるよう、キーは小文字化して保持する（mmKeyで統一）
-            const lastDateMap = new Map(); // mmKey(code) -> 'YYYYMMDD'
-            const updateLast = (code, dateStr) => {
+            // ※ 売上明細・仕入明細とも枝番（売上=EJ列／仕入=EC列）があるため、最終計上日は親／枝番の行ごとに判定する
+            //   （枝番が空・00 は親の計上として扱う。仕入明細を枝番付きで取り込む前の古いデータは親扱いになるため、再取込が必要）
+            const lastDateMap = new Map(); // mmKey(code) + '|' + normSub -> 'YYYYMMDD'
+            const updateLast = (code, sub, dateStr) => {
                 if (!dateStr || String(dateStr).length !== 8) return;
-                const key = mmKey(code);
+                const key = mmKey(code) + '|' + normSub(sub);
                 const cur = lastDateMap.get(key);
                 if (!cur || dateStr > cur) lastDateMap.set(key, dateStr);
             };
-            allSales.forEach(s => updateLast(s.siteCode, s.date));
-            allPurch.forEach(p => updateLast(p.siteCode, p.date));
+            allSales.forEach(s => updateLast(s.siteCode, s.subCode, s.date));
+            allPurch.forEach(p => updateLast(p.siteCode, p.subCode, p.date));
+            // 親／枝番ごとの売上（税抜）。枝番が空・00 の売上は親の売上として扱う
+            const rowSalesMap = new Map(); // mmKey(code) + '|' + normSub -> 売上合計
+            allSales.forEach(r => {
+                const k = mmKey(r.siteCode) + '|' + normSub(r.subCode);
+                rowSalesMap.set(k, (rowSalesMap.get(k) || 0) + (Number(r.amountExc) || 0));
+            });
 
             const now = new Date();
-            let staleCount = 0;
             const costMap = new Map(); costs.forEach(c => costMap.set(mmKey(c.code), c));
+            const entries = [];
+            let staleGroups = 0, parentRows = 0, subRows = 0;
 
             masters.forEach(m => {
-                if (toTs(m.endDate) !== null) return; // 完了日が入力済みなら対象外
                 if (!matchesCheckScope(m, scope, false)) return; // 完了日期間の判定は対象外（完了日が無い前提のチェックのため）
-                const lastDateStr = lastDateMap.get(mmKey(m.code));
-                if (!lastDateStr) return; // 計上実績が無ければ対象外（未着手の可能性が高い）
-                const lastTs = toTs(lastDateStr);
-                if (lastTs === null) return;
-                const lastD = new Date(lastTs);
-                const elapsedMonths = (now.getFullYear() - lastD.getFullYear()) * 12 + (now.getMonth() - lastD.getMonth());
-                if (elapsedMonths < staleMonths) return;
-                staleCount++;
-                flaggedCodes.add(m.code);
+
+                // 親＋枝番を1グループとして、完了日が未入力の行ごとに「その行自身の最終計上日」から経過月数を判定する
+                const grp = window.SiteGroup.of(m);
+                const members = grp.members;
+                const filledCount = members.filter(mem => toTs(mem.endDate) !== null).length;
+                const progress = `${filledCount}/${members.length}件入力済`;
                 const c = costMap.get(mmKey(m.code)) || {};
-                const row = ws.addRow({
-                    code: m.code, name: m.name || '-', branch: m.branch || '-', manager: m.manager || '-',
-                    lastDate: fmtDateDisp(lastDateStr), elapsedMonths, endDate: '（未入力）',
-                    cost: c.costTotal || 0, sales: c.salesTotal || 0,
+                let hit = false;
+                members.forEach(mem => {
+                    if (toTs(mem.endDate) !== null) return; // 完了日が入力済み → 対象外
+                    const lastDateStr = lastDateMap.get(mmKey(m.code) + '|' + mem.nsub);
+                    if (!lastDateStr) return; // この行に計上実績が無ければ対象外（未着手・未使用の可能性が高い）
+                    const lastTs = toTs(lastDateStr);
+                    if (lastTs === null) return;
+                    const lastD = new Date(lastTs);
+                    const elapsedMonths = (now.getFullYear() - lastD.getFullYear()) * 12 + (now.getMonth() - lastD.getMonth());
+                    if (staleMode === 'date') { if (String(lastDateStr) > staleDateStr) return; } // 基準日以前に最終計上
+                    else if (elapsedMonths < staleMonths) return;
+                    hit = true;
+                    if (mem.kind === '親') parentRows++; else subRows++;
+                    entries.push({
+                        code: m.code, sub: mem.sub || '-', kind: mem.kind, name: mem.name || '-',
+                        owner: mem.owner || '-', customer: mem.customer || '-', estimator: mem.estimator || '-', branch: mem.branch || '-', manager: mem.manager || '-',
+                        lastDate: fmtDateDisp(lastDateStr), elapsedMonths, endDate: '（未入力）', progress,
+                        cost: c.costTotal || 0, sales: c.salesTotal || 0,
+                        rowSales: Math.round(rowSalesMap.get(mmKey(m.code) + '|' + mem.nsub) || 0),
+                    });
                 });
+                if (hit) { staleGroups++; flaggedCodes.add(m.code); }
+            });
+
+            // 経過月数の多い順（同じ場合は工番順。同一工番内は親→枝番の順を維持）に並べてから出力
+            entries.sort((a, b) => b.elapsedMonths - a.elapsedMonths || String(a.code).localeCompare(String(b.code), 'ja'));
+            entries.forEach(e => {
+                const row = ws.addRow(e);
                 row.getCell('elapsedMonths').font = { color: { argb: 'FFFF0000' }, bold: true };
                 row.getCell('endDate').font = { color: { argb: 'FFFF0000' }, bold: true };
+                row.getCell('kind').font = { bold: true };
                 row.eachCell({ includeEmpty: true }, (cell) => { if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CD' } }; });
+                row.getCell('cost').numFmt = '#,##0'; row.getCell('sales').numFmt = '#,##0'; row.getCell('rowSales').numFmt = '#,##0';
             });
-            // 経過月数の多い順に並び替え
-            if (staleCount > 0) {
-                const dataRows = ws.getRows(2, ws.rowCount - 1) || [];
-                const sorted = dataRows.map(r => r.values).sort((a, b) => (b[6]||0) - (a[6]||0));
-                for (let i = 0; i < sorted.length; i++) { ws.getRow(i + 2).values = sorted[i]; }
-            }
-            summaryLines.push(`③完了日未入力の放置現場：${staleCount}件（しきい値${staleMonths}ヶ月以上）`);
+            summaryLines.push(`③完了日未入力の放置現場：${staleGroups}工番（${entries.length}行：親工番${parentRows}件／枝番${subRows}件）（${staleMode === 'date' ? `最終計上日が${fmtDateDisp(staleDateStr)}以前` : `しきい値${staleMonths}ヶ月以上`}）`);
         }
 
         // ━━ ④ 親工番と枝番の項目不一致を検出 ━━
@@ -11874,15 +12765,19 @@ window.exportCostCheck = async function() {
             const doMismatchManager   = document.getElementById('chk-mismatch-manager')?.checked ?? false;
             const doMismatchEstimator = document.getElementById('chk-mismatch-estimator')?.checked ?? false;
             const doMismatchDesigner  = document.getElementById('chk-mismatch-designer')?.checked ?? false;
+            const doMismatchStart     = document.getElementById('chk-mismatch-startdate')?.checked ?? false;
+            const doMismatchEnd       = document.getElementById('chk-mismatch-enddate')?.checked ?? false;
             const mismatchFields = [
                 { on: doMismatchBranch,    key: 'branch',    label: '拠点',  fill: 'FFFFE6E6' },
                 { on: doMismatchManager,   key: 'manager',   label: '担当者', fill: 'FFFFF3CD' },
                 { on: doMismatchEstimator, key: 'estimator', label: '積算',  fill: 'FFE0F2FE' },
                 { on: doMismatchDesigner,  key: 'designer',  label: '設計',  fill: 'FFEDE9FE' },
+                { on: doMismatchStart,     key: 'startDate', label: '着手日', fill: 'FFDCFCE7', date: true },
+                { on: doMismatchEnd,       key: 'endDate',   label: '完了日', fill: 'FFFFEDD5', date: true },
             ].filter(f => f.on);
 
             if (mismatchFields.length === 0) {
-                alert('④のチェック項目（拠点・担当者・積算・設計）を1つ以上選択してください。');
+                alert('④のチェック項目（拠点・担当者・積算・設計・着手日・完了日）を1つ以上選択してください。');
                 return;
             }
 
@@ -11891,23 +12786,36 @@ window.exportCostCheck = async function() {
                 { header: '工番（親）', key: 'code', width: 14 },
                 { header: 'サブコード', key: 'subCode', width: 12 },
                 { header: '現場名', key: 'name', width: 30 },
+                { header: '施工主（親）', key: 'owner', width: 16 },
+                { header: '得意先（親）', key: 'customer', width: 20 },
+                { header: '積算担当（親）', key: 'estimator', width: 14 },
                 { header: '不一致項目', key: 'kind', width: 14 },
                 { header: '親の値', key: 'parentVal', width: 16 },
                 { header: '枝番の値', key: 'childVal', width: 16 },
+                { header: '親の着手日', key: 'pStart', width: 12 },
+                { header: '親の完了日', key: 'pEnd', width: 12 },
+                { header: '枝番の着手日', key: 'cStart', width: 12 },
+                { header: '枝番の完了日', key: 'cEnd', width: 12 },
             ];
             ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: 'A1', to: 'M1' };
 
             let mismatchCount = 0;
             masters.forEach(m => {
                 if (!matchesCheckScope(m, scope, true)) return;
-                (m.subCodes || []).forEach(s => {
+                window.SiteGroup.of(m).subs.forEach(mem => {
+                    const s = mem.rec;   // 親との比較は、枝番自身の登録値で行う（空欄は補わない）
                     mismatchFields.forEach(f => {
-                        const parentVal = m[f.key];
-                        const childVal = s[f.key];
+                        // 日付（着手日・完了日）は、0・00000000 を空として扱い、8桁の数字にそろえて比較する
+                        const parentVal = f.date ? window.normDateOrEmpty(m[f.key]) : m[f.key];
+                        const childVal = f.date ? window.normDateOrEmpty(s[f.key]) : s[f.key];
                         if (!childVal || !parentVal || childVal === parentVal) return;
                         mismatchCount++;
                         flaggedCodes.add(m.code);
-                        const row = ws.addRow({ code: m.code, subCode: s.subCode || '-', name: s.subName || m.name || '-', kind: f.label, parentVal, childVal });
+                        const row = ws.addRow({ code: m.code, subCode: s.subCode || '-', name: s.subName || m.name || '-', owner: m.owner || '-', customer: m.customer || '-', estimator: m.estimator || '-', kind: f.label,
+                            parentVal: f.date ? fmtDateDisp(parentVal) : parentVal, childVal: f.date ? fmtDateDisp(childVal) : childVal,
+                            pStart: fmtDateDisp(m.startDate), pEnd: fmtDateDisp(m.endDate), cStart: fmtDateDisp(s.startDate), cEnd: fmtDateDisp(s.endDate) });
                         row.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: f.fill } }; });
                         row.getCell('childVal').font = { color: { argb: 'FFFF0000' }, bold: true };
                     });
@@ -11922,12 +12830,6 @@ window.exportCostCheck = async function() {
             if (allSales.length === 0) { alert('⑤のチェックには売上明細の取込が必要です。売上明細を取り込んでから再度実行してください。'); return; }
             const outMode = document.querySelector('input[name="chk-enddate-sales-output"]:checked')?.value || 'group';
 
-            // 枝番の表記ゆれ吸収（"01"と"1"を同一視。"00"は親自身＝空として扱う）
-            const normSub = (v) => {
-                const t = String(v || '').trim().toLowerCase();
-                if (/^\d+$/.test(t)) { const n = parseInt(t, 10); return n === 0 ? '' : String(n); }
-                return t;
-            };
             // 売上明細を 親工番 → 枝番 ごとに集計（金額は税抜）
             const salesByParent = new Map(); // mmKey(siteCode) -> Map(normSub -> {amount,count,last})
             allSales.forEach(r => {
@@ -11961,6 +12863,9 @@ window.exportCostCheck = async function() {
                 { header: '枝番', key: 'sub', width: 8 },
                 { header: '区分', key: 'kind', width: 10 },
                 { header: '現場名', key: 'name', width: 32 },
+                { header: '施工主', key: 'owner', width: 16 },
+                { header: '得意先', key: 'customer', width: 20 },
+                { header: '積算担当', key: 'estimator', width: 12 },
                 { header: '拠点', key: 'branch', width: 10 },
                 { header: '担当者', key: 'manager', width: 12 },
                 { header: '完了日', key: 'end', width: 12 },
@@ -11973,7 +12878,7 @@ window.exportCostCheck = async function() {
             ];
             ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
             ws.views = [{ state: 'frozen', ySplit: 1 }];
-            ws.autoFilter = { from: 'A1', to: 'M1' };
+            ws.autoFilter = { from: 'A1', to: 'P1' };
 
             const FILL = { A: 'FFFFE6E6', B: 'FFFFF3CD', C: 'FFFFE8D1', D: 'FFEDE9FE', E: 'FFFDE2E2' };
             const cnt = { A: 0, B: 0, C: 0, D: 0, E: 0, groups: 0, rows: 0 };
@@ -11985,19 +12890,13 @@ window.exportCostCheck = async function() {
                 if (!matchesCheckScope(m, scope, false)) return;
 
                 const subMap = salesByParent.get(mmKey(m.code)) || new Map();
-                const members = [{ kind: '親', sub: '', nsub: '', name: m.name, branch: m.branch, manager: m.manager, endDate: m.endDate }];
-                const seenSub = new Set(['']);
-                (m.subCodes || []).forEach(sc => {
-                    const ns = normSub(sc.subCode);
-                    if (seenSub.has(ns)) return; // 同一枝番の重複登録は1件に統合
-                    seenSub.add(ns);
-                    members.push({ kind: '枝番', sub: sc.subCode || '', nsub: ns, name: sc.subName || m.name, branch: sc.branch || m.branch, manager: sc.manager || m.manager, endDate: sc.endDate });
-                });
+                const grp = window.SiteGroup.of(m);
+                const members = grp.members;
                 const hasSubs = members.length > 1;
 
                 // 枝番マスターに無い枝番の売上
                 const unregistered = [];
-                subMap.forEach((agg, sk) => { if (!seenSub.has(sk) && hasSalesAmt(agg)) unregistered.push({ sk, agg }); });
+                subMap.forEach((agg, sk) => { if (!grp.has(sk) && hasSalesAmt(agg)) unregistered.push({ sk, agg }); });
 
                 const groupHasSales = members.some(mem => hasSalesAmt(subMap.get(mem.nsub) || emptyAgg)) || unregistered.length > 0;
                 const filledCount = members.filter(mem => toTs(mem.endDate) !== null).length;
@@ -12022,7 +12921,7 @@ window.exportCostCheck = async function() {
                     gRows.push({ mem, agg, filled, issues });
                 });
                 unregistered.forEach(u => {
-                    gRows.push({ mem: { kind: '枝番(未登録)', sub: u.agg.raw || u.sk, name: m.name, branch: m.branch, manager: m.manager, endDate: '' }, agg: u.agg, filled: false, issues: [{ t: 'D', msg: '【枝番マスター未登録】売上明細に枝番あり・完了日を確認できません' }] });
+                    gRows.push({ mem: { kind: '枝番(未登録)', sub: u.agg.raw || u.sk, name: m.name, owner: m.owner, customer: m.customer, estimator: m.estimator, branch: m.branch, manager: m.manager, endDate: '' }, agg: u.agg, filled: false, issues: [{ t: 'D', msg: '【枝番マスター未登録】売上明細に枝番あり・完了日を確認できません' }] });
                 });
 
                 if (!gRows.some(g => g.issues.length > 0)) return;
@@ -12036,6 +12935,7 @@ window.exportCostCheck = async function() {
                     else if (outMode === 'row') return;
                     const row = ws.addRow({
                         code: m.code, sub: g.mem.sub || '-', kind: g.mem.kind, name: g.mem.name || '-',
+                        owner: g.mem.owner || '-', customer: g.mem.customer || '-', estimator: g.mem.estimator || '-',
                         branch: g.mem.branch || '-', manager: g.mem.manager || '-',
                         end: g.filled ? fmtDateDisp(g.mem.endDate) : '（未入力）',
                         sales: Math.round(g.agg.amount), cnt: g.agg.count, last: fmtDateDisp(g.agg.last),
@@ -12055,6 +12955,92 @@ window.exportCostCheck = async function() {
                 });
             });
             summaryLines.push(`⑤完了日・売上：異常${cnt.groups}工番（${cnt.rows}行）／売上あり・完了日未入力${cnt.A}件、同一工番内に売上あり・完了日未入力${cnt.E}件、完了日あり・売上なし${cnt.B}件、グループ内一部未入力${cnt.C}件、枝番未登録売上${cnt.D}件`);
+        }
+
+
+        // ━━ ⑥ 完了日の入力状況一覧（親・枝番別）：完了日が未入力の親／枝番を計上状況で分類 ━━
+        if (doStatus) {
+            if (allSales.length === 0 && allPurch.length === 0) { alert('⑥のチェックには売上明細・仕入明細の取込が必要です。取り込んでから再度実行してください。'); return; }
+            const ws = wb.addWorksheet('⑥完了日入力状況一覧');
+            ws.columns = [
+                { header: '工番（親）', key: 'code', width: 12 },
+                { header: '枝番', key: 'sub', width: 8 },
+                { header: '区分', key: 'kind', width: 8 },
+                { header: '現場名', key: 'name', width: 30 },
+                { header: '施工主', key: 'owner', width: 16 },
+                { header: '得意先', key: 'customer', width: 20 },
+                { header: '積算担当', key: 'estimator', width: 12 },
+                { header: '拠点', key: 'branch', width: 10 },
+                { header: '担当者', key: 'manager', width: 12 },
+                { header: '着手日', key: 'startDate', width: 12 },
+                { header: '完了日', key: 'endDate', width: 10 },
+                { header: '計上状況', key: 'status', width: 10 },
+                { header: '売上累計(税抜)', key: 'sales', width: 15 },
+                { header: '仕入累計', key: 'purchase', width: 15 },
+                { header: '最終計上日', key: 'lastDate', width: 12 },
+                { header: 'グループ内 完了日入力状況', key: 'progress', width: 22 },
+            ];
+            ws.getRow(1).eachCell((cell) => { cell.style = headerStyle; });
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: 'A1', to: 'P1' };
+
+            // 親／枝番ごとの売上・仕入の集計（枝番が空・00 は親）
+            const aggMap = new Map(); // mmKey(code)|normSub -> { sales, purchase, nS, nP, last }
+            const getAgg = (code, sub) => {
+                const k = mmKey(code) + '|' + normSub(sub);
+                let a = aggMap.get(k);
+                if (!a) { a = { sales: 0, purchase: 0, nS: 0, nP: 0, last: '' }; aggMap.set(k, a); }
+                return a;
+            };
+            const touchLast = (a, d) => { const t = String(d || '').trim(); if (t.length === 8 && t > a.last) a.last = t; };
+            allSales.forEach(r => { const a = getAgg(r.siteCode, r.subCode); a.sales += Number(r.amountExc) || 0; a.nS++; touchLast(a, r.date); });
+            allPurch.forEach(r => { const a = getAgg(r.siteCode, r.subCode); a.purchase += Number(r.amount) || 0; a.nP++; touchLast(a, r.date); });
+
+            const ORDER = { '売上あり': 0, '仕入のみ': 1, '計上なし': 2 };
+            const out = [];
+            const cntS = { '売上あり': 0, '仕入のみ': 0, '計上なし': 0 };
+            let parentRows6 = 0, subRows6 = 0;
+            masters.forEach(m => {
+                if (!m.code) return;
+                // 拠点・得意先・着手日期間は親工番で判定。完了日期間は対象外（完了日が無い行が対象のため）
+                if (!matchesCheckScope(m, scope, false)) return;
+                const grp = window.SiteGroup.of(m);
+                const members = grp.members;
+                const filledCount = members.filter(mem => toTs(mem.endDate) !== null).length;
+                const progress = `${filledCount}/${members.length}件入力済`;
+                members.forEach(mem => {
+                    if (toTs(mem.endDate) !== null) return; // 完了日入力済みは対象外
+                    const a = aggMap.get(mmKey(m.code) + '|' + mem.nsub) || { sales: 0, purchase: 0, nS: 0, nP: 0, last: '' };
+                    const hasS = Math.round(a.sales) !== 0;
+                    const hasP = a.nP > 0 && Math.round(a.purchase) !== 0;
+                    const status = hasS ? '売上あり' : (hasP ? '仕入のみ' : '計上なし');
+                    if (status === '売上あり' && !stSales) return;
+                    if (status === '仕入のみ' && !stPurch) return;
+                    if (status === '計上なし') {
+                        if (!stNone) return;
+                        if (stNoneStartedOnly && toTs(mem.startDate) === null) return; // 着手日が未入力の計上なしは除外
+                    }
+                    cntS[status]++; if (mem.kind === '親') parentRows6++; else subRows6++;
+                    flaggedCodes.add(m.code);
+                    out.push({
+                        code: m.code, sub: mem.sub || '-', kind: mem.kind, name: mem.name || '-',
+                        owner: mem.owner || '-', customer: mem.customer || '-', estimator: mem.estimator || '-', branch: mem.branch || '-', manager: mem.manager || '-',
+                        startDate: fmtDateDisp(mem.startDate), endDate: '（未入力）', status,
+                        sales: Math.round(a.sales), purchase: Math.round(a.purchase), lastDate: fmtDateDisp(a.last), progress,
+                    });
+                });
+            });
+            // 分類順（売上あり→仕入のみ→計上なし）、同分類内は工番順（親→枝番の並びは維持）
+            out.sort((x, y) => ORDER[x.status] - ORDER[y.status] || String(x.code).localeCompare(String(y.code), 'ja'));
+            out.forEach(e => {
+                const row = ws.addRow(e);
+                row.getCell('endDate').font = { color: { argb: 'FFFF0000' }, bold: true };
+                row.getCell('status').font = { bold: true };
+                row.getCell('kind').font = { bold: true };
+                row.getCell('sales').numFmt = '#,##0'; row.getCell('purchase').numFmt = '#,##0';
+                if (e.status === '売上あり') row.eachCell({ includeEmpty: true }, (cell) => { if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
+            });
+            summaryLines.push(`⑥完了日入力状況：完了日未入力${out.length}行（親工番${parentRows6}件／枝番${subRows6}件）／売上あり${cntS['売上あり']}件、仕入のみ${cntS['仕入のみ']}件、計上なし${cntS['計上なし']}件`);
         }
 
         if (wb.worksheets.length === 0) { alert('出力するデータがありません'); return; }
