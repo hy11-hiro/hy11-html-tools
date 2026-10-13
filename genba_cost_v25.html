@@ -2713,6 +2713,7 @@
                                     <tr><td class="border border-slate-200 px-3 py-1.5 font-mono">完 了 日（ヘッダー行5行以内）</td><td class="border border-slate-200 px-3 py-1.5">集計期間文字列 <code class="bg-slate-100 px-1 rounded">period</code></td><td class="border border-slate-200 px-3 py-1.5">ヘッダー部のセルから検索</td></tr>
                                 </tbody>
                             </table>
+                            <p class="text-[11px] text-slate-500 mt-2">※ 取り込めるのは、<strong>親工番ごとに親と枝を合算した</strong>原価集計表です。コードが「親コード＋ハイフン＋枝コード」の形（例: i0087 -01）になっている枝別の原価集計表は、現在は未対応のため、取り込もうとすると中止します（データは更新されません）。工番は、数字だけで5桁未満の場合（Excelで先頭の0が省略された場合）、取込時に5桁に補います。</p>
                         </div>
 
                         <!-- 現場マスター -->
@@ -2993,6 +2994,14 @@
     window.padSiteCode = function(v) {
         const t = String(v == null ? '' : v).trim();
         return /^\d{1,4}$/.test(t) ? t.padStart(5, '0') : t;
+    };
+    // 枝別の原価集計表（コードが「親コード＋ハイフン＋枝コード」の形。例: "i0087               -01"）かどうかの判定。
+    // 現在の取込は、親コードごとの合算の原価集計表だけに対応している。枝別の表をそのまま取り込むと、
+    // コードが現場マスターと一致せず、原価・売上が結び付かなくなる（合計が0になる）ため、取込前に検出して止める。
+    window.detectSubCodeCostFormat = function(rows) {
+        const codes = (rows || []).map(r => String(r && r['コード'] != null ? r['コード'] : '').trim()).filter(c => c !== '');
+        const withSub = codes.filter(c => /\S\s*-/.test(c)).length;
+        return { isSubFormat: codes.length > 0 && withSub / codes.length >= 0.5, withSub, total: codes.length };
     };
     window.isUnpaddedSiteCode = function(v) { return /^\d{1,4}$/.test(String(v == null ? '' : v).trim()); };
 
@@ -3367,6 +3376,11 @@
                           validRows = rows.slice(1);
                           if(importLog) importLog.textContent += "  -> 項目番号行を検出。スキップします。\n";
                      }
+                }
+                const fmtCheck = window.detectSubCodeCostFormat(validRows);
+                if (fmtCheck.isSubFormat) {
+                    if (btn) btn.disabled = false;
+                    throw new Error(`原価集計表のコードが、枝コード付きの形式（例: i0087 -01）になっています（${fmtCheck.total}行中${fmtCheck.withSub}行）。\n枝別の原価集計表は、現在は取り込みに対応していません（そのまま取り込むと、現場マスターと結び付かなくなるため中止しました）。\n親と枝を合算した原価集計表を選択してください。データは何も更新していません。`);
                 }
                 costData = validRows.map(r => ({
                     code: window.padSiteCode(r['コード']).toLowerCase(),   // Excelで先頭の0が省略された工番（36 → 00036）を補う
