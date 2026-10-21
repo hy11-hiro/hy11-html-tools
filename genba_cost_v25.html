@@ -298,28 +298,12 @@
 
                     <!-- 未回収フィルターパネル -->
                     <div id="browse-panel-uncollected" class="browse-filter-panel hidden">
-                        <!-- 行①：チェックボックスと件数 -->
+                        <!-- 回収データ付きExcel出力（チェックボックス類は下の共通「回収状況」行へ移動） -->
                         <div class="flex flex-wrap items-center gap-4 mb-3">
                             <div class="flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-lg px-4 py-2">
                                 <i class="fa-solid fa-circle-exclamation text-orange-500"></i>
                                 <span class="text-sm font-bold text-orange-700">回収データが紐づく現場を絞り込み</span>
                             </div>
-                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
-                                <input type="checkbox" id="browse-chk-uncollected-only" class="w-3.5 h-3.5 text-orange-500 rounded" onchange="window.applyBrowseFilter()">
-                                <span>未回収残高 &gt; 0 のみ</span>
-                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-slate-600 cursor-help" title="「未回収残高」は、回収予定額のうちまだ入金が確認できていない金額です。このチェックを入れると、回収データが登録されている現場の中から、未回収残高が実際に残っている（まだ回収が完了していない）現場だけに絞り込みます。回収が完了済み（未回収残高が0円）の現場は除外されます。"></i>
-                            </label>
-                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-red-600 font-bold">
-                                <input type="checkbox" id="browse-chk-coll-anomaly" class="w-3.5 h-3.5 text-red-500 rounded" onchange="window.applyBrowseFilter(); window.renderCollAnomalyTable();">
-                                <span>回収差異あり（売上税込 ≠ 回収済額）</span>
-                            </label>
-                            <span class="text-xs text-slate-400" id="browse-uncollected-count"></span>
-                            <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium border-l border-slate-200 pl-3">
-                                <input type="checkbox" id="browse-chk-uncoll-branch-detail" class="w-3.5 h-3.5 text-teal-500 rounded" onchange="window.renderUncollBranchDetail()">
-                                <span>枝番別明細を表示（合算しない）</span>
-                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-slate-600 cursor-help" title="上の一覧は親コード＋枝コードを合算した金額です。このチェックを入れると、回収データに登録されている親・枝コードごとの明細を1行ずつそのまま表示します。"></i>
-                            </label>
-                            <!-- Excel出力ボタン -->
                             <button onclick="window.exportUncollectedExcel()" class="ml-auto bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1.5 shadow transition-colors">
                                 <i class="fa-solid fa-file-excel"></i> Excel出力（合算・回収データ付）
                             </button>
@@ -327,62 +311,10 @@
                                 <i class="fa-solid fa-file-excel"></i> Excel出力（枝番別・合算なし）
                             </button>
                         </div>
-                        <p class="text-xs text-slate-400 mb-3 -mt-2">※「未回収残高 &gt; 0 のみ」＝回収予定額のうち、まだ入金が確認できていない金額が残っている現場だけを表示します（回収完了済みの現場は除外）。</p>
+                        <p class="text-xs text-slate-400 mb-3 -mt-2">※ このタブでは、回収データが紐づく現場だけを一覧に表示します。「未回収残高 &gt; 0 のみ」「回収差異あり」「枝番別明細」は、どのタブからでも下の「回収状況」行で指定できます（拠点・担当者などの選択ボタンを開いたまま操作できます）。</p>
                         <p class="text-xs text-teal-600 mb-3 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
                             <i class="fa-solid fa-circle-info mr-1"></i>拠点・担当者・積算・得意先・キーワードでの絞り込みは、上の「拠点・担当者・積算・得意先」タブや検索ボックスをお使いください（このタブでも自動的に反映されます）。
                         </p>
-                        <!-- 差異詳細テーブル -->
-                        <div id="coll-anomaly-detail" class="hidden mt-4 overflow-x-auto">
-                            <div class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1.5">
-                                <i class="fa-solid fa-triangle-exclamation"></i> コード単体ごとの回収差異詳細
-                                <span class="text-slate-400 font-normal">（差異 = 売上税込 ≠ 回収済額 のもの）</span>
-                            </div>
-                            <table class="w-full text-xs border-collapse">
-                                <thead>
-                                    <tr class="bg-red-50 text-slate-600">
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">工番</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">種別</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left">現場名</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">担当者</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">積算</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">得意先</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">施工主</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">拠点</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">着手日</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">完了日</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">売上（税抜）</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">売上税込</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">回収済額</th>
-                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap text-red-600">差額</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="coll-anomaly-tbody"></tbody>
-                            </table>
-                        </div>
-                        <!-- 枝番別明細テーブル（合算しない） -->
-                        <div id="uncoll-branch-detail" class="hidden mt-4 overflow-x-auto">
-                            <div class="text-xs font-bold text-teal-700 mb-2 flex items-center gap-1.5">
-                                <i class="fa-solid fa-list"></i> 回収明細（親コード＋枝コード別・合算なし）
-                                <span class="text-slate-400 font-normal" id="uncoll-branch-detail-count"></span>
-                            </div>
-                            <table class="w-full text-xs border-collapse">
-                                <thead>
-                                    <tr class="bg-teal-50 text-slate-600">
-                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">工番</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">枝番</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-left">現場名</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">担当者</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">積算</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">拠点</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">回収予定額</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">内未請求分</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">回収額</th>
-                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap text-orange-600">未回収残高</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="uncoll-branch-detail-tbody"></tbody>
-                            </table>
-                        </div>
                     </div>
                     <!-- END browse-panel-uncollected -->
 
@@ -418,10 +350,84 @@
                             </select>
                         </div>
                     </div>
+                    <!-- 回収状況（タブに関係なく常に表示：未回収タブへ切り替えなくても指定できる） -->
+                    <div class="mt-3 flex flex-wrap items-center gap-4">
+                        <span class="text-xs font-bold text-orange-600"><i class="fa-solid fa-circle-exclamation mr-1"></i>回収状況:</span>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
+                                <input type="checkbox" id="browse-chk-uncollected-only" class="w-3.5 h-3.5 text-orange-500 rounded" onchange="window.applyBrowseFilter()">
+                                <span>未回収残高 &gt; 0 のみ</span>
+                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-slate-600 cursor-help" title="「未回収残高」は、回収予定額のうちまだ入金が確認できていない金額です。このチェックを入れると、回収データが登録されている現場の中から、未回収残高が実際に残っている（まだ回収が完了していない）現場だけに絞り込みます。回収が完了済み（未回収残高が0円）の現場は除外されます。"></i>
+                            </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs text-red-600 font-bold">
+                                <input type="checkbox" id="browse-chk-coll-anomaly" class="w-3.5 h-3.5 text-red-500 rounded" onchange="window.applyBrowseFilter(); window.renderCollAnomalyTable();">
+                                <span>回収差異あり（売上税込 ≠ 回収済額）</span>
+                            </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600 font-medium">
+                                <input type="checkbox" id="browse-chk-uncoll-branch-detail" class="w-3.5 h-3.5 text-teal-500 rounded" onchange="window.renderUncollBranchDetail()">
+                                <span>枝番別明細を表示（合算しない）</span>
+                                <i class="fa-solid fa-circle-question text-slate-400 hover:text-slate-600 cursor-help" title="上の一覧は親コード＋枝コードを合算した金額です。このチェックを入れると、回収データに登録されている親・枝コードごとの明細を1行ずつそのまま表示します。"></i>
+                            </label>
+                        <span class="text-xs text-slate-500 font-bold" id="browse-uncollected-count"></span>
+                    </div>
                 </div>
 
                 <!-- 現在の絞り込み条件（一覧） -->
                 <div id="browse-active-filters" class="glass-panel rounded-xl px-5 py-3 hidden"></div>
+
+                <!-- 回収差異詳細・枝番別明細（絞り込みカードの外に独立表示：レイアウトを崩さない） -->
+                        <!-- 差異詳細テーブル -->
+                        <div id="coll-anomaly-detail" class="hidden glass-panel rounded-xl px-5 py-4 overflow-x-auto">
+                            <div class="text-xs font-bold text-red-700 mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-triangle-exclamation"></i> コード単体ごとの回収差異詳細
+                                <span class="text-slate-400 font-normal">（差異 = 売上税込 ≠ 回収済額 のもの）</span>
+                            </div>
+                            <table class="w-full text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-red-50 text-slate-600">
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">工番</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">種別</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left">現場名</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">担当者</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">積算</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">得意先</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">施工主</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">拠点</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">着手日</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-left whitespace-nowrap">完了日</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">売上（税抜）</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">売上税込</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap">回収済額</th>
+                                        <th class="border-b border-red-100 px-3 py-2 text-right whitespace-nowrap text-red-600">差額</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="coll-anomaly-tbody"></tbody>
+                            </table>
+                        </div>
+                        <!-- 枝番別明細テーブル（合算しない） -->
+                        <div id="uncoll-branch-detail" class="hidden glass-panel rounded-xl px-5 py-4 overflow-x-auto">
+                            <div class="text-xs font-bold text-teal-700 mb-2 flex items-center gap-1.5">
+                                <i class="fa-solid fa-list"></i> 回収明細（親コード＋枝コード別・合算なし）
+                                <span class="text-slate-400 font-normal" id="uncoll-branch-detail-count"></span>
+                            </div>
+                            <table class="w-full text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-teal-50 text-slate-600">
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">工番</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">枝番</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left">現場名</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">担当者</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">積算</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-left whitespace-nowrap">拠点</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">回収予定額</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">内未請求分</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap">回収額</th>
+                                        <th class="border-b border-teal-100 px-3 py-2 text-right whitespace-nowrap text-orange-600">未回収残高</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="uncoll-branch-detail-tbody"></tbody>
+                            </table>
+                        </div>
+
 
                 <!-- 結果一覧テーブル -->
                 <div class="glass-panel rounded-xl overflow-hidden" id="browse-list-panel">
@@ -1152,6 +1158,16 @@
                 <div id="ranking-tab-filter-note" class="glass-panel rounded-xl px-5 py-2 text-xs font-bold flex items-center gap-2"></div>
                 <div class="glass-panel rounded-xl overflow-hidden">
                     <div class="flex overflow-x-auto border-b border-slate-200 bg-white">
+                        <!-- 出力ナビ（ルート案内） -->
+                        <div class="flex shrink-0 px-2 pt-2 gap-1">
+                            <button onclick="window.switchRankingTab('navi')" id="tab-navi" data-tab-color="indigo"
+                                class="ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-indigo-400 bg-white whitespace-nowrap hover:text-indigo-600 hover:bg-indigo-50 transition-all">
+                                <i class="fa-solid fa-route mr-1.5 text-xs"></i>出力ナビ
+                            </button>
+                        </div>
+                        <div class="flex items-center px-2 pt-2">
+                            <div class="w-px h-6 bg-slate-200"></div>
+                        </div>
                         <!-- 集計タブ群 -->
                         <div class="flex shrink-0 px-2 pt-2 gap-1">
                             <button onclick="window.switchRankingTab('owner')" id="tab-owner" data-tab-color="blue"
@@ -1206,6 +1222,10 @@
                             </button>
                         </div>
                     </div>
+                </div>
+                <!-- 0. 出力ナビ（ルート案内） -->
+                <div id="ranking-navi" class="ranking-tab-content hidden space-y-4">
+                    <div id="navi-root"></div>
                 </div>
                 <!-- 1. Owner Ranking -->
                 <div id="ranking-owner" class="ranking-tab-content space-y-4">
@@ -5944,12 +5964,14 @@
     // --- RANKING LOGIC ---
     // アクティブ／非アクティブのクラスセット（色別）
     const RANKING_TAB_ACTIVE = {
+        indigo:  'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-indigo-600  text-indigo-700  bg-indigo-50  whitespace-nowrap transition-all shadow-sm',
         blue:    'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-blue-600    text-blue-700    bg-blue-50   whitespace-nowrap transition-all shadow-sm',
         red:     'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-red-500     text-red-600     bg-red-50    whitespace-nowrap transition-all shadow-sm',
         emerald: 'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-emerald-600 text-emerald-700 bg-emerald-50 whitespace-nowrap transition-all shadow-sm',
         violet:  'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-violet-600  text-violet-700  bg-violet-50 whitespace-nowrap transition-all shadow-sm',
     };
     const RANKING_TAB_INACTIVE = {
+        indigo:  'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-indigo-400  bg-white whitespace-nowrap hover:text-indigo-600  hover:bg-indigo-50  transition-all',
         blue:    'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-slate-400   bg-white whitespace-nowrap hover:text-slate-600   hover:bg-slate-50  transition-all',
         red:     'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-red-300     bg-white whitespace-nowrap hover:text-red-500     hover:bg-red-50    transition-all',
         emerald: 'ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-emerald-400 bg-white whitespace-nowrap hover:text-emerald-600 hover:bg-emerald-50 transition-all',
@@ -5958,6 +5980,7 @@
 
     // ── タブごとの「集計期間（完了日）」反映有無（バナー表示用）──
     const RANKING_TAB_FILTER_INFO = {
+        'navi':             { icon: 'fa-route', color: 'text-indigo-700 bg-indigo-50 border border-indigo-200', text: '「何の日付で」「何を見たいか」を選ぶと、必要な期間・拠点を各タブへ自動で設定してExcel出力します。' },
         'owner':            { icon: 'fa-check-circle', color: 'text-green-700 bg-green-50 border border-green-200', text: 'この タブは上部の「集計期間（完了日）」が反映されます。' },
         'customer':         { icon: 'fa-check-circle', color: 'text-green-700 bg-green-50 border border-green-200', text: 'この タブは上部の「集計期間（完了日）」が反映されます。' },
         'branch':           { icon: 'fa-check-circle', color: 'text-green-700 bg-green-50 border border-green-200', text: 'この タブは上部の「集計期間（完了日）」が反映されます。' },
@@ -5976,6 +5999,287 @@
         el.className = `glass-panel rounded-xl px-5 py-2 text-xs font-bold flex items-center gap-2 ${info.color}`;
         el.innerHTML = `<i class="fa-solid ${info.icon}"></i> ${info.text}`;
     }
+
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 出力ナビ（ルート案内）
+    //   ① 日付の基準（完了日 / 伝票日付）→ ② 見たいもの → ③ 条件（期間・拠点など）→ ④ 出力
+    //   選んだ内容に合わせて、既存の各タブの入力欄へ期間・拠点を自動セットし、各タブと同じExcel出力を実行する。
+    // ══════════════════════════════════════════════════════════════════════
+    const NAVI_BASIS = {
+        completion: {
+            icon: 'fa-flag-checkered', title: '完了日で見る',
+            lead: '現場が完了した日で集計',
+            desc: '指定した期間に完了した現場の「売上・原価・粗利」を集計します。「この期間に終わった現場の成績」を見たいときに選びます。',
+            src: '原価集計表（売上・原価・粗利）＋ 現場マスターの完了日', note: '完了日が未入力の現場は対象外になります。'
+        },
+        voucher: {
+            icon: 'fa-file-invoice', title: '伝票日付で見る',
+            lead: '売上・仕入の伝票の日付で集計',
+            desc: '指定した年月に計上された売上伝票・仕入伝票を、月ごとに集計します。「この月にいくら売上・仕入が立ったか」を見たいときに選びます。工事が未完了の現場も含まれます。',
+            src: '売上明細・仕入明細（伝票の日付）', note: '現場の完了日は関係しません。'
+        }
+    };
+    const NAVI_ROUTES = {
+        completion: [
+            { id:'owner',    icon:'fa-building-user',   title:'施工主別',   sub:'施工主ごとの 売上・原価・粗利 ランキング', fields:['period','branch'], excel:true,  tab:'owner' },
+            { id:'customer', icon:'fa-handshake',       title:'得意先別',   sub:'得意先ごとの 売上・原価・粗利 ランキング', fields:['period','branch'], excel:true,  tab:'customer' },
+            { id:'cross',    icon:'fa-table-cells',     title:'クロス集計', sub:'得意先／施工主 × 拠点（拠点を選ぶと 担当者・積算担当）の表', fields:['period','branch','crossType'], excel:true, tab:'owner' },
+            { id:'branch',   icon:'fa-map-location-dot',title:'拠点別',     sub:'拠点ごとの売上・粗利と月次の内訳（6シート）', fields:['period'], excel:true, tab:'branch' },
+            { id:'manager',  icon:'fa-user-tie',        title:'担当者別',   sub:'担当者ごとの 売上・原価・粗利 ランキング', fields:['period','branch'], excel:true, tab:'manager' },
+            { id:'worst',    icon:'fa-triangle-exclamation', title:'利益率ワースト', sub:'粗利率の低い現場を抽出（条件はタブ内で指定してExcel出力）', fields:['period'], excel:false, tab:'worst' },
+            { id:'coll',     icon:'fa-scale-unbalanced',title:'未回収差異ワースト', sub:'売上(税込)と回収済額に差異がある現場（タブ内でExcel出力）', fields:['period'], excel:false, tab:'coll-anomaly' },
+            { id:'board',    icon:'fa-people-group',    title:'支店長会議資料', sub:'会議用の資料（専用の期間指定。タブ内でExcel出力）', fields:[], excel:false, tab:'board-meeting' },
+        ],
+        voucher: [
+            { id:'mm',    icon:'fa-users-viewfinder', title:'月別・拠点内', sub:'担当者または施工主ごとに、現場別の売上・原価を出力（1人1シート）', fields:['months','branch','mmMode'], excel:true, tab:'monthly-manager' },
+            { id:'month', icon:'fa-chart-line',       title:'月次推移',     sub:'月ごとの売上・原価・粗利の推移（6シート）', fields:['months','branch'], excel:true, tab:'month' },
+        ]
+    };
+    let naviState = { basis:null, route:null, dateStart:'', dateEnd:'', monthStart:'', monthEnd:'', branch:'ALL', crossType:'customer', mmMode:'manager', branches:[] };
+
+    const naviEsc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const naviRoute = () => (NAVI_ROUTES[naviState.basis] || []).find(r => r.id === naviState.route) || null;
+    async function naviBranchList() {
+        const masters = await db.masters.toArray();
+        return [...new Set(masters.map(m => m.branch).filter(Boolean))].sort();
+    }
+    function naviFillSelect(id, branches, allLabel, value) {
+        const sel = document.getElementById(id); if (!sel) return;
+        sel.innerHTML = ''; sel.add(new Option(allLabel, 'ALL'));
+        branches.forEach(b => sel.add(new Option(b, b)));
+        sel.value = branches.includes(value) ? value : 'ALL';
+    }
+    function naviSetVal(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; }
+    // 完了日の期間を、上部の「集計期間（完了日）」へ反映（他のタブにも同じ期間が効く）
+    function naviApplyPeriod() {
+        const s = naviState.dateStart || '', e = naviState.dateEnd || '';
+        rankingFilter = { start: s, end: e };
+        naviSetVal('rank-date-start', s); naviSetVal('rank-date-end', e);
+        const st = document.getElementById('rank-date-status');
+        if (st) st.textContent = (s || e) ? `適用中: ${s || '…'} 〜 ${e || '…'}` : '';
+    }
+
+    window.initRankingNavi = async function() {
+        try { naviState.branches = await naviBranchList(); } catch (e) { naviState.branches = []; }
+        if (naviState.branch !== 'ALL' && !naviState.branches.includes(naviState.branch)) naviState.branch = 'ALL';
+        // 初回は、上部の集計期間（完了日）の値を引き継ぐ
+        if (!naviState.dateStart && !naviState.dateEnd && (rankingFilter.start || rankingFilter.end)) {
+            naviState.dateStart = rankingFilter.start || ''; naviState.dateEnd = rankingFilter.end || '';
+        }
+        window.renderRankingNavi();
+    };
+    window.naviSelectBasis = function(b) {
+        if (naviState.basis !== b) { naviState.basis = b; naviState.route = null; }
+        window.renderRankingNavi();
+    };
+    window.naviSelectRoute = function(r) { naviState.route = r; window.renderRankingNavi(); };
+    window.naviReset = function() { naviState.basis = null; naviState.route = null; window.renderRankingNavi(); };
+    window.naviSet = function(key, val) { naviState[key] = val; window.naviRenderSummary(); };
+    window.naviSetAndRender = function(key, val) { naviState[key] = val; window.renderRankingNavi(); };
+    window.naviPreset = function(kind) {
+        const now = new Date(), y = now.getFullYear(), m = now.getMonth() + 1;
+        const fy = m >= 4 ? y : y - 1;                       // 年度（4月始まり）
+        const pad = n => String(n).padStart(2, '0');
+        const last = (yy, mm) => new Date(yy, mm, 0).getDate();
+        let s = '', e = '';
+        if (kind === 'fy')        { s = `${fy}-04-01`;     e = `${fy+1}-03-31`; }
+        if (kind === 'h1')        { s = `${fy}-04-01`;     e = `${fy}-09-30`; }
+        if (kind === 'h2')        { s = `${fy}-10-01`;     e = `${fy+1}-03-31`; }
+        if (kind === 'year')      { s = `${y}-01-01`;      e = `${y}-12-31`; }
+        if (kind === 'thisMonth') { s = `${y}-${pad(m)}-01`; e = `${y}-${pad(m)}-${last(y, m)}`; }
+        if (kind === 'lastMonth') { const ly = m === 1 ? y - 1 : y, lm = m === 1 ? 12 : m - 1; s = `${ly}-${pad(lm)}-01`; e = `${ly}-${pad(lm)}-${last(ly, lm)}`; }
+        if (naviState.basis === 'voucher') { naviState.monthStart = s.slice(0, 7); naviState.monthEnd = e.slice(0, 7); }
+        else { naviState.dateStart = s; naviState.dateEnd = e; }
+        window.renderRankingNavi();
+    };
+
+    function naviOutputInfo(r, st) {
+        const brTxt = st.branch === 'ALL' ? '全拠点' : st.branch;
+        const who = r.id === 'owner' ? '施工主' : '得意先';
+        switch (r.id) {
+            case 'owner': case 'customer':
+                return `${who}別ランキングのシート ＋ 担当者別・積算担当別の一覧 ＋ 担当者ごと・積算担当ごとのシート（${brTxt}の範囲で、その担当の${who}ランキング）`;
+            case 'cross': {
+                const g = st.crossType === 'customer' ? '得意先' : '施工主';
+                return st.branch === 'ALL'
+                    ? `売上・粗利率・粗利益の3シート（行：${g}／列：拠点）`
+                    : `${brTxt}内で、売上・粗利率・粗利益の各シートを「列：担当者」と「列：積算担当」の2通り（計6シート）`;
+            }
+            case 'branch':  return '月次サマリー／売上内訳／原価内訳／クロス集計／売上推移／粗利率推移 の6シート（完了日基準）';
+            case 'manager': return '担当者ごとの売上・原価・粗利・粗利率ランキング（1シート）';
+            case 'mm':      return `${st.mmMode === 'manager' ? '担当者' : '施工主'}ごとにシートを分け、各シートに 工番・現場名・得意先・拠点・売上（税抜）・原価 を出力`;
+            case 'month':   return '月次サマリー／売上内訳／原価内訳／クロス集計／売上推移／粗利率推移 の6シート（伝票日付基準）';
+            default:        return '該当タブの画面が開きます。条件を指定して、タブ内のExcel出力ボタンを使ってください。';
+        }
+    }
+
+    window.naviRenderSummary = function() {
+        const box = document.getElementById('navi-summary'); if (!box) return;
+        const st = naviState, r = naviRoute(), B = NAVI_BASIS[st.basis];
+        if (!r || !B) { box.innerHTML = ''; return; }
+        const isV = st.basis === 'voucher';
+        const s = isV ? st.monthStart : st.dateStart, e = isV ? st.monthEnd : st.dateEnd;
+        let periodTxt = (s || e) ? `${s || '…'} 〜 ${e || '…'}` : '全期間（指定なし）';
+        const bad = s && e && s > e;
+        const rows = [
+            ['日付の基準', `${B.title}（${B.lead}）`],
+            ['見たいもの', r.title],
+        ];
+        if (r.fields.includes('period') || r.fields.includes('months')) rows.push([isV ? '明細期間' : '完了日の期間', periodTxt]);
+        if (r.fields.includes('branch')) rows.push(['拠点', st.branch === 'ALL' ? (isV && r.id === 'month' ? '全社' : '全拠点') : st.branch]);
+        if (r.fields.includes('crossType')) rows.push(['集計の軸', st.crossType === 'customer' ? '得意先' : '施工主']);
+        if (r.fields.includes('mmMode')) rows.push(['切り口', st.mmMode === 'manager' ? '担当者別' : '施工主別']);
+        rows.push(['元データ', B.src]);
+        rows.push([r.excel ? '出力されるもの' : '開く画面', naviOutputInfo(r, st)]);
+        box.innerHTML = `
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50/60 px-5 py-4 text-sm">
+                <div class="font-bold text-indigo-800 mb-2"><i class="fa-solid fa-list-check mr-1.5"></i>この内容で${r.excel ? '出力します' : '開きます'}</div>
+                <dl class="grid grid-cols-[7.5rem_1fr] gap-y-1.5 gap-x-3 text-slate-700">
+                    ${rows.map(([k, v]) => `<dt class="text-slate-500 font-bold">${naviEsc(k)}</dt><dd>${naviEsc(v)}</dd>`).join('')}
+                </dl>
+                <p class="text-xs text-slate-500 mt-2">※ ${naviEsc(B.note)}</p>
+                ${bad ? '<p class="text-xs text-red-600 font-bold mt-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i>開始が終了より後になっています。期間を確認してください。</p>' : ''}
+            </div>`;
+    };
+
+    window.renderRankingNavi = function() {
+        const root = document.getElementById('navi-root'); if (!root) return;
+        const st = naviState, B = NAVI_BASIS[st.basis] || null, r = naviRoute();
+        const isV = st.basis === 'voucher';
+        const card = (on, color) => on ? `border-${color}-500 bg-${color}-50 ring-2 ring-${color}-200` : `border-slate-200 bg-white hover:border-${color}-300 hover:bg-slate-50`;
+        const stepHead = (n, t, sub) => `<div class="flex items-center gap-3 mb-3"><span class="w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-black flex items-center justify-center">${n}</span><div><div class="font-bold text-slate-800">${t}</div>${sub ? `<div class="text-xs text-slate-400">${sub}</div>` : ''}</div></div>`;
+
+        // ルート（パンくず）
+        const crumbs = [
+            ['① 日付の基準', B ? B.title : '未選択'],
+            ['② 見たいもの', r ? r.title : '未選択'],
+            ['③ 条件', r ? '指定' : '未選択'],
+            ['④ 出力', r && r.excel ? 'Excel' : (r ? '画面を開く' : '未選択')],
+        ];
+        let html = `<div class="glass-panel rounded-xl px-5 py-4 border-t-4 border-indigo-500">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-sm font-bold text-indigo-700 mr-1"><i class="fa-solid fa-route mr-1.5"></i>出力ルート</span>
+                ${crumbs.map(([a, b], i) => `${i ? '<i class="fa-solid fa-chevron-right text-slate-300 text-xs"></i>' : ''}<span class="text-xs rounded-full px-3 py-1 border ${b.startsWith('未選択') ? 'bg-white text-slate-400 border-slate-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200 font-bold'}">${a}：${naviEsc(b)}</span>`).join('')}
+                ${B ? '<button onclick="window.naviReset()" class="ml-auto text-xs text-slate-400 hover:text-red-500 underline">最初からやり直す</button>' : ''}
+            </div>
+        </div>`;
+
+        // STEP1
+        html += `<div class="glass-panel rounded-xl px-5 py-4">${stepHead(1, 'どの日付で集計しますか？', 'ここで集計の考え方が変わります。迷ったら下の説明を読んで選んでください。')}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                ${Object.entries(NAVI_BASIS).map(([k, v]) => `
+                <button onclick="window.naviSelectBasis('${k}')" class="text-left p-4 rounded-xl border-2 transition-all ${card(st.basis === k, 'indigo')}">
+                    <div class="flex items-center gap-2 mb-1"><i class="fa-solid ${v.icon} text-indigo-500"></i><span class="font-black text-slate-800">${v.title}</span><span class="text-xs text-indigo-600 font-bold">${v.lead}</span></div>
+                    <p class="text-xs text-slate-600 leading-relaxed">${v.desc}</p>
+                    <p class="text-[11px] text-slate-400 mt-1.5">元データ：${v.src}</p>
+                </button>`).join('')}
+            </div></div>`;
+
+        // STEP2
+        if (B) {
+            html += `<div class="glass-panel rounded-xl px-5 py-4">${stepHead(2, '何を見たい（出力したい）ですか？', `${B.title}で選べる内容です`)}
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                ${NAVI_ROUTES[st.basis].map(x => `
+                    <button onclick="window.naviSelectRoute('${x.id}')" class="text-left p-3.5 rounded-xl border-2 transition-all ${card(st.route === x.id, 'indigo')}">
+                        <div class="flex items-center gap-2"><i class="fa-solid ${x.icon} text-indigo-500 w-5 text-center"></i><span class="font-bold text-slate-800">${x.title}</span>${x.excel ? '<span class="ml-auto text-[10px] font-bold bg-green-100 text-green-700 rounded px-1.5 py-0.5">Excel出力OK</span>' : '<span class="ml-auto text-[10px] font-bold bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">タブで出力</span>'}</div>
+                        <p class="text-xs text-slate-500 mt-1 leading-relaxed">${x.sub}</p>
+                    </button>`).join('')}
+                </div></div>`;
+        }
+
+        // STEP3 + 4
+        if (B && r) {
+            const inp = 'text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400';
+            const presetBtn = (k, t) => `<button onclick="window.naviPreset('${k}')" class="text-xs bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 border border-slate-200 px-2.5 py-1 rounded-lg font-bold text-slate-600 transition-colors">${t}</button>`;
+            const radio = (key, val, label, cur) => `<label class="flex items-center gap-1.5 cursor-pointer text-sm ${cur === val ? 'font-bold text-indigo-700' : 'text-slate-600'}"><input type="radio" name="navi-${key}" ${cur === val ? 'checked' : ''} onchange="window.naviSetAndRender('${key}','${val}')" class="text-indigo-600"><span>${label}</span></label>`;
+            let fields = '';
+            if (r.fields.includes('period')) fields += `<div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-slate-600 w-28">完了日の期間</span>
+                <input type="date" value="${naviEsc(st.dateStart)}" onchange="window.naviSet('dateStart', this.value)" class="${inp}"><span class="text-slate-400 font-bold">〜</span>
+                <input type="date" value="${naviEsc(st.dateEnd)}" onchange="window.naviSet('dateEnd', this.value)" class="${inp}">
+                <span class="text-[11px] text-slate-400">空欄＝全期間</span></div>`;
+            if (r.fields.includes('months')) fields += `<div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-slate-600 w-28">明細期間（年月）</span>
+                <input type="month" value="${naviEsc(st.monthStart)}" onchange="window.naviSet('monthStart', this.value)" class="${inp}"><span class="text-slate-400 font-bold">〜</span>
+                <input type="month" value="${naviEsc(st.monthEnd)}" onchange="window.naviSet('monthEnd', this.value)" class="${inp}">
+                <span class="text-[11px] text-slate-400">空欄＝全期間</span></div>`;
+            if (r.fields.includes('period') || r.fields.includes('months')) fields += `<div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-slate-600 w-28">かんたん指定</span>
+                ${presetBtn('fy', '今年度（4月〜翌3月）')}${presetBtn('h1', '上期（4〜9月）')}${presetBtn('h2', '下期（10〜3月）')}${presetBtn('year', '今年（1〜12月）')}${presetBtn('thisMonth', '今月')}${presetBtn('lastMonth', '先月')}</div>`;
+            if (r.fields.includes('branch')) fields += `<div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-slate-600 w-28">拠点</span>
+                <select onchange="window.naviSet('branch', this.value)" class="${inp} font-bold">
+                    <option value="ALL" ${st.branch === 'ALL' ? 'selected' : ''}>${isV && r.id === 'month' ? '全社' : '全拠点'}</option>
+                    ${st.branches.map(b => `<option value="${naviEsc(b)}" ${st.branch === b ? 'selected' : ''}>${naviEsc(b)}</option>`).join('')}
+                </select><span class="text-[11px] text-slate-400">${(r.id === 'owner' || r.id === 'customer' || r.id === 'cross') ? '拠点を選ぶと、その拠点内の担当者・積算担当ごとの内訳になります' : ''}</span></div>`;
+            if (r.fields.includes('crossType')) fields += `<div class="flex flex-wrap items-center gap-4"><span class="text-sm font-bold text-slate-600 w-28">集計の軸</span>${radio('crossType', 'customer', '得意先', st.crossType)}${radio('crossType', 'owner', '施工主', st.crossType)}</div>`;
+            if (r.fields.includes('mmMode')) fields += `<div class="flex flex-wrap items-center gap-4"><span class="text-sm font-bold text-slate-600 w-28">切り口</span>${radio('mmMode', 'manager', '担当者別', st.mmMode)}${radio('mmMode', 'owner', '施工主別', st.mmMode)}</div>`;
+            if (!fields) fields = '<p class="text-sm text-slate-500">このメニューは専用の期間指定があるため、ここで指定する条件はありません。</p>';
+
+            html += `<div class="glass-panel rounded-xl px-5 py-4">${stepHead(3, '条件を指定してください', `${r.title}の条件`)}<div class="space-y-3">${fields}</div></div>`;
+            html += `<div class="glass-panel rounded-xl px-5 py-4">${stepHead(4, '出力します', r.excel ? '内容を確認して、Excel出力を押してください' : 'このメニューは、開いたタブの中で条件を指定してExcel出力します')}
+                <div id="navi-summary"></div>
+                <div class="flex flex-wrap items-center gap-3 mt-4">
+                    ${r.excel ? `<button onclick="window.naviRun('excel')" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2.5 px-6 rounded-lg flex items-center gap-2 shadow transition-colors"><i class="fa-solid fa-file-excel"></i> Excel出力</button>` : ''}
+                    <button onclick="window.naviRun('view')" class="${r.excel ? 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50' : 'bg-indigo-600 hover:bg-indigo-700 text-white'} text-sm font-bold py-2.5 px-5 rounded-lg flex items-center gap-2 shadow-sm transition-colors"><i class="fa-solid fa-table-list"></i> ${r.excel ? '先に画面で確認する（タブを開く）' : 'このタブを開く'}</button>
+                </div></div>`;
+        } else if (B) {
+            html += `<div class="text-xs text-slate-400 px-2">② で見たいものを選ぶと、条件の指定と出力ボタンが出てきます。</div>`;
+        } else {
+            html += `<div class="text-xs text-slate-400 px-2">① で日付の基準を選ぶと、次へ進めます。</div>`;
+        }
+        root.innerHTML = html;
+        window.naviRenderSummary();
+    };
+
+    // 選んだ内容を各タブへ反映し、Excel出力（excel）または該当タブの表示（view）を行う
+    window.naviRun = async function(mode) {
+        const st = naviState, r = naviRoute(); if (!r) return;
+        const xl = mode === 'excel';
+        try {
+            if (st.basis === 'completion' && r.fields.includes('period') && st.dateStart && st.dateEnd && st.dateStart > st.dateEnd) { alert('完了日の期間：開始が終了より後になっています。'); return; }
+            if (st.basis === 'voucher' && st.monthStart && st.monthEnd && st.monthStart > st.monthEnd) { alert('明細期間：開始年月が終了年月より後になっています。'); return; }
+            const branches = (st.branches && st.branches.length) ? st.branches : await naviBranchList();
+            const br = st.branch || 'ALL';
+            if (r.fields.includes('period')) naviApplyPeriod();
+            switch (r.id) {
+                case 'owner':
+                    naviFillSelect('rank-owner-branch', branches, '全拠点', br);
+                    if (xl) { await window.renderOwnerRanking(); await window.exportOwnerRankingExcel(); } else { await window.switchRankingTab('owner'); }
+                    break;
+                case 'customer':
+                    naviFillSelect('rank-customer-branch', branches, '全拠点', br);
+                    if (xl) { await window.renderCustomerRanking(); await window.exportCustomerRankingExcel(); } else { await window.switchRankingTab('customer'); }
+                    break;
+                case 'cross': {
+                    const t = st.crossType === 'owner' ? 'owner' : 'customer';
+                    naviFillSelect(t === 'customer' ? 'rank-customer-branch' : 'rank-owner-branch', branches, '全拠点', br);
+                    if (xl) { await window.exportCrossTabExcel(t); } else { await window.switchRankingTab(t); }
+                    break;
+                }
+                case 'branch':
+                    if (xl) { await window.exportBranchRankingExcel(); } else { await window.switchRankingTab('branch'); }
+                    break;
+                case 'manager': {
+                    naviFillSelect('rank-manager-branch', branches, '全拠点', br);
+                    const mSel = document.getElementById('rank-manager-month');
+                    if (mSel) { mSel.innerHTML = '<option value="ALL">全期間</option>'; mSel.value = 'ALL'; }   // 全期間＝上の「完了日の期間」を使う
+                    if (xl) { await window.renderManagerRanking(); await window.exportManagerRankingExcel(); } else { await window.switchRankingTab('manager'); }
+                    break;
+                }
+                case 'mm':
+                    currentMonthlyMode = st.mmMode === 'owner' ? 'owner' : 'manager';
+                    naviSetVal('mm-filter-month-start', st.monthStart); naviSetVal('mm-filter-month-end', st.monthEnd);
+                    naviFillSelect('mm-filter-branch', branches, '全拠点', br);
+                    if (xl) { await window.renderMonthlyManagerRanking(); await window.exportMonthlyManagerExcel(); } else { await window.switchRankingTab('monthly-manager'); }
+                    break;
+                case 'month':
+                    naviSetVal('month-filter-start', st.monthStart); naviSetVal('month-filter-end', st.monthEnd);
+                    naviFillSelect('month-filter-branch', branches, '全社', br);
+                    if (xl) { await window.renderMonthlyRanking(); window.exportMonthlyExcel(); } else { await window.switchRankingTab('month'); }
+                    break;
+                default:   // worst / coll / board：該当タブを開く
+                    await window.switchRankingTab(r.tab);
+            }
+        } catch (e) { console.error('出力ナビ エラー:', e); alert('出力ナビでエラーが発生しました：' + e.message); }
+    };
 
     window.switchRankingTab = async function(tab) {
         try {
@@ -5997,6 +6301,7 @@
             }
 
             // データ初期化・描画
+            if (tab === 'navi')            await window.initRankingNavi();
             if (tab === 'owner')           await window.initOwnerRanking();
             if (tab === 'customer')        await window.initCustomerRanking();
             if (tab === 'branch')          await window.renderBranchRanking();
@@ -6029,7 +6334,7 @@
         const masters = await db.masters.toArray();
         const branches = new Set(masters.map(m => m.branch).filter(b => b));
         const select = document.getElementById('rank-owner-branch');
-        if (select) { select.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => select.add(new Option(b, b))); }
+        if (select) { const prevB = select.value; select.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => select.add(new Option(b, b))); if (prevB && Array.from(select.options).some(o => o.value === prevB)) select.value = prevB; }
         window.renderOwnerRanking();
     }
     window.renderOwnerRanking = async function() {
@@ -6046,7 +6351,7 @@
             const k = m.owner || '不明';
             if(!groups[k]) groups[k] = { name:k, sales:0, cost:0, profit:0, count:0, sites:[] };
             groups[k].sales += c.salesTotal; groups[k].cost += c.costTotal; groups[k].profit += c.profitTotal; groups[k].count++;
-            groups[k].sites.push({ code:c.code, name:m.name||c.name||'', manager:m.manager||'', owner:m.owner||'', branch:m.branch||'', endDate:m.endDate||'', sales:c.salesTotal, cost:c.costTotal, profit:c.profitTotal });
+            groups[k].sites.push({ code:c.code, name:m.name||c.name||'', manager:m.manager||'', estimator:m.estimator||'', owner:m.owner||'', branch:m.branch||'', endDate:m.endDate||'', sales:c.salesTotal, cost:c.costTotal, profit:c.profitTotal });
         });
         window._lastOwnerRanking = window.sortAndRender(Object.values(groups), 'ranking-body-owner', 'rank-sort-owner', '施工主');
     }
@@ -6056,7 +6361,7 @@
         const masters = await db.masters.toArray();
         const branches = new Set(masters.map(m => m.branch).filter(b => b));
         const select = document.getElementById('rank-customer-branch');
-        if (select) { select.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => select.add(new Option(b, b))); }
+        if (select) { const prevB = select.value; select.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => select.add(new Option(b, b))); if (prevB && Array.from(select.options).some(o => o.value === prevB)) select.value = prevB; }
         window.renderCustomerRanking();
     }
     window.renderCustomerRanking = async function() {
@@ -6073,11 +6378,11 @@
             const k = m.customer || '不明';
             if(!groups[k]) groups[k] = { name:k, sales:0, cost:0, profit:0, count:0, sites:[] };
             groups[k].sales += c.salesTotal; groups[k].cost += c.costTotal; groups[k].profit += c.profitTotal; groups[k].count++;
-            groups[k].sites.push({ code:c.code, name:m.name||c.name||'', manager:m.manager||'', customer:m.customer||'', branch:m.branch||'', endDate:m.endDate||'', sales:c.salesTotal, cost:c.costTotal, profit:c.profitTotal });
+            groups[k].sites.push({ code:c.code, name:m.name||c.name||'', manager:m.manager||'', estimator:m.estimator||'', customer:m.customer||'', branch:m.branch||'', endDate:m.endDate||'', sales:c.salesTotal, cost:c.costTotal, profit:c.profitTotal });
         });
         window._lastCustomerRanking = window.sortAndRender(Object.values(groups), 'ranking-body-customer', 'rank-sort-customer', '得意先');
     }
-    window.exportCustomerRankingExcel = () => _exportRankingExcel(window._lastCustomerRanking, '得意先別ランキング', '得意先別ランキング', '得意先名');
+    window.exportCustomerRankingExcel = () => _exportRankingExcel(window._lastCustomerRanking, '得意先別ランキング', '得意先別ランキング', '得意先名', 'rank-customer-branch');
 
     // ── クロス集計 Excel出力（得意先/施工主 × 拠点）──
     window.exportCrossTabExcel = async function(groupType) {
@@ -6087,33 +6392,44 @@
             const fStart = rankingFilter.start ? new Date(rankingFilter.start).setHours(0,0,0,0) : 0;
             const fEnd   = rankingFilter.end   ? new Date(rankingFilter.end).setHours(23,59,59,999) : 9999999999999;
 
-            // セル単位: { sales, cost, profit, count }
-            const matrix = {}; // matrix[groupKey][branch]
-            const branches = new Set();
-            const groups   = new Set();
+            // 画面で選択中の拠点：全拠点なら「行=得意先/施工主 × 列=拠点」、拠点を選んでいればその拠点だけに絞り
+            // 「行=得意先/施工主 × 列=担当者」「行=得意先/施工主 × 列=積算担当」で出力する
+            const selBranch = document.getElementById(groupType === 'customer' ? 'rank-customer-branch' : 'rank-owner-branch')?.value || 'ALL';
+            const axes = selBranch === 'ALL'
+                ? [{ keyOf: m => m.branch || '不明',      suffix: '',           fileTag: '拠点',   matrix:{}, set:new Set(), sales:{} }]
+                : [{ keyOf: m => m.manager || '未設定',   suffix: '_担当者',    fileTag: '担当者', matrix:{}, set:new Set(), sales:{} },
+                   { keyOf: m => m.estimator || '未設定', suffix: '_積算担当',  fileTag: '積算担当', matrix:{}, set:new Set(), sales:{} }];
+            const groups = new Set();
+            const groupSales = {};
 
             costs.forEach(c => {
                 const m = masters.find(ma => ma.code === c.code); if (!m) return;
                 const endTs = window.parseDateValue(m.endDate);
                 if (!endTs || endTs < fStart || endTs > fEnd) return;
+                if (selBranch !== 'ALL' && m.branch !== selBranch) return;
                 const gk = (groupType === 'customer' ? m.customer : m.owner) || '不明';
-                const br = m.branch || '不明';
-                branches.add(br); groups.add(gk);
-                if (!matrix[gk]) matrix[gk] = {};
-                if (!matrix[gk][br]) matrix[gk][br] = { sales:0, cost:0, profit:0, count:0 };
-                matrix[gk][br].sales  += c.salesTotal;
-                matrix[gk][br].cost   += c.costTotal;
-                matrix[gk][br].profit += c.profitTotal;
-                matrix[gk][br].count++;
+                groups.add(gk);
+                groupSales[gk] = (groupSales[gk] || 0) + c.salesTotal;
+                axes.forEach(ax => {
+                    const col = ax.keyOf(m);
+                    ax.set.add(col);
+                    ax.sales[col] = (ax.sales[col] || 0) + c.salesTotal;
+                    if (!ax.matrix[gk]) ax.matrix[gk] = {};
+                    if (!ax.matrix[gk][col]) ax.matrix[gk][col] = { sales:0, cost:0, profit:0, count:0 };
+                    ax.matrix[gk][col].sales  += c.salesTotal;
+                    ax.matrix[gk][col].cost   += c.costTotal;
+                    ax.matrix[gk][col].profit += c.profitTotal;
+                    ax.matrix[gk][col].count++;
+                });
             });
-
-            const branchList = Array.from(branches).sort();
-            // 合計売上で降順ソート
-            const groupList = Array.from(groups).sort((a,b) => {
-                const sa = branchList.reduce((s,br) => s + (matrix[a]?.[br]?.sales||0), 0);
-                const sb = branchList.reduce((s,br) => s + (matrix[b]?.[br]?.sales||0), 0);
-                return sb - sa;
+            if (groups.size === 0) { alert('出力するデータがありません'); return; }
+            // 列は、拠点なら名前順／担当者・積算担当なら売上の大きい順
+            axes.forEach(ax => {
+                ax.list = Array.from(ax.set);
+                if (ax.fileTag === '拠点') ax.list.sort(); else ax.list.sort((a,b) => (ax.sales[b]||0) - (ax.sales[a]||0));
             });
+            // 行は、合計売上で降順
+            const groupList = Array.from(groups).sort((a,b) => (groupSales[b]||0) - (groupSales[a]||0));
 
             const wb = new ExcelJS.Workbook();
             const label = groupType === 'customer' ? '得意先' : '施工主';
@@ -6127,7 +6443,8 @@
             const rightAlign  = { horizontal:'right',  vertical:'middle' };
 
             // ── シート生成ヘルパー ──
-            function buildSheet(wsName, valueGetter, numFormat, showTotal) {
+            function buildSheet(wsName, valueGetter, numFormat, ax) {
+                const branchList = ax.list; const matrix = ax.matrix;
                 const ws = wb.addWorksheet(wsName);
                 // 列定義
                 ws.columns = [
@@ -6238,27 +6555,14 @@
                 ws.views = [{ state:'frozen', xSplit:1, ySplit:1 }];
             }
 
-            // ── Sheet1: 売上クロス集計 ──
-            buildSheet(
-                '売上クロス集計',
-                cell => cell.sales || null,
-                numFmt
-            );
-            // ── Sheet2: 粗利率クロス集計 ──
-            buildSheet(
-                '粗利率クロス集計',
-                cell => cell.sales > 0 ? parseFloat((cell.profit / cell.sales * 100).toFixed(1)) : null,
-                pctFmt
-            );
-            // ── Sheet3: 粗利益クロス集計 ──
-            buildSheet(
-                '粗利益クロス集計',
-                cell => cell.profit || null,
-                numFmt
-            );
+            axes.forEach(ax => {
+                buildSheet('売上クロス集計' + ax.suffix,   cell => cell.sales || null, numFmt, ax);
+                buildSheet('粗利率クロス集計' + ax.suffix, cell => cell.sales > 0 ? parseFloat((cell.profit / cell.sales * 100).toFixed(1)) : null, pctFmt, ax);
+                buildSheet('粗利益クロス集計' + ax.suffix, cell => cell.profit || null, numFmt, ax);
+            });
 
             wb.xlsx.writeBuffer().then(buf => {
-                saveAs(new Blob([buf]), `${label}×拠点クロス集計_${dateStr}.xlsx`);
+                saveAs(new Blob([buf]), selBranch === 'ALL' ? `${label}×拠点クロス集計_${dateStr}.xlsx` : `${label}×担当者・積算クロス集計_${selBranch}_${dateStr}.xlsx`);
             });
         } catch(e) {
             console.error('クロス集計エラー:', e);
@@ -6282,9 +6586,12 @@
         const masters = await db.masters.toArray(); const branches = new Set(); const months = new Set();
         masters.forEach(m => { if(m.branch) branches.add(m.branch); const ts = window.parseDateValue(m.endDate); if(ts) { const d = new Date(ts); const yyyymm = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'); months.add(yyyymm); } });
         const selMonth = document.getElementById('rank-manager-month'); const selBranch = document.getElementById('rank-manager-branch');
+        const prevMonthV = selMonth ? selMonth.value : ''; const prevBranchV = selBranch ? selBranch.value : '';
         // ⑤ 毎回リセットして再構築
         if(selMonth) { selMonth.innerHTML = ''; selMonth.add(new Option('全期間', 'ALL')); Array.from(months).sort().reverse().forEach(m => selMonth.add(new Option(m + ' 完工', m))); }
         if(selBranch) { selBranch.innerHTML = '<option value="ALL">全拠点</option>'; Array.from(branches).sort().forEach(b => selBranch.add(new Option(b, b))); }
+        if (selMonth && prevMonthV && Array.from(selMonth.options).some(o => o.value === prevMonthV)) selMonth.value = prevMonthV;
+        if (selBranch && prevBranchV && Array.from(selBranch.options).some(o => o.value === prevBranchV)) selBranch.value = prevBranchV;
         window.renderManagerRanking();
     }
     window.renderManagerRanking = async function() {
@@ -6312,32 +6619,99 @@
     }
 
     // ── ランキング Excel出力 共通ヘルパー（施工主別／得意先別／担当者別で共用・ExcelJSで統一スタイル）──
-    async function _exportRankingExcel(data, sheetName, fileName, nameLabel) {
+    async function _exportRankingExcel(data, sheetName, fileName, nameLabel, branchSelId) {
         if (!data || data.length === 0) { alert('出力するデータがありません'); return; }
         const periodStr = (rankingFilter.start || rankingFilter.end)
             ? `${rankingFilter.start || ''}〜${rankingFilter.end || ''}`
             : '全期間';
         const dateStr = new Date().toISOString().slice(0,10);
+        // 施工主別・得意先別（branchSelId指定あり）は、選択中の拠点の中で「担当者別」「積算担当別」の内訳も出す
+        const withBreakdown = !!branchSelId;
+        const branchVal = withBreakdown ? (document.getElementById(branchSelId)?.value || 'ALL') : 'ALL';
+        const branchLabel = branchVal === 'ALL' ? '全拠点' : branchVal;
+        const branchTitle = withBreakdown ? `　拠点：${branchLabel}` : '';
         const wb = new ExcelJS.Workbook();
         wb.creator = 'G-Ledger';
         const hdrStyle = { font:{bold:true,color:{argb:'FFFFFFFF'}}, fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FF1E3A5F'}}, alignment:{horizontal:'center'} };
-        const ws = wb.addWorksheet(sheetName);
-        [8,20,16,16,16,10,10].forEach((w,i) => { ws.getColumn(i+1).width = w; });
-        ws.addRow([`■ ${sheetName}　集計期間（完了日）：${periodStr}`]).font = { bold:true, size:12 };
-        ws.mergeCells(1,1,1,7);
-        ws.addRow(['順位', nameLabel || '名称', '総売上(税抜)','総原価','総利益(税抜)','粗利率','現場数']).eachCell(c => c.style = hdrStyle);
-        [...data].sort((a,b) => b.profit - a.profit).forEach((r,i) => {
-            const margin = r.sales ? (r.profit/r.sales*100) : 0;
-            const row = ws.addRow([i+1, r.name, r.sales, r.cost, r.profit, margin.toFixed(1)+'%', r.count]);
-            [3,4,5].forEach(ci => { const c = row.getCell(ci); c.numFmt = '#,##0'; c.alignment = {horizontal:'right'}; });
-            row.getCell(6).alignment = {horizontal:'right'};
-            row.getCell(6).font = { color:{argb: margin < 0 ? 'FFDC2626' : margin < 20 ? 'FFEA580C' : 'FF374151'} };
-            if (r.profit < 0) row.getCell(5).font = { color:{argb:'FFEF4444'} };
-        });
+        const totFill = { type:'pattern', pattern:'solid', fgColor:{argb:'FFDBEAFE'} };
+
+        // シート名（31文字以内・使用禁止文字を除去・重複回避）
+        const usedNames = new Set();
+        const safeSheetName = (base) => {
+            const n = String(base).replace(/[\\\/\?\*\[\]:]/g, '_').substring(0, 31) || 'Sheet';
+            let k = n, i = 2;
+            while (usedNames.has(k.toLowerCase())) { const suf = '_' + (i++); k = n.substring(0, 31 - suf.length) + suf; }
+            usedNames.add(k.toLowerCase());
+            return k;
+        };
+        // rows = [{name,sales,cost,profit,count}] を 利益額の高い順に出力（先頭にタイトル行、末尾に合計行）
+        const writeRankSheet = (wsName, title, label, rows) => {
+            const ws = wb.addWorksheet(safeSheetName(wsName));
+            [8,34,16,16,16,10,10].forEach((w,i) => { ws.getColumn(i+1).width = w; });
+            ws.addRow([title]).font = { bold:true, size:12 };
+            ws.mergeCells(1,1,1,7);
+            ws.addRow(['順位', label, '総売上(税抜)','総原価','総利益(税抜)','粗利率','現場数']).eachCell(c => c.style = hdrStyle);
+            let tS=0, tC=0, tP=0, tN=0;
+            [...rows].sort((a,b) => b.profit - a.profit).forEach((r,i) => {
+                const margin = r.sales ? (r.profit/r.sales*100) : 0;
+                tS += r.sales; tC += r.cost; tP += r.profit; tN += r.count;
+                const row = ws.addRow([i+1, r.name, r.sales, r.cost, r.profit, margin, r.count]);
+                [3,4,5].forEach(ci => { const c = row.getCell(ci); c.numFmt = '#,##0'; c.alignment = {horizontal:'right'}; });
+                row.getCell(6).numFmt = '0.0"%"'; row.getCell(6).alignment = {horizontal:'right'};
+                row.getCell(6).font = { color:{argb: margin < 0 ? 'FFDC2626' : margin < 20 ? 'FFEA580C' : 'FF374151'} };
+                if (r.profit < 0) row.getCell(5).font = { color:{argb:'FFEF4444'} };
+            });
+            const tm = tS ? (tP/tS*100) : 0;
+            const tot = ws.addRow(['', '合計', tS, tC, tP, tm, tN]);
+            tot.eachCell({includeEmpty:true}, (c, ci) => { if (ci <= 7) { c.font = {bold:true}; c.fill = totFill; } });
+            [3,4,5].forEach(ci => { tot.getCell(ci).numFmt = '#,##0'; tot.getCell(ci).alignment = {horizontal:'right'}; });
+            tot.getCell(6).numFmt = '0.0"%"'; tot.getCell(6).alignment = {horizontal:'right'};
+            ws.views = [{ state:'frozen', ySplit:2 }];
+        };
+        // 現場(sites)を keyFn でまとめ直す
+        const aggregate = (sites, keyFn) => {
+            const g = {};
+            sites.forEach(st => {
+                const k = keyFn(st);
+                if (!g[k]) g[k] = { name:k, sales:0, cost:0, profit:0, count:0 };
+                g[k].sales += st.sales || 0; g[k].cost += st.cost || 0; g[k].profit += st.profit || 0; g[k].count++;
+            });
+            return Object.values(g);
+        };
+
+        // ① 全体（従来と同じ：施工主別／得意先別／担当者別ランキング）
+        writeRankSheet(sheetName, `■ ${sheetName}${branchTitle}　集計期間（完了日）：${periodStr}`, nameLabel || '名称', data);
+
+        if (withBreakdown) {
+            // 現場を1本ずつに展開（所属グループ名を持たせる）
+            const allSites = [];
+            data.forEach(g => (g.sites || []).forEach(st => allSites.push({ ...st, _group: g.name })));
+            const mgrOf = (st) => st.manager   || '未設定';
+            const estOf = (st) => st.estimator || '未設定';
+
+            // ② 担当者別／積算担当別の一覧（選択拠点内で、その人の売上・原価・利益）
+            const mgrSummary = aggregate(allSites, mgrOf);
+            const estSummary = aggregate(allSites, estOf);
+            writeRankSheet('担当者別', `■ 担当者別　${sheetName}の合計${branchTitle}　集計期間（完了日）：${periodStr}`, '担当者名', mgrSummary);
+            writeRankSheet('積算担当別', `■ 積算担当別　${sheetName}の合計${branchTitle}　集計期間（完了日）：${periodStr}`, '積算担当名', estSummary);
+
+            // ③ 担当者ごとのシート：その担当者の現場だけで、施工主別／得意先別に並べ直す
+            [...mgrSummary].sort((a,b) => b.profit - a.profit).forEach(p => {
+                const rows = aggregate(allSites.filter(st => mgrOf(st) === p.name), st => st._group);
+                writeRankSheet(`担当者_${p.name}`, `■ ${sheetName}　担当者名　${p.name}${branchTitle}　集計期間（完了日）：${periodStr}`, nameLabel || '名称', rows);
+            });
+            // ④ 積算担当ごとのシート
+            [...estSummary].sort((a,b) => b.profit - a.profit).forEach(p => {
+                const rows = aggregate(allSites.filter(st => estOf(st) === p.name), st => st._group);
+                writeRankSheet(`積算_${p.name}`, `■ ${sheetName}　積算担当名　${p.name}${branchTitle}　集計期間（完了日）：${periodStr}`, nameLabel || '名称', rows);
+            });
+        }
+
         const buffer = await wb.xlsx.writeBuffer();
-        saveAs(new Blob([buffer]), `${fileName}_${periodStr.replace(/〜/g,'-')}_${dateStr}.xlsx`);
+        const brFile = withBreakdown ? `_${branchLabel}` : '';
+        saveAs(new Blob([buffer]), `${fileName}${brFile}_${periodStr.replace(/〜/g,'-')}_${dateStr}.xlsx`);
     }
-    window.exportOwnerRankingExcel   = () => _exportRankingExcel(window._lastOwnerRanking,   '施工主別ランキング', '施工主別ランキング', '施工主名');
+    window.exportOwnerRankingExcel   = () => _exportRankingExcel(window._lastOwnerRanking,   '施工主別ランキング', '施工主別ランキング', '施工主名', 'rank-owner-branch');
     window.exportManagerRankingExcel = () => _exportRankingExcel(window._lastManagerRanking, '担当者別ランキング', '担当者別ランキング', '担当者名');
 
     // ── 拠点別 Excel出力（月次推移と同じレイアウト：サマリー／月次推移クロス集計／現場明細）──
@@ -6584,7 +6958,7 @@
         const addDetail = (ym, name, branch, siteCode, siteName, sales, cost) => {
             const gKey = `${name}_${branch}`;
             if (!detailMap[gKey]) detailMap[gKey] = {};
-            if (!detailMap[gKey][siteCode]) detailMap[gKey][siteCode] = { name, branch, siteCode, siteName, sales:0, cost:0 };
+            if (!detailMap[gKey][siteCode]) detailMap[gKey][siteCode] = { name, branch, siteCode, siteName, customer: masterMap.get(siteCode)?.customer || '', sales:0, cost:0 };
             detailMap[gKey][siteCode].sales += sales;
             detailMap[gKey][siteCode].cost  += cost;
         };
@@ -6780,7 +7154,7 @@
             // シート名は担当者名+拠点（31文字制限）
             const sheetName = `${g.name}_${g.branch}`.substring(0, 31);
             const ws = wb.addWorksheet(sheetName);
-            ws.getColumn(1).width = 12; ws.getColumn(2).width = 30; ws.getColumn(3).width = 14; ws.getColumn(4).width = 14; ws.getColumn(5).width = 14; ws.getColumn(6).width = 12;
+            ws.getColumn(1).width = 12; ws.getColumn(2).width = 30; ws.getColumn(3).width = 24; ws.getColumn(4).width = 14; ws.getColumn(5).width = 14; ws.getColumn(6).width = 14;
 
             // タイトル行
             const tr = ws.getRow(1);
@@ -6790,33 +7164,29 @@
 
             // ヘッダー
             const hr = ws.getRow(2);
-            ['工番', '現場名', '拠点', '売上（税抜）', '原価', '粗利率'].forEach((v,i) => { hr.getCell(i+1).value=v; hr.getCell(i+1).style=hdrS('FF1E3A5F'); });
+            ['工番', '現場名', '得意先', '拠点', '売上（税抜）', '原価'].forEach((v,i) => { hr.getCell(i+1).value=v; hr.getCell(i+1).style=hdrS('FF1E3A5F'); });
             hr.height = 18;
 
             // データ行
             let totS2=0, totC=0;
             sites.forEach((s,si) => {
                 totS2+=s.sales; totC+=s.cost;
-                const margin = s.sales ? ((s.sales-s.cost)/s.sales*100) : null;
                 const row = ws.getRow(si+3);
                 row.getCell(1).value = s.siteCode; row.getCell(1).alignment={horizontal:'left'}; row.getCell(1).font={color:{argb:'FF475569'}};
                 row.getCell(2).value = s.siteName;
-                row.getCell(3).value = s.branch;   row.getCell(3).alignment={horizontal:'center'}; row.getCell(3).font={color:{argb:'FF64748B'}};
-                row.getCell(4).value = s.sales||null; row.getCell(4).numFmt=numFmt; row.getCell(4).alignment={horizontal:'right'};
-                row.getCell(5).value = s.cost||null;  row.getCell(5).numFmt=numFmt; row.getCell(5).alignment={horizontal:'right'}; row.getCell(5).font={color:{argb:'FFDC2626'}};
-                row.getCell(6).value = margin;        row.getCell(6).numFmt='0.0"%"'; row.getCell(6).alignment={horizontal:'right'};
-                if(margin!==null) row.getCell(6).font={color:{argb: margin<0?'FFDC2626':margin<20?'FFEA580C':'FF374151'}};
+                row.getCell(3).value = s.customer || '';
+                row.getCell(4).value = s.branch;   row.getCell(4).alignment={horizontal:'center'}; row.getCell(4).font={color:{argb:'FF64748B'}};
+                row.getCell(5).value = s.sales||null; row.getCell(5).numFmt=numFmt; row.getCell(5).alignment={horizontal:'right'};
+                row.getCell(6).value = s.cost||null;  row.getCell(6).numFmt=numFmt; row.getCell(6).alignment={horizontal:'right'}; row.getCell(6).font={color:{argb:'FFDC2626'}};
                 row.height=15;
             });
 
             // 合計行
             const totRow = ws.getRow(sites.length+3);
             totRow.getCell(1).value='合計'; totRow.getCell(1).style={...totS, alignment:{horizontal:'center'}};
-            totRow.getCell(2).value=''; totRow.getCell(3).value='';
-            totRow.getCell(4).value=totS2||null; totRow.getCell(4).style={...totS,numFmt}; 
-            totRow.getCell(5).value=totC||null;  totRow.getCell(5).style={font:{bold:true,color:{argb:'FFDC2626'}},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}},alignment:{horizontal:'right'},numFmt};
-            const gm = totS2 ? ((totS2-totC)/totS2*100) : null;
-            totRow.getCell(6).value=gm; totRow.getCell(6).numFmt='0.0"%"'; totRow.getCell(6).style={font:{bold:true,color:{argb:gm!==null&&gm<20?'FFEA580C':'FF1D4ED8'}},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}},alignment:{horizontal:'right'}};
+            totRow.getCell(2).value=''; totRow.getCell(3).value=''; totRow.getCell(4).value='';
+            totRow.getCell(5).value=totS2||null; totRow.getCell(5).style={...totS,numFmt};
+            totRow.getCell(6).value=totC||null;  totRow.getCell(6).style={font:{bold:true,color:{argb:'FFDC2626'}},fill:{type:'pattern',pattern:'solid',fgColor:{argb:'FFDBEAFE'}},alignment:{horizontal:'right'},numFmt};
             totRow.height=18;
         }
 
@@ -10117,6 +10487,7 @@
     let uncollSelectedBranches = browseSelectedBranches;
     let uncollSelectedManagers = browseSelectedManagers;
     let uncollSelectedEstimators = browseSelectedEstimators;
+    let uncollSelectedCustomers = browseSelectedCustomers;
     const BROWSE_PAGE_SIZE = 50;
     let browseCurrentPage = 1;
 
@@ -10455,9 +10826,10 @@
             if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(m2.branch || '')) return false;
             if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(m2.manager || '')) return false;
             if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(m2.estimator || '')) return false;
+            if (uncollSelectedCustomers.size > 0 && !uncollSelectedCustomers.has(m2.customer || '')) return false;
             const uncollKw = window.normalizeStr((document.getElementById('browse-keyword-input') || {}).value || '');
             if (uncollKw) {
-                const hay = window.normalizeStr([d.code, d.siteName, m2.owner||'', m2.manager||'', m2.branch||''].join(' '));
+                const hay = window.normalizeStr([d.code, d.siteName, m2.name||'', m2.owner||'', m2.customer||'', m2.manager||'', m2.estimator||'', m2.branch||''].join(' '));
                 if (!hay.includes(uncollKw)) return false;
             }
             // 着手日フィルター（共通の絞り込みタブと同じ条件をこの差異詳細テーブルにも適用する）
@@ -10540,9 +10912,10 @@
                 if (uncollSelectedBranches.size > 0 && !uncollSelectedBranches.has(m.branch || '')) return;
                 if (uncollSelectedManagers.size > 0 && !uncollSelectedManagers.has(m.manager || '')) return;
                 if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(m.estimator || '')) return;
+                if (uncollSelectedCustomers.size > 0 && !uncollSelectedCustomers.has(m.customer || '')) return;
                 if (chkUncollOnly && !(r.uncollectedAmount > 0)) return;
                 if (uncollKw) {
-                    const hay = window.normalizeStr([r.code, r.siteName, m.name||'', m.owner||'', m.manager||'', m.branch||''].join(' '));
+                    const hay = window.normalizeStr([r.code, r.siteName, m.name||'', m.owner||'', m.customer||'', m.manager||'', m.estimator||'', m.branch||''].join(' '));
                     if (!hay.includes(uncollKw)) return;
                 }
                 // 着手日フィルター（共通の絞り込みタブと同じ条件をこの一覧にも適用する）
@@ -10871,7 +11244,8 @@
         const marginValRaw = (document.getElementById('browse-margin-value') || {}).value;
         const marginVal = marginValRaw !== '' && marginValRaw !== undefined && marginValRaw !== null ? parseFloat(marginValRaw) : null;
 
-        browseFiltered = browseAllData.filter(d => {
+        // 共通条件（拠点・担当者・積算・得意先・キーワード・日付・粗利率・追加絞り込み）
+        const passBase = (d) => {
             // キーワードフィルター（タブに関係なく常時有効）
             if (keyword) {
                 const haystack = window.normalizeStr([d.name, d.owner, d.customer, d.manager, d.estimator, d.code, d.branch].join(' '));
@@ -10914,22 +11288,28 @@
             const sdStr = String(d.startDate ?? '').replace(/\D/g,'');
             const hasStartDate = sdStr.length === 8 && sdStr !== '00000000';
             if (chkNoStart && hasStartDate) return false;
-            // 未回収フィルター
+            return true;
+        };
+        browseFiltered = browseAllData.filter(d => {
+            if (!passBase(d)) return false;
+            // 回収状況フィルター（どのタブからでも有効）
             if (chkUncollected  && !(d.uncollectedAmount > 0)) return false;
             if (chkCollAnomaly  && !d.hasCollAnomaly)           return false;
-            // 未回収タブの基本条件（回収データが紐づく現場のみ対象。拠点・担当者・積算・キーワードは
-            // 上の共通フィルターがタブに関係なく常時反映されるため、ここでは重複させない）
-            if (browseCurrentTab === 'uncollected') {
-                if (!d.hasCollData) return false;
-            }
+            // 未回収タブの基本条件（回収データが紐づく現場のみ対象）
+            if (browseCurrentTab === 'uncollected' && !d.hasCollData) return false;
             return true;
         });
 
         // 未回収・差異件数を表示
-        const uncollectedCount = browseAllData.filter(d => d.uncollectedAmount > 0).length;
-        const anomalyCount     = browseAllData.filter(d => d.hasCollAnomaly).length;
+        // ★ 件数・金額は「選択中の拠点・担当者・積算・得意先・キーワード等」の範囲内で集計する（全拠点の数字を出さない）
+        const baseRows         = browseAllData.filter(passBase);
+        const uncollRows       = baseRows.filter(d => d.uncollectedAmount > 0);
+        const uncollectedCount = uncollRows.length;
+        const uncollectedSum   = uncollRows.reduce((a, d) => a + (d.uncollectedAmount || 0), 0);
+        const anomalyCount     = baseRows.filter(d => d.hasCollAnomaly).length;
+        const hasScope = browseSelectedBranches.size || browseSelectedManagers.size || browseSelectedEstimators.size || browseSelectedCustomers.size;
         const cntEl = document.getElementById('browse-uncollected-count');
-        if (cntEl) cntEl.textContent = `未回収 ${uncollectedCount}件　差異あり ${anomalyCount}件`;
+        if (cntEl) cntEl.textContent = `${hasScope ? '選択条件内' : '全体'}：未回収残あり ${uncollectedCount}件（残高計 ${window.formatCurrency(uncollectedSum)}）／ 回収差異あり ${anomalyCount}件`;
 
         // ソート
         browseFiltered.sort((a, b) => {
@@ -10947,11 +11327,10 @@
         if (badge) badge.textContent = browseFiltered.length + ' 件';
 
         // ★ 修正: 現場一覧パネルの表示/非表示を applyBrowseFilter で一元管理
-        // 差異ありチェックON かつ 未回収タブ の場合のみリストを隠す（タブ切り替え時も確実に戻る）
+        // 現場一覧は常に表示する（差異詳細・枝番別明細は一覧の上に独立カードとして出る）
         const _listPanel = document.getElementById('browse-list-panel');
         if (_listPanel) {
-            const _hideList = browseCurrentTab === 'uncollected' && chkCollAnomaly;
-            _listPanel.classList.toggle('hidden', _hideList);
+            _listPanel.classList.remove('hidden');   // 回収状況の指定でレイアウトが変わらないよう、一覧は常に表示
         }
 
         window.renderBrowseTable();
@@ -10973,6 +11352,9 @@
         if (countEl) countEl.textContent = total === 0 ? '該当なし' : `${start+1}〜${Math.min(start+BROWSE_PAGE_SIZE, total)} 件 / 全 ${total} 件`;
 
         const isCostBasis = browseCurrentBasis === 'cost';
+        const showCollBadge = browseCurrentTab === 'uncollected'
+            || !!document.getElementById('browse-chk-uncollected-only')?.checked
+            || !!document.getElementById('browse-chk-coll-anomaly')?.checked;
 
         if (total === 0) {
             tbody.innerHTML = `<tr><td colspan="14" class="px-4 py-10 text-center text-slate-400 text-sm"><i class="fa-solid fa-circle-info mr-2"></i>該当する現場が見つかりませんでした</td></tr>`;
@@ -11012,10 +11394,10 @@
             const marginCell = `<td class="px-4 py-2.5 border-b border-slate-100 text-right font-mono text-xs ${marginColor}">${d.margin !== null ? d.margin.toFixed(1)+'%' : '-'}</td>`;
 
             // 未回収バッジ・差異バッジ（未回収タブ選択中のみ表示）
-            const uncollBadge = browseCurrentTab === 'uncollected' && d.uncollectedAmount > 0
+            const uncollBadge = showCollBadge && d.uncollectedAmount > 0
                 ? `<span class="text-[10px] bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap">未回収 ${window.formatCurrency(d.uncollectedAmount)}</span>`
                 : '';
-            const anomalyBadge = browseCurrentTab === 'uncollected' && d.hasCollAnomaly
+            const anomalyBadge = showCollBadge && d.hasCollAnomaly
                 ? `<span class="text-[10px] bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded font-bold whitespace-nowrap" title="売上税込と回収済額の差: ${window.formatCurrency(Math.abs(d.collDiff))}">差異 ${d.collDiff > 0 ? '+' : ''}${window.formatCurrency(d.collDiff)}</span>`
                 : '';
 
@@ -11960,6 +12342,7 @@
                 if (uncollSelectedBranches.size  > 0 && !uncollSelectedBranches.has(br))  return false;
                 if (uncollSelectedManagers.size  > 0 && !uncollSelectedManagers.has(mgr)) return false;
                 if (uncollSelectedEstimators.size > 0 && !uncollSelectedEstimators.has(est)) return false;
+                if (uncollSelectedCustomers.size > 0 && !uncollSelectedCustomers.has(m.customer || '')) return false;
                 // 着手日・完工日フィルター（共通の絞り込みタブと同じ条件をこの出力にも適用する）
                 if (dateStart || dateEnd) {
                     const dt = window.parseDateStr8(m.startDate);
