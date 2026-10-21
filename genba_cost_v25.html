@@ -1028,6 +1028,11 @@
                         <button onclick="window.applyDateFilter()" class="bg-slate-700 hover:bg-slate-800 text-white text-sm font-bold px-4 py-1.5 rounded-lg transition-colors">適用</button>
                     </div>
                     <div id="rank-date-status" class="text-xs text-red-500 font-bold"></div>
+                    <div class="flex items-center gap-1.5 border-l border-slate-200 pl-4" title="施工主別・得意先別・拠点別・担当者別の表示と、Excel出力（クロス集計を含む）に反映されます">
+                        <span class="text-xs font-bold text-slate-500 mr-1">表示</span>
+                        <button id="rank-view-total" onclick="window.setRankingMonthly(false)" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors bg-slate-700 text-white">合計</button>
+                        <button id="rank-view-monthly" onclick="window.setRankingMonthly(true)" class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors bg-white text-slate-600 border border-slate-300 hover:bg-slate-50">月ごと（完了月）</button>
+                    </div>
                     <button onclick="document.getElementById('ranking-help-panel').classList.toggle('hidden')"
                         class="ml-auto flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-600 transition-colors whitespace-nowrap">
                         <i class="fa-solid fa-circle-question"></i> 集計方法について
@@ -1164,6 +1169,10 @@
                                 class="ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-indigo-400 bg-white whitespace-nowrap hover:text-indigo-600 hover:bg-indigo-50 transition-all">
                                 <i class="fa-solid fa-route mr-1.5 text-xs"></i>出力ナビ
                             </button>
+                            <button onclick="window.switchRankingTab('monthview')" id="tab-monthview" data-tab-color="emerald"
+                                class="ranking-tab-btn px-4 py-2.5 text-sm font-bold rounded-t-lg border-b-2 border-transparent text-emerald-400 bg-white whitespace-nowrap hover:text-emerald-600 hover:bg-emerald-50 transition-all">
+                                <i class="fa-solid fa-calendar-days mr-1.5 text-xs"></i>月別ビュー
+                            </button>
                         </div>
                         <div class="flex items-center px-2 pt-2">
                             <div class="w-px h-6 bg-slate-200"></div>
@@ -1226,6 +1235,10 @@
                 <!-- 0. 出力ナビ（ルート案内） -->
                 <div id="ranking-navi" class="ranking-tab-content hidden space-y-4">
                     <div id="navi-root"></div>
+                </div>
+                <!-- 0-2. 月別ビュー（完了月ごとの集計・ランキング） -->
+                <div id="ranking-monthview" class="ranking-tab-content hidden space-y-4">
+                    <div id="mv-root"></div>
                 </div>
                 <!-- 1. Owner Ranking -->
                 <div id="ranking-owner" class="ranking-tab-content space-y-4">
@@ -5980,6 +5993,7 @@
 
     // ── タブごとの「集計期間（完了日）」反映有無（バナー表示用）──
     const RANKING_TAB_FILTER_INFO = {
+        'monthview':        { icon: 'fa-calendar-days', color: 'text-emerald-700 bg-emerald-50 border border-emerald-200', text: '「完了日」基準では上の集計期間（完了日）が適用されます（変更後は「適用」を押す）。「伝票日付」基準では、このタブ内の「伝票の年月」で期間を指定します。' },
         'navi':             { icon: 'fa-route', color: 'text-indigo-700 bg-indigo-50 border border-indigo-200', text: '「何の日付で」「何を見たいか」を選ぶと、必要な期間・拠点を各タブへ自動で設定してExcel出力します。' },
         'owner':            { icon: 'fa-check-circle', color: 'text-green-700 bg-green-50 border border-green-200', text: 'この タブは上部の「集計期間（完了日）」が反映されます。' },
         'customer':         { icon: 'fa-check-circle', color: 'text-green-700 bg-green-50 border border-green-200', text: 'この タブは上部の「集計期間（完了日）」が反映されます。' },
@@ -6029,9 +6043,11 @@
             { id:'manager',  icon:'fa-user-tie',        title:'担当者別',   sub:'担当者ごとの 売上・原価・粗利 ランキング', fields:['period','branch'], excel:true, tab:'manager' },
             { id:'worst',    icon:'fa-triangle-exclamation', title:'利益率ワースト', sub:'粗利率の低い現場を抽出（条件はタブ内で指定してExcel出力）', fields:['period'], excel:false, tab:'worst' },
             { id:'coll',     icon:'fa-scale-unbalanced',title:'未回収差異ワースト', sub:'売上(税込)と回収済額に差異がある現場（タブ内でExcel出力）', fields:['period'], excel:false, tab:'coll-anomaly' },
+            { id:'mview',    icon:'fa-calendar-days', title:'月別ビュー（画面で月ごとに見る）', sub:'施工主・得意先・拠点・担当者ごとの月別推移を、色つきの表とランキングで確認', fields:['period','branch'], excel:false, tab:'monthview' },
             { id:'board',    icon:'fa-people-group',    title:'支店長会議資料', sub:'会議用の資料（専用の期間指定。タブ内でExcel出力）', fields:[], excel:false, tab:'board-meeting' },
         ],
         voucher: [
+            { id:'mview', icon:'fa-calendar-days', title:'月別ビュー（画面で月ごとに見る）', sub:'施工主・得意先・拠点・担当者ごとの伝票日付の月別推移を、色つきの表とランキングで確認', fields:['months','branch'], excel:false, tab:'monthview' },
             { id:'mm',    icon:'fa-users-viewfinder', title:'月別・拠点内', sub:'担当者または施工主ごとに、現場別の売上・原価を出力（1人1シート）', fields:['months','branch','mmMode'], excel:true, tab:'monthly-manager' },
             { id:'month', icon:'fa-chart-line',       title:'月次推移',     sub:'月ごとの売上・原価・粗利の推移（6シート）', fields:['months','branch'], excel:true, tab:'month' },
         ]
@@ -6110,6 +6126,7 @@
             case 'manager': return '担当者ごとの売上・原価・粗利・粗利率ランキング（1シート）';
             case 'mm':      return `${st.mmMode === 'manager' ? '担当者' : '施工主'}ごとにシートを分け、各シートに 工番・現場名・得意先・拠点・売上（税抜）・原価 を出力`;
             case 'month':   return '月次サマリー／売上内訳／原価内訳／クロス集計／売上推移／粗利率推移 の6シート（伝票日付基準）';
+            case 'mview':   return '月別ビューのタブを、上の条件で開きます（見る単位・指標・表示形式はタブ内で切り替えられます）';
             default:        return '該当タブの画面が開きます。条件を指定して、タブ内のExcel出力ボタンを使ってください。';
         }
     }
@@ -6129,6 +6146,7 @@
         if (r.fields.includes('period') || r.fields.includes('months')) rows.push([isV ? '明細期間' : '完了日の期間', periodTxt]);
         if (r.fields.includes('branch')) rows.push(['拠点', st.branch === 'ALL' ? (isV && r.id === 'month' ? '全社' : '全拠点') : st.branch]);
         if (r.fields.includes('crossType')) rows.push(['集計の軸', st.crossType === 'customer' ? '得意先' : '施工主']);
+        if (['owner', 'customer', 'cross', 'manager'].includes(r.id)) rows.push(['月ごとの表', rankingMonthly ? (r.id === 'cross' ? '付ける：列に「完了月」の表（売上・粗利率・粗利益）を追加' : '付ける：完了月ごとの 売上・粗利益・粗利率・現場数 のシートを追加') : '付けない（合計のみ）']);
         if (r.fields.includes('mmMode')) rows.push(['切り口', st.mmMode === 'manager' ? '担当者別' : '施工主別']);
         rows.push(['元データ', B.src]);
         rows.push([r.excel ? '出力されるもの' : '開く画面', naviOutputInfo(r, st)]);
@@ -6209,6 +6227,10 @@
                     <option value="ALL" ${st.branch === 'ALL' ? 'selected' : ''}>${isV && r.id === 'month' ? '全社' : '全拠点'}</option>
                     ${st.branches.map(b => `<option value="${naviEsc(b)}" ${st.branch === b ? 'selected' : ''}>${naviEsc(b)}</option>`).join('')}
                 </select><span class="text-[11px] text-slate-400">${(r.id === 'owner' || r.id === 'customer' || r.id === 'cross') ? '拠点を選ぶと、その拠点内の担当者・積算担当ごとの内訳になります' : ''}</span></div>`;
+            if (['owner', 'customer', 'cross', 'manager'].includes(r.id)) fields += `<div class="flex flex-wrap items-center gap-2"><span class="text-sm font-bold text-slate-600 w-28">月ごと</span>
+                <label class="flex items-center gap-1.5 cursor-pointer text-sm ${rankingMonthly ? 'font-bold text-indigo-700' : 'text-slate-600'}"><input type="checkbox" ${rankingMonthly ? 'checked' : ''} onchange="window.setRankingMonthly(this.checked)" class="w-4 h-4 text-indigo-600 rounded"><span>完了月ごとの表も付ける（月別シートを追加）</span></label>
+                <span class="text-[11px] text-slate-400">上部の「表示：月ごと」と連動します</span></div>`;
+            if (r.id === 'branch') fields += `<div class="text-xs text-slate-500">※ 拠点別は、完了月ごとの内訳（月次サマリー・売上推移・粗利率推移）が標準で含まれます。</div>`;
             if (r.fields.includes('crossType')) fields += `<div class="flex flex-wrap items-center gap-4"><span class="text-sm font-bold text-slate-600 w-28">集計の軸</span>${radio('crossType', 'customer', '得意先', st.crossType)}${radio('crossType', 'owner', '施工主', st.crossType)}</div>`;
             if (r.fields.includes('mmMode')) fields += `<div class="flex flex-wrap items-center gap-4"><span class="text-sm font-bold text-slate-600 w-28">切り口</span>${radio('mmMode', 'manager', '担当者別', st.mmMode)}${radio('mmMode', 'owner', '施工主別', st.mmMode)}</div>`;
             if (!fields) fields = '<p class="text-sm text-slate-500">このメニューは専用の期間指定があるため、ここで指定する条件はありません。</p>';
@@ -6275,6 +6297,12 @@
                     naviFillSelect('month-filter-branch', branches, '全社', br);
                     if (xl) { await window.renderMonthlyRanking(); window.exportMonthlyExcel(); } else { await window.switchRankingTab('month'); }
                     break;
+                case 'mview':
+                    mvState.basis = st.basis === 'voucher' ? 'voucher' : 'completion';
+                    if (mvState.basis === 'voucher') { mvState.monthStart = st.monthStart || ''; mvState.monthEnd = st.monthEnd || ''; }
+                    mvState.branch = br;
+                    await window.switchRankingTab('monthview');
+                    break;
                 default:   // worst / coll / board：該当タブを開く
                     await window.switchRankingTab(r.tab);
             }
@@ -6302,6 +6330,7 @@
 
             // データ初期化・描画
             if (tab === 'navi')            await window.initRankingNavi();
+            if (tab === 'monthview')       await window.initMonthView();
             if (tab === 'owner')           await window.initOwnerRanking();
             if (tab === 'customer')        await window.initCustomerRanking();
             if (tab === 'branch')          await window.renderBranchRanking();
@@ -6399,6 +6428,7 @@
                 ? [{ keyOf: m => m.branch || '不明',      suffix: '',           fileTag: '拠点',   matrix:{}, set:new Set(), sales:{} }]
                 : [{ keyOf: m => m.manager || '未設定',   suffix: '_担当者',    fileTag: '担当者', matrix:{}, set:new Set(), sales:{} },
                    { keyOf: m => m.estimator || '未設定', suffix: '_積算担当',  fileTag: '積算担当', matrix:{}, set:new Set(), sales:{} }];
+            if (rankingMonthly) axes.push({ keyOf: m => rankYmOf(m.endDate) || '不明', suffix: '_完了月別', fileTag: '完了月', matrix:{}, set:new Set(), sales:{} });
             const groups = new Set();
             const groupSales = {};
 
@@ -6426,7 +6456,7 @@
             // 列は、拠点なら名前順／担当者・積算担当なら売上の大きい順
             axes.forEach(ax => {
                 ax.list = Array.from(ax.set);
-                if (ax.fileTag === '拠点') ax.list.sort(); else ax.list.sort((a,b) => (ax.sales[b]||0) - (ax.sales[a]||0));
+                if (ax.fileTag === '拠点' || ax.fileTag === '完了月') ax.list.sort(); else ax.list.sort((a,b) => (ax.sales[b]||0) - (ax.sales[a]||0));
             });
             // 行は、合計売上で降順
             const groupList = Array.from(groups).sort((a,b) => (groupSales[b]||0) - (groupSales[a]||0));
@@ -6679,8 +6709,33 @@
             return Object.values(g);
         };
 
+        // 完了月ごとのシート（売上／粗利益／粗利率／現場数 を縦に4表）：groups = [{name, sites}]
+        const monthBase = (nameLabel || '名称').replace(/名$/, '');
+        const writeMonthSheet = (wsName, label, groups) => {
+            const M = rankBuildMonthMatrix(groups);
+            if (M.months.length === 0) return;
+            M.rows.sort((a, b) => b.tot.profit - a.tot.profit);
+            const ws = wb.addWorksheet(safeSheetName(wsName));
+            ws.getColumn(1).width = 30;
+            for (let i = 0; i <= M.months.length; i++) ws.getColumn(i + 2).width = 14;
+            const blocks = [['売上（税抜）','sales','#,##0'], ['粗利益（税抜）','profit','#,##0'], ['粗利率','margin','0.0"%"'], ['現場数','count','#,##0']];
+            const val = (c, k) => !c ? null : (k === 'margin' ? (c.sales ? c.profit / c.sales * 100 : null) : c[k]);
+            blocks.forEach(([t, k, fmt]) => {
+                ws.addRow([`■ ${sheetName}　完了月ごと　${t}${branchTitle}　集計期間（完了日）：${periodStr}`]).font = { bold:true, size:12 };
+                ws.addRow([label, ...M.months.map(m => m.replace('-', '/')), '合計']).eachCell(c => c.style = hdrStyle);
+                M.rows.forEach(r => {
+                    const row = ws.addRow([r.name, ...M.months.map(m => val(r.per[m], k)), val(r.tot, k)]);
+                    for (let ci = 2; ci <= M.months.length + 2; ci++) { const c = row.getCell(ci); c.numFmt = fmt; c.alignment = {horizontal:'right'}; }
+                });
+                const tot = ws.addRow(['合計', ...M.months.map(m => val(M.colTot[m], k)), val(M.grand, k)]);
+                for (let ci = 1; ci <= M.months.length + 2; ci++) { const c = tot.getCell(ci); c.font = {bold:true}; c.fill = totFill; if (ci > 1) { c.numFmt = fmt; c.alignment = {horizontal:'right'}; } }
+                ws.addRow([]);
+            });
+        };
+
         // ① 全体（従来と同じ：施工主別／得意先別／担当者別ランキング）
         writeRankSheet(sheetName, `■ ${sheetName}${branchTitle}　集計期間（完了日）：${periodStr}`, nameLabel || '名称', data);
+        if (rankingMonthly) writeMonthSheet('月別_' + monthBase, nameLabel || '名称', data.map(g => ({ name: g.name, sites: g.sites || [] })));
 
         if (withBreakdown) {
             // 現場を1本ずつに展開（所属グループ名を持たせる）
@@ -6694,6 +6749,11 @@
             const estSummary = aggregate(allSites, estOf);
             writeRankSheet('担当者別', `■ 担当者別　${sheetName}の合計${branchTitle}　集計期間（完了日）：${periodStr}`, '担当者名', mgrSummary);
             writeRankSheet('積算担当別', `■ 積算担当別　${sheetName}の合計${branchTitle}　集計期間（完了日）：${periodStr}`, '積算担当名', estSummary);
+            if (rankingMonthly) {
+                const grp = (keyFn) => { const mp = {}; allSites.forEach(st => { const k = keyFn(st); (mp[k] || (mp[k] = { name:k, sites:[] })).sites.push(st); }); return Object.values(mp); };
+                writeMonthSheet('月別_担当者', '担当者名', grp(mgrOf));
+                writeMonthSheet('月別_積算担当', '積算担当名', grp(estOf));
+            }
 
             // ③ 担当者ごとのシート：その担当者の現場だけで、施工主別／得意先別に並べ直す
             [...mgrSummary].sort((a,b) => b.profit - a.profit).forEach(p => {
@@ -9974,6 +10034,341 @@
         const buffer = await wb.xlsx.writeBuffer();
         saveAs(new Blob([buffer]), `未回収差異ワースト_${periodStr.replace(/〜/g,'-')}_${dateStr}.xlsx`);
     }
+    // ══════════════════════════════════════════════════════════════════════
+    // 完了日で見る各タブ：「月ごと（完了月）」表示
+    //   画面：施工主別・得意先別・拠点別・担当者別の表の下に「完了月ごとの内訳」を出す
+    //   Excel：月別シート（売上／粗利益／粗利率／現場数）を追加、クロス集計は列に「完了月」を追加
+    // ══════════════════════════════════════════════════════════════════════
+    let rankingMonthly = false;
+    let rankingMonthMetric = 'sales';
+    const RANK_MONTH_TAB = { '施工主':'owner', '得意先':'customer', '拠点':'branch', '担当者':'manager' };
+    window._rankMonthCache = {};
+    const rankEsc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function rankYmOf(v) {
+        const ts = window.parseDateValue(v); if (!ts) return null;
+        const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    // groups = [{name, sites:[{endDate,sales,cost,profit}]}] → 名称×完了月 の集計
+    function rankBuildMonthMatrix(groups) {
+        const empty = () => ({ sales:0, cost:0, profit:0, count:0 });
+        const monthSet = new Set();
+        const rows = groups.map(g => {
+            const per = {}, tot = empty(), seen = new Set(); let anon = 0;
+            (g.sites || []).forEach(st => {
+                const ym = st.ym || rankYmOf(st.endDate); if (!ym) return;
+                monthSet.add(ym);
+                const c = per[ym] || (per[ym] = empty());
+                ['sales','cost','profit'].forEach(k => { c[k] += st[k] || 0; tot[k] += st[k] || 0; });
+                c.count++;
+                if (st.code === undefined) anon++; else seen.add(st.code);   // 合計の現場数は、複数月に動いた現場を1件と数える
+            });
+            tot.count = seen.size + anon;
+            return { name: g.name, per, tot };
+        }).filter(r => r.tot.count > 0);
+        const months = [...monthSet].sort();
+        const colTot = {}, grand = empty();
+        months.forEach(m => { colTot[m] = empty(); });
+        rows.forEach(r => {
+            months.forEach(m => {
+                const c = r.per[m]; if (!c) return;
+                ['sales','cost','profit','count'].forEach(k => { colTot[m][k] += c[k]; });
+                ['sales','cost','profit'].forEach(k => { grand[k] += c[k]; });
+            });
+            grand.count += r.tot.count;
+        });
+        return { months, rows, colTot, grand };
+    }
+    window.renderRankingMonthCard = function(label, data) {
+        const key = RANK_MONTH_TAB[label]; if (!key) return;
+        window._rankMonthCache[key] = { label, data };
+        const host = document.getElementById('ranking-' + key); if (!host) return;
+        let card = document.getElementById('rank-month-card-' + key);
+        if (!rankingMonthly) { if (card) card.classList.add('hidden'); return; }
+        if (!card) { card = document.createElement('div'); card.id = 'rank-month-card-' + key; card.className = 'glass-panel rounded-xl overflow-hidden'; host.appendChild(card); }
+        card.classList.remove('hidden');
+        const M = rankBuildMonthMatrix((data || []).map(g => ({ name: g.name, sites: g.sites || [] })));
+        const metric = rankingMonthMetric;
+        const fmtCell = (c) => {
+            if (!c || !c.count) return '<span class="text-slate-300">-</span>';
+            if (metric === 'count') return String(c.count);
+            if (metric === 'margin') { const mg = c.sales ? c.profit / c.sales * 100 : 0; return `<span class="${mg < 0 ? 'text-red-600' : mg < 20 ? 'text-orange-600' : ''}">${mg.toFixed(1)}%</span>`; }
+            const v = c[metric]; return `<span class="${v < 0 ? 'text-red-600' : ''}">${formatCurrency(v)}</span>`;
+        };
+        const mBtn = (k, t) => `<button onclick="window.setRankingMonthMetric('${k}')" class="text-xs font-bold px-3 py-1 rounded-lg transition-colors ${metric === k ? 'bg-slate-700 text-white' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'}">${t}</button>`;
+        const head = `<div class="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+                <span class="font-bold text-slate-700"><i class="fa-regular fa-calendar-days mr-1.5 text-slate-400"></i>完了月ごとの内訳（${rankEsc(label)}別）</span>
+                <span class="text-xs text-slate-400">完了日の月で集計</span>
+                <div class="ml-auto flex items-center gap-1.5">${mBtn('sales', '売上')}${mBtn('profit', '粗利益')}${mBtn('margin', '粗利率')}${mBtn('count', '現場数')}</div>
+            </div>`;
+        if (M.months.length === 0) { card.innerHTML = head + '<div class="px-5 py-6 text-sm text-slate-400">表示できるデータがありません（完了日が未入力、または期間内に該当なし）</div>'; return; }
+        const th = 'px-3 py-2 text-right font-bold text-slate-600 whitespace-nowrap';
+        card.innerHTML = head + `<div class="overflow-x-auto"><table class="w-full text-sm">
+            <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left font-bold text-slate-600 sticky left-0 bg-slate-50 whitespace-nowrap">${rankEsc(label)}</th>${M.months.map(m => `<th class="${th}">${m.replace('-', '/')}</th>`).join('')}<th class="${th} bg-slate-100">合計</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+            ${M.rows.map(r => `<tr class="hover:bg-slate-50"><td class="px-3 py-2 font-medium text-slate-700 sticky left-0 bg-white whitespace-nowrap">${rankEsc(r.name)}</td>${M.months.map(m => `<td class="px-3 py-2 text-right font-mono whitespace-nowrap">${fmtCell(r.per[m])}</td>`).join('')}<td class="px-3 py-2 text-right font-mono font-bold bg-slate-50 whitespace-nowrap">${fmtCell(r.tot)}</td></tr>`).join('')}
+            <tr class="bg-blue-50 font-bold"><td class="px-3 py-2 sticky left-0 bg-blue-50">合計</td>${M.months.map(m => `<td class="px-3 py-2 text-right font-mono whitespace-nowrap">${fmtCell(M.colTot[m])}</td>`).join('')}<td class="px-3 py-2 text-right font-mono whitespace-nowrap">${fmtCell(M.grand)}</td></tr>
+            </tbody></table></div>`;
+    };
+    window.refreshRankingMonthCards = function() {
+        Object.values(window._rankMonthCache).forEach(c => window.renderRankingMonthCard(c.label, c.data));
+    };
+    window.setRankingMonthMetric = function(k) { rankingMonthMetric = k; window.refreshRankingMonthCards(); };
+    window.setRankingMonthly = function(on) {
+        rankingMonthly = !!on;
+        const base = 'text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ';
+        const act = 'bg-slate-700 text-white', off = 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50';
+        const bt = document.getElementById('rank-view-total'), bm = document.getElementById('rank-view-monthly');
+        if (bt) bt.className = base + (rankingMonthly ? off : act);
+        if (bm) bm.className = base + (rankingMonthly ? act : off);
+        window.refreshRankingMonthCards();
+        const navi = document.getElementById('ranking-navi');
+        if (navi && !navi.classList.contains('hidden') && window.renderRankingNavi) window.renderRankingNavi();
+    };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 月別ビュー：完了月ごとの集計・ランキング（画面表示用）
+    //   見る単位（施工主／得意先／拠点／担当者／積算担当）× 完了月 を、色の濃淡つきの表と月別ランキングで見せる
+    // ══════════════════════════════════════════════════════════════════════
+    const MV_DIMS = {
+        owner:     { label:'施工主',   key: r => r.owner     || '未設定' },
+        customer:  { label:'得意先',   key: r => r.customer  || '未設定' },
+        branch:    { label:'拠点',     key: r => r.branch    || '未設定' },
+        manager:   { label:'担当者',   key: r => r.manager   || '未設定' },
+        estimator: { label:'積算担当', key: r => r.estimator || '未設定' },
+    };
+    const MV_METRICS = { sales:'売上', cost:'原価', profit:'粗利益', margin:'粗利率', count:'現場数' };
+    const MV_BASIS = {
+        completion: { label:'完了日',   desc:'指定期間に完了した現場の 売上・原価・粗利（原価集計表）を、完了した月ごとに集計します。', countLabel:'現場数',         dateCol:'完了日' },
+        voucher:    { label:'伝票日付', desc:'売上明細・仕入明細の伝票日付の月ごとに集計します。未完了の現場も含み、原価は仕入明細の合計です。', countLabel:'動きのあった現場数', dateCol:'年月' },
+    };
+    const mvState = { basis:'completion', dim:'owner', metric:'sales', branch:'ALL', top:10, mode:'matrix', unit:'man', monthStart:'', monthEnd:'' };
+    let mvRaw = [], mvBranches = [], mvView = null, chartMonthView = null;
+    const mvYm = (r) => r.ym || rankYmOf(r.endDate);
+    const mvInRange = (r) => {            // 伝票日付の基準では、このタブの年月指定で絞る（完了日の基準は初期読み込み時に上部の期間で絞り込み済み）
+        if (mvState.basis !== 'voucher') return true;
+        const ym = mvYm(r); if (!ym) return false;
+        if (mvState.monthStart && ym < mvState.monthStart) return false;
+        if (mvState.monthEnd && ym > mvState.monthEnd) return false;
+        return true;
+    };
+
+    window.initMonthView = async function() {
+        const masters = await db.masters.toArray();
+        const mmap = new Map(masters.map(m => [m.code, m]));
+        const dimsOf = (m) => ({ branch:m.branch || '', owner:m.owner || '', customer:m.customer || '', manager:m.manager || '', estimator:m.estimator || '' });
+        mvRaw = [];
+        if (mvState.basis === 'voucher') {
+            // 売上明細・仕入明細を「工番×年月」にまとめる（伝票日付の月）
+            const sales = await db.sales.toArray(), purchases = await db.purchases.toArray();
+            const agg = new Map();
+            const add = (code, date, sAmt, cAmt) => {
+                const ym6 = String(date || '').substring(0, 6); if (!/^\d{6}$/.test(ym6)) return;
+                const key = code + '|' + ym6;
+                let a = agg.get(key); if (!a) { a = { code, ym: `${ym6.slice(0, 4)}-${ym6.slice(4)}`, sales:0, cost:0 }; agg.set(key, a); }
+                a.sales += sAmt; a.cost += cAmt;
+            };
+            sales.forEach(x => add(x.siteCode, x.date, x.amountExc || 0, 0));
+            purchases.forEach(x => add(x.siteCode, x.date, 0, x.amount || 0));
+            agg.forEach(a => { const m = mmap.get(a.code) || {}; mvRaw.push({ code:a.code, name:m.name || '', ym:a.ym, ...dimsOf(m), sales:a.sales, cost:a.cost, profit:a.sales - a.cost }); });
+        } else {
+            const costs = await db.costs.toArray();
+            const fStart = rankingFilter.start ? new Date(rankingFilter.start).setHours(0,0,0,0) : 0;
+            const fEnd   = rankingFilter.end   ? new Date(rankingFilter.end).setHours(23,59,59,999) : 9999999999999;
+            costs.forEach(c => {
+                const m = mmap.get(c.code); if (!m) return;
+                const ts = window.parseDateValue(m.endDate);
+                if (!ts || ts < fStart || ts > fEnd) return;
+                mvRaw.push({ code:c.code, name:m.name || c.name || '', endDate:m.endDate, ...dimsOf(m), sales:c.salesTotal || 0, cost:c.costTotal || 0, profit:c.profitTotal || 0 });
+            });
+        }
+        mvBranches = [...new Set(masters.map(m => m.branch).filter(Boolean))].sort();
+        if (mvState.branch !== 'ALL' && !mvBranches.includes(mvState.branch)) mvState.branch = 'ALL';
+        window.renderMonthView();
+    };
+    window.mvSet = function(k, v) { mvState[k] = v; window.renderMonthView(); };
+    window.mvSetBasis = async function(b) { if (mvState.basis === b) return; mvState.basis = b; await window.initMonthView(); };
+    window.mvPreset = function(kind) {
+        const now = new Date(), y = now.getFullYear(), m = now.getMonth() + 1, fy = m >= 4 ? y : y - 1;
+        const P = { fy:[`${fy}-04`, `${fy + 1}-03`], h1:[`${fy}-04`, `${fy}-09`], h2:[`${fy}-10`, `${fy + 1}-03`], year:[`${y}-01`, `${y}-12`], all:['', ''] }[kind] || ['', ''];
+        mvState.monthStart = P[0]; mvState.monthEnd = P[1]; window.renderMonthView();
+    };
+
+    window.renderMonthView = function() {
+        const root = document.getElementById('mv-root'); if (!root) return;
+        const st = mvState, D = MV_DIMS[st.dim], B = MV_BASIS[st.basis], metric = st.metric, isV = st.basis === 'voucher';
+        chartMonthView = window.destroyChart(chartMonthView);
+
+        // 集計
+        const gm = {};
+        mvRaw.filter(r => (st.branch === 'ALL' || r.branch === st.branch) && mvInRange(r)).forEach(r => { const k = D.key(r); (gm[k] || (gm[k] = { name:k, sites:[] })).sites.push(r); });
+        const M = rankBuildMonthMatrix(Object.values(gm));
+        const mval = (c) => metric === 'margin' ? (c.sales ? c.profit / c.sales * 100 : -Infinity) : c[metric];
+        M.rows.sort((a, b) => (mval(b.tot) - mval(a.tot)) || a.name.localeCompare(b.name, 'ja'));
+        const shown = st.top ? M.rows.slice(0, st.top) : M.rows;
+        const rest = st.top ? M.rows.slice(st.top) : [];
+        const restPer = {}, restTot = { sales:0, cost:0, profit:0, count:0 };
+        rest.forEach(r => {
+            M.months.forEach(m => { const c = r.per[m]; if (!c) return; const t = restPer[m] || (restPer[m] = { sales:0, cost:0, profit:0, count:0 }); ['sales','cost','profit','count'].forEach(k => { t[k] += c[k]; }); });
+            ['sales','cost','profit','count'].forEach(k => { restTot[k] += r.tot[k]; });
+        });
+        mvView = { rowsAll: M.rows, months: M.months };
+
+        // 部品
+        const seg = (key, opts, fn) => `<div class="inline-flex rounded-lg overflow-hidden border border-slate-300">${opts.map(([v, t]) =>
+            `<button onclick="window.${fn || 'mvSet'}('${key === 'basis' ? '' : key + "','"}${v}')" class="text-xs font-bold px-3 py-1.5 transition-colors ${st[key] === v ? 'bg-emerald-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}">${t}</button>`).join('')}</div>`;
+        const sel = 'text-xs font-bold border border-slate-300 rounded-lg px-2 py-1.5 bg-white';
+        const inp = 'text-xs font-bold border border-slate-300 rounded-lg px-2 py-1.5 bg-white';
+        const fmtMoney = (v) => st.unit === 'man' ? Math.round(v / 10000).toLocaleString() : Math.round(v).toLocaleString();
+        const unitTxt = st.unit === 'man' ? '万円' : '円';
+        const isMoney = metric === 'sales' || metric === 'cost' || metric === 'profit';
+        const fmtV = (c) => {
+            if (!c || !c.count) return '<span class="text-slate-300">·</span>';
+            if (metric === 'count') return String(c.count);
+            if (metric === 'margin') return (c.sales ? c.profit / c.sales * 100 : 0).toFixed(1) + '%';
+            return fmtMoney(c[metric]);
+        };
+        const fmtPlain = (c) => !c || !c.count ? '-' : (metric === 'count' ? String(c.count) : metric === 'margin' ? (c.sales ? c.profit / c.sales * 100 : 0).toFixed(1) + '%' : fmtMoney(c[metric]));
+        let maxV = 0;
+        shown.forEach(r => M.months.forEach(m => { const c = r.per[m]; if (c && c.count && metric !== 'margin') maxV = Math.max(maxV, c[metric]); }));
+        const cellBg = (c) => {
+            if (!c || !c.count) return '';
+            if (metric === 'margin') {
+                const mg = c.sales ? c.profit / c.sales * 100 : 0;
+                if (mg < 0)  return 'background:rgba(239,68,68,.32)';
+                if (mg < 20) return 'background:rgba(249,115,22,.24)';
+                return `background:rgba(16,185,129,${Math.min(.45, .10 + (mg - 20) / 70).toFixed(2)})`;
+            }
+            const v = c[metric];
+            if (v < 0) return 'background:rgba(239,68,68,.32)';
+            return `background:rgba(16,185,129,${(maxV > 0 ? .07 + .50 * Math.min(1, v / maxV) : 0).toFixed(2)})`;
+        };
+        const medal = (i) => `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-black ${i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-400 text-white' : i === 2 ? 'bg-orange-400 text-white' : 'bg-slate-100 text-slate-500'}">${i + 1}</span>`;
+        const periodTxt = (rankingFilter.start || rankingFilter.end) ? `${rankingFilter.start || '…'} 〜 ${rankingFilter.end || '…'}` : '全期間';
+        const presetBtn = (k, t) => `<button onclick="window.mvPreset('${k}')" class="text-[11px] bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 px-2 py-1 rounded-lg font-bold text-slate-600 transition-colors">${t}</button>`;
+
+        // 操作パネル
+        let html = `<div class="glass-panel rounded-xl px-5 py-4 border-t-4 border-emerald-500 space-y-3">
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+                <div class="flex items-center gap-2"><span class="text-xs font-bold text-slate-500">日付の基準</span>${seg('basis', [['completion', '完了日'], ['voucher', '伝票日付']], 'mvSetBasis')}</div>
+                <span class="text-xs text-slate-500"><i class="fa-solid fa-circle-info mr-1 text-emerald-500"></i>${B.desc}</span>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
+                <div class="flex items-center gap-2"><span class="text-xs font-bold text-slate-500">見る単位</span>${seg('dim', Object.entries(MV_DIMS).map(([k, v]) => [k, v.label]))}</div>
+                <div class="flex items-center gap-2"><span class="text-xs font-bold text-slate-500">指標</span>${seg('metric', Object.entries(MV_METRICS).map(([k, v]) => [k, k === 'count' ? B.countLabel : v]))}</div>
+                <div class="flex items-center gap-2"><span class="text-xs font-bold text-slate-500">表示</span>${seg('mode', [['matrix', '月×一覧（表）'], ['rank', '月ごとのランキング']])}</div>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+                <div class="flex items-center gap-2"><span class="text-xs font-bold text-slate-500">拠点</span>
+                    <select onchange="window.mvSet('branch', this.value)" class="${sel}"><option value="ALL" ${st.branch === 'ALL' ? 'selected' : ''}>全拠点</option>${mvBranches.map(b => `<option value="${rankEsc(b)}" ${st.branch === b ? 'selected' : ''}>${rankEsc(b)}</option>`).join('')}</select></div>
+                <div class="flex items-center gap-2"><span class="text-xs font-bold text-slate-500">表示件数</span>
+                    <select onchange="window.mvSet('top', Number(this.value))" class="${sel}">${[[5, '上位5'], [10, '上位10'], [20, '上位20'], [50, '上位50'], [0, 'すべて']].map(([v, t]) => `<option value="${v}" ${st.top === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+                <div class="flex items-center gap-2"><span class="text-xs font-bold text-slate-500">金額の単位</span>${seg('unit', [['man', '万円'], ['yen', '円']])}</div>
+                ${isV ? '' : `<span class="ml-auto text-xs text-slate-500"><i class="fa-regular fa-calendar mr-1"></i>完了日の期間：<b class="text-slate-700">${periodTxt}</b>（上の「集計期間」に連動）</span>`}
+            </div>
+            ${isV ? `<div class="flex flex-wrap items-center gap-2"><span class="text-xs font-bold text-slate-500"><i class="fa-regular fa-calendar mr-1"></i>伝票の年月</span>
+                <input type="month" value="${rankEsc(st.monthStart)}" onchange="window.mvSet('monthStart', this.value)" class="${inp}"><span class="text-slate-400 text-xs">〜</span>
+                <input type="month" value="${rankEsc(st.monthEnd)}" onchange="window.mvSet('monthEnd', this.value)" class="${inp}">
+                <span class="text-[11px] text-slate-400 ml-1">空欄＝全期間</span>
+                <span class="ml-2 flex flex-wrap gap-1.5">${presetBtn('fy', '今年度')}${presetBtn('h1', '上期')}${presetBtn('h2', '下期')}${presetBtn('year', '今年')}${presetBtn('all', 'クリア')}</span></div>` : ''}
+            </div>`;
+
+        if (M.months.length === 0) {
+            html += `<div class="glass-panel rounded-xl px-5 py-10 text-center text-slate-400 text-sm"><i class="fa-regular fa-folder-open text-2xl mb-2 block"></i>${isV ? 'この条件に該当する伝票がありません。<br>伝票の年月や拠点を確認してください。' : 'この条件に該当する完了現場がありません。<br>上の「集計期間（完了日）」や拠点を確認してください。'}</div>`;
+            root.innerHTML = html; return;
+        }
+
+        // KPI
+        const g = M.grand, gMargin = g.sales ? g.profit / g.sales * 100 : 0;
+        const bestM = M.months.reduce((b, m) => { const c = M.colTot[m]; const v = metric === 'margin' ? (c.sales ? c.profit / c.sales * 100 : -Infinity) : c[metric]; return v > b.v ? { m, v } : b; }, { m:null, v:-Infinity }).m;
+        const kpi = (t, v, sub, cls) => `<div class="glass-panel rounded-xl px-4 py-3"><div class="text-xs font-bold text-slate-500">${t}</div><div class="text-xl font-black ${cls || 'text-slate-800'} mt-0.5">${v}</div><div class="text-[11px] text-slate-400 mt-0.5">${sub || ''}</div></div>`;
+        html += `<div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            ${kpi('売上（税抜）', formatCurrency(g.sales), `${M.months.length}か月・${M.rows.length}${rankEsc(D.label)}`)}
+            ${kpi('原価', formatCurrency(g.cost), '')}
+            ${kpi('粗利益（税抜）', formatCurrency(g.profit), '', g.profit < 0 ? 'text-red-600' : 'text-slate-800')}
+            ${kpi('粗利率', gMargin.toFixed(1) + '%', '', gMargin < 0 ? 'text-red-600' : gMargin < 20 ? 'text-orange-600' : 'text-emerald-600')}
+            ${kpi(B.countLabel, g.count.toLocaleString() + '件', '')}
+            ${kpi(`${metric === 'count' ? B.countLabel : MV_METRICS[metric]}が最大の月`, bestM ? bestM.replace('-', '/') : '-', '')}
+        </div>`;
+
+        // 月別合計チャート
+        html += `<div class="glass-panel rounded-xl px-5 py-4"><div class="text-sm font-bold text-slate-700 mb-2"><i class="fa-solid fa-chart-column mr-1.5 text-emerald-500"></i>${B.label}の月ごとの合計（${rankEsc(st.branch === 'ALL' ? '全拠点' : st.branch)}）</div><div class="h-56"><canvas id="mv-chart"></canvas></div></div>`;
+
+        const metricName = metric === 'count' ? B.countLabel : MV_METRICS[metric];
+        if (st.mode === 'matrix') {
+            const th = 'px-3 py-2 text-right font-bold text-slate-600 whitespace-nowrap';
+            html += `<div class="glass-panel rounded-xl overflow-hidden">
+                <div class="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+                    <span class="font-bold text-slate-700"><i class="fa-solid fa-table-cells mr-1.5 text-emerald-500"></i>${rankEsc(D.label)}別 × ${B.label}の月（${metricName}${isMoney ? '／単位：' + unitTxt : ''}）</span>
+                    <span class="text-xs text-slate-400">色が濃いほど大きい${metric === 'margin' ? '（赤＝赤字、橙＝20%未満）' : '（赤＝マイナス）'}・セルを押すと内訳が下に出ます</span></div>
+                <div class="overflow-x-auto"><table class="w-full text-sm border-separate border-spacing-0">
+                <thead><tr class="bg-slate-50"><th class="px-3 py-2 text-center font-bold text-slate-600 w-12">順位</th><th class="px-3 py-2 text-left font-bold text-slate-600 sticky left-0 bg-slate-50 whitespace-nowrap">${rankEsc(D.label)}</th>${M.months.map(m => `<th class="${th}">${m.replace('-', '/')}</th>`).join('')}<th class="${th} bg-slate-100">合計</th></tr></thead>
+                <tbody>
+                ${shown.map((r, i) => `<tr class="hover:bg-slate-50"><td class="px-3 py-2 text-center border-t border-slate-100">${medal(i)}</td>
+                    <td class="px-3 py-2 font-medium text-slate-700 sticky left-0 bg-white whitespace-nowrap border-t border-slate-100"><button class="hover:text-emerald-600 hover:underline text-left" onclick="window.mvShowCell(${i},'ALL')">${rankEsc(r.name)}</button></td>
+                    ${M.months.map(m => `<td onclick="window.mvShowCell(${i},'${m}')" class="px-3 py-2 text-right font-mono whitespace-nowrap cursor-pointer border-t border-slate-100" style="${cellBg(r.per[m])}">${fmtV(r.per[m])}</td>`).join('')}
+                    <td onclick="window.mvShowCell(${i},'ALL')" class="px-3 py-2 text-right font-mono font-bold bg-slate-50 whitespace-nowrap cursor-pointer border-t border-slate-100">${fmtV(r.tot)}</td></tr>`).join('')}
+                ${rest.length ? `<tr class="text-slate-500"><td class="px-3 py-2 border-t border-slate-100"></td><td class="px-3 py-2 sticky left-0 bg-white whitespace-nowrap border-t border-slate-100">その他（${rest.length}${rankEsc(D.label)}）</td>${M.months.map(m => `<td class="px-3 py-2 text-right font-mono whitespace-nowrap border-t border-slate-100">${fmtV(restPer[m])}</td>`).join('')}<td class="px-3 py-2 text-right font-mono bg-slate-50 whitespace-nowrap border-t border-slate-100">${fmtV(restTot)}</td></tr>` : ''}
+                <tr class="font-bold bg-emerald-50"><td class="px-3 py-2 border-t-2 border-emerald-200"></td><td class="px-3 py-2 sticky left-0 bg-emerald-50 border-t-2 border-emerald-200">全体の合計</td>${M.months.map(m => `<td class="px-3 py-2 text-right font-mono whitespace-nowrap border-t-2 border-emerald-200">${fmtV(M.colTot[m])}</td>`).join('')}<td class="px-3 py-2 text-right font-mono whitespace-nowrap border-t-2 border-emerald-200">${fmtV(M.grand)}</td></tr>
+                </tbody></table></div></div>`;
+        } else {
+            // 月ごとのランキング：その月の上位を、棒つきで並べる
+            const topN = st.top || 99;
+            html += `<div class="text-sm font-bold text-slate-700 px-1"><i class="fa-solid fa-ranking-star mr-1.5 text-emerald-500"></i>${B.label}の月ごとの${rankEsc(D.label)}ランキング（${metricName}${isMoney ? '／単位：' + unitTxt : ''}・上位${st.top || 'すべて'}）</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                ${M.months.map(m => {
+                    const list = M.rows.map((r, idx) => ({ r, idx, c: r.per[m] })).filter(x => x.c && x.c.count && (metric !== 'margin' || x.c.sales > 0));
+                    list.sort((a, b) => mval(b.c) - mval(a.c));
+                    const top = list.slice(0, topN);
+                    const mx = Math.max(...top.map(x => Math.max(0, mval(x.c))), 0);
+                    return `<div class="glass-panel rounded-xl overflow-hidden">
+                        <div class="px-4 py-2.5 bg-emerald-50 border-b border-emerald-100 flex items-center"><span class="font-black text-emerald-800">${m.replace('-', '/')}</span><span class="ml-auto text-xs text-slate-500">全体 <b class="text-slate-700 font-mono">${fmtPlain(M.colTot[m])}</b>・${list.length}${rankEsc(D.label)}</span></div>
+                        <div class="px-3 py-2 space-y-1.5">${top.map((x, i) => { const v = mval(x.c); const w = mx > 0 ? Math.max(0, v) / mx * 100 : 0;
+                            return `<button onclick="window.mvShowCell(${x.idx},'${m}')" class="w-full text-left group"><div class="flex items-center gap-2">${medal(i)}<span class="text-sm text-slate-700 truncate group-hover:text-emerald-600">${rankEsc(x.r.name)}</span><span class="ml-auto text-sm font-mono ${v < 0 ? 'text-red-600' : 'text-slate-700'} whitespace-nowrap">${fmtPlain(x.c)}</span></div>
+                            <div class="h-1.5 rounded bg-slate-100 mt-1 ml-8"><div class="h-1.5 rounded ${v < 0 ? 'bg-red-400' : 'bg-emerald-400'}" style="width:${w.toFixed(1)}%"></div></div></button>`; }).join('') || '<div class="text-xs text-slate-300 py-3 text-center">該当なし</div>'}</div></div>`;
+                }).join('')}</div>`;
+        }
+        html += `<div id="mv-detail"></div>`;
+        root.innerHTML = html;
+
+        // チャート（売上・原価・粗利益＝棒、粗利率＝線）
+        const ctx = document.getElementById('mv-chart');
+        if (ctx && typeof Chart !== 'undefined') {
+            const ct = (k) => M.months.map(m => M.colTot[m][k]);
+            chartMonthView = new Chart(ctx, { type:'bar', data:{ labels: M.months.map(m => m.replace('-', '/')), datasets:[
+                { label:'売上(税抜)', data: ct('sales'),  backgroundColor:'#10b981', order:2 },
+                { label:'原価',       data: ct('cost'),   backgroundColor:'#f87171', order:2 },
+                { label:'粗利益',     data: ct('profit'), backgroundColor:'#3b82f6', order:2 },
+                { label:'粗利率(%)',  data: M.months.map(m => M.colTot[m].sales ? +(M.colTot[m].profit / M.colTot[m].sales * 100).toFixed(1) : null), type:'line', yAxisID:'y1', borderColor:'#f59e0b', backgroundColor:'#f59e0b', tension:.25, order:1 } ] },
+                options:{ maintainAspectRatio:false, scales:{ y:{ ticks:{ callback: v => (v / 10000).toLocaleString() + '万' } }, y1:{ position:'right', grid:{ drawOnChartArea:false }, ticks:{ callback: v => v + '%' } } } } });
+        }
+    };
+
+    // セル／行の内訳（現場一覧）
+    window.mvShowCell = function(idx, ym) {
+        const box = document.getElementById('mv-detail'); if (!box || !mvView) return;
+        const row = mvView.rowsAll[idx]; if (!row) return;
+        const D = MV_DIMS[mvState.dim], B = MV_BASIS[mvState.basis], isV = mvState.basis === 'voucher';
+        // rankBuildMonthMatrix の行は元の現場を持たないため、元データから再抽出する
+        const list = mvRaw.filter(r => (mvState.branch === 'ALL' || r.branch === mvState.branch) && mvInRange(r) && D.key(r) === row.name && (ym === 'ALL' || mvYm(r) === ym))
+                          .sort((a, b) => (mvYm(a) || '').localeCompare(mvYm(b) || '') || (window.parseDateValue(a.endDate) || 0) - (window.parseDateValue(b.endDate) || 0) || b.sales - a.sales);
+        const t = list.reduce((a, r) => { a.sales += r.sales; a.cost += r.cost; a.profit += r.profit; return a; }, { sales:0, cost:0, profit:0 });
+        const nSites = new Set(list.map(r => r.code)).size;
+        const fd = (r) => { if (isV) return (mvYm(r) || '').replace('-', '/'); const ts = window.parseDateValue(r.endDate); if (!ts) return ''; const d = new Date(ts); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; };
+        const mg = (r) => r.sales ? (r.profit / r.sales * 100).toFixed(1) + '%' : '-';
+        box.innerHTML = `<div class="glass-panel rounded-xl overflow-hidden border-l-4 border-emerald-500">
+            <div class="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+                <span class="font-bold text-slate-800">${rankEsc(row.name)}</span>
+                <span class="text-sm text-emerald-700 font-bold">${ym === 'ALL' ? '全期間' : ym.replace('-', '/')}</span>
+                <span class="text-xs text-slate-500">${nSites}現場　売上 ${formatCurrency(t.sales)}　原価 ${formatCurrency(t.cost)}　粗利 ${formatCurrency(t.profit)}（${t.sales ? (t.profit / t.sales * 100).toFixed(1) : '-'}%）</span>
+                <button onclick="document.getElementById('mv-detail').innerHTML=''" class="ml-auto text-xs text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark mr-1"></i>閉じる</button></div>
+            <div class="overflow-x-auto"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-600"><tr>
+                ${['工番', '現場名', B.dateCol, '拠点', '施工主', '得意先', '担当者'].map(h => `<th class="px-3 py-2 text-left whitespace-nowrap">${h}</th>`).join('')}
+                ${['売上(税抜)', '原価', '粗利', '粗利率'].map(h => `<th class="px-3 py-2 text-right whitespace-nowrap">${h}</th>`).join('')}</tr></thead>
+            <tbody class="divide-y divide-slate-100">${list.map(r => `<tr class="hover:bg-slate-50"><td class="px-3 py-1.5 font-mono whitespace-nowrap">${rankEsc(r.code)}</td><td class="px-3 py-1.5">${rankEsc(r.name)}</td><td class="px-3 py-1.5 whitespace-nowrap">${fd(r)}</td><td class="px-3 py-1.5">${rankEsc(r.branch)}</td><td class="px-3 py-1.5">${rankEsc(r.owner)}</td><td class="px-3 py-1.5">${rankEsc(r.customer)}</td><td class="px-3 py-1.5">${rankEsc(r.manager)}</td>
+                <td class="px-3 py-1.5 text-right font-mono">${formatCurrency(r.sales)}</td><td class="px-3 py-1.5 text-right font-mono">${formatCurrency(r.cost)}</td><td class="px-3 py-1.5 text-right font-mono ${r.profit < 0 ? 'text-red-600' : ''}">${formatCurrency(r.profit)}</td><td class="px-3 py-1.5 text-right">${mg(r)}</td></tr>`).join('')}</tbody></table></div></div>`;
+        box.scrollIntoView({ behavior:'smooth', block:'nearest' });
+    };
+
     window.sortAndRender = function(data, tbodyId, sortSelectId, groupLabel) { 
         const sel = document.getElementById(sortSelectId);
         const sortKey = sel ? sel.value : 'profit'; 
@@ -10022,6 +10417,7 @@
                 tbody.appendChild(tr);
             }); 
         }
+        window.renderRankingMonthCard(groupLabel, data);
         return data;
     }
 
