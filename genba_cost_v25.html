@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v107</title>
+    <title>G-Ledger | 現場原価管理台帳システム v108</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -1178,6 +1178,21 @@
                         </div>
                     </div>
                 </div><!-- /ss-detail-panel -->
+                <!-- 内訳の窓（取引件数・取引現場数・得意先数の中身） -->
+                <div id="ss-drill" class="hidden fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this) window.ssDrillClose()">
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[88vh] flex flex-col">
+                        <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap">
+                            <div class="min-w-0"><div class="text-xs text-slate-400 font-bold">内訳</div><div id="ss-drill-title" class="text-base font-black text-slate-800 truncate"></div></div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <div id="ss-drill-kinds" class="inline-flex rounded-lg border border-slate-300 overflow-hidden"></div>
+                                <button onclick="window.ssDrillExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow transition-colors"><i class="fa-solid fa-file-excel"></i> Excel出力</button>
+                                <button onclick="window.ssDrillClose()" class="text-slate-500 hover:text-slate-800 text-sm font-bold px-2 py-1" title="閉じる"><i class="fa-solid fa-xmark"></i> 閉じる</button>
+                            </div>
+                        </div>
+                        <div id="ss-drill-sum" class="px-5 py-2 text-xs text-slate-500 border-b border-slate-100 bg-slate-50"></div>
+                        <div id="ss-drill-body" class="overflow-auto flex-1"></div>
+                    </div>
+                </div>
             </div><!-- /page-sales-search -->
 
             <div id="page-ranking" class="page-content hidden space-y-4">
@@ -11286,7 +11301,7 @@
     ;(function() {
         const PAGE_SIZE = 50, NONE_OWNER = '（施工主未設定）', NONE_CUST = '（得意先名なし）', NO_CODE = '（コードなし）', NO_MGR = '（担当者未設定）', NO_BR = '（拠点不明）', NO_DATE = '（日付不明）';
         const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16', '#94a3b8'];
-        const ss = { rows: [], filtered: [], axis: 'customer', sort: 'amount_desc', page: 1, expanded: new Set(), groups: [], detail: null, charts: {}, tab: { l: 'list', d: 'overview' }, cn: new Map(), on: new Map(), hasOwnerData: false, cross: {}, dimState: {}, injected: false };
+        const ss = { rows: [], filtered: [], axis: 'customer', sort: 'amount_desc', page: 1, expanded: new Set(), groups: [], detail: null, charts: {}, tab: { l: 'list', d: 'overview' }, cn: new Map(), on: new Map(), hasOwnerData: false, cross: {}, dimState: {}, injected: false, dr: {}, drill: null };
         const $ = (id) => document.getElementById(id);
         const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         const nkey = (v) => String(v == null ? '' : v).normalize('NFKC').toLowerCase().replace(/[\s\u3000]+/g, '');
@@ -11301,6 +11316,9 @@
         const childOf = (r, axis) => axis === 'owner' ? r.ckey : (r.ccode || '__nocode__');
         const groupOf = (r, axis) => axis === 'owner' ? r.okey : r.ckey;
         const short = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; };
+        // 数字を押すと内訳（明細・現場一覧・得意先一覧）が開く。行の集合は、押したときに計算する
+        const dreg = (p, title, fn, mode) => { (ss.dr[p] = ss.dr[p] || []).push({ title, fn, mode }); return ss.dr[p].length - 1; };
+        const dbtn = (p, idx, kind, text, cls) => `<button onclick="window.ssDrill('${p}',${idx},'${kind}')" class="${cls || 'font-mono text-blue-700 hover:text-blue-900'} hover:underline" title="内訳を見る">${text}</button>`;
 
         // ── 切り口（クロス集計・拠点別・担当者別で使う）──
         const DIM = {
@@ -11395,9 +11413,10 @@
             <div class="glass-panel rounded-xl overflow-hidden"><div class="overflow-auto max-h-[32rem]"><table class="w-full text-sm">
                 <thead class="bg-slate-100 text-slate-600 text-xs sticky top-0"><tr><th class="px-4 py-2 text-left">${title}</th><th class="px-4 py-2 text-right">売上（税抜）</th><th class="px-4 py-2 text-center">取引件数</th><th class="px-4 py-2 text-center">取引現場数</th><th class="px-4 py-2 text-center">得意先数</th><th class="px-4 py-2 text-left w-48">構成比</th><th class="px-4 py-2 text-right">1現場あたり</th></tr></thead>
                 <tbody id="${p}-body" class="divide-y divide-slate-100"></tbody></table></div></div>`;
-        const dimRowCells = (o, base, parentAmt) => `<td class="px-4 py-2 text-right font-mono">${yen(o.amount)}</td><td class="px-4 py-2 text-center">${o.count.toLocaleString()}</td><td class="px-4 py-2 text-center">${o.nSites}</td><td class="px-4 py-2 text-center">${o.nCusts}</td><td class="px-4 py-2">${shareBar(base > 0 ? o.amount / base * 100 : 0)}</td><td class="px-4 py-2 text-right font-mono text-slate-500">${yen(o.nSites ? o.amount / o.nSites : 0)}</td>`;
+        const dimRowCells = (o, base, p, id) => `<td class="px-4 py-2 text-right font-mono">${yen(o.amount)}</td><td class="px-4 py-2 text-center">${dbtn(p, id, 'lines', o.count.toLocaleString())}</td><td class="px-4 py-2 text-center">${dbtn(p, id, 'sites', o.nSites)}</td><td class="px-4 py-2 text-center">${dbtn(p, id, 'custs', o.nCusts)}</td><td class="px-4 py-2">${shareBar(base > 0 ? o.amount / base * 100 : 0)}</td><td class="px-4 py-2 text-right font-mono text-slate-500">${yen(o.nSites ? o.amount / o.nSites : 0)}</td>`;
         const paintDim = (p, withCharts) => {
             const st = ss.dimState[p]; if (!st) return;
+            ss.dr[p] = [];
             const list = dimTable(st.rows, st.dim); st.list = list;
             const total = list.reduce((s, o) => s + o.amount, 0), sub = $(`${p}-sub`) ? $(`${p}-sub`).value : 'none';
             if (withCharts) {
@@ -11410,10 +11429,11 @@
             const out = [];
             list.forEach((o, i) => {
                 const open = sub !== 'none' && st.open.has(o.name);
-                out.push(`<tr class="hover:bg-slate-50 ${open ? 'bg-blue-50/30' : ''}"><td class="px-4 py-2 font-bold text-slate-700"><div class="flex items-center gap-2">${sub !== 'none' ? `<button onclick="window.ssDimToggle('${p}',${i})" class="w-5 h-5 shrink-0 rounded text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid ${open ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]"></i></button>` : ''}<span>${esc(o.name)}</span></div></td>${dimRowCells(o, total)}</tr>`);
+                const oid = dreg(p, `${DIM[st.dim].label}：${o.name}`, () => st.rows.filter(r => DIM[st.dim].get(r) === o.name), 'name');
+                out.push(`<tr class="hover:bg-slate-50 ${open ? 'bg-blue-50/30' : ''}"><td class="px-4 py-2 font-bold text-slate-700"><div class="flex items-center gap-2">${sub !== 'none' ? `<button onclick="window.ssDimToggle('${p}',${i})" class="w-5 h-5 shrink-0 rounded text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid ${open ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]"></i></button>` : ''}<span>${esc(o.name)}</span></div></td>${dimRowCells(o, total, p, oid)}</tr>`);
                 if (open) {
                     const kids = dimTable(st.rows.filter(r => DIM[st.dim].get(r) === o.name), sub), shown = kids.slice(0, 10), rest = kids.slice(10);
-                    shown.forEach(c => out.push(`<tr class="bg-slate-50/80"><td class="px-4 py-1.5 pl-12 text-slate-600"><i class="fa-solid fa-turn-down-right text-slate-300 text-[10px] mr-2"></i>${esc(c.name)}</td>${dimRowCells(c, o.amount)}</tr>`));
+                    shown.forEach(c => { const cid = dreg(p, `${DIM[st.dim].label}：${o.name} ／ ${DIM[sub].label}：${c.name}`, () => st.rows.filter(r => DIM[st.dim].get(r) === o.name && DIM[sub].get(r) === c.name), 'name'); out.push(`<tr class="bg-slate-50/80"><td class="px-4 py-1.5 pl-12 text-slate-600"><i class="fa-solid fa-turn-down-right text-slate-300 text-[10px] mr-2"></i>${esc(c.name)}</td>${dimRowCells(c, o.amount, p, cid)}</tr>`); });
                     if (rest.length) out.push(`<tr class="bg-slate-50/80"><td class="px-4 py-1.5 pl-12 text-slate-400 text-xs">ほか ${rest.length} 件（${yen(rest.reduce((s, c) => s + c.amount, 0))}）</td><td colspan="6"></td></tr>`);
                 }
             });
@@ -11466,7 +11486,7 @@
             });
             const kids = new Map();
             kidRaw.forEach((m, a) => { const l = [...m.values()].sort((x, y) => y.tot - x.tot); const top = l.slice(0, 10), rest = l.slice(10); if (rest.length) { const o = { name: `ほか ${rest.length} 件`, tot: 0, cells: new Map() }; rest.forEach(x => { o.tot += x.tot; x.cells.forEach((v, b) => o.cells.set(b, (o.cells.get(b) || 0) + v)); }); top.push(o); } kids.set(a, top); });
-            return { R: R.keys, C: C.keys, cell, rowT, colT, grand, max, kids };
+            return { R: R.keys, C: C.keys, cell, rowT, colT, grand, max, kids, keepR: R.keep, keepC: C.keep };
         };
         const crossRender = (p, rows) => {
             if (!$(`${p}-x-sub`).options.length) fillCrossSub(p);
@@ -11475,6 +11495,10 @@
             const old = ss.cross[p]; ss.cross[p] = { X, rd, cd, sd, meas, open: old && old.rd === rd && old.sd === sd ? old.open : new Set() };
             const f = (v) => meas === 'count' ? (v ? v.toLocaleString() : '') : (v ? yen(v) : '');
             if (!X.R.length) { $(`${p}-x-box`).innerHTML = '<div class="px-4 py-8 text-center text-slate-400 text-sm">該当なし</div>'; return; }
+            ss.dr[p] = [];
+            const inR = (r, a) => a === 'その他' ? !X.keepR.has(DIM[rd].get(r)) : DIM[rd].get(r) === a;
+            const inC = (r, b) => b === 'その他' ? !X.keepC.has(DIM[cd].get(r)) : DIM[cd].get(r) === b;
+            const cbtn = (title, fn, text) => dbtn(p, dreg(p, title, fn, 'name'), 'lines', text, 'font-mono text-slate-800');
             const heat = (v) => v > 0 && X.max > 0 ? `background:rgba(59,130,246,${(0.10 + 0.50 * v / X.max).toFixed(2)});` : '';
             const neg = (v) => v < 0 ? 'color:#dc2626;' : '';
             const th = 'px-3 py-2 text-right whitespace-nowrap font-bold';
@@ -11482,11 +11506,11 @@
             X.R.forEach((a, ri) => {
                 const kids = sd !== 'none' ? (X.kids.get(a) || []) : [], open = kids.length > 0 && ss.cross[p].open.has(a);
                 h += `<tr class="border-t border-slate-200"><td class="px-3 py-1.5 font-bold text-slate-800 sticky left-0 bg-white whitespace-nowrap"><div class="flex items-center gap-2">${kids.length ? `<button onclick="window.ssCrossToggle('${p}',${ri})" class="w-5 h-5 shrink-0 rounded text-slate-500 hover:bg-slate-200 flex items-center justify-center"><i class="fa-solid ${open ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]"></i></button>` : '<span class="w-5 shrink-0"></span>'}<span>${esc(a)}</span></div></td>`;
-                X.C.forEach(b => { const v = X.cell.get(a + '\u0000' + b) || 0; h += `<td class="px-3 py-1.5 text-right font-mono text-slate-800" style="${heat(v)}${neg(v)}">${f(v)}</td>`; });
-                h += `<td class="px-3 py-1.5 text-right font-mono font-bold" style="background:#fff1e6;color:#9a3412">${f(X.rowT.get(a) || 0)}</td></tr>`;
+                X.C.forEach(b => { const v = X.cell.get(a + '\u0000' + b) || 0; h += `<td class="px-3 py-1.5 text-right font-mono text-slate-800" style="${heat(v)}${neg(v)}">${v ? cbtn(`${DIM[rd].label}：${a} × ${DIM[cd].label}：${b}`, () => rows.filter(r => inR(r, a) && inC(r, b)), f(v)) : ''}</td>`; });
+                h += `<td class="px-3 py-1.5 text-right font-mono font-bold" style="background:#fff1e6;color:#9a3412">${cbtn(`${DIM[rd].label}：${a}（合計）`, () => rows.filter(r => inR(r, a)), f(X.rowT.get(a) || 0))}</td></tr>`;
                 if (open) kids.forEach(k => {
                     h += `<tr class="border-t border-slate-100" style="background:#f8fafc"><td class="px-3 py-1 pl-10 text-slate-600 sticky left-0 whitespace-nowrap" style="background:#f8fafc"><i class="fa-solid fa-turn-down-right text-slate-300 text-[10px] mr-2"></i>${esc(k.name)}</td>`;
-                    X.C.forEach(b => { const v = k.cells.get(b) || 0; h += `<td class="px-3 py-1 text-right font-mono text-slate-600" style="${heat(v).replace(/[\d.]+\)/, m => (parseFloat(m) * 0.6).toFixed(2) + ')')}${neg(v)}">${f(v)}</td>`; });
+                    const kd = !k.name.startsWith('ほか '); X.C.forEach(b => { const v = k.cells.get(b) || 0; h += `<td class="px-3 py-1 text-right font-mono text-slate-600" style="${heat(v).replace(/[\d.]+\)/, m => (parseFloat(m) * 0.6).toFixed(2) + ')')}${neg(v)}">${v && kd ? cbtn(`${DIM[rd].label}：${a} ／ ${DIM[sd].label}：${k.name} × ${DIM[cd].label}：${b}`, () => rows.filter(r => inR(r, a) && inC(r, b) && DIM[sd].get(r) === k.name), f(v)) : f(v)}</td>`; });
                     h += `<td class="px-3 py-1 text-right font-mono text-slate-700" style="background:#fff7ed">${f(k.tot)}</td></tr>`;
                 });
             });
@@ -11588,16 +11612,20 @@
         window.toggleSalesGroup = function(gi) { const g = ss.groups[gi]; if (!g) return; if (ss.expanded.has(g.key)) ss.expanded.delete(g.key); else ss.expanded.add(g.key); renderList(); };
         window.toggleAllSalesGroups = function(open) { ss.expanded.clear(); if (open) ss.groups.forEach(g => { if (g.kidList.length > 1) ss.expanded.add(g.key); }); renderList(); };
 
-        const card = (label, value, sub, accent) => `<div class="glass-panel p-4 rounded-xl border-l-4 ${accent ? 'border-blue-500' : 'border-slate-300'}"><div class="text-xs text-slate-400 font-bold mb-1">${label}</div><div class="text-base font-black text-slate-800 font-mono truncate">${value}</div>${sub ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">${sub}</div>` : ''}</div>`;
+        const card = (label, value, sub, accent, dr) => `<div class="glass-panel p-4 rounded-xl border-l-4 ${accent ? 'border-blue-500' : 'border-slate-300'}"><div class="text-xs text-slate-400 font-bold mb-1">${label}${dr ? ' <span class="font-normal">（押すと内訳）</span>' : ''}</div><div class="text-base font-black text-slate-800 font-mono truncate">${dr ? dbtn(dr[0], dr[1], dr[2], value, 'font-mono text-blue-700') : value}</div>${sub ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">${sub}</div>` : ''}</div>`;
         const renderCards = () => {
+            ss.dr.lc = [];
             const total = ss.groups.reduce((s, g) => s + g.amount, 0), count = ss.groups.reduce((s, g) => s + g.count, 0);
             const sites = new Set(ss.filtered.map(r => r.siteCode).filter(Boolean)).size;
+            const custs = new Set(ss.filtered.map(r => r.ckey)).size;
             const top10 = ss.groups.slice().sort((a, b) => b.amount - a.amount).slice(0, 10).reduce((s, g) => s + g.amount, 0);
+            const id = dreg('lc', `現在の絞り込み条件すべて（${axisLabel()}ごと）`, () => ss.filtered, 'name');
             $('ss-cards').innerHTML = card('売上合計（税抜）', yen(total), `税込 ${yen(ss.groups.reduce((s, g) => s + g.inc, 0))}`, true)
                 + card(`${axisLabel()}数`, ss.groups.length.toLocaleString(), '')
-                + card('取引現場数', sites.toLocaleString(), '')
-                + card('取引件数', count.toLocaleString(), '')
-                + card(`上位10の構成比`, total > 0 ? (top10 / total * 100).toFixed(1) + '%' : '-', `上位10${axisLabel()}の売上 ÷ 売上合計`);
+                + (ss.axis === 'owner' ? card('得意先数', custs.toLocaleString(), '', false, ['lc', id, 'custs']) : '')
+                + card('取引現場数', sites.toLocaleString(), '', false, ['lc', id, 'sites'])
+                + card('取引件数', count.toLocaleString(), '', false, ['lc', id, 'lines'])
+                + card('上位10の構成比', total > 0 ? (top10 / total * 100).toFixed(1) + '%' : '-', `上位10${axisLabel()}の売上 ÷ 売上合計`);
         };
         const renderListCharts = (rows) => {
             const top = ss.groups.slice().sort((a, b) => b.amount - a.amount);
@@ -11614,6 +11642,7 @@
             const total = ss.groups.length, tp = Math.ceil(total / PAGE_SIZE) || 1;
             if (ss.page > tp) ss.page = tp;
             const start = (ss.page - 1) * PAGE_SIZE, pageData = ss.groups.slice(start, start + PAGE_SIZE);
+            ss.dr.lt = [];
             $('ss-count-badge').textContent = `${total.toLocaleString()} ${axisLabel()}`;
             $('ss-result-count').textContent = total === 0 ? '該当なし' : `${start + 1}〜${Math.min(start + PAGE_SIZE, total)} ${axisLabel()} / 全 ${total.toLocaleString()} ${axisLabel()}（売上明細 ${ss.filtered.length.toLocaleString()} 行）`;
             $('ss-notice').classList.toggle('hidden', !(ss.rows.length > 0 && !ss.hasOwnerData));
@@ -11624,9 +11653,10 @@
             const out = [];
             pageData.forEach((g, idx) => {
                 const gi = start + idx, multi = g.kidList.length > 1, open = multi && ss.expanded.has(g.key);
+                const ax = ss.axis, gId = dreg('lt', g.name, () => ss.filtered.filter(r => groupOf(r, ax) === g.key), ax === 'owner' ? 'name' : 'code');
                 const sub = ss.axis === 'owner'
-                    ? `<span class="inline-flex items-center bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-bold">${g.kidList.length} 得意先</span>`
-                    : (multi ? `<span class="inline-flex items-center bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-bold">${g.kidList.length} 得意先コード</span>` : `<span class="font-mono text-slate-400">${esc(g.kidList[0] && g.kidList[0].codeList.join(' / ') || NO_CODE)}</span>`);
+                    ? `<span class="inline-flex items-center bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-bold"><button onclick="window.ssDrill('lt',${gId},'custs')" class="hover:underline" title="内訳を見る">${g.kidList.length} 得意先</button></span>`
+                    : (multi ? `<span class="inline-flex items-center bg-blue-50 text-blue-700 border border-blue-200 rounded px-1.5 py-0.5 font-bold"><button onclick="window.ssDrill('lt',${gId},'custs')" class="hover:underline" title="内訳を見る">${g.kidList.length} 得意先コード</button></span>` : `<span class="font-mono text-slate-400">${esc(g.kidList[0] && g.kidList[0].codeList.join(' / ') || NO_CODE)}</span>`);
                 out.push(`<tr class="hover:bg-blue-50/30 transition-colors border-b border-slate-100 ${open ? 'bg-blue-50/20' : ''}">
                     <td class="px-4 py-2.5"><div class="flex items-start gap-2">
                         ${multi ? `<button onclick="window.toggleSalesGroup(${gi})" class="mt-0.5 w-5 h-5 shrink-0 rounded text-slate-500 hover:bg-slate-200 flex items-center justify-center" title="${open ? '内訳を閉じる' : '内訳を開く'}"><i class="fa-solid ${open ? 'fa-chevron-down' : 'fa-chevron-right'} text-[10px]"></i></button>` : '<span class="w-5 shrink-0"></span>'}
@@ -11634,11 +11664,12 @@
                         <div class="text-[11px] text-slate-500 mt-0.5 flex flex-wrap items-center gap-1.5">${sub}</div></div></div></td>
                     <td class="px-4 py-2.5 text-right"><div class="flex items-center justify-end gap-2">${bar(g.amount, totalAmt)}<span class="font-mono text-sm font-bold text-slate-700">${yen(g.amount)}</span></div></td>
                     <td class="px-4 py-2.5 text-right font-mono text-xs text-slate-400">${yen(g.inc)}</td>
-                    <td class="px-4 py-2.5 text-center text-sm text-slate-600">${g.count.toLocaleString()}</td>
-                    <td class="px-4 py-2.5 text-center text-sm text-slate-600">${g.nSites}</td>
+                    <td class="px-4 py-2.5 text-center text-sm">${dbtn('lt', gId, 'lines', g.count.toLocaleString())}</td>
+                    <td class="px-4 py-2.5 text-center text-sm">${dbtn('lt', gId, 'sites', g.nSites)}</td>
                     <td class="px-4 py-2.5 text-center font-mono text-xs text-slate-500">${fmtYm(g.last)}</td>
                     <td class="px-4 py-2.5 text-center"><button onclick="window.openSalesDetail(${gi},-1)" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">詳細</button></td></tr>`);
                 if (open) g.kidList.forEach((c, ci) => {
+                    const cId = dreg('lt', `${g.name} / ${ax === 'owner' ? c.name : (c.key === '__nocode__' ? NO_CODE : c.key)}`, () => ss.filtered.filter(r => groupOf(r, ax) === g.key && childOf(r, ax) === c.key), ax === 'owner' ? 'name' : 'code');
                     const label = ss.axis === 'owner'
                         ? `<span class="text-sm font-bold text-slate-700">${esc(c.name)}</span>${c.codeList.length ? `<span class="font-mono text-[11px] text-slate-400">${esc(c.codeList.join(' / '))}</span>` : ''}`
                         : `<span class="font-mono text-sm font-bold text-slate-700">${esc(c.key === '__nocode__' ? NO_CODE : c.key)}</span>${c.name !== g.name ? `<span class="text-[11px] text-slate-500">${esc(c.name)}</span>` : ''}`;
@@ -11646,8 +11677,8 @@
                         <td class="px-4 py-2 pl-14"><div class="flex items-center gap-2"><i class="fa-solid fa-turn-down-right text-slate-300 text-[10px]"></i>${label}</div></td>
                         <td class="px-4 py-2 text-right"><div class="flex items-center justify-end gap-2">${bar(c.amount, g.amount)}<span class="font-mono text-sm text-slate-700">${yen(c.amount)}</span></div></td>
                         <td class="px-4 py-2 text-right font-mono text-xs text-slate-400">${yen(c.inc)}</td>
-                        <td class="px-4 py-2 text-center text-sm text-slate-600">${c.count.toLocaleString()}</td>
-                        <td class="px-4 py-2 text-center text-sm text-slate-600">${c.nSites}</td>
+                        <td class="px-4 py-2 text-center text-sm">${dbtn('lt', cId, 'lines', c.count.toLocaleString())}</td>
+                        <td class="px-4 py-2 text-center text-sm">${dbtn('lt', cId, 'sites', c.nSites)}</td>
                         <td class="px-4 py-2 text-center font-mono text-xs text-slate-500">${fmtYm(c.last)}</td>
                         <td class="px-4 py-2 text-center"><button onclick="window.openSalesDetail(${gi},${ci})" class="text-blue-600 hover:text-blue-800 text-xs font-bold underline">詳細</button></td></tr>`);
                 });
@@ -11706,30 +11737,88 @@
             const d = ss.detail; if (!d) return;
             const rows = detailRows(), A = detailAgg(rows);
             const nSites = A.tot.sites.size;
+            ss.dr.dc = [];
+            const dId = dreg('dc', `${d.name}（現在の期間・内訳）`, () => rows, d.axis === 'owner' ? 'name' : 'code');
+            const nCust = new Set(rows.map(r => d.axis === 'owner' ? r.ckey : (r.ccode || '__nocode__'))).size;
             $('ss-d-cards').innerHTML = card(d.axis === 'owner' ? '施工主名' : '得意先名', esc(d.name), '', true) + card('売上（税抜）', yen(A.tot.amount), `税込 ${yen(A.tot.inc)}`, true)
-                + card('取引件数', A.tot.count.toLocaleString(), `1件あたり ${yen(A.tot.count ? A.tot.amount / A.tot.count : 0)}`) + card('取引現場数', nSites.toLocaleString(), `1現場あたり ${yen(nSites ? A.tot.amount / nSites : 0)}`)
-                + card('初回の発生月', fmtYm(A.tot.first), '') + card('最終の発生月', fmtYm(A.tot.last), '');
+                + card('取引件数', A.tot.count.toLocaleString(), `1件あたり ${yen(A.tot.count ? A.tot.amount / A.tot.count : 0)}`, false, ['dc', dId, 'lines'])
+                + card('取引現場数', nSites.toLocaleString(), `1現場あたり ${yen(nSites ? A.tot.amount / nSites : 0)}`, false, ['dc', dId, 'sites'])
+                + card(d.axis === 'owner' ? '得意先数' : '得意先コード数', nCust.toLocaleString(), '', false, ['dc', dId, 'custs'])
+                + card('発生期間', `${fmtYm(A.tot.first)} 〜 ${fmtYm(A.tot.last)}`, '');
             const br = $('ss-branch').value, ms = $('ss-d-ms').value, me = $('ss-d-me').value;
             $('ss-d-note').textContent = `売上明細の${d.axis === 'owner' ? '施工主' : '得意先'}・伝票日付を基準に集計　／　拠点：${br === 'ALL' ? '全拠点' : br}　／　期間：${ms || me ? `${ms || '…'} 〜 ${me || '…'}` : '全期間'}`;
             paintTabs('d'); renderTab('d');
         };
         const renderDetailOverview = (rows) => {
-            const A = detailAgg(rows), total = A.tot.amount;
+            const A = detailAgg(rows), total = A.tot.amount, dmode = ss.detail.axis === 'owner' ? 'name' : 'code';
+            ss.dr.dm = []; ss.dr.ds = [];
             const ms = monthSeries(rows); chart('ss-d-month-chart', barCfg(ms.labels, ms.data, false));
-            $('ss-d-month-body').innerHTML = A.months.slice().reverse().map(([ym, m]) => `<tr><td class="px-4 py-2 font-mono text-xs text-slate-600">${ym === '-' ? '-' : fmtYm(ym)}</td><td class="px-4 py-2 text-right font-mono text-sm text-slate-700">${yen(m.amount)}</td><td class="px-4 py-2 text-center text-slate-600">${m.count.toLocaleString()}</td><td class="px-4 py-2 text-center text-slate-600">${m.sites.size}</td><td class="px-4 py-2 w-40">${shareBar(total > 0 ? m.amount / total * 100 : 0)}</td></tr>`).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">該当なし</td></tr>';
-            $('ss-d-site-body').innerHTML = A.sites.map(s => `<tr><td class="px-4 py-2"><button onclick="window.browseJumpToSite('${esc(s.code)}', 'sales-search', '売上検索に戻る')" class="font-mono text-xs font-bold text-blue-700 hover:underline">${esc(s.code)}</button><div class="text-[11px] text-slate-500">${esc(s.name)}</div></td><td class="px-4 py-2 text-xs text-slate-500">${esc(s.branch)}</td><td class="px-4 py-2 text-right font-mono text-sm text-slate-700">${yen(s.amount)}</td><td class="px-4 py-2 text-center text-slate-600">${s.count.toLocaleString()}</td><td class="px-4 py-2 text-center font-mono text-xs text-slate-500">${fmtYm(s.last)}</td></tr>`).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">該当なし</td></tr>';
+            $('ss-d-month-body').innerHTML = A.months.slice().reverse().map(([ym, m]) => { const mid = dreg('dm', `${ym === '-' ? '日付不明' : fmtYm(ym)} の売上明細`, () => rows.filter(r => (r.ym || '-') === ym), dmode); return `<tr><td class="px-4 py-2 font-mono text-xs text-slate-600">${ym === '-' ? '-' : fmtYm(ym)}</td><td class="px-4 py-2 text-right font-mono text-sm text-slate-700">${yen(m.amount)}</td><td class="px-4 py-2 text-center">${dbtn('dm', mid, 'lines', m.count.toLocaleString())}</td><td class="px-4 py-2 text-center">${dbtn('dm', mid, 'sites', m.sites.size)}</td><td class="px-4 py-2 w-40">${shareBar(total > 0 ? m.amount / total * 100 : 0)}</td></tr>`; }).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">該当なし</td></tr>';
+            $('ss-d-site-body').innerHTML = A.sites.map(s => { const sid = dreg('ds', `${s.code} ${s.name}`, () => rows.filter(r => (r.siteCode || '-') === s.code), dmode); return `<tr><td class="px-4 py-2"><button onclick="window.browseJumpToSite('${esc(s.code)}', 'sales-search', '売上検索に戻る')" class="font-mono text-xs font-bold text-blue-700 hover:underline">${esc(s.code)}</button><div class="text-[11px] text-slate-500">${esc(s.name)}</div></td><td class="px-4 py-2 text-xs text-slate-500">${esc(s.branch)}</td><td class="px-4 py-2 text-right font-mono text-sm text-slate-700">${yen(s.amount)}</td><td class="px-4 py-2 text-center">${dbtn('ds', sid, 'lines', s.count.toLocaleString())}</td><td class="px-4 py-2 text-center font-mono text-xs text-slate-500">${fmtYm(s.last)}</td></tr>`; }).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">該当なし</td></tr>';
         };
         const renderKids = (rows) => {
             const d = ss.detail, kidsAgg = aggregate(rows, d.axis)[0], kids = kidsAgg ? kidsAgg.kidList : [];
+            ss.dr.dk = [];
             $('ss-d-kids-title').textContent = d.axis === 'owner' ? '得意先別の内訳' : '得意先コード（支店）別の内訳';
             $('ss-d-kids-th').textContent = d.axis === 'owner' ? '得意先' : '得意先コード';
-            $('ss-d-kids-body').innerHTML = kids.map(c => `<tr><td class="px-4 py-2">${d.axis === 'owner' ? `<span class="font-bold text-slate-700">${esc(c.name)}</span> <span class="font-mono text-[11px] text-slate-400">${esc(c.codeList.join(' / '))}</span>` : `<span class="font-mono font-bold text-slate-700">${esc(c.key === '__nocode__' ? NO_CODE : c.key)}</span>${c.name !== d.name ? ` <span class="text-[11px] text-slate-500">${esc(c.name)}</span>` : ''}`}</td><td class="px-4 py-2 text-right font-mono text-sm text-slate-700">${yen(c.amount)}</td><td class="px-4 py-2 text-center text-slate-600">${c.count.toLocaleString()}</td><td class="px-4 py-2 text-center text-slate-600">${c.nSites}</td><td class="px-4 py-2 text-center font-mono text-xs text-slate-500">${fmtYm(c.last)}</td></tr>`).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">該当なし</td></tr>';
+            $('ss-d-kids-body').innerHTML = kids.map(c => { const kid = dreg('dk', d.axis === 'owner' ? c.name : (c.key === '__nocode__' ? NO_CODE : c.key), () => rows.filter(r => childOf(r, d.axis) === c.key), d.axis === 'owner' ? 'name' : 'code'); return `<tr><td class="px-4 py-2">${d.axis === 'owner' ? `<span class="font-bold text-slate-700">${esc(c.name)}</span> <span class="font-mono text-[11px] text-slate-400">${esc(c.codeList.join(' / '))}</span>` : `<span class="font-mono font-bold text-slate-700">${esc(c.key === '__nocode__' ? NO_CODE : c.key)}</span>${c.name !== d.name ? ` <span class="text-[11px] text-slate-500">${esc(c.name)}</span>` : ''}`}</td><td class="px-4 py-2 text-right font-mono text-sm text-slate-700">${yen(c.amount)}</td><td class="px-4 py-2 text-center">${dbtn('dk', kid, 'lines', c.count.toLocaleString())}</td><td class="px-4 py-2 text-center">${dbtn('dk', kid, 'sites', c.nSites)}</td><td class="px-4 py-2 text-center font-mono text-xs text-slate-500">${fmtYm(c.last)}</td></tr>`; }).join('') || '<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">該当なし</td></tr>';
         };
         const renderLines = (rows) => {
             const sorted = rows.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.voucherNo).localeCompare(String(a.voucherNo)));
             const LIM = 500;
             $('ss-d-line-note').textContent = `${rows.length.toLocaleString()} 行${rows.length > LIM ? `（新しい順に${LIM}行まで表示。全件はExcel出力で確認できます）` : ''}`;
             $('ss-d-line-body').innerHTML = sorted.slice(0, LIM).map(r => `<tr><td class="px-3 py-1.5 font-mono text-xs text-slate-600 whitespace-nowrap">${fmtYmd(r.date)}</td><td class="px-3 py-1.5 text-xs text-slate-600 whitespace-nowrap">${esc(r.voucherNo)}</td><td class="px-3 py-1.5 font-mono text-xs text-slate-700">${esc(r.siteCode)}${r.subCode ? '-' + esc(r.subCode) : ''}</td><td class="px-3 py-1.5 text-xs text-slate-500">${esc(r.siteName)}</td><td class="px-3 py-1.5 font-mono text-xs text-slate-500">${esc(r.ccode)}</td><td class="px-3 py-1.5 text-xs text-slate-600">${esc(r.cname)}</td><td class="px-3 py-1.5 text-xs text-slate-600">${esc(r.productName)}</td><td class="px-3 py-1.5 text-right font-mono text-sm text-slate-700">${yen(r.exc)}</td></tr>`).join('') || '<tr><td colspan="8" class="px-4 py-6 text-center text-slate-400">該当なし</td></tr>';
+        };
+
+
+        // ── 内訳の窓（取引件数＝売上明細／取引現場数＝現場一覧／得意先数＝得意先一覧）──
+        const custAgg = (rows, mode) => {
+            const mp = new Map();
+            rows.forEach(r => {
+                const k = mode === 'code' ? (r.ccode || '__nocode__') : r.ckey; let o = mp.get(k);
+                if (!o) { o = { key: k, names: new Map(), codes: new Set(), owners: new Set(), ...blank() }; mp.set(k, o); }
+                o.names.set(r.cname, (o.names.get(r.cname) || 0) + 1); if (r.ccode) o.codes.add(r.ccode); o.owners.add(r.oname || NONE_OWNER); add(o, r);
+            });
+            return [...mp.values()].map(o => { o.name = topName(o.names); o.nSites = o.sites.size; return o; }).sort((a, b) => b.amount - a.amount);
+        };
+        const drillData = () => {
+            const D = ss.drill, rows = D.rows;
+            return { lines: rows.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.voucherNo).localeCompare(String(a.voucherNo))), sites: detailAgg(rows).sites, custs: custAgg(rows, D.mode) };
+        };
+        const paintDrill = () => {
+            const D = ss.drill; if (!D) return;
+            const X = drillData(), total = D.rows.reduce((s, r) => s + r.exc, 0), cl = D.mode === 'code' ? '得意先コード数' : '得意先数';
+            $('ss-drill-title').textContent = D.title;
+            $('ss-drill-sum').textContent = `売上（税抜）${yen(total)}　／　取引件数 ${X.lines.length.toLocaleString()}　／　取引現場数 ${X.sites.length.toLocaleString()}　／　${cl} ${X.custs.length.toLocaleString()}`;
+            const kinds = [['lines', '取引件数', X.lines.length], ['sites', '取引現場数', X.sites.length], ['custs', cl, X.custs.length]];
+            $('ss-drill-kinds').innerHTML = kinds.map(([k, l, n], i) => `<button onclick="window.ssDrillKind('${k}')" class="px-3 py-1.5 text-xs font-bold ${i ? 'border-l border-slate-300' : ''} ${D.kind === k ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}">${l} ${n.toLocaleString()}</button>`).join('');
+            const th = (cols) => `<thead class="bg-slate-100 text-slate-600 text-xs sticky top-0"><tr>${cols.map(([t, al]) => `<th class="px-3 py-2 text-${al || 'left'} whitespace-nowrap">${t}</th>`).join('')}</tr></thead>`;
+            const empty = (n) => `<tr><td colspan="${n}" class="px-4 py-8 text-center text-slate-400">該当なし</td></tr>`;
+            let h = '';
+            if (D.kind === 'lines') {
+                const LIM = 500;
+                h = `<table class="w-full text-sm">${th([['日付'], ['伝票No'], ['工番'], ['現場名'], ['拠点'], ['得意先コード'], ['得意先'], ['商品名'], ['金額（税抜）', 'right']])}<tbody class="divide-y divide-slate-100">${X.lines.slice(0, LIM).map(r => `<tr><td class="px-3 py-1.5 font-mono text-xs whitespace-nowrap">${fmtYmd(r.date)}</td><td class="px-3 py-1.5 text-xs whitespace-nowrap">${esc(r.voucherNo)}</td><td class="px-3 py-1.5 font-mono text-xs">${esc(r.siteCode)}${r.subCode ? '-' + esc(r.subCode) : ''}</td><td class="px-3 py-1.5 text-xs text-slate-500">${esc(r.siteName)}</td><td class="px-3 py-1.5 text-xs text-slate-500">${esc(r.branch)}</td><td class="px-3 py-1.5 font-mono text-xs text-slate-500">${esc(r.ccode)}</td><td class="px-3 py-1.5 text-xs">${esc(r.cname)}</td><td class="px-3 py-1.5 text-xs text-slate-600">${esc(r.productName)}</td><td class="px-3 py-1.5 text-right font-mono">${yen(r.exc)}</td></tr>`).join('') || empty(9)}</tbody></table>${X.lines.length > LIM ? `<div class="px-4 py-2 text-xs text-slate-400">新しい順に${LIM}行まで表示しています（全 ${X.lines.length.toLocaleString()} 行はExcel出力で確認できます）</div>` : ''}`;
+            } else if (D.kind === 'sites') {
+                h = `<table class="w-full text-sm">${th([['工番'], ['現場名'], ['拠点'], ['担当者'], ['売上（税抜）', 'right'], ['件数', 'center'], ['最終発生月', 'center']])}<tbody class="divide-y divide-slate-100">${X.sites.map(s => `<tr><td class="px-3 py-1.5"><button onclick="window.ssDrillClose();window.browseJumpToSite('${esc(s.code)}','sales-search','売上検索に戻る')" class="font-mono text-xs font-bold text-blue-700 hover:underline">${esc(s.code)}</button></td><td class="px-3 py-1.5 text-xs">${esc(s.name)}</td><td class="px-3 py-1.5 text-xs text-slate-500">${esc(s.branch)}</td><td class="px-3 py-1.5 text-xs text-slate-500">${esc(s.manager)}</td><td class="px-3 py-1.5 text-right font-mono">${yen(s.amount)}</td><td class="px-3 py-1.5 text-center">${s.count.toLocaleString()}</td><td class="px-3 py-1.5 text-center font-mono text-xs text-slate-500">${fmtYm(s.last)}</td></tr>`).join('') || empty(7)}</tbody></table>`;
+            } else {
+                h = `<table class="w-full text-sm">${th([[D.mode === 'code' ? '得意先コード' : '得意先名'], [D.mode === 'code' ? '得意先名' : '得意先コード'], ['施工主'], ['売上（税抜）', 'right'], ['件数', 'center'], ['現場数', 'center'], ['最終発生月', 'center']])}<tbody class="divide-y divide-slate-100">${X.custs.map(c => `<tr><td class="px-3 py-1.5 ${D.mode === 'code' ? 'font-mono text-xs font-bold' : 'font-bold text-slate-700'}">${esc(D.mode === 'code' ? (c.key === '__nocode__' ? NO_CODE : c.key) : c.name)}</td><td class="px-3 py-1.5 ${D.mode === 'code' ? 'text-xs' : 'font-mono text-xs text-slate-500'}">${esc(D.mode === 'code' ? c.name : c.codeList ? c.codeList.join(' / ') : [...c.codes].sort().join(' / '))}</td><td class="px-3 py-1.5 text-xs text-slate-500">${esc([...c.owners].join(' / '))}</td><td class="px-3 py-1.5 text-right font-mono">${yen(c.amount)}</td><td class="px-3 py-1.5 text-center">${c.count.toLocaleString()}</td><td class="px-3 py-1.5 text-center">${c.nSites}</td><td class="px-3 py-1.5 text-center font-mono text-xs text-slate-500">${fmtYm(c.last)}</td></tr>`).join('') || empty(7)}</tbody></table>`;
+            }
+            $('ss-drill-body').innerHTML = h;
+        };
+        window.ssDrill = function(p, idx, kind) { const e = (ss.dr[p] || [])[idx]; if (!e) return; ss.drill = { title: e.title, rows: e.fn(), mode: e.mode || 'name', kind }; paintDrill(); $('ss-drill').classList.remove('hidden'); };
+        window.ssDrillKind = function(k) { if (!ss.drill) return; ss.drill.kind = k; paintDrill(); };
+        window.ssDrillClose = function() { $('ss-drill').classList.add('hidden'); ss.drill = null; };
+        window.ssDrillExcel = async function() {
+            try {
+                const D = ss.drill; if (!D || !D.rows.length) { alert('出力するデータがありません。'); return; }
+                const X = drillData(), wb = new ExcelJS.Workbook();
+                sheet(wb, '売上明細', ['伝票日付', '伝票No', '工番', '枝番', '現場名', '拠点', '担当者', '得意先コード', '得意先', '施工主', '商品名', '金額（税抜）', '金額（税込）'],
+                    X.lines.slice().reverse().map(r => [fmtYmd(r.date), r.voucherNo, r.siteCode, r.subCode, r.siteName, r.branch, r.manager, r.ccode, r.cname, r.oname, r.productName, r.exc, r.inc]), [12, 12, 12, 8, 30, 10, 12, 14, 26, 20, 28, 15, 15], [11, 12]);
+                sheet(wb, '現場一覧', ['工番', '現場名', '拠点', '担当者', '売上（税抜）', '件数', '最終発生月'], X.sites.map(s => [s.code, s.name, s.branch, s.manager, s.amount, s.count, fmtYm(s.last)]), [12, 34, 10, 12, 16, 10, 12], [4, 5]);
+                sheet(wb, D.mode === 'code' ? '得意先コード一覧' : '得意先一覧', ['得意先名', '得意先コード', '施工主', '売上（税抜）', '件数', '現場数', '最終発生月'], X.custs.map(c => [c.name, [...c.codes].sort().join(' / '), [...c.owners].join(' / '), c.amount, c.count, c.nSites, fmtYm(c.last)]), [30, 22, 22, 16, 10, 10, 12], [3, 4]);
+                condSheet(wb, [['内訳の対象', D.title], ['集計の基準', BASIS], ['売上明細', `${X.lines.length.toLocaleString()} 行　売上（税抜）${Math.round(D.rows.reduce((s, r) => s + r.exc, 0)).toLocaleString()}円`]]);
+                await save(wb, '売上検索_内訳');
+            } catch (e) { console.error(e); alert('Excel出力でエラーが発生しました：' + e.message); }
         };
 
         // ── Excel出力 ──
