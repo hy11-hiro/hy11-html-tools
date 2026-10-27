@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>blackboard_mobile_v1</title>
+  <title>blackboard_mobile_v3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&family=Kosugi+Maru&display=swap" rel="stylesheet" />
@@ -28,6 +28,14 @@
     #canvasWrap.drag-mode #mainCanvas:active{cursor:grabbing}
     .size-pill{display:inline-flex;align-items:center;padding:5px 10px;border:2px solid #cbd5e1;border-radius:999px;cursor:pointer;font-size:.78rem;font-weight:bold;user-select:none;transition:.12s;background:white;color:#374151}
     .size-pill.active{border-color:#2563eb;background:#dbeafe;color:#1e40af}
+    .swatch{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:0;cursor:pointer}
+    .swatch .chip{width:42px;height:42px;border-radius:10px;border:3px solid #cbd5e1}
+    .swatch.active .chip{border-color:#2563eb;box-shadow:0 0 0 2px #93c5fd}
+    .swatch span.cap{font-size:10px;font-weight:bold;color:#475569}
+    .thumb{position:relative;flex:0 0 auto;width:72px;height:54px;border-radius:8px;overflow:hidden;border:3px solid #cbd5e1;cursor:pointer;background:#e2e8f0;padding:0}
+    .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .thumb.active{border-color:#2563eb;box-shadow:0 0 0 2px #93c5fd}
+    .thumb .no{position:absolute;left:0;top:0;background:rgba(15,23,42,.75);color:#fff;font-size:11px;font-weight:bold;padding:0 6px;border-bottom-right-radius:8px}
     .sub-tab-active{background-color:#dbeafe!important;color:#1e40af!important;border-bottom:3px solid #2563eb!important;font-weight:bold}
   </style>
 </head>
@@ -35,7 +43,7 @@
 
 <header class="bg-slate-800 text-white px-4 py-3 sticky top-0 z-50 shadow-lg flex items-center justify-between">
   <h1 class="text-base font-bold flex items-center gap-2">
-    <span class="material-icons text-xl">construction</span>blackboard_mobile_v1
+    <span class="material-icons text-xl">construction</span>blackboard_mobile_v3
   </h1>
   <span id="currentFileLabel" class="text-xs bg-slate-600 px-2 py-1 rounded-full truncate max-w-[180px]">画像未選択</span>
 </header>
@@ -75,6 +83,8 @@
       <canvas id="mainCanvas" class="w-full h-auto block mx-auto" style="max-height:75vh"></canvas>
     </div>
 
+    <div id="overflowNote" class="hidden bg-red-50 border border-red-300 text-red-700 text-xs font-bold rounded-xl px-3 py-2">⚠ 文字が枠に収まっていません。文字を減らすか、サイズ・行間を調整してください。</div>
+
     <!-- ドラッグモード -->
     <div class="flex items-center gap-3 bg-white rounded-xl px-4 py-2 border border-gray-200 shadow-sm">
       <label class="flex items-center gap-2 cursor-pointer select-none">
@@ -86,15 +96,29 @@
       <button onclick="resetBoardPosition()" class="ml-auto text-xs text-gray-500 underline hover:text-gray-700">位置リセット</button>
     </div>
 
-    <!-- 画像ナビ -->
-    <div id="imageNav" class="hidden items-center justify-between bg-white p-2 rounded-xl shadow-sm border border-gray-200">
-      <button onclick="prevImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
-        <span class="material-icons text-base">arrow_back</span>前へ
-      </button>
-      <span class="font-bold"><span id="currentImageNum">1</span> / <span id="totalImageNum">1</span></span>
-      <button onclick="nextImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
-        次へ<span class="material-icons text-base">arrow_forward</span>
-      </button>
+    <!-- 画像ナビ（写真ごとに黒板内容を保持） -->
+    <div id="imageNav" class="hidden">
+      <div class="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <button onclick="prevImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
+            <span class="material-icons text-base">arrow_back</span>前へ
+          </button>
+          <span class="font-bold"><span id="currentImageNum">1</span> / <span id="totalImageNum">1</span></span>
+          <button onclick="nextImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
+            次へ<span class="material-icons text-base">arrow_forward</span>
+          </button>
+        </div>
+        <div id="thumbStrip" class="flex gap-2 overflow-x-auto pb-1"></div>
+        <p class="text-[11px] text-gray-500">黒板の内容は写真ごとに保存されます。新しく取り込んだ写真には、取り込み時点の内容が引き継がれます。</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="applyCommonToAll()" class="py-2 rounded-lg border-2 border-blue-300 bg-blue-50 text-blue-800 font-bold text-xs flex items-center justify-center gap-1">
+            <span class="material-icons text-sm">content_copy</span>件名・場所・色などを全写真へ
+          </button>
+          <button onclick="removeCurrentImage()" class="py-2 rounded-lg border-2 border-red-300 bg-red-50 text-red-700 font-bold text-xs flex items-center justify-center gap-1">
+            <span class="material-icons text-sm">delete</span>この写真を外す
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 保存・共有 -->
@@ -106,6 +130,9 @@
         <span class="material-icons text-xl">share</span><span class="text-xs">共有</span>
       </button>
     </div>
+    <button id="btnDownloadAll" class="hidden bg-slate-700 text-white font-bold py-3 rounded-xl shadow-lg items-center justify-center border-b-4 border-slate-900 hover:bg-slate-800 gap-2">
+      <span class="material-icons text-xl">download_for_offline</span><span class="text-xs">全ての写真を保存（それぞれの黒板内容で）</span>
+    </button>
   </div>
 
   <!-- ===== 右列: 操作パネル ===== -->
@@ -140,12 +167,27 @@
 
       <div>
         <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の色</label>
-        <select id="boardColor" class="w-full p-2.5 border-2 border-gray-300 rounded-lg font-bold text-gray-800 bg-gray-50 text-sm">
-          <option value="green">緑（標準）</option>
-          <option value="black">黒板（黒）</option>
-          <option value="white">ホワイトボード</option>
-          <option value="blue">青（現場用）</option>
-        </select>
+        <div class="flex flex-wrap gap-3 mb-3" id="swatchGroup">
+          <button type="button" class="swatch" data-color="#025c39"><span class="chip" style="background:#025c39"></span><span class="cap">緑(標準)</span></button>
+          <button type="button" class="swatch" data-color="#0b3d2e"><span class="chip" style="background:#0b3d2e"></span><span class="cap">濃緑</span></button>
+          <button type="button" class="swatch" data-color="#1a1a1a"><span class="chip" style="background:#1a1a1a"></span><span class="cap">黒</span></button>
+          <button type="button" class="swatch" data-color="#0d47a1"><span class="chip" style="background:#0d47a1"></span><span class="cap">青</span></button>
+          <button type="button" class="swatch" data-color="#8b1e1e"><span class="chip" style="background:#8b1e1e"></span><span class="cap">赤</span></button>
+          <button type="button" class="swatch" data-color="#ffffff"><span class="chip" style="background:#ffffff"></span><span class="cap">白</span></button>
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="color" id="bgColorPicker" value="#025c39" class="w-12 h-10 p-0 border-2 border-gray-300 rounded-lg bg-white cursor-pointer" />
+          <input type="text" id="bgColorHex" maxlength="7" placeholder="#025C39" class="flex-1 p-2 border-2 border-gray-300 rounded-lg text-sm font-mono font-bold text-gray-700 uppercase" />
+        </div>
+        <p class="text-[11px] text-gray-500 mt-1">カラーコード（例: #025C39 または 025C39）でも指定できます</p>
+        <label class="block font-bold text-gray-700 mt-3 mb-1 text-sm">文字・線の色</label>
+        <div class="flex flex-wrap items-center gap-2" id="fgPillGroup">
+          <span class="size-pill fg-pill" data-fg="auto">自動</span>
+          <span class="size-pill fg-pill" data-fg="white">白</span>
+          <span class="size-pill fg-pill" data-fg="black">黒</span>
+          <span class="size-pill fg-pill" data-fg="custom">指定</span>
+          <input type="color" id="fgColorPicker" value="#ffffff" class="hidden w-10 h-8 p-0 border-2 border-gray-300 rounded-lg bg-white cursor-pointer" />
+        </div>
       </div>
 
       <div>
@@ -254,14 +296,19 @@
       <div>
         <label class="block font-bold text-gray-700 mb-1 text-sm">工事件名</label>
         <textarea id="inputProject" rows="2" placeholder="例: ○○マンション新築工事" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+        <p class="text-[11px] text-gray-500 mt-1">枠に収まる範囲で入力できます（長いと文字が自動で小さくなります）</p>
+        <p id="warn-project" class="text-xs font-bold text-red-600 hidden">これ以上は枠に入りません</p>
       </div>
       <div>
         <label id="workTypeLabel" class="block font-bold text-gray-700 mb-1 text-sm">工事場所</label>
         <textarea id="inputWorkType" rows="2" placeholder="例: 1階 エントランス" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+        <p class="text-[11px] text-gray-500 mt-1">枠に収まる範囲で入力できます（長いと文字が自動で小さくなります）</p>
+        <p id="warn-workType" class="text-xs font-bold text-red-600 hidden">これ以上は枠に入りません</p>
       </div>
       <div>
         <label class="block font-bold text-gray-700 mb-1 text-sm">施工者名</label>
         <input type="text" id="inputConstructor" value="ヒューマンヤード(株)" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700" />
+        <p id="warn-constructorName" class="text-xs font-bold text-red-600 hidden">これ以上は枠に入りません</p>
       </div>
     </div>
 
@@ -391,6 +438,7 @@
           <button onclick="clearMemo()" class="text-red-600 text-xs font-bold hover:text-red-800">クリア</button>
         </div>
         <textarea id="inputMemo" rows="5" placeholder="例: 残土搬出 3t 1台目" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
+        <p id="warn-memo" class="text-xs font-bold text-red-600 hidden">これ以上は枠に入りません</p>
       </div>
     </div>
 
@@ -410,16 +458,16 @@
           </select>
         </div>
         <div>
-          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>工事件名 サイズ</span><span id="valScaleProject" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
-          <input type="range" id="scaleProject" min="0.3" max="2.0" step="0.1" value="1.2" />
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>工事件名 サイズ</span><span id="valScaleProject" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
+          <input type="range" id="scaleProject" min="0.3" max="2.0" step="0.1" value="1.0" />
         </div>
         <div>
-          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span id="adjustLabelWorkType">工事場所 サイズ</span><span id="valScaleWorkType" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
-          <input type="range" id="scaleWorkType" min="0.3" max="2.0" step="0.1" value="1.2" />
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span id="adjustLabelWorkType">工事場所 サイズ</span><span id="valScaleWorkType" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
+          <input type="range" id="scaleWorkType" min="0.3" max="2.0" step="0.1" value="1.0" />
         </div>
         <div>
-          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>備考 サイズ</span><span id="valScaleMemo" class="bg-gray-100 px-1.5 rounded text-gray-500">1.4</span></div>
-          <input type="range" id="scaleMemo" min="0.3" max="2.0" step="0.1" value="1.4" />
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>備考 サイズ</span><span id="valScaleMemo" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
+          <input type="range" id="scaleMemo" min="0.3" max="2.0" step="0.1" value="1.2" />
         </div>
         <div>
           <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>日付・時間 サイズ</span><span id="valScaleDate" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
@@ -455,14 +503,14 @@ const S = {
   image:null, currentFileName:'',
   boardPos:'right',
   boardSize:'m',
+  bgColor:'#025c39', fgMode:'auto', fgColor:'#ffffff',
   boardOffsetX:null, boardOffsetY:null,
-  boardColor:'green',
   showBoard:true, showConstructor:false,
   datePlace:'right', timePlace:'right',
   dateFormat:'md_jp', timeFormat:'hm_jp',
   workLabelType:'place',
   text:{project:'',workType:'',memo:'',constructorName:'ヒューマンヤード(株)',date:'',time:''},
-  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.2,fontScaleWorkType:1.2,fontScaleMemo:1.4,fontScaleDate:1.0,lineHeight:1.2,yOffset:0},
+  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.0,fontScaleWorkType:1.0,fontScaleMemo:1.2,fontScaleDate:1.0,lineHeight:1.2,yOffset:0},
 };
 
 let currentImages = [];  // { img, name }
@@ -477,22 +525,47 @@ const canvas = document.getElementById('mainCanvas');
 const ctx    = canvas.getContext('2d');
 const canvasWrap = document.getElementById('canvasWrap');
 
-function getBoardColors() {
-  const m = {
-    black:{bg:'#1a1a1a',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
-    white:{bg:'#fff',line:'#333',text:'#111',shadow:'rgba(0,0,0,.3)'},
-    blue: {bg:'#0d47a1',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
-    green:{bg:'#004d40',line:'#fff',text:'#fff',shadow:'rgba(0,0,0,.5)'},
-  };
-  return m[S.boardColor] || m.green;
-}
+// ---- 黒板画像（黒板.png をそのまま使用／2400px に縮小して埋め込み） ----
+const BOARD_IMG = new Image();
+BOARD_IMG.onload = () => draw();
+BOARD_IMG.src = 'data:image/png;base64,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IbAAQGAhsABAYIHAAkBgCSwEFgAILAQWAAgsBJbAAkBgCSwEFgAILAQWAAgsBBYACKxyYM0/oJLkEFipNwOA1/in7UmBNfiEatLP0WEFK/V2APAS/7Q9JbDajX4Ele0Ca+CdAOCV/ml7dGABAPx6jw+sdhcA4Ld6UmABAFjBenBg9foAAL9V7xmBFcY0AAD8SuOnzcEabJJVAgDw+6zS0dMGja4mMQDA7/O8QaOOygEAHJUjsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGB5fwEAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILIEFAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUACCyBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElvcXABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLABAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMASWACAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAIDAElgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGB5fwEAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILIEFAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUACCyBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElvcXABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLABAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMASWACAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAgMASWAAAAgsAQGABAAgsgQUAILAAAAQWAIDAElgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAIDAElgAAAILAEBgAQAILIEFACCwAAAEFgCAwBJYAAACCwBAYAEACCyBBQAgsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBJbAAAAQWAIDAAgAQWAILAEBgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAAABJbAAgAQWAAAAgsAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAQGAJLAAAgQUAILAAAASWwAIAEFgAAAILAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAEBgCSwAAIEFACCwAAAElsACABBYAAACCwBAYAksAACBBQAgsAAABJbAAgAQWAAAAgsAQGB5fwEAgSWwAAAEFgCAwAIAEFgCCwBAYAEACCwAAIElsAAABBYAgMACABBYAgsAQGABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEAAktgAQAILAAAgQUAILAEFgCAwAIAEFgAAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAJLYAEACCwAAIEFACCwBBYAgMACABBYAAACS2ABAAgsAACBBQAgsAQWAIDAAgAQWAAAAktgAQACS2ABAAgsAACBBQAgsAQWAMB/JbDmHwAAv1HyrMAafAIA/Erp5+gpgdVu9CMAgN+q94zAAgD49Z4QWG0AgN/qWYEFAGAFS2ABAPxXA6vVtS4IANBtPSywNn29CgAQPCywRv1uDwCAXvdBgbVczYcAAASjZPaQwFouUwAAgopHM1cIrMnHxBFEAAAfH9X6qkpgAQBQh8ACABBYAAACCwBAYAEAILAAAAQWAIDAAgBAYAEACCwAAIEFAIDAAgAQWAAAAgsAQGABACCwAAAEFgCAwAIAQGABAAgsAACBBQCAwAIAEFgAAAILAACBBQAgsAAABBYAgMACAEBgAQAILAAAgQUAgMACABBYAAACCwAAgQUAILAAAP5/A+vvNAYA4IEa738BAHikxgAAgIf6H4aGa6Z7ZSqXAAAAAElFTkSuQmCC';
 
+// 元画像(7646x5186)上の座標。枠・罫線の位置を実測した値
+const REF = {W:7646,H:5186, L:129,R:7500,B:5029,
+  LBLR:1909, VALL:1931,
+  V1T:130,V1B:723, V2T:745,V2B:1341, MEMOT:1352, CONH:520};
+const BOARD_ASPECT = REF.W/REF.H;
+const DEFAULT_BG = '#025c39';
+function normHex(v){v=(v||'').trim().replace(/^#/,'');if(/^[0-9a-f]{3}$/i.test(v))v=v.split('').map(c=>c+c).join('');return /^[0-9a-f]{6}$/i.test(v)?'#'+v.toLowerCase():null;}
+function hexRGB(h){return [1,3,5].map(i=>parseInt(h.substr(i,2),16));}
+function getFg(){
+  if(S.fgMode==='white')return '#ffffff';
+  if(S.fgMode==='black')return '#111111';
+  if(S.fgMode==='custom')return S.fgColor;
+  const [r,g,b]=hexRGB(S.bgColor);
+  return (0.299*r+0.587*g+0.114*b)>150?'#111111':'#ffffff';
+}
+// 元画像の「緑→白」の濃淡(R値)を使って、背景色→線色に塗り替える（文字の縁も滑らかなまま）
+let _bmp={key:'',cv:null};
+function getBoardBitmap(bg,fg){
+  if(bg===DEFAULT_BG&&fg==='#ffffff') return BOARD_IMG;
+  const key=bg+fg; if(_bmp.key===key&&_bmp.cv) return _bmp.cv;
+  const cv=document.createElement('canvas'); cv.width=BOARD_IMG.naturalWidth; cv.height=BOARD_IMG.naturalHeight;
+  const x=cv.getContext('2d'); x.drawImage(BOARD_IMG,0,0);
+  const id=x.getImageData(0,0,cv.width,cv.height), d=id.data, B=hexRGB(bg), F=hexRGB(fg);
+  for(let i=0;i<d.length;i+=4){
+    const t=Math.max(0,Math.min(1,(d[i]-2)/253));
+    d[i]=B[0]+(F[0]-B[0])*t; d[i+1]=B[1]+(F[1]-B[1])*t; d[i+2]=B[2]+(F[2]-B[2])*t; d[i+3]=255;
+  }
+  x.putImageData(id,0,0); _bmp={key,cv}; return cv;
+}
 const SIZE_RATIOS = {xs:.26, s:.31, sm:.37, m:.44, ml:.50, l:.56};
 
 function getBoardDimensions() {
   const cw=canvas.width, ch=canvas.height;
   const r=SIZE_RATIOS[S.boardSize]??0.44;
-  const bw=cw*r, bh=ch*r;
+  let bw=cw*r, bh=bw/BOARD_ASPECT;
+  if (bh>ch*0.95){bh=ch*0.95;bw=bh*BOARD_ASPECT;}
   let bx, by;
   if (S.boardOffsetX!==null && S.boardOffsetY!==null) {
     bx=Math.max(0,Math.min(cw-bw,S.boardOffsetX));
@@ -504,73 +577,166 @@ function getBoardDimensions() {
   return {bx,by,bw,bh};
 }
 
-function drawBlackboard(ctx,x,y,w,h,c) {
-  ctx.save();
-  ctx.shadowColor=c.shadow; ctx.shadowBlur=10; ctx.shadowOffsetX=5; ctx.shadowOffsetY=5;
-  ctx.fillStyle=c.bg; ctx.fillRect(x,y,w,h);
-  ctx.shadowColor='transparent';
-  ctx.strokeStyle=S.boardColor==='white'?'#999':'#e0e0e0';
-  ctx.lineWidth=Math.max(2,w*.005);
-  const hl=ctx.lineWidth/2;
-  ctx.strokeRect(x+hl,y+hl,w-ctx.lineWidth,h-ctx.lineWidth);
-  ctx.strokeStyle=c.line; ctx.lineWidth=Math.max(1,w*.003);
-  ctx.beginPath();
-  ctx.moveTo(x,y+h*.18); ctx.lineTo(x+w,y+h*.18);
-  ctx.moveTo(x,y+h*.36); ctx.lineTo(x+w,y+h*.36);
-  ctx.moveTo(x+w*.22,y); ctx.lineTo(x+w*.22,y+h*.36);
-  if(S.showConstructor){
-    const cH=h*.14,cY=y+h-cH;
-    ctx.moveTo(x,cY); ctx.lineTo(x+w,cY);
-    ctx.moveTo(x+w*.22,cY); ctx.lineTo(x+w*.22,y+h);
-  }
-  ctx.stroke(); ctx.restore();
+// 黒板内の各エリアを算出（すべて bw 基準なので、実描画も入力チェックも同じ結果になる）
+function geo(bx,by,bw){
+  const k=bw/REF.W, X=v=>bx+v*k, Y=v=>by+v*k;
+  const pad=bw*.015, vp=bw*.004;
+  const conTop=S.showConstructor?REF.B-REF.CONH:REF.B;
+  const valX=X(REF.VALL)+pad, valW=(REF.R-REF.VALL)*k-pad*2;
+  return {k,X,Y,pad,conTop,
+    row1:{x:valX,y:Y(REF.V1T)+vp,w:valW,h:(REF.V1B-REF.V1T)*k-vp*2},
+    row2:{x:valX,y:Y(REF.V2T)+vp,w:valW,h:(REF.V2B-REF.V2T)*k-vp*2},
+    conV:{x:valX,y:Y(conTop+12)+vp,w:valW,h:(REF.B-conTop-12)*k-vp*2},
+    memo:{x:X(REF.L)+pad,y:Y(REF.MEMOT)+pad*.6,w:(REF.R-REF.L)*k-pad*2,h:(conTop-REF.MEMOT)*k-pad*1.6},
+  };
 }
 
-function drawTextOnBoard(ctx,bx,by,bw,bh,c) {
+// ---- 文字レイアウト（折り返し＋自動縮小） ----
+function wrapLines(ctx,text,maxW){
+  const out=[];
+  (text||'').split('\n').forEach(p=>{
+    if(p===''){out.push('');return;}
+    let cur='';
+    for(const ch of Array.from(p)){
+      const t=cur+ch;
+      if(cur&&ctx.measureText(t).width>maxW){out.push(cur);cur=ch;}else cur=t;
+    }
+    out.push(cur);
+  });
+  return out;
+}
+function fitLayout(ctx,text,maxW,maxH,startSize,minSize,lh){
+  const font=S.style.fontFamily;
+  minSize=Math.min(minSize,startSize);
+  let size=startSize;
+  for(;;){
+    ctx.font=`${size}px ${font}`;
+    const lines=wrapLines(ctx,text,maxW);
+    const th=lines.length*size*lh;
+    if(th<=maxH) return {size,lines,ok:true,th};
+    if(size<=minSize) return {size,lines,ok:false,th};
+    size=Math.max(minSize,size*0.94);
+  }
+}
+function cellLayout(key,text,g,bw){
+  const cfg={project:[g.row1,S.style.fontScaleProject],workType:[g.row2,S.style.fontScaleWorkType],constructorName:[g.conV,.85]}[key];
+  const r=cfg[0];
+  const start=Math.min(cfg[1]*bw*.055, r.h*.9);
+  return fitLayout(ctx,text,r.w,r.h,start,bw*.018,S.style.lineHeight);
+}
+
+// 日付・時間：左下／右下／備考下 を重ならないよう配置
+function dateLayout(g,bw){
+  const font=S.style.fontFamily;
+  const dTxt=buildDatePart(), tTxt=buildTimePart();
+  const corners={left:[],right:[]}, inline=[];
+  [[S.datePlace,dTxt],[S.timePlace,tTxt]].forEach(([pl,t])=>{
+    if(!t||pl==='none')return;
+    if(pl==='inline')inline.push(t); else if(corners[pl])corners[pl].push(t);
+  });
+  const left=corners.left.join(' '), right=corners.right.join(' '), inl=inline.join(' ');
+  let size=S.style.fontScaleDate*bw*.055*.85;
+  const W=g.memo.w, gap=g.pad*2;
+  const meas=t=>{ctx.font=`${size}px ${font}`;return t?ctx.measureText(t).width:0;};
+  let tot=meas(left)+meas(right)+((left&&right)?gap:0);
+  if(tot>W) size*=W/tot;
+  if(inl){const w=meas(inl); if(w>W) size*=W/w;}
+  const cornerH=(left||right)?size*1.25+g.pad*.3:0;
+  const inlineH=inl?size*1.25:0;
+  return {size,left,right,inl,cornerH,inlineH};
+}
+function memoLayout(text,g,bw){
+  const info=dateLayout(g,bw);
+  const h=Math.max(1,g.memo.h-info.cornerH-info.inlineH);
+  const r=fitLayout(ctx,text,g.memo.w,h,S.style.fontScaleMemo*bw*.055,bw*.025,S.style.lineHeight);
+  return {...r,info,area:{x:g.memo.x,y:g.memo.y,w:g.memo.w,h}};
+}
+
+// 入力チェック用：この文字列が枠に収まるか
+function fitsField(key,text){
+  const bw=1000, g=geo(0,0,bw);
+  if(key==='memo') return memoLayout(text,g,bw).ok;
+  return cellLayout(key,text,g,bw).ok;
+}
+
+// ---- 黒板描画 ----
+function drawBlackboard(ctx,x,y,w,h){
+  const g=geo(x,y,w), k=g.k, fg=getFg(), bg=S.bgColor;
   ctx.save();
-  ctx.fillStyle=c.text;
-  ctx.beginPath(); ctx.rect(bx,by,bw,bh); ctx.clip();
-  const labelSz=bw*.047, base=bw*.055, pad=bw*.04, offY=S.style.yOffset, font=S.style.fontFamily;
-  const row1CY=by+bh*.09, row2CY=by+bh*.27;
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font=`${labelSz}px ${font}`;
-  ctx.fillText('工事件名',bx+bw*.11,row1CY);
-  ctx.fillText(S.workLabelType==='place'?'工事場所':'工種',bx+bw*.11,row2CY);
-  if(S.showConstructor) ctx.fillText('施工者',bx+bw*.11,by+bh-bh*.14/2);
-  ctx.textAlign='left'; ctx.textBaseline='middle';
-  const pSz=Math.min(S.style.fontScaleProject*base,bh*.13);
-  ctx.font=`${pSz}px ${font}`;
-  const pLines=(S.text.project||'').split('\n').filter(Boolean);
-  if(pLines.length){const pLH=pSz*S.style.lineHeight,pTH=pLines.length*pLH,pSY=row1CY-pTH/2+pSz/2+offY; pLines.forEach((l,i)=>ctx.fillText(l,bx+bw*.25+pad*.3,pSY+i*pLH));}
-  const wSz=Math.min(S.style.fontScaleWorkType*base,bh*.13);
-  ctx.font=`${wSz}px ${font}`;
-  const wLines=(S.text.workType||'').split('\n').filter(Boolean);
-  if(wLines.length){const wLH=wSz*S.style.lineHeight,wTH=wLines.length*wLH,wSY=row2CY-wTH/2+wSz/2+offY; wLines.forEach((l,i)=>ctx.fillText(l,bx+bw*.25+pad*.3,wSY+i*wLH));}
-  ctx.textBaseline='top';
-  const memoY=by+bh*.36+pad*.4+offY, memoSz=S.style.fontScaleMemo*base;
-  ctx.font=`${memoSz}px ${font}`;
-  const mlines=(S.text.memo||'').split('\n');
-  const mLH=memoSz*S.style.lineHeight;
-  mlines.forEach((l,i)=>ctx.fillText(l,bx+pad,memoY+i*mLH));
-  if(S.showConstructor){ctx.textBaseline='middle';ctx.font=`${labelSz*.9}px ${font}`;ctx.fillText(S.text.constructorName,bx+bw*.25+pad*.3,by+bh-bh*.14/2);}
-  // 日付・時間 独立描画
-  const dateTxt=buildDatePart(), timeTxt=buildTimePart();
-  const inlineParts=[];
-  if(S.datePlace==='inline'&&dateTxt) inlineParts.push(dateTxt);
-  if(S.timePlace==='inline'&&timeTxt) inlineParts.push(timeTxt);
-  if(inlineParts.length){ctx.textBaseline='top';ctx.font=`${S.style.fontScaleDate*base}px ${font}`;ctx.fillText(inlineParts.join(' '),bx+pad,memoY+mlines.length*mLH+pad*.2);}
-  const drawCorner=place=>{
-    const parts=[];
-    if(S.datePlace===place&&dateTxt) parts.push(dateTxt);
-    if(S.timePlace===place&&timeTxt) parts.push(timeTxt);
-    if(!parts.length) return;
-    ctx.textBaseline='middle'; ctx.font=`${S.style.fontScaleDate*base*.85}px ${font}`;
-    let dY=by+bh-pad*.8; if(S.showConstructor)dY=by+bh-bh*.14-pad*.4;
-    if(place==='right'){ctx.textAlign='right';ctx.fillText(parts.join(' '),bx+bw-pad,dY);}
-    else{ctx.textAlign='left';ctx.fillText(parts.join(' '),bx+pad,dY);}
-  };
-  drawCorner('right'); drawCorner('left');
+  ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=10; ctx.shadowOffsetX=5; ctx.shadowOffsetY=5;
+  ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
+  ctx.shadowColor='transparent';
+  if(BOARD_IMG.complete&&BOARD_IMG.naturalWidth){ctx.imageSmoothingQuality='high';ctx.drawImage(getBoardBitmap(bg,fg),x,y,w,h);}
+  ctx.fillStyle=fg;
+  // 「工種」ラベルに切替（画像は「工事場所」）
+  if(S.workLabelType!=='place'){
+    ctx.fillStyle=bg;
+    ctx.fillRect(g.X(135),g.Y(750),(REF.LBLR-135-8)*k,(REF.V2B-750-4)*k);
+    ctx.fillStyle=fg; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font=`${w*.054}px ${S.style.fontFamily}`;
+    ctx.fillText('工種',g.X((REF.L+REF.LBLR)/2),g.Y((REF.V2T+REF.V2B)/2));
+  }
+  // 施工者欄（枠線のスタイルは画像に合わせる）
+  if(S.showConstructor){
+    ctx.fillStyle=fg;
+    ctx.fillRect(g.X(REF.L),g.Y(g.conTop*1),(REF.R-REF.L)*k,12*k);
+    ctx.fillRect(g.X(REF.LBLR),g.Y(g.conTop),(REF.VALL-REF.LBLR)*k,(REF.B-g.conTop)*k);
+  }
   ctx.restore();
+}
+
+function drawTextOnBoard(ctx,bx,by,bw,bh){
+  const fg=getFg();
+  const g=geo(bx,by,bw), font=S.style.fontFamily, lh=S.style.lineHeight, offY=S.style.yOffset;
+  let overflow=false;
+  ctx.save();
+  ctx.fillStyle=fg; ctx.textAlign='left'; ctx.textBaseline='middle';
+
+  // 工事件名・工事場所・施工者：枠内に収まるよう自動縮小＆クリップ
+  const drawCell=(key,r,text)=>{
+    if(!text)return;
+    const L=cellLayout(key,text,g,bw);
+    if(!L.ok)overflow=true;
+    ctx.save(); ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
+    ctx.font=`${L.size}px ${font}`;
+    const lhPx=L.size*lh;
+    let top=r.y+(r.h-L.th)/2+offY;
+    top=Math.max(r.y,Math.min(r.y+r.h-L.th,top));
+    L.lines.forEach((ln,i)=>ctx.fillText(ln,r.x,top+i*lhPx+lhPx/2));
+    ctx.restore();
+  };
+  drawCell('project',g.row1,S.text.project);
+  drawCell('workType',g.row2,S.text.workType);
+  if(S.showConstructor){
+    ctx.font=`${bw*.04}px ${font}`; ctx.textAlign='center';
+    ctx.fillText('施工者',g.X((REF.L+REF.LBLR)/2),g.Y((g.conTop+12+REF.B)/2));
+    ctx.textAlign='left';
+    drawCell('constructorName',g.conV,(S.text.constructorName||'').replace(/\n/g,' '));
+  }
+
+  // 備考＋日付・時間（左下・右下・備考下が重ならないようエリアを分離）
+  const M=memoLayout(S.text.memo||'',g,bw), info=M.info, a=M.area;
+  if(!M.ok)overflow=true;
+  ctx.save(); ctx.beginPath(); ctx.rect(g.memo.x,g.memo.y,g.memo.w,g.memo.h); ctx.clip();
+  ctx.fillStyle=fg; ctx.textAlign='left'; ctx.textBaseline='middle';
+  ctx.font=`${M.size}px ${font}`;
+  const mLH=M.size*lh;
+  let top=a.y+offY; top=Math.max(a.y,Math.min(a.y+Math.max(0,a.h-M.th),top));
+  M.lines.forEach((ln,i)=>ctx.fillText(ln,a.x,top+i*mLH+mLH/2));
+  if(info.inl){
+    ctx.font=`${info.size}px ${font}`;
+    const iy=Math.min(top+M.lines.length*mLH+info.size*.1, a.y+a.h)+info.size*.6;
+    ctx.fillText(info.inl,a.x,iy);
+  }
+  if(info.left||info.right){
+    ctx.font=`${info.size}px ${font}`; ctx.textBaseline='bottom';
+    const cy=g.memo.y+g.memo.h;
+    if(info.left){ctx.textAlign='left';ctx.fillText(info.left,g.memo.x,cy);}
+    if(info.right){ctx.textAlign='right';ctx.fillText(info.right,g.memo.x+g.memo.w,cy);}
+  }
+  ctx.restore();
+  ctx.restore();
+  document.getElementById('overflowNote').classList.toggle('hidden',!overflow);
 }
 
 function buildDatePart(){
@@ -598,7 +764,7 @@ function draw(){
     let dw,dh,dx,dy;
     if(ir>cr){dh=ch;dw=dh*ir;dx=-(dw-cw)/2;dy=0;}else{dw=cw;dh=dw/ir;dx=0;dy=-(dh-ch)/2;}
     ctx.drawImage(img,dx,dy,dw,dh);
-    if(S.showBoard){const{bx,by,bw,bh}=getBoardDimensions(),c=getBoardColors();drawBlackboard(ctx,bx,by,bw,bh,c);drawTextOnBoard(ctx,bx,by,bw,bh,c);}
+    if(S.showBoard){const{bx,by,bw,bh}=getBoardDimensions();drawBlackboard(ctx,bx,by,bw,bh);drawTextOnBoard(ctx,bx,by,bw,bh);}
   } else {
     ctx.fillStyle='#e2e8f0';ctx.fillRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle='#94a3b8';ctx.textAlign='center';ctx.textBaseline='middle';
@@ -627,48 +793,139 @@ canvas.addEventListener('touchend',()=>{isDragging=false;});
 window.resetBoardPosition=()=>{S.boardOffsetX=null;S.boardOffsetY=null;draw();};
 
 // ============================================================
-// FILE HANDLING（シンプル版：バッチなし）
+// 写真ごとの黒板内容（状態の保存・復元）
 // ============================================================
+const clone=o=>JSON.parse(JSON.stringify(o));
+function snapshot(){return clone({boardPos:S.boardPos,boardSize:S.boardSize,boardOffsetX:S.boardOffsetX,boardOffsetY:S.boardOffsetY,
+  bgColor:S.bgColor,fgMode:S.fgMode,fgColor:S.fgColor,showBoard:S.showBoard,showConstructor:S.showConstructor,
+  datePlace:S.datePlace,timePlace:S.timePlace,dateFormat:S.dateFormat,timeFormat:S.timeFormat,workLabelType:S.workLabelType,
+  text:S.text,style:S.style});}
+function loadState(st){Object.assign(S,clone(st));}
+function saveState(){const it=currentImages[currentImgIdx]; if(it&&S.image) it.state=snapshot();}
+
+function syncUI(){
+  const $=id=>document.getElementById(id);
+  $('inputProject').value=S.text.project||''; $('inputWorkType').value=S.text.workType||'';
+  $('inputMemo').value=S.text.memo||''; $('inputConstructor').value=S.text.constructorName||'';
+  ['inputProject','inputWorkType','inputMemo','inputConstructor'].forEach(id=>$(id)._setValid&&$(id)._setValid());
+  $('inputDate').value=(S.text.date||'').replace(/\//g,'-'); $('inputTime').value=S.text.time||'';
+  const setRadio=(n,v)=>document.querySelectorAll(`input[name="${n}"]`).forEach(r=>r.checked=(r.value===v));
+  setRadio('datePlace',S.datePlace); setRadio('timePlace',S.timePlace); setRadio('labelType',S.workLabelType);
+  const lbl=S.workLabelType==='place'?'工事場所':'工種';
+  $('workTypeLabel').textContent=lbl; $('adjustLabelWorkType').textContent=lbl+' サイズ';
+  $('dateFormatSelect').value=S.dateFormat; $('timeFormatSelect').value=S.timeFormat;
+  $('toggleBoard').checked=S.showBoard; $('showConstructor').checked=S.showConstructor;
+  document.querySelectorAll('.size-pill[data-size]').forEach(p=>p.classList.toggle('active',p.dataset.size===S.boardSize));
+  ['left','right'].forEach(p=>$(`pos-btn-${p}`).classList.toggle('btn-pos-active',p===S.boardPos));
+  [['scaleProject','fontScaleProject','valScaleProject'],['scaleWorkType','fontScaleWorkType','valScaleWorkType'],
+   ['scaleMemo','fontScaleMemo','valScaleMemo'],['scaleDate','fontScaleDate','valScaleDate'],['lineHeight','lineHeight','dispLineHeight']
+  ].forEach(([id,key,d])=>{$(id).value=S.style[key];$(d).textContent=Number(S.style[key]).toFixed(1);});
+  const ff=$('fontFamily'), norm=v=>v.replace(/\s/g,'');
+  Array.from(ff.options).forEach(o=>{if(norm(o.value)===norm(S.style.fontFamily))ff.value=o.value;});
+  updateColorUI();
+}
+function updateColorUI(){
+  const $=id=>document.getElementById(id);
+  $('bgColorPicker').value=S.bgColor; $('bgColorHex').value=S.bgColor.toUpperCase();
+  document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('active',b.dataset.color===S.bgColor));
+  document.querySelectorAll('.fg-pill').forEach(p=>p.classList.toggle('active',p.dataset.fg===S.fgMode));
+  $('fgColorPicker').value=S.fgColor; $('fgColorPicker').classList.toggle('hidden',S.fgMode!=='custom');
+}
+
+// ============================================================
+// FILE HANDLING（複数写真：写真ごとに黒板内容を保持）
+// ============================================================
+function makeThumb(img){
+  const c=document.createElement('canvas'); c.width=144; c.height=Math.max(1,Math.round(144*img.height/img.width));
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height); return c.toDataURL('image/jpeg',.7);
+}
 function handleFiles(files){
-  if(!files||files.length===0) return;
-  const loading=document.getElementById('loading');
-  loading.classList.remove('hidden');
-  const newItems=[]; let done=0;
-  Array.from(files).forEach(file=>{
-    if(!file.type.startsWith('image/')){done++;return;}
+  const list=Array.from(files||[]).filter(f=>f.type.startsWith('image/'));
+  if(!list.length) return;
+  const loading=document.getElementById('loading'); loading.classList.remove('hidden');
+  const results=new Array(list.length); let done=0;
+  const finish=()=>{
+    if(++done<list.length) return;
+    const items=results.filter(Boolean);
+    if(!items.length){loading.classList.add('hidden');return;}
+    saveState();
+    const st=snapshot(); items.forEach(it=>it.state=clone(st));
+    const first=currentImages.length;
+    currentImages=currentImages.concat(items);
+    setImage(first);
+    loading.classList.add('hidden');
+  };
+  list.forEach((file,i)=>{
     const reader=new FileReader();
+    reader.onerror=finish;
     reader.onload=e=>{
       const img=new Image();
-      img.onload=()=>{
-        newItems.push({img,name:file.name});
-        done++;
-        if(done===files.length){
-          currentImages=currentImages.concat(newItems);
-          const nav=document.getElementById('imageNav');
-          if(currentImages.length>1) nav.classList.replace('hidden','flex');
-          setImage(currentImages.length-newItems.length);
-          loading.classList.add('hidden');
-        }
-      };
+      img.onerror=finish;
+      img.onload=()=>{results[i]={img,name:file.name,thumb:makeThumb(img)};finish();};
       img.src=e.target.result;
     };
     reader.readAsDataURL(file);
   });
 }
-
 function setImage(idx){
   if(idx<0||idx>=currentImages.length) return;
+  saveState();
   currentImgIdx=idx;
   const item=currentImages[idx];
+  loadState(item.state);
   S.image=item.img; S.currentFileName=item.name;
   document.getElementById('currentFileLabel').textContent=item.name;
   canvas.width=item.img.width; canvas.height=item.img.height;
   document.getElementById('currentImageNum').textContent=idx+1;
   document.getElementById('totalImageNum').textContent=currentImages.length;
-  draw();
+  syncUI(); renderThumbs(); draw();
+}
+function renderThumbs(){
+  const n=currentImages.length;
+  document.getElementById('imageNav').classList.toggle('hidden',n<2);
+  document.getElementById('btnDownloadAll').classList.toggle('hidden',n<2);
+  document.getElementById('btnDownloadAll').classList.toggle('flex',n>=2);
+  const strip=document.getElementById('thumbStrip'); strip.innerHTML='';
+  currentImages.forEach((it,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='thumb'+(i===currentImgIdx?' active':'');
+    b.innerHTML=`<img src="${it.thumb}" alt=""><span class="no">${i+1}</span>`;
+    b.addEventListener('click',()=>setImage(i)); strip.appendChild(b);
+  });
+  const act=strip.children[currentImgIdx]; if(act&&act.scrollIntoView) act.scrollIntoView({inline:'center',block:'nearest'});
 }
 window.prevImage=()=>{if(currentImgIdx>0)setImage(currentImgIdx-1);};
 window.nextImage=()=>{if(currentImgIdx<currentImages.length-1)setImage(currentImgIdx+1);};
+window.removeCurrentImage=()=>{
+  if(!currentImages.length||!confirm('この写真を一覧から外しますか？（黒板の内容も破棄されます）')) return;
+  S.image=null; // 外す写真の状態を他へ上書きしない
+  currentImages.splice(currentImgIdx,1);
+  if(!currentImages.length){
+    currentImgIdx=0; document.getElementById('currentFileLabel').textContent='画像未選択';
+    canvas.width=800;canvas.height=500; renderThumbs(); draw(); return;
+  }
+  setImage(Math.min(currentImgIdx,currentImages.length-1));
+};
+// 件名・場所・色・サイズなどの共通項目を全写真へ（備考・日付・時間・黒板の位置は各写真のまま）
+window.applyCommonToAll=()=>{
+  if(!confirm('現在の黒板の設定（件名・場所・施工者・色・大きさ・フォントなど）を全ての写真に反映します。\n備考・日付・時間は各写真のまま残ります。よろしいですか？')) return;
+  saveState(); const st=snapshot();
+  currentImages.forEach(it=>{
+    const own=it.state, ns=clone(st);
+    ns.text.memo=own.text.memo; ns.text.date=own.text.date; ns.text.time=own.text.time;
+    ns.boardOffsetX=own.boardOffsetX; ns.boardOffsetY=own.boardOffsetY;
+    it.state=ns;
+  });
+  alert('全ての写真に反映しました');
+};
+// 指定の写真を、その写真の黒板内容で描画して JPEG にする（表示中の写真は元に戻す）
+async function renderBlob(idx){
+  saveState();
+  const cur=currentImages[currentImgIdx], it=currentImages[idx];
+  loadState(it.state); S.image=it.img; canvas.width=it.img.width; canvas.height=it.img.height; draw();
+  const blob=await getBlobAsync();
+  loadState(cur.state); S.image=cur.img; canvas.width=cur.img.width; canvas.height=cur.img.height; draw();
+  return blob;
+}
 
 // ============================================================
 // TAB
@@ -779,13 +1036,31 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('cameraInput').addEventListener('change',e=>handleFiles(e.target.files));
   document.getElementById('fileInput'  ).addEventListener('change',e=>handleFiles(e.target.files));
 
+  // 枠からはみ出す入力は受け付けない（IME変換中は確定時にチェック）
   [['inputProject','project'],['inputWorkType','workType'],['inputMemo','memo'],['inputConstructor','constructorName']].forEach(([id,key])=>{
-    document.getElementById(id)?.addEventListener('input',e=>{S.text[key]=e.target.value;draw();});
+    const el=document.getElementById(id); if(!el) return;
+    const warn=document.getElementById('warn-'+key); let warnTimer=null, lastValid=el.value, composing=false;
+    const flash=()=>{if(!warn)return;warn.classList.remove('hidden');el.classList.add('border-red-500');clearTimeout(warnTimer);warnTimer=setTimeout(()=>{warn.classList.add('hidden');el.classList.remove('border-red-500');},2000);};
+    const validate=(isPaste)=>{
+      let v=el.value;
+      if(!fitsField(key,v)){
+        if(isPaste){while(v.length&&!fitsField(key,v))v=v.slice(0,-1);}
+        else v=lastValid;
+        el.value=v; flash();
+      }
+      lastValid=el.value; S.text[key]=el.value; draw();
+    };
+    el.addEventListener('compositionstart',()=>{composing=true;});
+    el.addEventListener('compositionend',()=>{composing=false;validate(false);});
+    el.addEventListener('input',e=>{
+      if(composing||e.isComposing){S.text[key]=el.value;draw();return;}
+      validate(e.inputType==='insertFromPaste');
+    });
+    el._setValid=()=>{lastValid=el.value;};
   });
   document.getElementById('inputDate').addEventListener('input',e=>{S.text.date=e.target.value.replace(/-/g,'/');draw();});
   document.getElementById('inputTime').addEventListener('input',e=>{S.text.time=e.target.value;draw();});
 
-  document.getElementById('boardColor').addEventListener('change',e=>{S.boardColor=e.target.value;draw();});
   document.getElementById('toggleBoard').addEventListener('change',e=>{S.showBoard=e.target.checked;draw();});
   document.getElementById('showConstructor').addEventListener('change',e=>{S.showConstructor=e.target.checked;draw();});
 
@@ -821,7 +1096,37 @@ document.addEventListener('DOMContentLoaded',()=>{
   ss('scaleDate','fontScaleDate','valScaleDate');
   ss('lineHeight','lineHeight','dispLineHeight');
 
+  // 黒板の色
+  document.getElementById('swatchGroup').addEventListener('click',e=>{
+    const b=e.target.closest('.swatch'); if(!b) return;
+    S.bgColor=b.dataset.color; updateColorUI(); draw();
+  });
+  document.getElementById('bgColorPicker').addEventListener('input',e=>{S.bgColor=e.target.value.toLowerCase();updateColorUI();draw();});
+  const hexEl=document.getElementById('bgColorHex');
+  hexEl.addEventListener('input',e=>{const n=normHex(e.target.value); if(n){S.bgColor=n;document.getElementById('bgColorPicker').value=n;document.querySelectorAll('.swatch').forEach(b=>b.classList.toggle('active',b.dataset.color===n));draw();}});
+  hexEl.addEventListener('blur',updateColorUI);
+  document.getElementById('fgPillGroup').addEventListener('click',e=>{
+    const p=e.target.closest('.fg-pill'); if(!p) return;
+    S.fgMode=p.dataset.fg; updateColorUI(); draw();
+  });
+  document.getElementById('fgColorPicker').addEventListener('input',e=>{S.fgColor=e.target.value.toLowerCase();draw();});
+  updateColorUI();
+
+  document.getElementById('btnDownloadAll').addEventListener('click',async()=>{
+    if(!currentImages.length) return;
+    const loading=document.getElementById('loading'); loading.classList.remove('hidden');
+    try{
+      for(let i=0;i<currentImages.length;i++){
+        const blob=await renderBlob(i);
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+        a.download=currentImages[i].name.replace(/\.[^.]+$/,'')+'.jpg'; a.click();
+        await new Promise(r=>setTimeout(r,500));
+      }
+    } finally {loading.classList.add('hidden');}
+  });
+
   setToday();
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>draw());
 });
 </script>
 </body>
