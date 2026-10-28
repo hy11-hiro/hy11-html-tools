@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v110</title>
+    <title>G-Ledger | 現場原価管理台帳システム v116</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -2370,7 +2370,7 @@
 
 <p class="text-xs font-bold text-slate-700 mb-2">入力内容のチェック（項目の「抜け」ではなく、入力の仕方がおかしくないかを見ます）:</p>
 <div class="space-y-2 mb-4">
-<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-moto" checked class="mt-1 w-4 h-4 text-orange-500">
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-moto" class="mt-1 w-4 h-4 text-orange-500">
 <span class="text-xs text-slate-700"><b>元請工番（BO列）</b>：施工主ごとの工番の形式で登録されているか<br><span class="text-[11px] text-slate-500">施工主ごとに、登録済みの元請工番から「いつもの形式」を自動で読み取り、①未入力 ②自社の工番を入れている ③形式・桁数が違う ④空白が混ざっている、を出します。読み取った形式は、別シートで確認できます。下の「元請工番ルール」を登録した会社は、登録した形式で判定します。</span></span></label>
 <div class="ml-6 rounded-lg border border-orange-200 bg-orange-50/60 px-3 py-2">
 <div class="flex flex-wrap items-center gap-2">
@@ -2387,13 +2387,32 @@
 </div>
 <div id="moto-rules-list" class="hidden mt-2 overflow-x-auto bg-white rounded border border-orange-100"></div>
 </div>
-<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-order" checked class="mt-1 w-4 h-4 text-orange-500">
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-order" class="mt-1 w-4 h-4 text-orange-500">
 <span class="text-xs text-slate-700"><b>受注金額[税抜]（BP列）</b>：完了日が入力済みなのに、受注金額が未入力（0）<br><span class="text-[11px] text-slate-500">親工番の完了日・受注金額だけで判定します（枝番は対象外。取り込み直し前のデータでは使えません）。</span></span></label>
-<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-referrer" checked class="mt-1 w-4 h-4 text-orange-500">
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-yellow" class="mt-1 w-4 h-4 text-orange-500">
+<span class="text-xs text-slate-700"><b>空欄チェック（現場マスターの必須の項目）</b>：現場サブ名称(F列)・施工主ｺｰﾄﾞ(AD)・施工主名(AE)・ランクｺｰﾄﾞ(AF)・ランク名(AG)・受注金額[税抜](BP)<br><span class="text-[11px] text-slate-500">空欄のものを出します（親工番・枝番とも）。ｺｰﾄﾞの列は、00000000（未設定）も空欄として扱います。受注金額は、空欄だけを見ます（0は空欄に含めません）。取り込み直し前のデータでは使えません。</span></span></label>
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-blue" class="mt-1 w-4 h-4 text-orange-500">
+<span class="text-xs text-slate-700"><b>0以外のチェック（現場マスターの予算の項目）</b>：予算(L列)・変更予算区分(M)・変更予算区分名(N)・変更後予算(O)<br><span class="text-[11px] text-slate-500">0以外が入力されている工番を出します（親工番・枝番とも）。区分名は「なし」以外を、0以外として扱います。取り込み直し前のデータでは使えません。</span></span></label>
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-purple" class="mt-1 w-4 h-4 text-orange-500">
+<span class="text-xs text-slate-700"><b>使用不可コード（現場マスターの各コード）</b>：得意先(V列)・紹介元請会社(AU)・現場担当(AW)・設計担当(AY)・積算担当(BA)・担当拠点(BC)・エリア(BE)・売上分類①(BG) のコード<br><span class="text-[11px] text-slate-500">次のどちらかに当たるコードを使っている現場を出します（親工番・枝番とも）。① コードの名称（W・AV・AX・AZ・BB・BD・BF・BH列）に「使用不可」と書かれているもの（登録は不要です）。② 下で登録した「使用不可コード」。取り込み直し前のデータでは使えません。</span></span></label>
+<div class="ml-6 rounded-lg border border-orange-200 bg-orange-50/60 px-3 py-2">
+<div class="flex flex-wrap items-center gap-2"><span class="text-xs font-bold text-orange-800"><i class="fa-solid fa-ban mr-1"></i>使用不可コード（Excelで登録・管理）</span><span id="unusable-status" class="text-[11px] text-slate-600"></span></div>
+<div class="text-[11px] text-slate-500 mt-1">名称に「使用不可」と書かれたコードは、登録しなくても指摘します。それ以外に使えないコードがあるときは、Excelに書いて登録します。「ひな形をExcel出力」には、現場マスターで使われているコードが項目ごとに入るので、使えないコードに○を付けて取り込みます。</div>
+<div class="flex flex-wrap items-center gap-2 mt-2">
+<button type="button" onclick="window.exportUnusableTemplate()" class="text-[11px] font-bold bg-white border border-orange-300 text-orange-700 hover:bg-orange-100 rounded px-2.5 py-1"><i class="fa-solid fa-file-excel mr-1"></i>ひな形をExcel出力（現在の登録つき）</button>
+<button type="button" onclick="document.getElementById('unusable-file').click()" class="text-[11px] font-bold bg-orange-500 hover:bg-orange-600 text-white rounded px-2.5 py-1"><i class="fa-solid fa-file-import mr-1"></i>Excelから登録</button>
+<input type="file" id="unusable-file" accept=".xlsx,.xls" class="hidden" onchange="window.importUnusableExcel(this.files[0])">
+<label class="flex items-center gap-1 text-[11px] text-slate-600 cursor-pointer"><input type="checkbox" id="unusable-merge" class="w-3.5 h-3.5">既存の登録を残して追加・更新する</label>
+<button type="button" onclick="window.toggleUnusableList()" class="text-[11px] font-bold text-slate-600 hover:text-orange-600 underline">登録内容を見る</button>
+<button type="button" onclick="window.clearUnusableCodes()" class="text-[11px] font-bold text-slate-400 hover:text-red-600 underline">すべて削除</button>
+</div>
+<div id="unusable-list" class="hidden mt-2 overflow-x-auto max-h-64 bg-white rounded border border-orange-100"></div>
+</div>
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-referrer" class="mt-1 w-4 h-4 text-orange-500">
 <span class="text-xs text-slate-700"><b>紹介元請会社名</b>：得意先と同じ名前になっていないか<br><span class="text-[11px] text-slate-500">旧「施工主」の入力の癖が残っていないかを見ます。着手日が20261001以降の現場が対象です（表記の違い・㈱と株式会社の違いは同じ名前として判定）。</span></span></label>
-<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-date" checked class="mt-1 w-4 h-4 text-orange-500">
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-date" class="mt-1 w-4 h-4 text-orange-500">
 <span class="text-xs text-slate-700"><b>着手日・完了日</b>：完了日が着手日より前、日付として正しくない、年が不自然（2000年より前・数年先）</span></label>
-<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-motodup" checked class="mt-1 w-4 h-4 text-orange-500">
+<label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-motodup" class="mt-1 w-4 h-4 text-orange-500">
 <span class="text-xs text-slate-700"><b>元請工番の重複</b>：同じ施工主で、同じ元請工番が複数の親工番に登録されている<br><span class="text-[11px] text-slate-500">コピーミスの確認用です（元請の1つの工事を複数の親工番に分けている場合は、問題ありません）。別シートに一覧で出します。</span></span></label>
 <label class="flex items-start gap-2 cursor-pointer bg-white rounded-lg border border-orange-100 px-3 py-2"><input type="checkbox" id="chk-v-branch" class="mt-1 w-4 h-4 text-orange-500">
 <span class="text-xs text-slate-700"><b>担当者と拠点の組み合わせ</b>（参考）：その担当者の現場の8割以上が1つの拠点なのに、少数だけ別の拠点になっている<br><span class="text-[11px] text-slate-500">拠点の選び間違い探し用です。兼務の方は、そのまま問題ない場合があります。</span></span></label>
@@ -3374,13 +3393,13 @@
     //             v4 = 受注金額[税抜]（BP列）を追加
     //   purchase: 仕入明細に枝番（EC列）を保存しているか（subCode の有無で判定）
     // ※ 取込形式を変えたら、ここの版を上げる（上げると、取り込み直しが必要な旨が自動で表示される）
-    window.DATA_LAYOUT = { master: 4 };
+    window.DATA_LAYOUT = { master: 5 };
     window.checkDataFreshness = async function() {
         const issues = [];
         const m1 = await db.masters.limit(1).first();
         if (m1 && m1.layoutVer !== window.DATA_LAYOUT.master) {
-            issues.push({ target: '現場マスター', reason: '現在のレイアウト（施工主=AE列、着手日=BV列優先、ランク名・元請工番・有効期間・備考・紹介元請会社・受注金額[税抜]）で取り込まれていません。',
-                          impact: '施工主・着手日・上記の表示項目が正しく反映されません（施工主別ランキングにも影響します）。' });
+            issues.push({ target: '現場マスター', reason: '現在のレイアウト（施工主=AE列、着手日=BV列優先、ランク名・元請工番・有効期間・備考・紹介元請会社・受注金額[税抜]、予算・各コード）で取り込まれていません。',
+                          impact: '施工主・着手日・上記の表示項目が正しく反映されません（施工主別ランキングにも影響します）。データ不備チェックの「空欄チェック」「0以外のチェック」「使用不可コード」も使えません。' });
         }
         const p1 = await db.purchases.limit(1).first();
         if (p1 && p1.subCode === undefined) {
@@ -3873,7 +3892,14 @@
                         startDateOld: String(r[43] == null ? '' : r[43]).trim(),   // 従来の着手日（AR列・43列目）
 
                         endDate: r[45],   
-                        initialSales: r[16]
+                        initialSales: r[16],
+                        // データ不備チェック（空欄／0以外／使用不可コード）用に、対象の列の生の値をそのまま保存
+                        mx: (() => { const g = (i) => (r[i] == null ? '' : String(r[i]).trim()); return {
+                            subName: g(5), ownerCode: g(29), ownerName: g(30), rankCode: g(31), rankName: g(32), orderAmount: g(67),
+                            budget: g(11), budgetDivCode: g(12), budgetDivName: g(13), budgetAfter: g(14),
+                            customerCode: g(21), customerName: g(22), referrerCode: g(46), referrerName: g(47), managerCode: g(48), managerName: g(49),
+                            designerCode: g(50), designerName: g(51), estimatorCode: g(52), estimatorName: g(53), branchCode: g(54), branchName: g(55),
+                            areaCode: g(56), areaName: g(57), class1Code: g(58), class1Name: g(59) }; })()
                     };
                     
                     if (!mastersMap.has(code)) {
@@ -3909,6 +3935,7 @@
                             existing.endDate = rowObj.endDate;
                             existing.initialSales = rowObj.initialSales;
                             existing.orderAmount = rowObj.orderAmount;
+                            existing.mx = rowObj.mx;
                         } else { 
                             if (!rowObj.name || rowObj.name.trim() === '') {
                                 rowObj.name = existing.name; 
@@ -14056,6 +14083,7 @@
     // データチェックページを開いた時に「対象範囲設定」の拠点・得意先プルダウンを現在のマスターデータから作り直す
     window.initCheckPage = async function() {
         try { await window.refreshMotoRulesStatus(); } catch (e) { console.warn(e); }
+        try { await window.refreshUnusablePanel(); } catch (e) { console.warn(e); }
         const branchSel = document.getElementById('chk-scope-branch');
         const customerSel = document.getElementById('chk-scope-customer');
         if (!branchSel || !customerSel) return;
@@ -14128,6 +14156,103 @@
     const motoLoose = (sg) => sg.replace(/9+/g, '9').replace(/A+/g, 'A').replace(/あ+/g, 'あ');
     const motoTop  = (mp) => [...mp.entries()].sort((x, y) => y[1].n - x[1].n)[0];
     window.motoSigDisp = (sg) => String(sg || '').replace(/9/g, '#').replace(/A/g, '@');   // 画面・Excelでは、ルールの書き方（# と @）に合わせて表示する
+    // ══════════════════════════════════════════════════════════════════════
+    // 現場マスターのデータ不備チェック：空欄チェック／0以外のチェック／使用不可コード
+    //   使用不可コードは、Excelで登録・管理する（meta: masterUnusableCodes）
+    // ══════════════════════════════════════════════════════════════════════
+    window.MX_YELLOW = [['subName', '現場サブ名称', 'F', false], ['ownerCode', '施工主ｺｰﾄﾞ', 'AD', true], ['ownerName', '施工主名', 'AE', false], ['rankCode', 'ランクｺｰﾄﾞ', 'AF', true], ['rankName', 'ランク名', 'AG', false], ['orderAmount', '受注金額[税抜]', 'BP', false]];
+    window.MX_BLUE = [['budget', '予算', 'L', false], ['budgetDivCode', '変更予算区分', 'M', false], ['budgetDivName', '変更予算区分名', 'N', true], ['budgetAfter', '変更後予算', 'O', false]];   // 4つ目＝名称列（「なし」が0にあたる）
+    window.MX_PURPLE = [['customerCode', 'customerName', '得意先', 'V'], ['referrerCode', 'referrerName', '紹介元請会社', 'AU'], ['managerCode', 'managerName', '現場担当', 'AW'], ['designerCode', 'designerName', '設計担当', 'AY'], ['estimatorCode', 'estimatorName', '積算担当', 'BA'], ['branchCode', 'branchName', '担当拠点', 'BC'], ['areaCode', 'areaName', 'エリア', 'BE'], ['class1Code', 'class1Name', '売上分類①', 'BG']];
+    window.normUnusableCode = function(v) {
+        const t = String(v == null ? '' : v).normalize('NFKC').replace(/\s+/g, '');
+        return /^\d+$/.test(t) ? (t.replace(/^0+/, '') || '0') : t.toLowerCase();
+    };
+    window.getUnusableCodes = async function() { const r = await db.meta.get('masterUnusableCodes'); return (r && Array.isArray(r.value)) ? r.value : []; };
+    window.saveUnusableCodes = async function(list) { await db.meta.put({ key: 'masterUnusableCodes', value: list }); };
+    window.getUnusableMap = async function() { const m = new Map(); (await window.getUnusableCodes()).forEach(r => m.set(r.item + '|' + r.key, r)); return m; };
+    window.refreshUnusablePanel = async function() {
+        const st = document.getElementById('unusable-status'), box = document.getElementById('unusable-list'); if (!st) return;
+        const list = await window.getUnusableCodes();
+        st.textContent = list.length ? `登録 ${list.length} 件（名称に「使用不可」と書かれたコードは、登録なしでも指摘します）` : '未登録（名称に「使用不可」と書かれたコードは、登録なしでも指摘します）';
+        if (box && !box.classList.contains('hidden')) {
+            box.innerHTML = list.length ? `<table class="w-full text-[11px]"><thead class="bg-slate-100 text-slate-600"><tr><th class="px-2 py-1 text-left">項目</th><th class="px-2 py-1 text-left">コード</th><th class="px-2 py-1 text-left">名称</th><th class="px-2 py-1 text-left">備考</th></tr></thead><tbody>${list.map(r => `<tr class="border-t border-slate-100"><td class="px-2 py-1">${r.item}</td><td class="px-2 py-1 font-mono">${r.code}</td><td class="px-2 py-1">${r.name || ''}</td><td class="px-2 py-1 text-slate-500">${r.note || ''}</td></tr>`).join('')}</tbody></table>` : '<div class="px-3 py-2 text-[11px] text-slate-400">登録はありません</div>';
+        }
+    };
+    window.toggleUnusableList = async function() { const box = document.getElementById('unusable-list'); if (!box) return; box.classList.toggle('hidden'); await window.refreshUnusablePanel(); };
+    window.clearUnusableCodes = async function() { if (!confirm('登録した使用不可コードを、すべて削除します。よろしいですか？')) return; await window.saveUnusableCodes([]); await window.refreshUnusablePanel(); };
+    window.exportUnusableTemplate = async function() {
+        try {
+            const masters = await db.masters.toArray(), reg = await window.getUnusableCodes();
+            const use = new Map();   // item|key → { item, code, name, n }
+            const addUse = (rec) => { const mx = rec && rec.mx; if (!mx) return; window.MX_PURPLE.forEach(([ck, nk, label]) => { const code = String(mx[ck] == null ? '' : mx[ck]).trim(); if (!code) return; const key = label + '|' + window.normUnusableCode(code); let o = use.get(key); if (!o) { o = { item: label, code, name: String(mx[nk] == null ? '' : mx[nk]).trim(), n: 0 }; use.set(key, o); } o.n++; }); };
+            masters.forEach(m => { addUse(m); (m.subCodes || []).forEach(addUse); });
+            const rows = new Map();
+            reg.forEach(r => rows.set(r.item + '|' + r.key, { item: r.item, code: r.code, name: r.name || (use.get(r.item + '|' + r.key) || {}).name || '', mark: '○', note: r.note || '', n: (use.get(r.item + '|' + r.key) || {}).n || 0 }));
+            use.forEach((o, k) => { if (!rows.has(k)) rows.set(k, { item: o.item, code: o.code, name: o.name, mark: '', note: '', n: o.n }); });
+            const order = window.MX_PURPLE.map(p => p[2]);
+            const list = [...rows.values()].sort((a, b) => order.indexOf(a.item) - order.indexOf(b.item) || String(a.code).localeCompare(String(b.code)));
+            const wb = new ExcelJS.Workbook(), NAVY = 'FF1E3A5F';
+            const ws = wb.addWorksheet('使用不可コード');
+            const heads = ['項目', 'コード', '名称', '使用不可（○）', '備考（理由・代わりのコード）', '参考:使用件数（現場マスター）', '参考:名称に「使用不可」の記載'];
+            ws.columns = heads.map((h, i) => ({ header: h, width: [16, 16, 30, 14, 34, 16, 24][i] }));
+            list.forEach(r => ws.addRow([r.item, r.code, r.name, r.mark, r.note, r.n, /使用\s*不可/.test(String(r.name || '').normalize('NFKC')) ? 'あり（登録しなくても指摘します）' : '']));
+            ws.getColumn(2).numFmt = '@';
+            ws.getRow(1).height = 30;
+            heads.forEach((h, i) => { ws.getRow(1).getCell(i + 1).style = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: i < 5 ? NAVY : 'FF64748B' } }, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } }; });
+            const last = ws.rowCount + 200;
+            for (let r = 2; r <= last; r++) { ws.getCell('A' + r).dataValidation = { type: 'list', allowBlank: true, formulae: ['"' + order.join(',') + '"'] }; ws.getCell('D' + r).dataValidation = { type: 'list', allowBlank: true, formulae: ['"○"'] }; }
+            for (let r = 2; r <= ws.rowCount; r++) { ws.getCell(r, 6).font = { color: { argb: 'FF64748B' } }; ws.getCell(r, 7).font = { color: { argb: 'FF64748B' } }; if (ws.getCell(r, 4).value === '○') ws.getRow(r).eachCell((c, i) => { if (i <= 5) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF1E6' } }; }); }
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 7 } };
+            const wg = wb.addWorksheet('書き方'); wg.columns = [{ width: 22 }, { width: 100 }];
+            const t = wg.addRow(['使用不可コードの登録（現場マスターの各コード）']); t.font = { bold: true, size: 13, color: { argb: NAVY } }; wg.addRow([]);
+            [['目的', '現場マスターの各コード（得意先・紹介元請会社・現場担当・設計担当・積算担当・担当拠点・エリア・売上分類①）で、使ってはいけないコードを使っている現場を、データ不備チェックで指摘します。コードの名称に「使用不可」と書かれているものは、登録しなくても指摘します（このシートの登録は、それ以外に使えないコードがあるときに使います）。'],
+             ['登録のしかた', '「使用不可コード」シートの、使ってはいけないコードの行の「使用不可（○）」に○を付けて保存し、データチェックの「Excelから登録」で取り込みます。シートには、現場マスターで使われているコードが、項目ごとに一覧で入っています（使用件数つき）。'],
+             ['一覧にないコード', '現場マスターにまだ使われていないコードは、行を足して、項目・コードを入れ、○を付けてください。'],
+             ['備考', '理由や、代わりに使うコードを書くと、チェック結果の指摘にも出ます。'],
+             ['コードの照合', '数字のコードは、先頭の0の数の違い（00161320 と 161320）を同じコードとして扱います。'],
+             ['取込', '標準では、Excelの○の行にすべて置き換えます。「既存の登録を残して追加・更新」にチェックすると、同じ項目・コードだけ上書きして、他の登録は残します。'],
+             ['参考:の列', '灰色の見出しの列は、取込時には使いません。']
+            ].forEach(([k, v]) => { const r = wg.addRow([k, v]); r.getCell(1).font = { bold: true, color: { argb: NAVY } }; r.getCell(1).alignment = { vertical: 'top' }; r.getCell(2).alignment = { wrapText: true, vertical: 'top' }; });
+            const buf = await wb.xlsx.writeBuffer(); const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+            saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `使用不可コード_${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.xlsx`);
+            if (!masters.some(m => m.mx !== undefined)) alert('現場マスターが、各コードの列を取り込む前の形式です。コード一覧を入れるには、「データ取込・管理」から現場マスターを取り込み直してください（登録済みのコードだけで出力しました）。');
+        } catch (e) { console.error(e); alert('Excel出力でエラーが発生しました：' + e.message); }
+    };
+    window.importUnusableExcel = async function(file) {
+        const input = document.getElementById('unusable-file');
+        try {
+            if (!file) return;
+            const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+            const sn = wb.SheetNames.find(n => n.includes('使用不可')) || wb.SheetNames[0];
+            const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: '', raw: true });
+            const sq = (v) => String(v == null ? '' : v).normalize('NFKC').replace(/\s+/g, '');
+            const hi = aoa.findIndex(r => r.some(c => sq(c) === '項目') && r.some(c => sq(c) === 'コード'));
+            if (hi < 0) { alert('見出し行（「項目」「コード」の列）が見つかりません。「ひな形をExcel出力」で作ったExcelの「使用不可コード」シートを使ってください。'); return; }
+            const H = aoa[hi].map(sq), ci = (names) => H.findIndex(h => names.map(sq).includes(h));   // 全角のかっこ等は、読み取りで半角に変わるため、比べる側も同じ形にそろえる
+            const cI = ci(['項目']), cC = ci(['コード']), cN = ci(['名称']), cM = ci(['使用不可（○）', '使用不可', '使用不可(○)']), cB = ci(['備考（理由・代わりのコード）', '備考']);
+            if (cM < 0) { alert('「使用不可（○）」の列が見つかりません。'); return; }
+            const labels = window.MX_PURPLE.map(p => p[2]), errors = [], map = new Map();
+            for (let i = hi + 1; i < aoa.length; i++) {
+                const row = aoa[i], mark = sq(row[cM]);
+                if (!/^(○|〇|o|1|はい|yes|y|x|×|使用不可)$/i.test(mark) || mark === '') continue;
+                const item = String(row[cI] == null ? '' : row[cI]).trim(), code = String(row[cC] == null ? '' : row[cC]).trim();
+                if (!labels.includes(item)) { errors.push(`${i + 1}行目：「項目」は ${labels.join('／')} のいずれかにしてください（「${item}」）`); continue; }
+                if (!code) { errors.push(`${i + 1}行目（${item}）：コードが空欄です`); continue; }
+                map.set(item + '|' + window.normUnusableCode(code), { item, code, key: window.normUnusableCode(code), name: cN >= 0 ? String(row[cN] == null ? '' : row[cN]).trim() : '', note: cB >= 0 ? String(row[cB] == null ? '' : row[cB]).trim() : '' });
+            }
+            if (errors.length) { alert(`取り込めない行があります。Excelを直してからもう一度取り込んでください。\n\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? `\n…ほか${errors.length - 10}件` : ''}`); return; }
+            const merge = !!document.getElementById('unusable-merge')?.checked, cur = await window.getUnusableCodes();
+            let next = [...map.values()];
+            if (merge) { const m2 = new Map(cur.map(r => [r.item + '|' + r.key, r])); next.forEach(r => m2.set(r.item + '|' + r.key, r)); next = [...m2.values()]; }
+            const byItem = {}; next.forEach(r => { byItem[r.item] = (byItem[r.item] || 0) + 1; });
+            if (!confirm(`「${file.name}」から読み込みました。\n\n登録する使用不可コード：${next.length}件（${Object.entries(byItem).map(([k, v]) => `${k} ${v}`).join('／') || 'なし'}）\n\n` + (merge ? `既存の登録（${cur.length}件）は残し、同じ項目・コードだけ上書きします。` : `既存の登録（${cur.length}件）は、すべてこの内容に置き換えます。`) + '\nよろしいですか？')) return;
+            await window.saveUnusableCodes(next); await window.refreshUnusablePanel();
+            alert(`登録しました（${next.length}件）。「使用不可コード」のチェックで使われます。`);
+        } catch (e) { console.error(e); alert('Excelの取込でエラーが発生しました：' + e.message); }
+        finally { if (input) input.value = ''; }
+    };
+
     window.getMotoRules = async function() { const r = await db.meta.get('motoRules'); return (r && Array.isArray(r.value)) ? r.value : []; };
     window.saveMotoRules = async function(rules) { await db.meta.put({ key: 'motoRules', value: rules }); };
     window.MOTO_MODE_LABEL = { required: '必須', optional: '任意', skip: '対象外' };
@@ -14342,7 +14467,10 @@
                 date: getChecked('chk-v-date'),            // 着手日・完了日の前後・年
                 motodup: getChecked('chk-v-motodup'),      // 元請工番の重複
                 branch: getChecked('chk-v-branch'),        // 担当者×拠点
-                ordersales: getChecked('chk-v-ordersales') // 受注金額と売上累計の乖離
+                ordersales: getChecked('chk-v-ordersales'), // 受注金額と売上累計の乖離
+                yellow: getChecked('chk-v-yellow'),        // 空欄チェック
+                blue: getChecked('chk-v-blue'),            // 0以外のチェック
+                purple: getChecked('chk-v-purple')         // 使用不可コード
             };
             const anyOld = Object.values(checks).includes(true);
             if (!anyOld && !Object.values(vchk).includes(true)) { alert("少なくとも1つのチェック項目を選択してください。"); return; }
@@ -14356,6 +14484,14 @@
             if (vchk.order && !masters.some(m => m.orderAmount !== undefined)) {
                 alert("受注金額[税抜]（BP列）を取り込む前の現場マスターです。\n「データ取込・管理」から現場マスターを取り込み直してから、もう一度実行してください。\n（受注金額のチェックを外せば、他のチェックは実行できます）");
                 return;
+            }
+            if ((vchk.yellow || vchk.blue || vchk.purple) && !masters.some(m => m.mx !== undefined)) {
+                alert("現場マスターの予算・各コードなどの列を取り込む前の現場マスターです。\n「データ取込・管理」から現場マスターを取り込み直してから、もう一度実行してください。\n（「空欄チェック」「0以外のチェック」「使用不可コード」を外せば、他のチェックは実行できます）");
+                return;
+            }
+            let unusableMap = new Map();
+            if (vchk.purple) {
+                unusableMap = await window.getUnusableMap();   // 登録がなくても実行する（名称に「使用不可」と書かれたコードは、登録なしで指摘）
             }
             const costsMap = vchk.ordersales ? new Map((await db.costs.toArray()).map(c => [c.code, c])) : new Map();
 
@@ -14491,6 +14627,9 @@
                 { header: 'サブコード', key: 'subCode', width: 12 },
                 { header: '現場名', key: 'name', width: 35 },
                 { header: '施工主', key: 'owner', width: 18 },
+                { header: '施工主ｺｰﾄﾞ', key: 'ownerCode', width: 13 },
+                { header: 'ランクｺｰﾄﾞ', key: 'rankCode', width: 13 },
+                { header: 'ランク名', key: 'rankName', width: 14 },
                 { header: '元請工番', key: 'moto', width: 16 },
                 { header: '得意先', key: 'customer', width: 18 },
                 { header: '紹介元請会社名', key: 'referrer', width: 18 },
@@ -14520,6 +14659,37 @@
             const typeCount = {};
             const dupRows = [];   // 元請工番の重複シート用
 
+            // ── 空欄チェック／0以外のチェック／使用不可コード ──
+            const mxv = (rec, k) => { const v = rec && rec.mx ? rec.mx[k] : ''; return v == null ? '' : String(v).trim(); };
+            const evalYellow = (rec) => {   // 空欄チェック（ｺｰﾄﾞ列は 00000000＝未設定も空欄）
+                if (!rec.mx) return [];
+                const list = window.MX_YELLOW.filter(([k, , , isCode]) => { const v = mxv(rec, k); return v === '' || (isCode && /^0+$/.test(v)); }).map(([, l, col]) => `${l}(${col}列)`);
+                return list.length ? [`空欄の項目：${list.join('、')}`] : [];
+            };
+            const evalBlue = (rec) => {   // 0以外のチェック（区分名は「なし」以外）
+                if (!rec.mx) return [];
+                const list = [];
+                window.MX_BLUE.forEach(([k, l, col, isName]) => {
+                    const v = mxv(rec, k); if (v === '') return;
+                    if (isName) { if (v !== 'なし') list.push(`${l}(${col}列)「${v}」`); }
+                    else { const n = Number(v.replace(/,/g, '')); if (isNaN(n)) list.push(`${l}(${col}列)「${v}」`); else if (n !== 0) list.push(`${l}(${col}列) ${n.toLocaleString()}`); }
+                });
+                return list.length ? [`0以外が入力されています：${list.join('、')}`] : [];
+            };
+            const evalPurple = (rec) => {   // 使用不可コード（登録したコードを使っている）
+                if (!rec.mx) return [];
+                const out = [];
+                window.MX_PURPLE.forEach(([ck, nk, label, col]) => {
+                    const code = mxv(rec, ck); if (!code) return;
+                    const nm = mxv(rec, nk);
+                    const hit = unusableMap.get(label + '|' + window.normUnusableCode(code));
+                    const written = /使用\s*不可/.test(nm.normalize('NFKC'));   // 名称に「使用不可」と書かれている
+                    if (!hit && !written) return;
+                    const why = [written ? '名称に「使用不可」と書かれています' : '', hit ? '登録した使用不可コードです' + (hit.note ? '：' + hit.note : '') : ''].filter(Boolean).join('／');
+                    out.push(`使用不可のコードを使っています：${label}ｺｰﾄﾞ(${col}列) ${code}${nm ? '「' + nm + '」' : ''}（${why}）`);
+                });
+                return out;
+            };
             const processRecord = (rec, mem) => {
                 const targetCode = rec.subCode ? rec.subCode : rec.code;
                 if (!costKeys.has(targetCode)) { if (!costKeys.has(rec.code)) return; }
@@ -14560,6 +14730,9 @@
                     if (vchk.motodup)    { const r = evalMotoDup(mem); r.forEach(d => issues.push({ t: '元請工番の重複', d })); if (r.length) dupRows.push({ mem, rec }); }
                     if (vchk.branch)     evalBranch(mem).forEach(d => issues.push({ t: '担当者×拠点', d }));
                     if (vchk.ordersales) evalOrderSales(mem, own).forEach(d => issues.push({ t: '受注金額と売上', d }));
+                    if (vchk.yellow)     evalYellow(own).forEach(d => issues.push({ t: '空欄（必須項目）', d }));
+                    if (vchk.blue)       evalBlue(own).forEach(d => issues.push({ t: '0以外（予算）', d }));
+                    if (vchk.purple)     evalPurple(own).forEach(d => issues.push({ t: '使用不可コード', d }));
                 }
 
                 const isNG = issues.length > 0;
@@ -14575,6 +14748,7 @@
                     detail: issues.map(i => i.d).join('\n'),
                     code: rec.code || '', subCode: rec.subCode || '',
                     name: rec.name || '', owner: mem ? window.ownerDisplay(mem.owner) : rec.owner,
+                    ownerCode: mxv(own, 'ownerCode'), rankCode: mxv(own, 'rankCode'), rankName: mxv(own, 'rankName'),
                     moto: own.motoukeNo || '', customer: mem ? mem.customer : rec.customer, referrer: own.referrer || '',
                     orderAmount: (own.orderAmount === '' || own.orderAmount === undefined) ? '' : own.orderAmount,
                     branch: mem ? mem.branch : rec.branch, manager: mem ? mem.manager : rec.manager,
