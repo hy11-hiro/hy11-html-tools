@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>blackboard_mobile_v8</title>
+  <title>blackboard_mobile_v11</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&family=Kosugi+Maru&display=swap" rel="stylesheet" />
@@ -53,7 +53,7 @@
 
 <header class="bg-slate-800 text-white px-4 py-3 sticky top-0 z-50 shadow-lg flex items-center justify-between">
   <h1 class="text-base font-bold flex items-center gap-2">
-    <span class="material-icons text-xl">construction</span>blackboard_mobile_v8
+    <span class="material-icons text-xl">construction</span>blackboard_mobile_v11
   </h1>
   <span id="currentFileLabel" class="text-xs bg-slate-600 px-2 py-1 rounded-full truncate max-w-[180px]">画像未選択</span>
 </header>
@@ -112,7 +112,7 @@
         <label class="flex items-start gap-2 bg-indigo-50 border-2 border-indigo-200 rounded-lg p-2 cursor-pointer select-none">
           <input type="checkbox" id="individualMode" class="w-5 h-5 mt-0.5 rounded text-indigo-600" onchange="setIndividualMode(this.checked)" />
           <div class="text-xs"><div class="font-bold text-indigo-800">黒板の内容を写真ごとに個別に編集する</div>
-            <div class="text-gray-500">オフ（標準）：備考・件名・場所・色などは全写真で共通。どれかを直すと全部に反映されます。<br>オン：この写真だけ別の内容にできます。</div></div>
+            <div class="text-gray-500">オフ（標準）：備考・件名・場所・色・黒板の大きさ／位置などは全写真で共通。どれかを直すと全部に反映されます。<br>オン：この写真だけ別の内容にできます。</div></div>
         </label>
         <div class="flex items-center justify-between">
           <button onclick="prevImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
@@ -535,8 +535,12 @@
           <input type="range" id="scaleMemo" min="0.3" max="2.0" step="0.1" value="1.2" />
         </div>
         <div>
-          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>日付・時間 サイズ</span><span id="valScaleDate" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>日付 サイズ</span><span id="valScaleDate" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
           <input type="range" id="scaleDate" min="0.3" max="2.0" step="0.1" value="1.0" />
+        </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>時間 サイズ</span><span id="valScaleTime" class="bg-gray-100 px-1.5 rounded text-gray-500">1.0</span></div>
+          <input type="range" id="scaleTime" min="0.3" max="2.0" step="0.1" value="1.0" />
         </div>
         <div>
           <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>行間</span><span id="dispLineHeight" class="bg-gray-100 px-1.5 rounded text-gray-500">1.2</span></div>
@@ -677,7 +681,7 @@ const S = {
   dateFormat:'md_jp', timeFormat:'hm_jp',
   workLabelType:'place',
   text:{project:'',workType:'',memo:'',constructorName:'ヒューマンヤード(株)',vehicleText:'',carNumber:'',date:'',time:''},
-  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.0,fontScaleWorkType:1.0,fontScaleMemo:1.2,fontScaleDate:1.0,lineHeight:1.2,yOffset:0,vehicleGap:0},
+  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.0,fontScaleWorkType:1.0,fontScaleMemo:1.2,fontScaleDate:1.0,fontScaleTime:1.0,lineHeight:1.2,yOffset:0,vehicleGap:0},
 };
 
 let currentImages = [];  // { img, name }
@@ -711,13 +715,48 @@ const BOARD_LS='bb_custom_boards_v1';
 let customBoards=[];
 const tplImgs={};
 const validBoard=b=>!!(b&&b.id&&b.name&&b.image&&b.aspect>0&&b.regions&&b.regions.memo);
-function loadBoards(){
-  try{const j=JSON.parse(localStorage.getItem(BOARD_LS)||'[]'); customBoards=Array.isArray(j)?j.filter(validBoard):[];}catch(e){customBoards=[];}
-  customBoards.forEach(t=>tplImage(t));
+let boardStore='memory';   // 'idb' | 'ls' | 'memory'（保存できない環境）
+const BOARD_DB='bb_boards_db', BOARD_STORE='boards';
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    try{
+      if(!window.indexedDB) return rej(new Error('noidb'));
+      const r=indexedDB.open(BOARD_DB,1);
+      r.onupgradeneeded=()=>{r.result.createObjectStore(BOARD_STORE,{keyPath:'id'});};
+      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error||new Error('idb')); r.onblocked=()=>rej(new Error('blocked'));
+    }catch(e){rej(e);}
+  });
 }
-function saveBoards(){
-  try{localStorage.setItem(BOARD_LS,JSON.stringify(customBoards));return true;}
-  catch(e){alert('ブラウザの保存容量が足りないか、保存が許可されていません。\n「書き出し」でファイルに保存しておいてください。');return false;}
+async function loadBoards(){
+  let list=[];
+  try{
+    const db=await idbOpen();
+    list=await new Promise((res,rej)=>{const q=db.transaction(BOARD_STORE,'readonly').objectStore(BOARD_STORE).getAll(); q.onsuccess=()=>res(q.result||[]); q.onerror=()=>rej(q.error);});
+    db.close(); boardStore='idb';
+  }catch(e){}
+  try{
+    const j=JSON.parse(localStorage.getItem(BOARD_LS)||'[]');
+    if(Array.isArray(j)) j.forEach(b=>{if(!list.some(x=>x.id===b.id))list.push(b);});
+    if(boardStore==='memory') boardStore='ls';
+  }catch(e){}
+  const keep=customBoards.filter(b=>!list.some(x=>x.id===b.id));   // 読み込み前に追加された分は残す
+  customBoards=list.filter(validBoard).concat(keep);
+  customBoards.forEach(t=>tplImage(t));
+  if(document.getElementById('boardTypeSelect')) updateBoardUI();
+}
+// 保存。どの方法でも保存できなければ 'memory' を返す（黒板の登録自体は止めない）
+async function saveBoards(){
+  try{
+    const db=await idbOpen();
+    await new Promise((res,rej)=>{
+      const tx=db.transaction(BOARD_STORE,'readwrite'), st=tx.objectStore(BOARD_STORE);
+      st.clear(); customBoards.forEach(b=>st.put(b));
+      tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error||new Error('abort'));
+    });
+    db.close(); boardStore='idb'; return 'idb';
+  }catch(e){}
+  try{localStorage.setItem(BOARD_LS,JSON.stringify(customBoards)); boardStore='ls'; return 'ls';}catch(e){}
+  boardStore='memory'; return 'memory';
 }
 const allTpls=()=>[DEFAULT_TPL,...customBoards];
 const tplById=id=>allTpls().find(t=>t.id===id)||DEFAULT_TPL;
@@ -779,8 +818,8 @@ function geo(bx,by,bw){
   const T=curTpl();
   if(!T.builtin){
     const bh=bw/T.aspect, pad=bw*.015, ins=bw*.004;
-    const R=k=>{const r=T.regions&&T.regions[k]; return r?{x:bx+r.x*bw+ins,y:by+r.y*bh+ins,w:Math.max(1,r.w*bw-ins*2),h:Math.max(1,r.h*bh-ins*2)}:null;};
-    return {custom:true,pad,row1:R('project'),row2:R('workType'),conV:R('constructor'),memo:R('memo')};
+    const R=k=>{const r=T.regions&&Object.prototype.hasOwnProperty.call(T.regions,k)?T.regions[k]:null; return r?{x:bx+r.x*bw+ins,y:by+r.y*bh+ins,w:Math.max(1,r.w*bw-ins*2),h:Math.max(1,r.h*bh-ins*2)}:null;};
+    return {custom:true,pad,row1:R('project'),row2:R('workType'),conV:R('consName'),memo:R('memo')};
   }
   const k=bw/REF.W, X=v=>bx+v*k, Y=v=>by+v*k;
   const pad=bw*.015, vp=bw*.004;
@@ -833,21 +872,32 @@ function cellLayout(key,text,g,bw){
 function dateLayout(g,bw){
   const font=S.style.fontFamily;
   const dTxt=buildDatePart(), tTxt=buildTimePart();
+  const base=bw*.055*.85;
+  const dSz=(S.style.fontScaleDate||1)*base, tSz=(S.style.fontScaleTime||1)*base;   // 日付と時間は別々のサイズ
   const corners={left:[],right:[]}, inline=[];
-  [[S.datePlace,dTxt],[S.timePlace,tTxt]].forEach(([pl,t])=>{
+  [[S.datePlace,dTxt,dSz],[S.timePlace,tTxt,tSz]].forEach(([pl,t,sz])=>{
     if(!t||pl==='none')return;
-    if(pl==='inline')inline.push(t); else if(corners[pl])corners[pl].push(t);
+    const seg={t,sz};
+    if(pl==='inline')inline.push(seg); else if(corners[pl])corners[pl].push(seg);
   });
-  const left=corners.left.join(' '), right=corners.right.join(' '), inl=inline.join(' ');
-  let size=S.style.fontScaleDate*bw*.055*.85;
   const W=g.memo.w, gap=g.pad*2;
-  const meas=t=>{ctx.font=`${size}px ${font}`;return t?ctx.measureText(t).width:0;};
-  let tot=meas(left)+meas(right)+((left&&right)?gap:0);
-  if(tot>W) size*=W/tot;
-  if(inl){const w=meas(inl); if(w>W) size*=W/w;}
-  const cornerH=(left||right)?size*1.25+g.pad*.3:0;
-  const inlineH=inl?size*1.25:0;
-  return {size,left,right,inl,cornerH,inlineH};
+  const segW=segs=>segs.reduce((a,q,i)=>{ctx.font=`${q.sz}px ${font}`;return a+ctx.measureText(q.t).width+(i?ctx.measureText(' ').width:0);},0);
+  const scale=(segs,k)=>segs.map(q=>({t:q.t,sz:q.sz*k}));
+  let L=corners.left, R=corners.right, I=inline;
+  const wl=segW(L), wr=segW(R), avail=(L.length&&R.length)?W-gap:W;
+  if(wl+wr>avail){const k=avail/(wl+wr); L=scale(L,k); R=scale(R,k);}   // 左右が重ならないよう両方を縮小
+  const wi=segW(I); if(wi>W) I=scale(I,W/wi);
+  const mx=segs=>segs.reduce((a,q)=>Math.max(a,q.sz),0);
+  const cornerH=(L.length||R.length)?Math.max(mx(L),mx(R))*1.25+g.pad*.3:0;
+  const inlineH=I.length?mx(I)*1.25:0;
+  return {left:L,right:R,inl:I,cornerH,inlineH};
+}
+// 日付・時間を、それぞれのサイズで1行に並べて描く
+function drawSegs(ctx,segs,x,y,alignRight,font){
+  if(!segs.length) return;
+  let total=0; segs.forEach((q,i)=>{ctx.font=`${q.sz}px ${font}`;total+=ctx.measureText(q.t).width+(i?ctx.measureText(' ').width:0);});
+  let cx=alignRight?x-total:x; ctx.textAlign='left';
+  segs.forEach((q,i)=>{ctx.font=`${q.sz}px ${font}`; if(i)cx+=ctx.measureText(' ').width; ctx.fillText(q.t,cx,y); cx+=ctx.measureText(q.t).width;});
 }
 function memoLayout(text,g,bw){
   const info=dateLayout(g,bw);
@@ -941,16 +991,15 @@ function drawTextOnBoard(ctx,bx,by,bw,bh){
   const mLH=M.size*lh;
   let top=a.y+offY; top=Math.max(a.y,Math.min(a.y+Math.max(0,a.h-M.th),top));
   M.lines.forEach((ln,i)=>ctx.fillText(ln,a.x,top+i*mLH+mLH/2));
-  if(info.inl){
-    ctx.font=`${info.size}px ${font}`;
-    const iy=Math.min(top+M.lines.length*mLH+info.size*.1, a.y+a.h)+info.size*.6;
-    ctx.fillText(info.inl,a.x,iy);
+  if(info.inl.length){
+    const mx=Math.max(...info.inl.map(q=>q.sz));
+    const yb=Math.min(top+M.lines.length*mLH+mx*.1, a.y+a.h)+mx*1.1;
+    ctx.textBaseline='bottom'; drawSegs(ctx,info.inl,a.x,yb,false,font);
   }
-  if(info.left||info.right){
-    ctx.font=`${info.size}px ${font}`; ctx.textBaseline='bottom';
-    const cy=g.memo.y+g.memo.h;
-    if(info.left){ctx.textAlign='left';ctx.fillText(info.left,g.memo.x,cy);}
-    if(info.right){ctx.textAlign='right';ctx.fillText(info.right,g.memo.x+g.memo.w,cy);}
+  if(info.left.length||info.right.length){
+    ctx.textBaseline='bottom'; const cy=g.memo.y+g.memo.h;
+    drawSegs(ctx,info.left,g.memo.x,cy,false,font);
+    drawSegs(ctx,info.right,g.memo.x+g.memo.w,cy,true,font);
   }
   ctx.restore();
   ctx.restore();
@@ -1022,7 +1071,7 @@ loadBoards();
 function loadState(st){Object.assign(S,clone(st));}
 // 黒板の内容は標準で「全写真共通」。個別編集をオンにした間だけ写真ごとに別々。
 let individualMode=false;
-const SHARED_TOP=['boardId','bgColor','fgMode','fgColor','showBoard','showConstructor','workLabelType','datePlace','timePlace','dateFormat','timeFormat','style'];
+const SHARED_TOP=['boardSize','boardPos','boardId','bgColor','fgMode','fgColor','showBoard','showConstructor','workLabelType','datePlace','timePlace','dateFormat','timeFormat','style'];
 const SHARED_TEXT=['project','workType','constructorName','memo'];
 function propagateShared(src){
   currentImages.forEach(o=>{
@@ -1070,7 +1119,7 @@ function syncUI(){
   document.querySelectorAll('.size-pill[data-size]').forEach(p=>p.classList.toggle('active',p.dataset.size===S.boardSize));
   ['left','right'].forEach(p=>$(`pos-btn-${p}`).classList.toggle('btn-pos-active',p===S.boardPos));
   [['scaleProject','fontScaleProject','valScaleProject'],['scaleWorkType','fontScaleWorkType','valScaleWorkType'],
-   ['scaleMemo','fontScaleMemo','valScaleMemo'],['scaleDate','fontScaleDate','valScaleDate'],['lineHeight','lineHeight','dispLineHeight']
+   ['scaleMemo','fontScaleMemo','valScaleMemo'],['scaleDate','fontScaleDate','valScaleDate'],['scaleTime','fontScaleTime','valScaleTime'],['lineHeight','lineHeight','dispLineHeight']
   ].forEach(([id,key,d])=>{$(id).value=S.style[key];$(d).textContent=Number(S.style[key]).toFixed(1);});
   const ff=$('fontFamily'), norm=v=>v.replace(/\s/g,'');
   Array.from(ff.options).forEach(o=>{if(norm(o.value)===norm(S.style.fontFamily))ff.value=o.value;});
@@ -1263,9 +1312,11 @@ function updateItemText(ri,patch){
   renderBatchList();
 }
 function setItemSize(ri,v){
-  saveState(); const it=currentImages[ri]; if(!it||!v) return;
-  it.state.boardSize=v; it.state.boardOffsetX=null; it.state.boardOffsetY=null;
-  if(ri===currentImgIdx){loadState(it.state);syncUI();draw();}
+  saveState(); if(!v) return;
+  // 共通（標準）のときは全写真、個別編集のときはその写真だけ
+  const targets=individualMode?[currentImages[ri]]:currentImages;
+  targets.forEach(it=>{if(!it)return; it.state.boardSize=v; it.state.boardOffsetX=null; it.state.boardOffsetY=null;});
+  const cur=currentImages[currentImgIdx]; if(cur&&S.image){loadState(cur.state);syncUI();draw();}
   renderBatchList();
 }
 function stripDT(base){
@@ -1424,8 +1475,10 @@ function updateBoardUI(){
   $('colorSection').style.display=T.recolor?'':'none';
   $('labelTypeSection').style.display=T.builtin?'':'none';
   $('showConstructorWrap').style.display=T.builtin?'':'none';
-  $('boardTypeNote').textContent=T.builtin?'標準の黒板です。追加した黒板は、この端末のブラウザに保存されます。':
-    (T.recolor?'追加した黒板です（色を変えられます）。':'追加した黒板です（この黒板は色を変えられません）。');
+  const mem=boardStore==='memory'&&customBoards.length>0;
+  $('boardTypeNote').innerHTML=(T.builtin?'標準の黒板です。追加した黒板は、この端末のブラウザに保存されます。':
+    (T.recolor?'追加した黒板です（色を変えられます）。':'追加した黒板です（この黒板は色を変えられません）。'))
+    +(mem?'<br><b class="text-red-600">⚠ この環境では保存できないため、ページを閉じると追加した黒板は消えます。黒板を選んで「書き出し」でファイルにしておくと、次回「読み込み」で使えます。</b>':'');
 }
 window.selectBoard=id=>{
   S.boardId=id; const T=curTpl();
@@ -1435,7 +1488,7 @@ window.selectBoard=id=>{
 };
 
 // ---- 追加・編集画面 ----
-const BE_FIELDS=[['project','工事件名','#ef4444'],['workType','工事場所','#3b82f6'],['memo','備考（必須）','#10b981'],['constructor','施工者（あれば）','#f59e0b']];
+const BE_FIELDS=[['project','工事件名','#ef4444'],['workType','工事場所','#3b82f6'],['memo','備考（必須）','#10b981'],['consName','施工者（あれば）','#f59e0b']];
 let BE={id:null,img:null,image:'',aspect:1,regions:{},active:'memo',drag:null,w:0,h:0};
 const beCv=()=>document.getElementById('beCanvas');
 function beChips(){
@@ -1519,7 +1572,7 @@ window.beRender=()=>{
   const bg0=document.getElementById('beBg0').value, txt=beLum(bg0)>150?'#111':'#fff';
   const regs={...BE.regions}; if(BE.drag&&BE.drag.mode==='draw'&&BE.drag.cur) regs[BE.active]=BE.drag.cur;
   BE_FIELDS.forEach(([k,n,c])=>{
-    const r=regs[k]; if(!r) return;
+    const r=Object.prototype.hasOwnProperty.call(regs,k)?regs[k]:null; if(!r) return;
     const px={x:r.x*W,y:r.y*H,w:r.w*W,h:r.h*H};
     x.fillStyle=c+'22'; x.fillRect(px.x,px.y,px.w,px.h);
     x.lineWidth=(k===BE.active?3:2)*dpr; x.strokeStyle=c; x.strokeRect(px.x,px.y,px.w,px.h);
@@ -1531,7 +1584,7 @@ window.beRender=()=>{
         x.fillText('残土搬出 3t',px.x+4*dpr,px.y+sz*.8); x.fillText('2台目',px.x+4*dpr,px.y+sz*2.0);
         const ds=sz*.7; x.font=`${ds}px 'M PLUS Rounded 1c','Noto Sans CJK JP',sans-serif`; x.textAlign='right'; x.textBaseline='bottom'; x.fillText('10月27日 8時43分',px.x+px.w-4*dpr,px.y+px.h-2*dpr);
       } else {
-        const t={project:'○○マンション新築工事',workType:'駐車場 北側',constructor:'ヒューマンヤード(株)'}[k], sz=fit(t,px.h*.7);
+        const t={project:'○○マンション新築工事',workType:'駐車場 北側',consName:'ヒューマンヤード(株)'}[k], sz=fit(t,px.h*.7);
         x.font=`${sz}px 'M PLUS Rounded 1c','Noto Sans CJK JP',sans-serif`; x.fillText(t,px.x+4*dpr,px.y+px.h/2);
       }
       x.restore();
@@ -1542,7 +1595,7 @@ window.beRender=()=>{
     if(k===BE.active){ x.fillStyle='#fff'; x.strokeStyle=c; [[px.x,px.y],[px.x+px.w,px.y],[px.x,px.y+px.h],[px.x+px.w,px.y+px.h]].forEach(([cx,cy])=>{x.beginPath();x.arc(cx,cy,6*dpr,0,7);x.fill();x.stroke();}); }
   });
 };
-(function(){
+function initBeCanvas(){
   const cv=document.getElementById('beCanvas'); if(!cv) return;
   const pos=e=>{const r=cv.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)),rw:r.width,rh:r.height};};
   cv.addEventListener('pointerdown',e=>{
@@ -1573,32 +1626,38 @@ window.beRender=()=>{
     BE.drag=null; beChips(); beRender();
   };
   cv.addEventListener('pointerup',end); cv.addEventListener('pointercancel',end);
-})();
-window.saveBoardEditor=()=>{
+}
+function beBuild(){
   const name=document.getElementById('beName').value.trim();
-  if(!BE.img){alert('黒板の画像を選んでください');return;}
-  if(!name){alert('黒板の名前を入れてください');return;}
-  if(!BE.regions.memo){alert('「備考」の欄を、画像の上をなぞって囲んでください');return;}
-  const t={id:BE.id||('b_'+Date.now().toString(36)),name,image:BE.image,aspect:BE.aspect,regions:JSON.parse(JSON.stringify(BE.regions)),
+  if(!BE.img){alert('黒板の画像を選んでください');return null;}
+  if(!name){alert('黒板の名前を入れてください');return null;}
+  if(!BE.regions.memo){alert('「備考」の欄を、画像の上をなぞって囲んでください');return null;}
+  return {id:BE.id||('b_'+Date.now().toString(36)),name,image:BE.image,aspect:BE.aspect,regions:JSON.parse(JSON.stringify(BE.regions)),
     recolor:document.getElementById('beRecolor').checked,bg0:document.getElementById('beBg0').value,fg0:document.getElementById('beFg0').value};
-  const i=customBoards.findIndex(b=>b.id===t.id), prev=customBoards.slice();
+}
+window.saveBoardEditor=async()=>{
+  const t=beBuild(); if(!t) return;
+  const i=customBoards.findIndex(b=>b.id===t.id);
   if(i>=0) customBoards[i]=t; else customBoards.push(t);
-  if(!saveBoards()){customBoards=prev;return;}
   delete tplImgs[t.id]; _bmp={key:'',cv:null}; tplImage(t);
-  closeBoardEditor(); selectBoard(t.id);
+  closeBoardEditor(); selectBoard(t.id);            // まず使える状態にする
+  const mode=await saveBoards();
+  updateBoardUI();
+  if(mode==='memory'&&confirm('この環境では、黒板をブラウザに保存できませんでした。\nこのままでも、ページを開いている間は使えます。\n\n次回も使えるように、黒板をファイルに書き出しますか？\n（次回は「読み込み」でこのファイルを選べば使えます）')) exportBoardObj(t);
 };
+window.beExport=()=>{const t=beBuild(); if(t) exportBoardObj(t);};
 window.deleteBoardFromEditor=()=>{
   if(!BE.id||!confirm('この黒板を削除します。この黒板を使っている写真は、標準の黒板に戻ります。\nよろしいですか？')) return;
-  customBoards=customBoards.filter(b=>b.id!==BE.id); saveBoards(); delete tplImgs[BE.id];
+  customBoards=customBoards.filter(b=>b.id!==BE.id); delete tplImgs[BE.id];
   currentImages.forEach(it=>{if(it.state&&it.state.boardId===BE.id)it.state.boardId='default';});
   if(S.boardId===BE.id) S.boardId='default';
-  closeBoardEditor(); selectBoard(S.boardId);
+  closeBoardEditor(); selectBoard(S.boardId); saveBoards().then(updateBoardUI);
 };
-window.exportBoard=()=>{
-  const T=curTpl(); if(T.builtin) return;
+function exportBoardObj(T){
   const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(T)],{type:'application/json'}));
-  a.download=T.name.replace(/[\\/:*?"<>|]/g,'_')+'.board.json'; a.click();
-};
+  a.download=T.name.replace(/[\\/:*?"<>|]/g,'_')+'.board.json'; document.body.appendChild(a); a.click(); a.remove();
+}
+window.exportBoard=()=>{const T=curTpl(); if(T.builtin) return; exportBoardObj(T);};
 function importBoards(files){
   let added=0, pending=files.length, last=null;
   Array.from(files).forEach(f=>{
@@ -1609,7 +1668,7 @@ function importBoards(files){
         j.forEach(b=>{ if(!validBoard(b)) return; if(customBoards.some(x=>x.id===b.id)) b.id='b_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); b.builtin=false; customBoards.push(b); last=b; added++; });
       }catch(err){}
       if(--pending===0){
-        if(added){ if(saveBoards()){customBoards.forEach(tplImage); selectBoard(last.id); alert(`${added}件の黒板を読み込みました`);} }
+        if(added){ customBoards.forEach(tplImage); selectBoard(last.id); saveBoards().then(m=>{updateBoardUI(); alert(`${added}件の黒板を読み込みました`+(m==='memory'?'\n（この環境では保存できないため、ページを閉じると消えます）':''));}); }
         else alert('読み込める黒板ファイルがありませんでした');
       }
     };
@@ -1792,6 +1851,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   ss('scaleWorkType','fontScaleWorkType','valScaleWorkType');
   ss('scaleMemo','fontScaleMemo','valScaleMemo');
   ss('scaleDate','fontScaleDate','valScaleDate');
+  ss('scaleTime','fontScaleTime','valScaleTime');
   ss('lineHeight','lineHeight','dispLineHeight');
 
   // 黒板の色
@@ -1831,7 +1891,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
   // バッチ設定
   renderDateGroups();
-  updateBoardUI();
+  updateBoardUI(); initBeCanvas();
   document.getElementById('sortModeSelect').addEventListener('change',e=>{sortMode=e.target.value;renderThumbs();});
   document.querySelectorAll('input[name="vehicleMode"]').forEach(r=>r.addEventListener('change',e=>{vehicleMode=e.target.value;refreshVehicleTexts();}));
   document.getElementById('showVehicleInMemo').addEventListener('change',e=>{S.showVehicleInMemo=e.target.checked;updateEasyInputMode();draw();});
@@ -1880,6 +1940,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       <button type="button" onclick="saveBoardEditor()" class="col-span-2 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700">保存</button>
       <button type="button" onclick="closeBoardEditor()" class="py-3 rounded-xl border-2 border-gray-300 bg-white font-bold text-gray-700">キャンセル</button>
     </div>
+    <button type="button" onclick="beExport()" class="w-full py-2 rounded-xl border-2 border-blue-300 bg-blue-50 text-blue-800 font-bold text-sm">ファイルに書き出す（バックアップ・他の端末用）</button>
     <button type="button" id="beDelete" onclick="deleteBoardFromEditor()" class="w-full py-2 text-red-600 font-bold text-sm underline" style="display:none">この黒板を削除</button>
   </div>
 </div>
