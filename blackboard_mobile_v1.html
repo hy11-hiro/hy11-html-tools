@@ -3,12 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>blackboard_mobile_v3</title>
+  <title>blackboard_mobile_v8</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&family=Kosugi+Maru&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body { font-family:'M PLUS Rounded 1c',sans-serif; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
     .canvas-bg {
@@ -28,6 +29,15 @@
     #canvasWrap.drag-mode #mainCanvas:active{cursor:grabbing}
     .size-pill{display:inline-flex;align-items:center;padding:5px 10px;border:2px solid #cbd5e1;border-radius:999px;cursor:pointer;font-size:.78rem;font-weight:bold;user-select:none;transition:.12s;background:white;color:#374151}
     .size-pill.active{border-color:#2563eb;background:#dbeafe;color:#1e40af}
+    #batchListContainer{max-height:240px;overflow-y:auto}
+    #batchListContainer table{width:100%;border-collapse:collapse;font-size:.78rem}
+    #batchListContainer th{background:#f8fafc;position:sticky;top:0;z-index:1;padding:4px 5px;border-bottom:2px solid #e2e8f0;text-align:left;font-size:.72rem}
+    #batchListContainer td{padding:3px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+    #batchListContainer tr.active-row td{background:#dbeafe}
+    .grp-row{display:flex;gap:4px;align-items:center;margin-bottom:4px}
+    .grp-row input{padding:4px;border:1px solid #cbd5e1;border-radius:6px;font-size:.8rem;font-weight:bold}
+    .grp-row input[type=number]{width:48px;text-align:center}
+    .bin{padding:3px 8px;border-radius:6px;font-size:.72rem;font-weight:bold}
     .swatch{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:0;cursor:pointer}
     .swatch .chip{width:42px;height:42px;border-radius:10px;border:3px solid #cbd5e1}
     .swatch.active .chip{border-color:#2563eb;box-shadow:0 0 0 2px #93c5fd}
@@ -43,7 +53,7 @@
 
 <header class="bg-slate-800 text-white px-4 py-3 sticky top-0 z-50 shadow-lg flex items-center justify-between">
   <h1 class="text-base font-bold flex items-center gap-2">
-    <span class="material-icons text-xl">construction</span>blackboard_mobile_v3
+    <span class="material-icons text-xl">construction</span>blackboard_mobile_v8
   </h1>
   <span id="currentFileLabel" class="text-xs bg-slate-600 px-2 py-1 rounded-full truncate max-w-[180px]">画像未選択</span>
 </header>
@@ -99,19 +109,33 @@
     <!-- 画像ナビ（写真ごとに黒板内容を保持） -->
     <div id="imageNav" class="hidden">
       <div class="bg-white p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col gap-2">
+        <label class="flex items-start gap-2 bg-indigo-50 border-2 border-indigo-200 rounded-lg p-2 cursor-pointer select-none">
+          <input type="checkbox" id="individualMode" class="w-5 h-5 mt-0.5 rounded text-indigo-600" onchange="setIndividualMode(this.checked)" />
+          <div class="text-xs"><div class="font-bold text-indigo-800">黒板の内容を写真ごとに個別に編集する</div>
+            <div class="text-gray-500">オフ（標準）：備考・件名・場所・色などは全写真で共通。どれかを直すと全部に反映されます。<br>オン：この写真だけ別の内容にできます。</div></div>
+        </label>
         <div class="flex items-center justify-between">
           <button onclick="prevImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
             <span class="material-icons text-base">arrow_back</span>前へ
           </button>
-          <span class="font-bold"><span id="currentImageNum">1</span> / <span id="totalImageNum">1</span></span>
+          <span class="font-bold"><span id="currentImageNum">1</span> / <span id="totalImageNum">1</span><span id="currentVehicleLabel" class="ml-1 text-xs text-blue-700"></span></span>
           <button onclick="nextImage()" class="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-lg font-bold hover:bg-gray-200 text-sm">
             次へ<span class="material-icons text-base">arrow_forward</span>
           </button>
         </div>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="font-bold text-gray-600 whitespace-nowrap">並び順</span>
+          <select id="sortModeSelect" class="flex-1 p-1.5 border-2 border-gray-300 rounded-lg text-xs font-bold text-gray-700">
+            <option value="vehicle">台数順（1台目→2台目…）</option>
+            <option value="load">読み込み順</option>
+            <option value="name">ファイル名順</option>
+            <option value="time">日付・時間順</option>
+          </select>
+        </div>
         <div id="thumbStrip" class="flex gap-2 overflow-x-auto pb-1"></div>
-        <p class="text-[11px] text-gray-500">黒板の内容は写真ごとに保存されます。新しく取り込んだ写真には、取り込み時点の内容が引き継がれます。</p>
+        <p class="text-[11px] text-gray-500">日付・時間・台数は、いつも写真ごとです。サムネイルの数字は台数で、前へ／次へ・一覧も選んだ並び順にそろいます。</p>
         <div class="grid grid-cols-2 gap-2">
-          <button onclick="applyCommonToAll()" class="py-2 rounded-lg border-2 border-blue-300 bg-blue-50 text-blue-800 font-bold text-xs flex items-center justify-center gap-1">
+          <button id="btnApplyCommon" onclick="applyCommonToAll()" style="display:none" class="py-2 rounded-lg border-2 border-blue-300 bg-blue-50 text-blue-800 font-bold text-xs flex items-center justify-center gap-1">
             <span class="material-icons text-sm">content_copy</span>件名・場所・色などを全写真へ
           </button>
           <button onclick="removeCurrentImage()" class="py-2 rounded-lg border-2 border-red-300 bg-red-50 text-red-700 font-bold text-xs flex items-center justify-center gap-1">
@@ -131,8 +155,17 @@
       </button>
     </div>
     <button id="btnDownloadAll" class="hidden bg-slate-700 text-white font-bold py-3 rounded-xl shadow-lg items-center justify-center border-b-4 border-slate-900 hover:bg-slate-800 gap-2">
-      <span class="material-icons text-xl">download_for_offline</span><span class="text-xs">全ての写真を保存（それぞれの黒板内容で）</span>
+      <span class="material-icons text-xl">download_for_offline</span><span class="text-xs">全ての写真を一括保存（それぞれの黒板内容で）</span>
     </button>
+    <div class="flex justify-end">
+      <button id="btnBulkZip" class="hidden text-xs text-gray-400 underline hover:text-gray-600 items-center gap-1 py-1">
+        <span class="material-icons text-sm">folder_zip</span>ZIPでまとめてダウンロード
+      </button>
+    </div>
+    <div id="progressWrap" class="hidden">
+      <div class="text-xs text-gray-500 mb-1" id="progressLabel">処理中...</div>
+      <div class="w-full bg-gray-200 rounded-full h-2.5"><div id="progressFill" class="bg-blue-500 h-2.5 rounded-full transition-all" style="width:0%"></div></div>
+    </div>
   </div>
 
   <!-- ===== 右列: 操作パネル ===== -->
@@ -152,10 +185,27 @@
       <button type="button" onclick="switchTab('adjust')" id="btn-tab-adjust" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300">
         <span class="material-icons text-lg">format_size</span>調整
       </button>
+      <button type="button" onclick="switchTab('batch')" id="btn-tab-batch" class="tab-btn flex-1 py-2.5 font-bold text-blue-700 hover:bg-blue-50 flex flex-col items-center border-l border-blue-300 relative">
+        <span class="material-icons text-lg">list_alt</span>バッチ
+        <span id="batchBadge" class="hidden absolute top-0.5 right-0.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 items-center justify-center font-bold leading-none">0</span>
+      </button>
     </div>
 
     <!-- ===== TAB: 設定 ===== -->
     <div id="tab-settings" class="tab-content bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-4">
+
+      <div>
+        <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の種類</label>
+        <select id="boardTypeSelect" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white" onchange="selectBoard(this.value)"></select>
+        <div class="grid grid-cols-4 gap-1.5 mt-2">
+          <button type="button" onclick="openBoardEditor(null)" class="py-2 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-700">＋追加</button>
+          <button type="button" id="btnBoardEdit" onclick="openBoardEditor(S.boardId)" class="py-2 rounded-lg border-2 border-gray-300 bg-white font-bold text-xs text-gray-700 disabled:opacity-40">編集</button>
+          <button type="button" id="btnBoardExport" onclick="exportBoard()" class="py-2 rounded-lg border-2 border-gray-300 bg-white font-bold text-xs text-gray-700 disabled:opacity-40">書き出し</button>
+          <button type="button" onclick="document.getElementById('boardImportFile').click()" class="py-2 rounded-lg border-2 border-gray-300 bg-white font-bold text-xs text-gray-700">読み込み</button>
+        </div>
+        <input type="file" id="boardImportFile" accept=".json,application/json" class="hidden" multiple />
+        <p id="boardTypeNote" class="text-[11px] text-gray-500 mt-1"></p>
+      </div>
 
       <div>
         <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の位置</label>
@@ -165,7 +215,7 @@
         </div>
       </div>
 
-      <div>
+      <div id="colorSection">
         <label class="block font-bold text-gray-700 mb-2 text-sm">黒板の色</label>
         <div class="flex flex-wrap gap-3 mb-3" id="swatchGroup">
           <button type="button" class="swatch" data-color="#025c39"><span class="chip" style="background:#025c39"></span><span class="cap">緑(標準)</span></button>
@@ -202,7 +252,7 @@
         </div>
       </div>
 
-      <div>
+      <div id="labelTypeSection">
         <label class="block font-bold text-gray-700 mb-2 text-sm">工種ラベル</label>
         <div class="grid grid-cols-2 gap-2">
           <label class="flex items-center gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-300 text-sm">
@@ -219,9 +269,13 @@
           <input type="checkbox" id="toggleBoard" class="w-5 h-5 rounded text-blue-600" checked />
           <span class="font-bold text-gray-700 text-sm">黒板を表示する</span>
         </label>
-        <label class="flex items-center gap-3 cursor-pointer select-none">
+        <label id="showConstructorWrap" class="flex items-center gap-3 cursor-pointer select-none">
           <input type="checkbox" id="showConstructor" class="w-5 h-5 rounded text-blue-600" />
           <span class="font-bold text-gray-700 text-sm">施工者欄を表示する</span>
+        </label>
+        <label class="flex items-center gap-3 cursor-pointer select-none">
+          <input type="checkbox" id="showVehicleInMemo" class="w-5 h-5 rounded text-blue-600" checked />
+          <span class="font-bold text-gray-700 text-sm">備考に台数（○台目）を表示する</span>
         </label>
       </div>
 
@@ -295,6 +349,10 @@
       </h3>
       <div>
         <label class="block font-bold text-gray-700 mb-1 text-sm">工事件名</label>
+        <div class="scopeBar items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mb-1.5 text-xs" style="display:none">
+          <span class="font-bold text-indigo-800 scopeText"></span>
+          <button type="button" onclick="setIndividualMode(!individualMode)" class="scopeBtn font-bold text-indigo-700 underline whitespace-nowrap"></button>
+        </div>
         <textarea id="inputProject" rows="2" placeholder="例: ○○マンション新築工事" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
         <p class="text-[11px] text-gray-500 mt-1">枠に収まる範囲で入力できます（長いと文字が自動で小さくなります）</p>
         <p id="warn-project" class="text-xs font-bold text-red-600 hidden">これ以上は枠に入りません</p>
@@ -369,7 +427,10 @@
                 <span class="text-sm font-bold text-gray-500 peer-checked:text-blue-600">なし</span>
               </label>
             </div>
-            <div class="flex items-center gap-2">
+            <div id="autoVehicleNote" class="hidden bg-emerald-50 border border-emerald-300 rounded-lg p-2 text-xs text-emerald-800">
+              この写真は「<b id="autoVehicleNoteText"></b>」が<b>自動</b>で付きます。備考には「残土搬出」「3t」などだけ入れてください。
+            </div>
+            <div id="counterRow" class="flex items-center gap-2">
               <div class="flex items-center border-2 border-gray-300 rounded-lg bg-white overflow-hidden flex-1">
                 <button type="button" onclick="changeCounter(-1)" class="px-4 py-2.5 bg-gray-50 hover:bg-gray-200 text-gray-700 border-r border-gray-200 w-14 flex justify-center">
                   <span class="material-icons">remove</span>
@@ -437,6 +498,10 @@
           <label class="font-bold text-gray-700 text-sm">備考・内容</label>
           <button onclick="clearMemo()" class="text-red-600 text-xs font-bold hover:text-red-800">クリア</button>
         </div>
+        <div class="scopeBar items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mb-1.5 text-xs" style="display:none">
+          <span class="font-bold text-indigo-800 scopeText"></span>
+          <button type="button" onclick="setIndividualMode(!individualMode)" class="scopeBtn font-bold text-indigo-700 underline whitespace-nowrap"></button>
+        </div>
         <textarea id="inputMemo" rows="5" placeholder="例: 残土搬出 3t 1台目" class="w-full p-2.5 border-2 border-gray-300 rounded-lg text-sm text-gray-700 resize-none"></textarea>
         <p id="warn-memo" class="text-xs font-bold text-red-600 hidden">これ以上は枠に入りません</p>
       </div>
@@ -488,7 +553,109 @@
             </button>
           </div>
         </div>
+        <div>
+          <div class="flex justify-between text-sm font-bold text-gray-700 mb-1"><span>備考↔台数の間隔（空行数）</span><span id="valVehicleGap" class="bg-gray-100 px-1.5 rounded text-gray-500">0</span></div>
+          <input type="range" id="vehicleGapSlider" min="0" max="5" step="1" value="0" />
+          <div class="text-[11px] text-gray-400 mt-1">0=隙間なし、1〜5=空行を追加</div>
+        </div>
         <button onclick="resetAll()" class="w-full text-red-600 font-bold underline hover:text-red-800 text-sm py-1">設定を全てリセット</button>
+      </div>
+    </div>
+
+
+    <!-- ===== TAB: バッチ ===== -->
+    <div id="tab-batch" class="tab-content hidden bg-white rounded-xl shadow-md border-2 border-gray-200 p-4 space-y-3">
+      <h3 class="font-bold text-gray-800 border-b pb-2 flex items-center gap-2 text-sm">
+        <span class="material-icons text-gray-500 text-base">list_alt</span>バッチ処理
+        <span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full ml-auto font-bold"><span id="batchCount">0</span>枚読込済</span>
+      </h3>
+
+      <div class="bg-emerald-50 border border-emerald-300 rounded-xl p-3 text-xs text-emerald-900">
+        <div class="font-bold mb-1">📄 ファイル名の読み取り</div>
+        <div><span class="font-mono font-bold">1.2.1917.1026.1430.jpg</span> → 2台目／ナンバー 1917／10月26日／14時30分</div>
+        <div class="text-emerald-700 mt-1">日付・時間がファイル名にある写真は、それをそのまま黒板に入れます。<br>ファイル名に台数が無い写真には「○台目」を表示しません。</div>
+        <div class="mt-1 font-bold">読み取れた枚数: 台数 <span id="parsedVehicle">0</span>枚 ／ 日付・時間 <span id="parsedDate">0</span>枚</div>
+        <div class="grid grid-cols-1 gap-1.5 mt-2">
+          <button onclick="renameWithDateTime()" class="py-2 rounded-lg bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700">📝 日付・時間をファイル名に書き込む（全写真）</button>
+          <div class="text-[11px] text-emerald-700">例: <span class="font-mono">1.2.1917.jpg</span> → <span class="font-mono">1.2.1917.1027.0843.jpg</span>（保存するファイル名に反映。次回この名前で取り込めば自動で入ります）</div>
+          <div class="grid grid-cols-2 gap-1.5">
+            <button onclick="restoreFromFileNames()" class="py-1.5 rounded-lg border-2 border-emerald-400 bg-white text-emerald-800 font-bold text-xs">ファイル名から日付・時間を読み込む</button>
+            <button onclick="resetFileNames()" class="py-1.5 rounded-lg border-2 border-gray-300 bg-white text-gray-600 font-bold text-xs">元のファイル名に戻す</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-amber-50 border border-amber-300 rounded-xl p-3">
+        <div class="font-bold text-amber-800 mb-2 text-xs">📦 台数の振り分け方</div>
+        <div class="space-y-1.5">
+          <label class="flex items-start gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-200 text-xs">
+            <input type="radio" name="vehicleMode" value="filename" class="w-4 h-4 mt-0.5 text-blue-600" checked />
+            <div><div class="font-bold">ファイル名の数字を使用（標準）</div><div class="text-gray-400">3.15.5134 → 中間の 15 を台数として使用。数字が無ければ非表示</div></div>
+          </label>
+          <label class="flex items-start gap-2 cursor-pointer bg-white p-2 rounded-lg border-2 border-gray-200 text-xs">
+            <input type="radio" name="vehicleMode" value="loadOrder" class="w-4 h-4 mt-0.5 text-blue-600" />
+            <div><div class="font-bold">読み込み順に 1,2,3…台目</div><div class="text-gray-400">ファイル名を無視して順番で付番</div></div>
+          </label>
+        </div>
+        <div class="bg-white p-2 rounded-lg border-2 border-amber-300 text-xs mt-2">
+          <div class="font-bold">残土・客土のファイル名 → 「○台目」を自動で表示</div>
+          <div class="text-gray-600 mt-0.5">台数が入ったファイル名（例 <span class="font-mono">1.2.1917</span>、<span class="font-mono">1.2.1917.1026.1430</span>）は残土・客土の写真として扱います。備考に「残土搬出 3t」のように入れると、その後ろに「2台目」が自動で付きます。</div>
+          <div class="text-gray-600 mt-1">台数のない通常のファイル名（例 <span class="font-mono">IMG_0005</span>）は自動では付きません。簡単入力支援の「○台目」を使います。</div>
+        </div>
+      </div>
+
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-3">
+        <div class="flex items-center justify-between mb-2">
+          <div class="font-bold text-blue-800 text-xs">📅 日付グループ設定 / 時間割り当て</div>
+          <button onclick="addDateGroup()" class="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg hover:bg-blue-700 flex items-center gap-1">
+            <span class="material-icons text-sm">add</span>追加
+          </button>
+        </div>
+        <label class="flex items-center gap-2 text-xs font-bold text-gray-700 mb-2 cursor-pointer">
+          <input type="checkbox" id="skipFileDated" class="w-4 h-4" checked onchange="updateGroupTotals()" />
+          ファイル名に日付・時間がある写真は対象外にする
+        </label>
+        <div class="flex gap-1 items-center text-xs text-gray-400 font-bold mb-1 px-1">
+          <span style="width:16px;flex-shrink:0"></span>
+          <span class="flex-1 min-w-0">日付</span>
+          <span style="width:82px;flex-shrink:0;text-align:center">開始時間</span>
+          <span style="width:48px;flex-shrink:0;text-align:center">枚数</span>
+          <span style="width:14px;flex-shrink:0"></span>
+          <span style="width:20px;flex-shrink:0"></span>
+        </div>
+        <div id="dateGroupList"><p class="text-xs text-gray-400 text-center py-2">「追加」ボタンでグループを追加</p></div>
+        <div class="flex justify-between items-center mt-2 text-xs font-bold">
+          <span class="text-gray-600">割り当て合計: <span id="groupTotal" class="text-blue-700">0</span>枚</span>
+          <span class="text-gray-400">対象: <span id="groupTotalFiles" class="text-gray-700">0</span>枚</span>
+        </div>
+        <div class="mt-1 bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-800">
+          💡 <strong>枚数</strong> = そのグループに割り当てるファイル数。上の「台数の振り分け方」の順で先頭から数えて割り当てます。
+        </div>
+        <div class="mt-2 bg-white rounded-lg p-2 border border-gray-200">
+          <div class="text-xs font-bold text-gray-600 mb-1.5">⏱ 間隔（分）— ランダム範囲</div>
+          <div class="grid grid-cols-5 gap-1 items-center">
+            <input type="number" id="intervalMin" value="40" min="1" class="col-span-2 w-full p-1.5 border border-gray-300 rounded text-sm font-bold text-center min-w-0" />
+            <span class="text-gray-500 font-bold text-sm text-center">〜</span>
+            <input type="number" id="intervalMax" value="45" min="1" class="col-span-2 w-full p-1.5 border border-gray-300 rounded text-sm font-bold text-center min-w-0" />
+          </div>
+          <div class="text-xs text-gray-400 mt-1">同じ値=固定間隔</div>
+        </div>
+        <button onclick="applyBatchTimes()" class="w-full mt-2 bg-green-600 text-white font-bold py-2.5 rounded-lg hover:bg-green-700 flex items-center justify-center gap-1 text-sm">
+          <span class="material-icons text-base">schedule</span>時間を一括計算・ファイル一覧に反映
+        </button>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <div class="font-bold text-gray-700 text-xs">読み込み済みファイル一覧</div>
+          <button onclick="exportCSV()" class="text-xs text-gray-400 underline hover:text-gray-600">CSV出力</button>
+        </div>
+        <div id="batchListContainer" class="border border-gray-200 rounded-lg overflow-hidden">
+          <table>
+            <thead><tr><th>#</th><th>台数</th><th>ナンバー</th><th>日付</th><th>時間</th><th>サイズ</th><th>操作</th></tr></thead>
+            <tbody id="batchTbody"><tr><td colspan="7" class="text-center py-4 text-gray-400 text-xs">写真を読み込んでください</td></tr></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -503,14 +670,14 @@ const S = {
   image:null, currentFileName:'',
   boardPos:'right',
   boardSize:'m',
-  bgColor:'#025c39', fgMode:'auto', fgColor:'#ffffff',
+  bgColor:'#025c39', fgMode:'auto', fgColor:'#ffffff', boardId:'default',
   boardOffsetX:null, boardOffsetY:null,
-  showBoard:true, showConstructor:false,
+  showBoard:true, showConstructor:false, showVehicleInMemo:true,
   datePlace:'right', timePlace:'right',
   dateFormat:'md_jp', timeFormat:'hm_jp',
   workLabelType:'place',
-  text:{project:'',workType:'',memo:'',constructorName:'ヒューマンヤード(株)',date:'',time:''},
-  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.0,fontScaleWorkType:1.0,fontScaleMemo:1.2,fontScaleDate:1.0,lineHeight:1.2,yOffset:0},
+  text:{project:'',workType:'',memo:'',constructorName:'ヒューマンヤード(株)',vehicleText:'',carNumber:'',date:'',time:''},
+  style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.0,fontScaleWorkType:1.0,fontScaleMemo:1.2,fontScaleDate:1.0,lineHeight:1.2,yOffset:0,vehicleGap:0},
 };
 
 let currentImages = [];  // { img, name }
@@ -534,38 +701,68 @@ BOARD_IMG.src = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAACWAAAAZcCAMAAAC+Y
 const REF = {W:7646,H:5186, L:129,R:7500,B:5029,
   LBLR:1909, VALL:1931,
   V1T:130,V1B:723, V2T:745,V2B:1341, MEMOT:1352, CONH:520};
-const BOARD_ASPECT = REF.W/REF.H;
 const DEFAULT_BG = '#025c39';
+const DEFAULT_TPL = {id:'default',name:'標準（緑の黒板）',builtin:true,aspect:REF.W/REF.H,recolor:true,bg0:'#025c39',fg0:'#ffffff'};
 function normHex(v){v=(v||'').trim().replace(/^#/,'');if(/^[0-9a-f]{3}$/i.test(v))v=v.split('').map(c=>c+c).join('');return /^[0-9a-f]{6}$/i.test(v)?'#'+v.toLowerCase():null;}
 function hexRGB(h){return [1,3,5].map(i=>parseInt(h.substr(i,2),16));}
+
+// ---- 黒板の種類（標準＋自分たちで追加したもの） ----
+const BOARD_LS='bb_custom_boards_v1';
+let customBoards=[];
+const tplImgs={};
+const validBoard=b=>!!(b&&b.id&&b.name&&b.image&&b.aspect>0&&b.regions&&b.regions.memo);
+function loadBoards(){
+  try{const j=JSON.parse(localStorage.getItem(BOARD_LS)||'[]'); customBoards=Array.isArray(j)?j.filter(validBoard):[];}catch(e){customBoards=[];}
+  customBoards.forEach(t=>tplImage(t));
+}
+function saveBoards(){
+  try{localStorage.setItem(BOARD_LS,JSON.stringify(customBoards));return true;}
+  catch(e){alert('ブラウザの保存容量が足りないか、保存が許可されていません。\n「書き出し」でファイルに保存しておいてください。');return false;}
+}
+const allTpls=()=>[DEFAULT_TPL,...customBoards];
+const tplById=id=>allTpls().find(t=>t.id===id)||DEFAULT_TPL;
+const curTpl=()=>tplById(S.boardId);
+function tplImage(t){
+  if(t.builtin) return BOARD_IMG;
+  let im=tplImgs[t.id];
+  if(!im){im=new Image(); im.onload=()=>{try{draw();}catch(e){}}; im.src=t.image; tplImgs[t.id]=im;}
+  return im;
+}
+function tplReady(t){
+  const im=tplImage(t);
+  return new Promise(res=>{ if(im.complete) res(); else {im.addEventListener('load',()=>res());im.addEventListener('error',()=>res());} });
+}
+const baseBg=()=>{const t=curTpl();return t.recolor?S.bgColor:t.bg0;};
 function getFg(){
   if(S.fgMode==='white')return '#ffffff';
   if(S.fgMode==='black')return '#111111';
   if(S.fgMode==='custom')return S.fgColor;
-  const [r,g,b]=hexRGB(S.bgColor);
+  const [r,g,b]=hexRGB(baseBg());
   return (0.299*r+0.587*g+0.114*b)>150?'#111111':'#ffffff';
 }
-// 元画像の「緑→白」の濃淡(R値)を使って、背景色→線色に塗り替える（文字の縁も滑らかなまま）
+// 元画像の「背景色→線色」の濃淡を使って、好きな色に塗り替える（文字の縁も滑らかなまま）
 let _bmp={key:'',cv:null};
-function getBoardBitmap(bg,fg){
-  if(bg===DEFAULT_BG&&fg==='#ffffff') return BOARD_IMG;
-  const key=bg+fg; if(_bmp.key===key&&_bmp.cv) return _bmp.cv;
-  const cv=document.createElement('canvas'); cv.width=BOARD_IMG.naturalWidth; cv.height=BOARD_IMG.naturalHeight;
-  const x=cv.getContext('2d'); x.drawImage(BOARD_IMG,0,0);
-  const id=x.getImageData(0,0,cv.width,cv.height), d=id.data, B=hexRGB(bg), F=hexRGB(fg);
+function getBoardBitmap(t,bg,fg){
+  const img=tplImage(t);
+  if(!t.recolor||(bg===t.bg0&&fg===t.fg0)||!(img.complete&&img.naturalWidth)) return img;
+  const key=t.id+bg+fg; if(_bmp.key===key&&_bmp.cv) return _bmp.cv;
+  const cv=document.createElement('canvas'); cv.width=img.naturalWidth; cv.height=img.naturalHeight;
+  const x=cv.getContext('2d'); x.drawImage(img,0,0);
+  const id=x.getImageData(0,0,cv.width,cv.height), d=id.data, B=hexRGB(bg), F=hexRGB(fg), B0=hexRGB(t.bg0), F0=hexRGB(t.fg0);
+  const v=[F0[0]-B0[0],F0[1]-B0[1],F0[2]-B0[2]], den=(v[0]*v[0]+v[1]*v[1]+v[2]*v[2])||1;
   for(let i=0;i<d.length;i+=4){
-    const t=Math.max(0,Math.min(1,(d[i]-2)/253));
-    d[i]=B[0]+(F[0]-B[0])*t; d[i+1]=B[1]+(F[1]-B[1])*t; d[i+2]=B[2]+(F[2]-B[2])*t; d[i+3]=255;
+    const u=Math.max(0,Math.min(1,((d[i]-B0[0])*v[0]+(d[i+1]-B0[1])*v[1]+(d[i+2]-B0[2])*v[2])/den));
+    d[i]=B[0]+(F[0]-B[0])*u; d[i+1]=B[1]+(F[1]-B[1])*u; d[i+2]=B[2]+(F[2]-B[2])*u; d[i+3]=255;
   }
   x.putImageData(id,0,0); _bmp={key,cv}; return cv;
 }
 const SIZE_RATIOS = {xs:.26, s:.31, sm:.37, m:.44, ml:.50, l:.56};
 
 function getBoardDimensions() {
-  const cw=canvas.width, ch=canvas.height;
+  const cw=canvas.width, ch=canvas.height, asp=curTpl().aspect;
   const r=SIZE_RATIOS[S.boardSize]??0.44;
-  let bw=cw*r, bh=bw/BOARD_ASPECT;
-  if (bh>ch*0.95){bh=ch*0.95;bw=bh*BOARD_ASPECT;}
+  let bw=cw*r, bh=bw/asp;
+  if (bh>ch*0.95){bh=ch*0.95;bw=bh*asp;}
   let bx, by;
   if (S.boardOffsetX!==null && S.boardOffsetY!==null) {
     bx=Math.max(0,Math.min(cw-bw,S.boardOffsetX));
@@ -579,6 +776,12 @@ function getBoardDimensions() {
 
 // 黒板内の各エリアを算出（すべて bw 基準なので、実描画も入力チェックも同じ結果になる）
 function geo(bx,by,bw){
+  const T=curTpl();
+  if(!T.builtin){
+    const bh=bw/T.aspect, pad=bw*.015, ins=bw*.004;
+    const R=k=>{const r=T.regions&&T.regions[k]; return r?{x:bx+r.x*bw+ins,y:by+r.y*bh+ins,w:Math.max(1,r.w*bw-ins*2),h:Math.max(1,r.h*bh-ins*2)}:null;};
+    return {custom:true,pad,row1:R('project'),row2:R('workType'),conV:R('constructor'),memo:R('memo')};
+  }
   const k=bw/REF.W, X=v=>bx+v*k, Y=v=>by+v*k;
   const pad=bw*.015, vp=bw*.004;
   const conTop=S.showConstructor?REF.B-REF.CONH:REF.B;
@@ -621,6 +824,7 @@ function fitLayout(ctx,text,maxW,maxH,startSize,minSize,lh){
 function cellLayout(key,text,g,bw){
   const cfg={project:[g.row1,S.style.fontScaleProject],workType:[g.row2,S.style.fontScaleWorkType],constructorName:[g.conV,.85]}[key];
   const r=cfg[0];
+  if(!r) return {size:0,lines:[],ok:true,th:0};
   const start=Math.min(cfg[1]*bw*.055, r.h*.9);
   return fitLayout(ctx,text,r.w,r.h,start,bw*.018,S.style.lineHeight);
 }
@@ -648,7 +852,13 @@ function dateLayout(g,bw){
 function memoLayout(text,g,bw){
   const info=dateLayout(g,bw);
   const h=Math.max(1,g.memo.h-info.cornerH-info.inlineH);
-  const r=fitLayout(ctx,text,g.memo.w,h,S.style.fontScaleMemo*bw*.055,bw*.025,S.style.lineHeight);
+  let t=text||'';
+  if(S.showVehicleInMemo&&S.text.vehicleText){
+    const gap=Math.max(0,Math.round(S.style.vehicleGap||0));
+    t=t.replace(/[ 　]*\d+[ 　]*台目/g,'').replace(/[ \t　]+$/gm,'');
+    t=t.split('\n').some(l=>l.trim())?t+'\n'.repeat(gap+1)+S.text.vehicleText:S.text.vehicleText;
+  }
+  const r=fitLayout(ctx,t,g.memo.w,h,S.style.fontScaleMemo*bw*.055,bw*.025,S.style.lineHeight);
   return {...r,info,area:{x:g.memo.x,y:g.memo.y,w:g.memo.w,h}};
 }
 
@@ -661,32 +871,36 @@ function fitsField(key,text){
 
 // ---- 黒板描画 ----
 function drawBlackboard(ctx,x,y,w,h){
-  const g=geo(x,y,w), k=g.k, fg=getFg(), bg=S.bgColor;
+  const T=curTpl(), g=geo(x,y,w), fg=getFg(), bg=baseBg();
   ctx.save();
   ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=10; ctx.shadowOffsetX=5; ctx.shadowOffsetY=5;
   ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
   ctx.shadowColor='transparent';
-  if(BOARD_IMG.complete&&BOARD_IMG.naturalWidth){ctx.imageSmoothingQuality='high';ctx.drawImage(getBoardBitmap(bg,fg),x,y,w,h);}
+  const img=tplImage(T);
+  if(img.complete&&img.naturalWidth){ctx.imageSmoothingQuality='high';ctx.drawImage(getBoardBitmap(T,bg,fg),x,y,w,h);}
   ctx.fillStyle=fg;
-  // 「工種」ラベルに切替（画像は「工事場所」）
-  if(S.workLabelType!=='place'){
-    ctx.fillStyle=bg;
-    ctx.fillRect(g.X(135),g.Y(750),(REF.LBLR-135-8)*k,(REF.V2B-750-4)*k);
-    ctx.fillStyle=fg; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.font=`${w*.054}px ${S.style.fontFamily}`;
-    ctx.fillText('工種',g.X((REF.L+REF.LBLR)/2),g.Y((REF.V2T+REF.V2B)/2));
-  }
-  // 施工者欄（枠線のスタイルは画像に合わせる）
-  if(S.showConstructor){
-    ctx.fillStyle=fg;
-    ctx.fillRect(g.X(REF.L),g.Y(g.conTop*1),(REF.R-REF.L)*k,12*k);
-    ctx.fillRect(g.X(REF.LBLR),g.Y(g.conTop),(REF.VALL-REF.LBLR)*k,(REF.B-g.conTop)*k);
+  if(T.builtin){
+    const k=g.k;
+    // 「工種」ラベルに切替（画像は「工事場所」）
+    if(S.workLabelType!=='place'){
+      ctx.fillStyle=bg;
+      ctx.fillRect(g.X(135),g.Y(750),(REF.LBLR-135-8)*k,(REF.V2B-750-4)*k);
+      ctx.fillStyle=fg; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font=`${w*.054}px ${S.style.fontFamily}`;
+      ctx.fillText('工種',g.X((REF.L+REF.LBLR)/2),g.Y((REF.V2T+REF.V2B)/2));
+    }
+    // 施工者欄（枠線のスタイルは画像に合わせる）
+    if(S.showConstructor){
+      ctx.fillStyle=fg;
+      ctx.fillRect(g.X(REF.L),g.Y(g.conTop*1),(REF.R-REF.L)*k,12*k);
+      ctx.fillRect(g.X(REF.LBLR),g.Y(g.conTop),(REF.VALL-REF.LBLR)*k,(REF.B-g.conTop)*k);
+    }
   }
   ctx.restore();
 }
 
 function drawTextOnBoard(ctx,bx,by,bw,bh){
-  const fg=getFg();
+  const T=curTpl(), fg=getFg();
   const g=geo(bx,by,bw), font=S.style.fontFamily, lh=S.style.lineHeight, offY=S.style.yOffset;
   let overflow=false;
   ctx.save();
@@ -694,7 +908,7 @@ function drawTextOnBoard(ctx,bx,by,bw,bh){
 
   // 工事件名・工事場所・施工者：枠内に収まるよう自動縮小＆クリップ
   const drawCell=(key,r,text)=>{
-    if(!text)return;
+    if(!text||!r)return;
     const L=cellLayout(key,text,g,bw);
     if(!L.ok)overflow=true;
     ctx.save(); ctx.beginPath(); ctx.rect(r.x,r.y,r.w,r.h); ctx.clip();
@@ -707,10 +921,14 @@ function drawTextOnBoard(ctx,bx,by,bw,bh){
   };
   drawCell('project',g.row1,S.text.project);
   drawCell('workType',g.row2,S.text.workType);
-  if(S.showConstructor){
-    ctx.font=`${bw*.04}px ${font}`; ctx.textAlign='center';
-    ctx.fillText('施工者',g.X((REF.L+REF.LBLR)/2),g.Y((g.conTop+12+REF.B)/2));
-    ctx.textAlign='left';
+  if(T.builtin){
+    if(S.showConstructor){
+      ctx.font=`${bw*.04}px ${font}`; ctx.textAlign='center';
+      ctx.fillText('施工者',g.X((REF.L+REF.LBLR)/2),g.Y((g.conTop+12+REF.B)/2));
+      ctx.textAlign='left';
+      drawCell('constructorName',g.conV,(S.text.constructorName||'').replace(/\n/g,' '));
+    }
+  } else if(g.conV){
     drawCell('constructorName',g.conV,(S.text.constructorName||'').replace(/\n/g,' '));
   }
 
@@ -797,11 +1015,43 @@ window.resetBoardPosition=()=>{S.boardOffsetX=null;S.boardOffsetY=null;draw();};
 // ============================================================
 const clone=o=>JSON.parse(JSON.stringify(o));
 function snapshot(){return clone({boardPos:S.boardPos,boardSize:S.boardSize,boardOffsetX:S.boardOffsetX,boardOffsetY:S.boardOffsetY,
-  bgColor:S.bgColor,fgMode:S.fgMode,fgColor:S.fgColor,showBoard:S.showBoard,showConstructor:S.showConstructor,
+  boardId:S.boardId,bgColor:S.bgColor,fgMode:S.fgMode,fgColor:S.fgColor,showBoard:S.showBoard,showConstructor:S.showConstructor,showVehicleInMemo:S.showVehicleInMemo,
   datePlace:S.datePlace,timePlace:S.timePlace,dateFormat:S.dateFormat,timeFormat:S.timeFormat,workLabelType:S.workLabelType,
   text:S.text,style:S.style});}
+loadBoards();
 function loadState(st){Object.assign(S,clone(st));}
-function saveState(){const it=currentImages[currentImgIdx]; if(it&&S.image) it.state=snapshot();}
+// 黒板の内容は標準で「全写真共通」。個別編集をオンにした間だけ写真ごとに別々。
+let individualMode=false;
+const SHARED_TOP=['boardId','bgColor','fgMode','fgColor','showBoard','showConstructor','workLabelType','datePlace','timePlace','dateFormat','timeFormat','style'];
+const SHARED_TEXT=['project','workType','constructorName','memo'];
+function propagateShared(src){
+  currentImages.forEach(o=>{
+    if(!o.state||o.state===src) return;
+    SHARED_TOP.forEach(k=>{o.state[k]=clone(src[k]);});
+    SHARED_TEXT.forEach(k=>{o.state.text[k]=src.text[k];});
+  });
+}
+function saveState(){
+  const it=currentImages[currentImgIdx]; if(!(it&&S.image)) return;
+  it.state=snapshot();
+  if(!individualMode) propagateShared(it.state);
+}
+function updateScopeUI(){
+  const multi=currentImages.length>=2;
+  document.querySelectorAll('.scopeBar').forEach(b=>{
+    b.style.display=multi?'flex':'none';
+    b.querySelector('.scopeText').textContent=individualMode?'この写真だけの内容を編集中（個別編集）':'全ての写真に共通の内容です（直すと全部に反映）';
+    b.querySelector('.scopeBtn').textContent=individualMode?'共通に戻す':'この写真だけ個別に編集';
+  });
+  const cb=document.getElementById('individualMode'); if(cb) cb.checked=individualMode;
+  const ac=document.getElementById('btnApplyCommon'); if(ac) ac.style.display=individualMode?'':'none';
+}
+window.setIndividualMode=on=>{
+  if(on===individualMode){updateScopeUI();return;}
+  if(!on&&currentImages.length>1&&!confirm('全ての写真の件名・場所・備考・色などを、いま表示している写真の内容にそろえます。\nよろしいですか？')){updateScopeUI();return;}
+  saveState(); individualMode=on; if(!on) saveState();
+  updateScopeUI(); renderBatchList();
+};
 
 function syncUI(){
   const $=id=>document.getElementById(id);
@@ -814,7 +1064,9 @@ function syncUI(){
   const lbl=S.workLabelType==='place'?'工事場所':'工種';
   $('workTypeLabel').textContent=lbl; $('adjustLabelWorkType').textContent=lbl+' サイズ';
   $('dateFormatSelect').value=S.dateFormat; $('timeFormatSelect').value=S.timeFormat;
-  $('toggleBoard').checked=S.showBoard; $('showConstructor').checked=S.showConstructor;
+  $('toggleBoard').checked=S.showBoard; $('showConstructor').checked=S.showConstructor; $('showVehicleInMemo').checked=S.showVehicleInMemo;
+  updateEasyInputMode();
+  $('vehicleGapSlider').value=S.style.vehicleGap||0; $('valVehicleGap').textContent=S.style.vehicleGap||0;
   document.querySelectorAll('.size-pill[data-size]').forEach(p=>p.classList.toggle('active',p.dataset.size===S.boardSize));
   ['left','right'].forEach(p=>$(`pos-btn-${p}`).classList.toggle('btn-pos-active',p===S.boardPos));
   [['scaleProject','fontScaleProject','valScaleProject'],['scaleWorkType','fontScaleWorkType','valScaleWorkType'],
@@ -822,7 +1074,7 @@ function syncUI(){
   ].forEach(([id,key,d])=>{$(id).value=S.style[key];$(d).textContent=Number(S.style[key]).toFixed(1);});
   const ff=$('fontFamily'), norm=v=>v.replace(/\s/g,'');
   Array.from(ff.options).forEach(o=>{if(norm(o.value)===norm(S.style.fontFamily))ff.value=o.value;});
-  updateColorUI();
+  updateColorUI(); updateBoardUI();
 }
 function updateColorUI(){
   const $=id=>document.getElementById(id);
@@ -835,6 +1087,45 @@ function updateColorUI(){
 // ============================================================
 // FILE HANDLING（複数写真：写真ごとに黒板内容を保持）
 // ============================================================
+let vehicleMode='filename';
+let dateGroups=[];
+// ファイル名: 例) 1.2.1917.1026.1430.jpg → 2台目 / ナンバー1917 / 10月26日 / 14時30分
+function parseFileName(name){
+  const r={vehicleIndex:0,carNumber:'',fileDate:'',fileTime:''};
+  const setDT=(md,hm)=>{
+    const mo=+md.slice(0,2),da=+md.slice(2),hh=+hm.slice(0,2),mi=+hm.slice(2);
+    if(mo<1||mo>12||da<1||da>31||hh>23||mi>59) return false;
+    const now=new Date(); let y=now.getFullYear();
+    if(new Date(y,mo-1,da)-now>31*864e5) y--;   // 1か月以上先になる日付は前年とみなす
+    r.fileDate=`${y}-${String(mo).padStart(2,'0')}-${String(da).padStart(2,'0')}`;
+    r.fileTime=`${String(hh).padStart(2,'0')}:${String(mi).padStart(2,'0')}`; return true;
+  };
+  let m=name.match(/^(\d+)\.(\d+)\.(\d{4})\.(\d{4})\.(\d{4})(?!\d)/);
+  if(m&&setDT(m[4],m[5])){r.vehicleIndex=parseInt(m[2],10);r.carNumber=m[3];return r;}
+  m=name.match(/^(\d+)\.(\d{4})\.(\d{4})\.(\d{4})(?!\d)/);
+  if(m&&setDT(m[3],m[4])){r.vehicleIndex=parseInt(m[1],10);r.carNumber=m[2];return r;}
+  m=name.match(/^(\d+)\.(\d+)\.(\d{4})\./); if(m){r.vehicleIndex=parseInt(m[2],10);r.carNumber=m[3];return r;}
+  m=name.match(/^(\d+)\.(\d{4})\./); if(m){r.vehicleIndex=parseInt(m[1],10);r.carNumber=m[2];return r;}
+  m=name.match(/(\d{4})\./); if(m){r.carNumber=m[1];}
+  return r;
+}
+const isFileDated=it=>!!(it.fileDate&&it.fileTime);
+const vNumOf=it=>vehicleMode==='loadOrder'?it.loadOrder:it.vehicleIndex;
+// 台数順（台数なしは最後）。日付グループの割り当て順にも使う
+const vKey=it=>{const v=vNumOf(it);return v>0?v:1e9;};
+const sortedItems=()=>[...currentImages].sort((a,b)=>vKey(a)-vKey(b)||a.loadOrder-b.loadOrder);
+let sortMode='vehicle';
+// プレビュー・サムネイル・一覧の表示順
+function displayItems(){
+  if(sortMode==='load') return [...currentImages].sort((a,b)=>a.loadOrder-b.loadOrder);
+  if(sortMode==='name') return [...currentImages].sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true}));
+  if(sortMode==='time'){
+    saveState();
+    const k=it=>(it.state.text.date||'9999/99/99')+' '+(it.state.text.time||'99:99');
+    return [...currentImages].sort((a,b)=>k(a).localeCompare(k(b))||a.loadOrder-b.loadOrder);
+  }
+  return sortedItems();
+}
 function makeThumb(img){
   const c=document.createElement('canvas'); c.width=144; c.height=Math.max(1,Math.round(144*img.height/img.width));
   c.getContext('2d').drawImage(img,0,0,c.width,c.height); return c.toDataURL('image/jpeg',.7);
@@ -849,11 +1140,18 @@ function handleFiles(files){
     const items=results.filter(Boolean);
     if(!items.length){loading.classList.add('hidden');return;}
     saveState();
-    const st=snapshot(); items.forEach(it=>it.state=clone(st));
-    const first=currentImages.length;
+    const st=snapshot(); const first=currentImages.length;
+    items.forEach((it,i)=>{
+      it.state=clone(st); it.loadOrder=first+i+1;
+      const vNum=vehicleMode==='loadOrder'?it.loadOrder:it.vehicleIndex;
+      it.state.text.vehicleText=vNum>0?`${vNum}台目`:''; it.state.text.carNumber=it.carNumber||'';
+      if(isFileDated(it)){it.state.text.date=it.fileDate.replace(/-/g,'/');it.state.text.time=it.fileTime;}
+      it.state.showVehicleInMemo=true;
+    });
     currentImages=currentImages.concat(items);
     setImage(first);
     loading.classList.add('hidden');
+    if(currentImages.length>1) switchTab('batch');
   };
   list.forEach((file,i)=>{
     const reader=new FileReader();
@@ -861,7 +1159,7 @@ function handleFiles(files){
     reader.onload=e=>{
       const img=new Image();
       img.onerror=finish;
-      img.onload=()=>{results[i]={img,name:file.name,thumb:makeThumb(img)};finish();};
+      img.onload=()=>{results[i]={img,name:file.name,origName:file.name,thumb:makeThumb(img),...parseFileName(file.name)};finish();};
       img.src=e.target.result;
     };
     reader.readAsDataURL(file);
@@ -878,27 +1176,44 @@ function setImage(idx){
   canvas.width=item.img.width; canvas.height=item.img.height;
   document.getElementById('currentImageNum').textContent=idx+1;
   document.getElementById('totalImageNum').textContent=currentImages.length;
-  syncUI(); renderThumbs(); draw();
+  syncUI(); renderThumbs(); updateScopeUI(); draw();
+  { const v=vNumOf(item); if(v>0){counterValue=v; const c=document.getElementById('counterValue'); if(c)c.innerText=v;} }
 }
 function renderThumbs(){
   const n=currentImages.length;
   document.getElementById('imageNav').classList.toggle('hidden',n<2);
   document.getElementById('btnDownloadAll').classList.toggle('hidden',n<2);
   document.getElementById('btnDownloadAll').classList.toggle('flex',n>=2);
+  document.getElementById('btnBulkZip').classList.toggle('hidden',n<2);
+  document.getElementById('btnBulkZip').classList.toggle('flex',n>=2);
   const strip=document.getElementById('thumbStrip'); strip.innerHTML='';
-  currentImages.forEach((it,i)=>{
-    const b=document.createElement('button'); b.type='button'; b.className='thumb'+(i===currentImgIdx?' active':'');
-    b.innerHTML=`<img src="${it.thumb}" alt=""><span class="no">${i+1}</span>`;
-    b.addEventListener('click',()=>setImage(i)); strip.appendChild(b);
+  const list=displayItems(), cur=currentImages[currentImgIdx];
+  list.forEach(it=>{
+    const ri=currentImages.indexOf(it), v=vNumOf(it);
+    const b=document.createElement('button'); b.type='button'; b.className='thumb'+(it===cur?' active':'');
+    b.title=it.name;
+    b.innerHTML=`<img src="${it.thumb}" alt=""><span class="no">${v>0?v+'台':'-'}</span>`;
+    b.addEventListener('click',()=>setImage(ri)); strip.appendChild(b);
   });
-  const act=strip.children[currentImgIdx]; if(act&&act.scrollIntoView) act.scrollIntoView({inline:'center',block:'nearest'});
+  const pos=list.indexOf(cur);
+  document.getElementById('currentImageNum').textContent=pos+1;
+  document.getElementById('totalImageNum').textContent=n;
+  const cv=cur?vNumOf(cur):0;
+  document.getElementById('currentVehicleLabel').textContent=cv>0?`（${cv}台目）`:'';
+  renderBatchList(); updateBatchBadge(); updateScopeUI();
+  const act=strip.querySelector('.thumb.active'); if(act&&act.scrollIntoView) act.scrollIntoView({inline:'center',block:'nearest'});
 }
-window.prevImage=()=>{if(currentImgIdx>0)setImage(currentImgIdx-1);};
-window.nextImage=()=>{if(currentImgIdx<currentImages.length-1)setImage(currentImgIdx+1);};
+const stepImage=d=>{
+  const list=displayItems(), p=list.indexOf(currentImages[currentImgIdx]), t=list[p+d];
+  if(t) setImage(currentImages.indexOf(t));
+};
+window.prevImage=()=>stepImage(-1);
+window.nextImage=()=>stepImage(1);
 window.removeCurrentImage=()=>{
   if(!currentImages.length||!confirm('この写真を一覧から外しますか？（黒板の内容も破棄されます）')) return;
   S.image=null; // 外す写真の状態を他へ上書きしない
   currentImages.splice(currentImgIdx,1);
+  currentImages.forEach((it,i)=>it.loadOrder=i+1); recalcVehicleTexts();
   if(!currentImages.length){
     currentImgIdx=0; document.getElementById('currentFileLabel').textContent='画像未選択';
     canvas.width=800;canvas.height=500; renderThumbs(); draw(); return;
@@ -921,10 +1236,385 @@ window.applyCommonToAll=()=>{
 async function renderBlob(idx){
   saveState();
   const cur=currentImages[currentImgIdx], it=currentImages[idx];
-  loadState(it.state); S.image=it.img; canvas.width=it.img.width; canvas.height=it.img.height; draw();
+  loadState(it.state); S.image=it.img; canvas.width=it.img.width; canvas.height=it.img.height;
+  await Promise.all(allTpls().map(tplReady)); draw();
   const blob=await getBlobAsync();
   loadState(cur.state); S.image=cur.img; canvas.width=cur.img.width; canvas.height=cur.img.height; draw();
   return blob;
+}
+
+
+// ============================================================
+// BATCH（台数・日付グループ・一覧・一括保存）
+// ============================================================
+function recalcVehicleTexts(){
+  currentImages.forEach(it=>{const v=vNumOf(it);it.state.text.vehicleText=v>0?`${v}台目`:'';it.state.text.carNumber=it.carNumber||'';});
+}
+function refreshVehicleTexts(){
+  saveState(); recalcVehicleTexts();
+  const cur=currentImages[currentImgIdx];
+  if(cur&&S.image){S.text.vehicleText=cur.state.text.vehicleText;S.text.carNumber=cur.state.text.carNumber;updateEasyInputMode();draw();}
+  renderThumbs();
+}
+function updateItemText(ri,patch){
+  saveState(); const it=currentImages[ri]; if(!it) return;
+  Object.assign(it.state.text,patch);
+  if(ri===currentImgIdx){Object.assign(S.text,patch);syncUI();draw();}
+  renderBatchList();
+}
+function setItemSize(ri,v){
+  saveState(); const it=currentImages[ri]; if(!it||!v) return;
+  it.state.boardSize=v; it.state.boardOffsetX=null; it.state.boardOffsetY=null;
+  if(ri===currentImgIdx){loadState(it.state);syncUI();draw();}
+  renderBatchList();
+}
+function stripDT(base){
+  const m=base.match(/^(.+)\.(\d{2})(\d{2})\.(\d{2})(\d{2})$/);
+  if(m&&+m[2]>=1&&+m[2]<=12&&+m[3]>=1&&+m[3]<=31&&+m[4]<=23&&+m[5]<=59) return m[1];
+  return base;
+}
+function afterNameChange(){
+  const cur=currentImages[currentImgIdx];
+  if(cur&&S.image){S.currentFileName=cur.name;document.getElementById('currentFileLabel').textContent=cur.name;
+    S.text.date=cur.state.text.date;S.text.time=cur.state.text.time;syncUI();draw();}
+  renderThumbs();
+}
+// 黒板の日付・時間 → ファイル名（1.2.1917.jpg → 1.2.1917.1027.0843.jpg）
+window.renameWithDateTime=()=>{
+  if(!currentImages.length){alert('写真が読み込まれていません');return;}
+  saveState(); let n=0,skip=0,sample='';
+  currentImages.forEach(it=>{
+    const t=it.state.text, m=(t.date||'').match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/), tm=(t.time||'').match(/^(\d{1,2}):(\d{2})$/);
+    if(!m||!tm){skip++;return;}
+    const dot=it.name.lastIndexOf('.'), base=dot>0?it.name.slice(0,dot):it.name, ext=dot>0?it.name.slice(dot):'';
+    const mm=m[2].padStart(2,'0'), dd=m[3].padStart(2,'0'), hh=tm[1].padStart(2,'0');
+    it.name=`${stripDT(base)}.${mm}${dd}.${hh}${tm[2]}${ext}`;
+    it.fileDate=`${m[1]}-${mm}-${dd}`; it.fileTime=`${hh}:${tm[2]}`;
+    if(!sample) sample=it.name; n++;
+  });
+  afterNameChange();
+  alert(n?`✅ ${n}枚のファイル名に日付・時間を書き込みました\n例: ${sample}${skip?`\n（日付・時間が未設定の${skip}枚はそのままです）`:''}\n\n保存するときにこのファイル名になります。`:'日付・時間が設定された写真がありません');
+};
+// ファイル名 → 黒板の日付・時間
+window.restoreFromFileNames=()=>{
+  saveState(); let n=0;
+  currentImages.forEach(it=>{
+    const p=parseFileName(it.name);
+    if(p.fileDate&&p.fileTime){it.fileDate=p.fileDate;it.fileTime=p.fileTime;it.state.text.date=p.fileDate.replace(/-/g,'/');it.state.text.time=p.fileTime;n++;}
+  });
+  afterNameChange();
+  alert(n?`${n}枚をファイル名の日付・時間にしました`:'ファイル名に日付・時間がある写真がありません');
+};
+window.resetFileNames=()=>{
+  if(!currentImages.length||!confirm('全ての写真のファイル名を、取り込んだときの名前に戻します。')) return;
+  currentImages.forEach(it=>{it.name=it.origName||it.name;const p=parseFileName(it.name);it.fileDate=p.fileDate;it.fileTime=p.fileTime;});
+  afterNameChange();
+};
+
+function poolItems(){
+  const skip=document.getElementById('skipFileDated').checked;
+  return sortedItems().filter(it=>!(skip&&isFileDated(it)));
+}
+window.addDateGroup=()=>{
+  const t=new Date(),ymd=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  const assigned=dateGroups.reduce((a,g)=>a+(parseInt(g.count)||0),0);
+  dateGroups.push({date:ymd,startTime:'08:50',count:Math.max(1,poolItems().length-assigned)});
+  renderDateGroups();
+};
+window.removeDateGroup=i=>{dateGroups.splice(i,1);renderDateGroups();};
+function renderDateGroups(){
+  const el=document.getElementById('dateGroupList');
+  if(!dateGroups.length){el.innerHTML='<p class="text-xs text-gray-400 text-center py-2">「追加」ボタンでグループを追加</p>';updateGroupTotals();return;}
+  el.innerHTML=dateGroups.map((g,i)=>`
+    <div class="grp-row">
+      <span class="text-xs font-bold text-gray-400 w-4 flex-shrink-0">${i+1}</span>
+      <input type="date" value="${g.date}" oninput="dateGroups[${i}].date=this.value" style="flex:1;min-width:0" />
+      <input type="time" value="${g.startTime}" oninput="dateGroups[${i}].startTime=this.value" style="width:82px;flex-shrink:0" />
+      <input type="number" value="${g.count}" min="1" oninput="dateGroups[${i}].count=parseInt(this.value)||1;updateGroupTotals()" style="flex-shrink:0" />
+      <span class="text-xs text-gray-400 flex-shrink-0">枚</span>
+      <button onclick="removeDateGroup(${i})" class="text-red-400 hover:text-red-600 flex-shrink-0"><span class="material-icons text-base">delete</span></button>
+    </div>`).join('');
+  updateGroupTotals();
+}
+window.updateGroupTotals=()=>{
+  const total=dateGroups.reduce((a,g)=>a+(parseInt(g.count)||0),0), pool=poolItems().length;
+  document.getElementById('groupTotal').textContent=total;
+  document.getElementById('groupTotalFiles').textContent=pool;
+  document.getElementById('groupTotal').className=total>pool&&pool>0?'text-red-600':'text-blue-700';
+};
+window.applyBatchTimes=()=>{
+  if(!currentImages.length){alert('写真が読み込まれていません');return;}
+  if(!dateGroups.length){alert('日付グループを最低1つ追加してください');return;}
+  saveState();
+  const intMin=parseInt(document.getElementById('intervalMin').value,10)||40;
+  const intMax=Math.max(intMin,parseInt(document.getElementById('intervalMax').value,10)||intMin);
+  const pool=poolItems(); let idx=0;
+  for(const g of dateGroups){
+    const cnt=parseInt(g.count,10)||0; const [sh,sm]=(g.startTime||'08:50').split(':').map(Number);
+    let min=sh*60+sm;
+    for(let i=0;i<cnt&&idx<pool.length;i++,idx++){
+      pool[idx].state.text.date=g.date.replace(/-/g,'/');
+      pool[idx].state.text.time=`${String(Math.floor(min/60)%24).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`;
+      if(i<cnt-1) min+=intMin+Math.floor(Math.random()*(intMax-intMin+1));
+    }
+  }
+  const cur=currentImages[currentImgIdx]; if(cur&&S.image){S.text.date=cur.state.text.date;S.text.time=cur.state.text.time;syncUI();draw();}
+  renderBatchList(); alert(`✅ ${idx}枚に日付・時間を反映しました`);
+};
+
+function renderBatchList(){
+  const tbody=document.getElementById('batchTbody'); if(!tbody) return;
+  saveState();
+  document.getElementById('batchCount').textContent=currentImages.length;
+  document.getElementById('parsedVehicle').textContent=currentImages.filter(it=>it.vehicleIndex>0).length;
+  document.getElementById('parsedDate').textContent=currentImages.filter(isFileDated).length;
+  updateGroupTotals();
+  if(!currentImages.length){tbody.innerHTML='<tr><td colspan="7" class="text-center py-4 text-gray-400 text-xs">写真を読み込んでください</td></tr>';return;}
+  const sizes={xs:'極小',s:'小',sm:'小+',m:'中',ml:'中+',l:'大'};
+  tbody.innerHTML=displayItems().map((it,di)=>{
+    const ri=currentImages.indexOf(it), t=it.state.text, v=vNumOf(it);
+    const opts=Object.keys(sizes).map(k=>`<option value="${k}" ${it.state.boardSize===k?'selected':''}>${sizes[k]}</option>`).join('');
+    return `<tr class="${ri===currentImgIdx?'active-row font-bold':''}" title="${it.name.replace(/"/g,'&quot;')}">
+      <td class="text-gray-400">${di+1}</td>
+      <td>${v>0?v+'台':'-'}${v>0&&!it.state.showVehicleInMemo?'<div class="text-[10px] text-gray-400 font-normal">非表示</div>':''}</td>
+      <td>${it.carNumber||'-'}</td>
+      <td style="min-width:96px"><input type="date" value="${(t.date||'').replace(/\//g,'-')}" class="w-full px-1 py-0.5 border border-gray-200 rounded text-xs" onchange="updateItemText(${ri},{date:this.value.replace(/-/g,'/')})"/></td>
+      <td style="min-width:72px"><input type="time" value="${t.time||''}" class="w-full px-1 py-0.5 border border-gray-200 rounded text-xs" onchange="updateItemText(${ri},{time:this.value})"/></td>
+      <td><select class="px-1 py-0.5 border border-gray-200 rounded text-xs w-full" onchange="setItemSize(${ri},this.value)">${opts}</select></td>
+      <td><button class="bin bg-blue-500 text-white hover:bg-blue-700" onclick="setImage(${ri})">読込</button></td>
+    </tr>`;
+  }).join('');
+}
+function updateBatchBadge(){
+  const b=document.getElementById('batchBadge'),n=currentImages.length;
+  b.textContent=n; b.classList.toggle('hidden',n===0); b.classList.toggle('flex',n>0);
+}
+window.exportCSV=()=>{
+  if(!currentImages.length){alert('データがありません');return;}
+  saveState();
+  const rows=['読込順,台数,ナンバー,日付,時間,ファイル名'];
+  [...currentImages].sort((a,b)=>a.loadOrder-b.loadOrder).forEach(f=>rows.push(`${f.loadOrder},${vNumOf(f)},${f.carNumber},${f.state.text.date||''},${f.state.text.time||''},${f.name}`));
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['\uFEFF'+rows.join('\r\n')],{type:'text/csv;charset=utf-8;'}));
+  a.download='batch.csv'; a.click();
+};
+
+// 一括保存／ZIP（各写真の黒板内容で描画）
+async function bulkRender(onItem){
+  const pW=document.getElementById('progressWrap'),pF=document.getElementById('progressFill'),pL=document.getElementById('progressLabel');
+  pW.classList.remove('hidden'); const list=displayItems();
+  try{
+    for(let i=0;i<list.length;i++){
+      const it=list[i]; pF.style.width=`${Math.round((i+1)/list.length*100)}%`; pL.textContent=`処理中 ${i+1}/${list.length}  (${it.name})`;
+      const blob=await renderBlob(currentImages.indexOf(it)); await onItem(it,blob,i);
+    }
+  } finally {pW.classList.add('hidden');}
+  return list.length;
+}
+
+
+// ============================================================
+// 黒板の種類：選択・追加・編集・書き出し／読み込み
+// ============================================================
+function updateBoardUI(){
+  const T=curTpl(), $=id=>document.getElementById(id);
+  const sel=$('boardTypeSelect'); if(!sel) return;
+  sel.innerHTML=allTpls().map(t=>`<option value="${t.id}">${t.name.replace(/</g,'&lt;')}</option>`).join('');
+  sel.value=T.id;
+  $('btnBoardEdit').disabled=T.builtin; $('btnBoardExport').disabled=T.builtin;
+  $('colorSection').style.display=T.recolor?'':'none';
+  $('labelTypeSection').style.display=T.builtin?'':'none';
+  $('showConstructorWrap').style.display=T.builtin?'':'none';
+  $('boardTypeNote').textContent=T.builtin?'標準の黒板です。追加した黒板は、この端末のブラウザに保存されます。':
+    (T.recolor?'追加した黒板です（色を変えられます）。':'追加した黒板です（この黒板は色を変えられません）。');
+}
+window.selectBoard=id=>{
+  S.boardId=id; const T=curTpl();
+  if(T.recolor){ S.bgColor=T.bg0; if(T.builtin){S.fgMode='auto';} else {S.fgMode='custom';S.fgColor=T.fg0;} }
+  S.boardOffsetX=null; S.boardOffsetY=null;
+  syncUI(); draw();
+};
+
+// ---- 追加・編集画面 ----
+const BE_FIELDS=[['project','工事件名','#ef4444'],['workType','工事場所','#3b82f6'],['memo','備考（必須）','#10b981'],['constructor','施工者（あれば）','#f59e0b']];
+let BE={id:null,img:null,image:'',aspect:1,regions:{},active:'memo',drag:null,w:0,h:0};
+const beCv=()=>document.getElementById('beCanvas');
+function beChips(){
+  document.getElementById('beChips').innerHTML=BE_FIELDS.map(([k,n,c])=>{
+    const on=BE.active===k, has=!!BE.regions[k];
+    return `<button type="button" onclick="beSetActive('${k}')" style="border:2px solid ${c};background:${on?c:'#fff'};color:${on?'#fff':'#374151'}" class="px-3 py-1.5 rounded-full text-xs font-bold">${has?'✓ ':''}${n}</button>`;
+  }).join('');
+}
+window.beSetActive=k=>{BE.active=k;beChips();beRender();};
+window.beClearActive=()=>{delete BE.regions[BE.active];beChips();beRender();};
+window.openBoardEditor=id=>{
+  const t=id&&id!=='default'?customBoards.find(b=>b.id===id):null;
+  BE={id:t?t.id:null,img:null,image:'',aspect:1,regions:{},active:'memo',drag:null};
+  document.getElementById('beName').value=t?t.name:'';
+  document.getElementById('beRecolor').checked=t?!!t.recolor:true;
+  document.getElementById('beBg0').value=t?t.bg0:'#025c39'; document.getElementById('beFg0').value=t?t.fg0:'#ffffff';
+  document.getElementById('beDelete').style.display=t?'':'none';
+  document.getElementById('boardEditor').style.display='block';
+  if(t){
+    BE.regions=JSON.parse(JSON.stringify(t.regions)); BE.image=t.image; BE.aspect=t.aspect;
+    const im=new Image(); im.onload=()=>{BE.img=im;beInfo();beChips();beRender();}; im.src=t.image;
+  } else {
+    BE.regions={}; document.getElementById('beInfo').textContent='画像を選んでください'; beChips(); beRender();
+    document.getElementById('beFile').click();
+  }
+};
+window.closeBoardEditor=()=>{document.getElementById('boardEditor').style.display='none';};
+function beInfo(){
+  const im=BE.img, el=document.getElementById('beInfo'); if(!im){el.textContent='画像を選んでください';return;}
+  const w=im.naturalWidth, h=im.naturalHeight, low=w<1600;
+  el.innerHTML=`画像サイズ ${w}×${h}px　`+(low?'<b class="text-red-600">⚠ 横幅が1,600px未満です。拡大するとぼやけます（3,000px以上を推奨）</b>':(w<3000?'<span class="text-amber-600 font-bold">横幅3,000px以上だと、高画素の写真でもよりきれいです</span>':'<span class="text-green-700 font-bold">OK</span>'));
+}
+// 背景色と線の色を画像から推定
+window.beDetect=()=>{
+  if(!BE.img) return;
+  const c=document.createElement('canvas'), W=240, H=Math.max(1,Math.round(240*BE.img.naturalHeight/BE.img.naturalWidth));
+  c.width=W;c.height=H; const x=c.getContext('2d'); x.drawImage(BE.img,0,0,W,H);
+  const d=x.getImageData(0,0,W,H).data, bins={};
+  for(let i=0;i<d.length;i+=4){const k=(d[i]>>4)+','+(d[i+1]>>4)+','+(d[i+2]>>4); const b=bins[k]||(bins[k]={n:0,r:0,g:0,b:0}); b.n++;b.r+=d[i];b.g+=d[i+1];b.b+=d[i+2];}
+  const list=Object.values(bins).map(b=>({n:b.n,c:[b.r/b.n,b.g/b.n,b.b/b.n]})).sort((a,b)=>b.n-a.n);
+  const bg=list[0], total=W*H; let fg=null,best=-1;
+  list.forEach(b=>{ if(b.n<total*0.0008) return; const dd=Math.hypot(b.c[0]-bg.c[0],b.c[1]-bg.c[1],b.c[2]-bg.c[2]); if(dd>best){best=dd;fg=b;} });
+  const hex=c=>'#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+  document.getElementById('beBg0').value=hex(bg.c); document.getElementById('beFg0').value=fg?hex(fg.c):'#ffffff';
+  document.getElementById('beRecolor').checked=bg.n/total>0.4;   // 背景が大部分を占める＝1色の黒板とみなす
+  beRender();
+};
+document.addEventListener('change',e=>{
+  if(e.target&&e.target.id==='beFile'){
+    const f=e.target.files[0]; if(!f) return;
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      const im=new Image();
+      im.onload=()=>{
+        // 横幅4,000pxを超える場合は縮小（保存容量の節約）
+        let W=im.naturalWidth,H=im.naturalHeight,src=ev.target.result;
+        const c=document.createElement('canvas'), mx=4000, sc=W>mx?mx/W:1; c.width=Math.round(W*sc); c.height=Math.round(H*sc);
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        src=c.toDataURL('image/png'); if(src.length>2500000) src=c.toDataURL('image/jpeg',0.92);
+        const im2=new Image(); im2.onload=()=>{
+          BE.img=im2; BE.image=src; BE.aspect=im2.naturalWidth/im2.naturalHeight; BE.regions={};
+          const nm=document.getElementById('beName'); if(!nm.value) nm.value=f.name.replace(/\.[^.]+$/,'');
+          beInfo(); beDetect(); beChips(); beRender();
+        }; im2.src=src;
+      };
+      im.src=ev.target.result;
+    };
+    rd.readAsDataURL(f); e.target.value='';
+  }
+  if(e.target&&e.target.id==='boardImportFile'){ importBoards(e.target.files); e.target.value=''; }
+});
+function beLum(h){const [r,g,b]=hexRGB(h);return 0.299*r+0.587*g+0.114*b;}
+window.beRender=()=>{
+  const cv=beCv(); if(!cv) return;
+  const wrap=cv.parentElement.clientWidth-16||600;
+  if(!BE.img){cv.width=wrap;cv.height=Math.round(wrap*0.55);const x=cv.getContext('2d');x.fillStyle='#e2e8f0';x.fillRect(0,0,cv.width,cv.height);x.fillStyle='#64748b';x.font='16px sans-serif';x.textAlign='center';x.fillText('画像を選ぶと、ここに表示されます',cv.width/2,cv.height/2);return;}
+  const dpr=Math.min(2,window.devicePixelRatio||1);
+  cv.width=Math.round(wrap*dpr); cv.height=Math.round(wrap/BE.aspect*dpr); cv.style.height=(wrap/BE.aspect)+'px';
+  const x=cv.getContext('2d'), W=cv.width, H=cv.height;
+  x.drawImage(BE.img,0,0,W,H);
+  const bg0=document.getElementById('beBg0').value, txt=beLum(bg0)>150?'#111':'#fff';
+  const regs={...BE.regions}; if(BE.drag&&BE.drag.mode==='draw'&&BE.drag.cur) regs[BE.active]=BE.drag.cur;
+  BE_FIELDS.forEach(([k,n,c])=>{
+    const r=regs[k]; if(!r) return;
+    const px={x:r.x*W,y:r.y*H,w:r.w*W,h:r.h*H};
+    x.fillStyle=c+'22'; x.fillRect(px.x,px.y,px.w,px.h);
+    x.lineWidth=(k===BE.active?3:2)*dpr; x.strokeStyle=c; x.strokeRect(px.x,px.y,px.w,px.h);
+    if(document.getElementById('bePreview').checked){
+      x.save(); x.beginPath(); x.rect(px.x,px.y,px.w,px.h); x.clip(); x.fillStyle=txt; x.textBaseline='middle'; x.textAlign='left';
+      const fit=(t,max)=>{let sz=max; do{x.font=`${sz}px 'M PLUS Rounded 1c','Noto Sans CJK JP',sans-serif`; if(x.measureText(t).width<=px.w*.96||sz<6)break; sz*=.94;}while(true); return sz;};
+      if(k==='memo'){
+        const sz=fit('残土搬出 3t',Math.min(px.h*.14,px.w*.09)); x.font=`${sz}px 'M PLUS Rounded 1c','Noto Sans CJK JP',sans-serif`;
+        x.fillText('残土搬出 3t',px.x+4*dpr,px.y+sz*.8); x.fillText('2台目',px.x+4*dpr,px.y+sz*2.0);
+        const ds=sz*.7; x.font=`${ds}px 'M PLUS Rounded 1c','Noto Sans CJK JP',sans-serif`; x.textAlign='right'; x.textBaseline='bottom'; x.fillText('10月27日 8時43分',px.x+px.w-4*dpr,px.y+px.h-2*dpr);
+      } else {
+        const t={project:'○○マンション新築工事',workType:'駐車場 北側',constructor:'ヒューマンヤード(株)'}[k], sz=fit(t,px.h*.7);
+        x.font=`${sz}px 'M PLUS Rounded 1c','Noto Sans CJK JP',sans-serif`; x.fillText(t,px.x+4*dpr,px.y+px.h/2);
+      }
+      x.restore();
+    }
+    // ラベル
+    x.font=`bold ${11*dpr}px sans-serif`; const lab=n.replace('（必須）','').replace('（あれば）','');
+    const tw=x.measureText(lab).width+8*dpr; x.fillStyle=c; x.fillRect(px.x,px.y-15*dpr<0?px.y:px.y-15*dpr,tw,15*dpr); x.fillStyle='#fff'; x.textAlign='left'; x.textBaseline='middle'; x.fillText(lab,px.x+4*dpr,(px.y-15*dpr<0?px.y:px.y-15*dpr)+7.5*dpr);
+    if(k===BE.active){ x.fillStyle='#fff'; x.strokeStyle=c; [[px.x,px.y],[px.x+px.w,px.y],[px.x,px.y+px.h],[px.x+px.w,px.y+px.h]].forEach(([cx,cy])=>{x.beginPath();x.arc(cx,cy,6*dpr,0,7);x.fill();x.stroke();}); }
+  });
+};
+(function(){
+  const cv=document.getElementById('beCanvas'); if(!cv) return;
+  const pos=e=>{const r=cv.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)),rw:r.width,rh:r.height};};
+  cv.addEventListener('pointerdown',e=>{
+    if(!BE.img) return; cv.setPointerCapture(e.pointerId); const p=pos(e), r=BE.regions[BE.active];
+    let mode='draw',corner=null;
+    if(r){
+      const tx=16/p.rw, ty=16/p.rh;
+      const cs={tl:[r.x,r.y],tr:[r.x+r.w,r.y],bl:[r.x,r.y+r.h],br:[r.x+r.w,r.y+r.h]};
+      for(const k in cs){ if(Math.abs(p.x-cs[k][0])<tx&&Math.abs(p.y-cs[k][1])<ty){mode='resize';corner=k;break;} }
+      if(mode==='draw'&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h) mode='move';
+    }
+    BE.drag={mode,corner,sx:p.x,sy:p.y,orig:r?{...r}:null,cur:null};
+  });
+  cv.addEventListener('pointermove',e=>{
+    const d=BE.drag; if(!d) return; const p=pos(e);
+    if(d.mode==='draw'){ d.cur={x:Math.min(d.sx,p.x),y:Math.min(d.sy,p.y),w:Math.abs(p.x-d.sx),h:Math.abs(p.y-d.sy)}; }
+    else if(d.mode==='move'){ const o=d.orig; let nx=o.x+(p.x-d.sx), ny=o.y+(p.y-d.sy); nx=Math.max(0,Math.min(1-o.w,nx)); ny=Math.max(0,Math.min(1-o.h,ny)); BE.regions[BE.active]={x:nx,y:ny,w:o.w,h:o.h}; }
+    else if(d.mode==='resize'){
+      const o=d.orig, ax=d.corner.includes('l')?o.x+o.w:o.x, ay=d.corner.includes('t')?o.y+o.h:o.y;
+      BE.regions[BE.active]={x:Math.min(ax,p.x),y:Math.min(ay,p.y),w:Math.abs(p.x-ax),h:Math.abs(p.y-ay)};
+    }
+    beRender();
+  });
+  const end=()=>{
+    const d=BE.drag; if(!d) return;
+    if(d.mode==='draw'&&d.cur&&d.cur.w>0.01&&d.cur.h>0.008) BE.regions[BE.active]=d.cur;
+    const r=BE.regions[BE.active]; if(r&&(r.w<0.01||r.h<0.008)) { if(d.orig) BE.regions[BE.active]=d.orig; else delete BE.regions[BE.active]; }
+    BE.drag=null; beChips(); beRender();
+  };
+  cv.addEventListener('pointerup',end); cv.addEventListener('pointercancel',end);
+})();
+window.saveBoardEditor=()=>{
+  const name=document.getElementById('beName').value.trim();
+  if(!BE.img){alert('黒板の画像を選んでください');return;}
+  if(!name){alert('黒板の名前を入れてください');return;}
+  if(!BE.regions.memo){alert('「備考」の欄を、画像の上をなぞって囲んでください');return;}
+  const t={id:BE.id||('b_'+Date.now().toString(36)),name,image:BE.image,aspect:BE.aspect,regions:JSON.parse(JSON.stringify(BE.regions)),
+    recolor:document.getElementById('beRecolor').checked,bg0:document.getElementById('beBg0').value,fg0:document.getElementById('beFg0').value};
+  const i=customBoards.findIndex(b=>b.id===t.id), prev=customBoards.slice();
+  if(i>=0) customBoards[i]=t; else customBoards.push(t);
+  if(!saveBoards()){customBoards=prev;return;}
+  delete tplImgs[t.id]; _bmp={key:'',cv:null}; tplImage(t);
+  closeBoardEditor(); selectBoard(t.id);
+};
+window.deleteBoardFromEditor=()=>{
+  if(!BE.id||!confirm('この黒板を削除します。この黒板を使っている写真は、標準の黒板に戻ります。\nよろしいですか？')) return;
+  customBoards=customBoards.filter(b=>b.id!==BE.id); saveBoards(); delete tplImgs[BE.id];
+  currentImages.forEach(it=>{if(it.state&&it.state.boardId===BE.id)it.state.boardId='default';});
+  if(S.boardId===BE.id) S.boardId='default';
+  closeBoardEditor(); selectBoard(S.boardId);
+};
+window.exportBoard=()=>{
+  const T=curTpl(); if(T.builtin) return;
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(T)],{type:'application/json'}));
+  a.download=T.name.replace(/[\\/:*?"<>|]/g,'_')+'.board.json'; a.click();
+};
+function importBoards(files){
+  let added=0, pending=files.length, last=null;
+  Array.from(files).forEach(f=>{
+    const rd=new FileReader();
+    rd.onload=e=>{
+      try{
+        let j=JSON.parse(e.target.result); if(!Array.isArray(j)) j=[j];
+        j.forEach(b=>{ if(!validBoard(b)) return; if(customBoards.some(x=>x.id===b.id)) b.id='b_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5); b.builtin=false; customBoards.push(b); last=b; added++; });
+      }catch(err){}
+      if(--pending===0){
+        if(added){ if(saveBoards()){customBoards.forEach(tplImage); selectBoard(last.id); alert(`${added}件の黒板を読み込みました`);} }
+        else alert('読み込める黒板ファイルがありませんでした');
+      }
+    };
+    rd.readAsText(f);
+  });
 }
 
 // ============================================================
@@ -982,14 +1672,22 @@ window.changeCounter=delta=>{
 window.updateSoilDirectly=(forceInsert=false)=>{
   const soilType=document.querySelector('input[name="soilType"]:checked')?.value||'';
   const truckCap=document.querySelector('input[name="truckCap"]:checked')?.value||'';
-  const parts=[]; if(soilType)parts.push(soilType); if(truckCap)parts.push(truckCap); parts.push(`${counterValue}台目`);
+  const auto=!!(S.showVehicleInMemo&&S.text.vehicleText);   // 「○台目」が自動で付く写真か
+  const parts=[]; if(soilType)parts.push(soilType); if(truckCap)parts.push(truckCap);
+  if(!auto) parts.push(`${counterValue}台目`);
   const newText=parts.join(' ');
-  const pattern=/(?:残土搬出|客土搬入|残土|客土)?[\s　]*(?:\d+t)?[\s　]*\d+台目/g;
+  const pattern=auto?/(?:残土搬出|客土搬入|残土|客土)[\s　]*(?:\d+t)?(?:[\s　]*\d+台目)?/g:/(?:残土搬出|客土搬入|残土|客土)?[\s　]*(?:\d+t)?[\s　]*\d+台目/g;
   const ta=document.getElementById('inputMemo'); let cur=ta.value;
   if(pattern.test(cur)&&!forceInsert){cur=cur.replace(pattern,newText);}
-  else{if(cur&&!cur.endsWith('\n'))cur+='\n';cur+=newText;}
+  else{ if(!newText) return; if(cur&&!cur.endsWith('\n'))cur+='\n'; cur+=newText; }
   ta.value=cur; S.text.memo=cur; draw();
 };
+function updateEasyInputMode(){
+  const auto=!!(S.showVehicleInMemo&&S.text.vehicleText);
+  const row=document.getElementById('counterRow'), note=document.getElementById('autoVehicleNote');
+  if(row) row.classList.toggle('hidden',auto);
+  if(note){note.classList.toggle('hidden',!auto);document.getElementById('autoVehicleNoteText').textContent=S.text.vehicleText||'';}
+}
 window.adjustDimValue=val=>{const i=document.getElementById('dimValue');i.value=(parseFloat(i.value)||0)+val;};
 window.insertDimension=()=>{
   const prefix=document.querySelector('input[name="dimPrefix"]:checked')?.value||'';
@@ -1114,20 +1812,76 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   document.getElementById('btnDownloadAll').addEventListener('click',async()=>{
     if(!currentImages.length) return;
-    const loading=document.getElementById('loading'); loading.classList.remove('hidden');
-    try{
-      for(let i=0;i<currentImages.length;i++){
-        const blob=await renderBlob(i);
-        const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-        a.download=currentImages[i].name.replace(/\.[^.]+$/,'')+'.jpg'; a.click();
-        await new Promise(r=>setTimeout(r,500));
-      }
-    } finally {loading.classList.add('hidden');}
+    if(!confirm(`${currentImages.length}枚を1枚ずつ順番に保存します。\nブラウザが「複数ファイルの保存を許可しますか？」と聞いてきたら「許可」を選んでください。`)) return;
+    const n=await bulkRender(async(it,blob)=>{
+      const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=it.name.replace(/\.[^.]+$/,'')+'.jpg'; document.body.appendChild(a); a.click(); a.remove();
+      await new Promise(r=>setTimeout(r,400)); URL.revokeObjectURL(a.href);
+    });
+    alert(`✅ ${n}枚の保存を開始しました`);
   });
+  document.getElementById('btnBulkZip').addEventListener('click',async()=>{
+    if(!currentImages.length) return;
+    if(typeof JSZip==='undefined'){alert('ZIPライブラリを読み込めませんでした。「一括保存」をお使いください。');return;}
+    const zip=new JSZip();
+    const n=await bulkRender(async(it,blob)=>{zip.file(it.name.replace(/\.[^.]+$/,'')+'.jpg',blob);});
+    const out=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(out); a.download=`kokuban_${new Date().toISOString().slice(0,10)}.zip`; a.click();
+    alert(`✅ ${n}枚をZIPにしました`);
+  });
+  // バッチ設定
+  renderDateGroups();
+  updateBoardUI();
+  document.getElementById('sortModeSelect').addEventListener('change',e=>{sortMode=e.target.value;renderThumbs();});
+  document.querySelectorAll('input[name="vehicleMode"]').forEach(r=>r.addEventListener('change',e=>{vehicleMode=e.target.value;refreshVehicleTexts();}));
+  document.getElementById('showVehicleInMemo').addEventListener('change',e=>{S.showVehicleInMemo=e.target.checked;updateEasyInputMode();draw();});
+  document.getElementById('vehicleGapSlider').addEventListener('input',e=>{S.style.vehicleGap=parseInt(e.target.value,10)||0;document.getElementById('valVehicleGap').textContent=S.style.vehicleGap;draw();});
 
   setToday();
   if(document.fonts&&document.fonts.ready) document.fonts.ready.then(()=>draw());
 });
 </script>
+
+<!-- ===== 黒板の追加・編集 ===== -->
+<div id="boardEditor" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(15,23,42,.65);overflow-y:auto;padding:12px">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl mx-auto my-2 p-4 space-y-3">
+    <div class="flex items-center justify-between">
+      <h3 class="font-extrabold text-lg text-gray-800">黒板を追加・編集</h3>
+      <button type="button" onclick="closeBoardEditor()" class="p-1 rounded-full hover:bg-gray-100"><span class="material-icons">close</span></button>
+    </div>
+    <ol class="text-xs text-gray-600 list-decimal pl-5 space-y-0.5">
+      <li>黒板の画像を選びます（横幅3,000px以上を推奨）。</li>
+      <li>下の「欄」を選び、画像の上を<b>なぞって四角で囲み</b>ます（動かす・四隅で大きさを変える こともできます）。</li>
+      <li>名前を付けて保存します。「備考」の欄は必須です。</li>
+    </ol>
+    <div class="grid grid-cols-3 gap-2">
+      <input id="beName" type="text" placeholder="黒板の名前（例：◯◯社用）" class="col-span-2 p-2.5 border-2 border-gray-300 rounded-lg text-sm font-bold text-gray-700" />
+      <button type="button" onclick="document.getElementById('beFile').click()" class="py-2 rounded-lg bg-slate-700 text-white font-bold text-sm hover:bg-slate-800">画像を選ぶ</button>
+      <input type="file" id="beFile" accept="image/*" class="hidden" />
+    </div>
+    <div id="beInfo" class="text-xs text-gray-500">画像を選んでください</div>
+    <div id="beChips" class="flex flex-wrap gap-2"></div>
+    <div class="bg-gray-100 rounded-xl p-2"><canvas id="beCanvas" width="10" height="10" style="width:100%;display:block;border-radius:8px;touch-action:none;background:#e2e8f0"></canvas></div>
+    <div class="flex flex-wrap gap-4 items-center text-xs font-bold text-gray-700">
+      <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="bePreview" checked class="w-4 h-4" onchange="beRender()" />サンプルの文字を表示</label>
+      <button type="button" onclick="beClearActive()" class="underline text-red-600">選んだ欄を消す</button>
+    </div>
+    <div class="bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs space-y-2">
+      <label class="flex items-start gap-2 cursor-pointer"><input type="checkbox" id="beRecolor" class="w-4 h-4 mt-0.5" onchange="beRender()" />
+        <div><div class="font-bold text-amber-900">黒板の色を変えられるようにする</div>
+        <div class="text-gray-600">背景が1色で、枠線や文字がそれより明るい（または暗い）1色の黒板だけ使えます。写真風・グラデーションの黒板は、オフにしてください。</div></div></label>
+      <div class="flex flex-wrap items-center gap-3 font-bold text-gray-700">
+        <span>背景の色</span><input type="color" id="beBg0" class="w-10 h-8 p-0 border-2 border-gray-300 rounded" onchange="beRender()" />
+        <span>線・文字の色</span><input type="color" id="beFg0" class="w-10 h-8 p-0 border-2 border-gray-300 rounded" onchange="beRender()" />
+        <button type="button" onclick="beDetect()" class="underline text-blue-700">画像から自動で調べる</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 pt-1">
+      <button type="button" onclick="saveBoardEditor()" class="col-span-2 py-3 rounded-xl bg-green-600 text-white font-bold hover:bg-green-700">保存</button>
+      <button type="button" onclick="closeBoardEditor()" class="py-3 rounded-xl border-2 border-gray-300 bg-white font-bold text-gray-700">キャンセル</button>
+    </div>
+    <button type="button" id="beDelete" onclick="deleteBoardFromEditor()" class="w-full py-2 text-red-600 font-bold text-sm underline" style="display:none">この黒板を削除</button>
+  </div>
+</div>
 </body>
 </html>
