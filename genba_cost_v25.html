@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v118</title>
+    <title>G-Ledger | 現場原価管理台帳システム v121</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -1935,6 +1935,9 @@
                                 class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">
                                 <i class="fa-solid fa-map-location-dot mr-1 text-xs"></i>拠点別
                             </button>
+                    <button onclick="window.bmSetView('staff')" id="bm-view-staff" class="px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap">
+                        <i class="fa-solid fa-user-tie mr-1 text-xs"></i>担当別（担当者・積算・設計）
+                    </button>
                         </div>
 
                         <!-- 期 / 年 -->
@@ -2206,6 +2209,55 @@
                                     <tbody id="bm-overall-prioryear-body" class="bg-white"></tbody>
                                     <tfoot id="bm-overall-prioryear-foot" class="bg-slate-100 font-bold"></tfoot>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ══ 担当別 ビュー（担当者・積算・設計） ══ -->
+                    <div id="bm-staff-view" class="hidden space-y-4">
+                        <div class="glass-panel rounded-xl px-5 py-3 flex flex-wrap items-center gap-4 border-l-4 border-violet-500">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-400">見る軸</span>
+                                <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-bold" id="bm-staff-axis-box"></div>
+                            </div>
+                            <div class="flex items-center gap-2"><label class="text-xs font-bold text-slate-400">拠点</label><select id="bm-staff-branch" onchange="window.bmStaffRender()" class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"><option value="ALL">全拠点</option></select></div>
+                            <div class="flex items-center gap-2"><label class="text-xs font-bold text-slate-400">グラフの人数</label><select id="bm-staff-top" onchange="window.bmStaffRender()" class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"><option value="10">上位10</option><option value="15">上位15</option><option value="20">上位20</option></select></div>
+                            <button onclick="window.bmExportStaffExcel()" class="ml-auto bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 shadow transition-colors whitespace-nowrap"><i class="fa-solid fa-file-excel"></i> Excel出力（担当者・積算・設計の3シート＋グラフ）</button>
+                        </div>
+                        <p id="bm-staff-note" class="text-[11px] text-slate-400 px-1"></p>
+                        <div id="bm-staff-tabs" class="flex flex-wrap gap-1.5"></div>
+                        <div id="bm-sp-accuracy" class="hidden space-y-4"></div><div id="bm-sp-delay" class="hidden space-y-4"></div><div id="bm-sp-target" class="hidden space-y-4"></div><div id="bm-sp-owner" class="hidden space-y-4"></div><div id="bm-sp-cost" class="hidden space-y-4"></div>
+                        <div id="bm-sp-overview" class="space-y-4">
+                        <div id="bm-staff-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"></div>
+                        <div id="bm-staff-insights"></div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1" id="bm-staff-t1">売上：今期と前年同期</h4><div class="h-80"><canvas id="bm-staff-ch-yoy"></canvas></div></div>
+                            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1" id="bm-staff-t2">売上（棒）と粗利率（線）</h4><div class="h-80"><canvas id="bm-staff-ch-margin"></canvas></div></div>
+                            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1">売上 × 粗利率（円の大きさ＝現場数）</h4><div class="h-80"><canvas id="bm-staff-ch-bubble"></canvas></div></div>
+                            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1" id="bm-staff-t4">月別の売上推移（上位5）</h4><div class="h-80"><canvas id="bm-staff-ch-trend"></canvas></div></div>
+                        </div>
+                        <div class="glass-panel rounded-xl overflow-hidden">
+                            <div class="bg-violet-50 px-5 py-3 border-b border-violet-200 text-sm font-bold text-slate-700" id="bm-staff-table-title">一覧</div>
+                            <div class="overflow-auto max-h-[34rem]"><table class="w-full text-sm"><thead class="bg-slate-100 text-slate-600 text-xs sticky top-0"><tr>
+                                <th class="px-3 py-2 text-center">順位</th><th class="px-3 py-2 text-left" id="bm-staff-th-name">担当者</th><th class="px-3 py-2 text-right">売上(百万円)</th><th class="px-3 py-2 text-right">構成比</th><th class="px-3 py-2 text-right">累計構成比</th><th class="px-3 py-2 text-right">原価(百万円)</th><th class="px-3 py-2 text-right">粗利(百万円)</th><th class="px-3 py-2 text-right">粗利率</th><th class="px-3 py-2 text-center">現場数</th><th class="px-3 py-2 text-right">1現場あたり(百万円)</th><th class="px-3 py-2 text-right">前年同期(百万円)</th><th class="px-3 py-2 text-right">前年差(百万円)</th><th class="px-3 py-2 text-right">前年比</th>
+                            </tr></thead><tbody id="bm-staff-body" class="divide-y divide-slate-100"></tbody></table></div>
+                            <p class="px-5 py-2 text-[11px] text-slate-400">名前を押すと、その担当の現場一覧が出ます。前年同期は、前の期（年）の同じ月の並び（期間絞込の月数）と比べています。</p>
+                        </div>
+                        <div class="glass-panel rounded-xl p-4 space-y-3">
+                            <div class="flex flex-wrap items-center gap-3"><span class="font-bold text-slate-700 text-sm">クロス集計</span>
+                                <label class="text-xs font-bold text-slate-400">行</label><span id="bm-staff-cross-rowlabel" class="text-sm font-bold text-slate-700"></span>
+                                <label class="text-xs font-bold text-slate-400">列</label><select id="bm-staff-cross-col" onchange="window.bmStaffRender()" class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"></select>
+                                <label class="text-xs font-bold text-slate-400">表示</label><select id="bm-staff-cross-m" onchange="window.bmStaffRender()" class="text-sm border border-slate-200 rounded-lg px-2 py-1.5 bg-white font-bold focus:outline-none"><option value="sales">売上（百万円）</option><option value="margin">粗利率</option><option value="count">現場数</option></select>
+                            </div>
+                            <div id="bm-staff-cross-box" class="overflow-auto max-h-[28rem]"></div>
+                            <p class="text-[11px] text-slate-400">例：行＝担当者、列＝積算担当にすると、どの担当者がどの積算担当の現場を持っているか、その売上・粗利率が分かります。青が濃いほど大きい値です（粗利率は、低いほどオレンジ）。</p>
+                        </div>
+                        </div>
+                        <div id="bm-sm" class="hidden fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4" onclick="if(event.target===this) window.bmSmClose()">
+                            <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+                                <div class="px-5 py-3 border-b border-slate-200 flex items-center justify-between gap-3"><div class="min-w-0"><div class="text-xs text-slate-400 font-bold">内訳</div><div id="bm-sm-title" class="text-base font-black text-slate-800 truncate"></div></div>
+                                    <div class="flex items-center gap-2"><button onclick="window.bmSmExcel()" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold py-1.5 px-3 rounded flex items-center gap-1 shadow transition-colors"><i class="fa-solid fa-file-excel"></i> Excel出力</button><button onclick="window.bmSmClose()" class="text-slate-500 hover:text-slate-800 text-sm font-bold px-2 py-1"><i class="fa-solid fa-xmark"></i> 閉じる</button></div></div>
+                                <div id="bm-sm-body" class="overflow-auto flex-1"></div>
                             </div>
                         </div>
                     </div>
@@ -8381,7 +8433,8 @@
     let bm = {
         basis: 'fiscal',          // 'fiscal'（期） | 'calendar'（年）
         dataBasis: 'detail',       // 'detail'（明細データ・発生日基準） | 'cost'（原価集計・完了日基準）
-        view: 'overall',          // 'overall'（工事全体） | 'branch'（拠点別）
+        view: 'overall',          // 'overall'（工事全体） | 'branch'（拠点別） | 'staff'（担当別：担当者・積算・設計）
+        staffAxis: 'manager',     // 担当別ビューの見る軸（manager | estimator | designer）
         periodKey: null,          // 期番号 or カレンダー年（数値）
         periodKeyFiscal: null,
         periodKeyCalendar: null,
@@ -8791,7 +8844,7 @@
         return ov && ov.to ? ov.to : masterBranch;
     }
     // 拠点上書き設定を変更した後、集計キャッシュを破棄して再集計させるためのヘルパー
-    function bmInvalidateDataCache() { bm._lastCounts = null; }
+    function bmInvalidateDataCache() { bm._lastCounts = null; bm._staff = null; }
 
     // 拠点上書き設定：一覧テーブルの再描画
     function bmRenderBranchOverrideTable() {
@@ -9095,6 +9148,7 @@
         bmApplyViewButtons();
         document.getElementById('bm-overall-view').classList.toggle('hidden', view !== 'overall');
         document.getElementById('bm-branch-view').classList.toggle('hidden', view !== 'branch');
+        document.getElementById('bm-staff-view').classList.toggle('hidden', view !== 'staff');
         document.getElementById('bm-branch-selector-area').classList.toggle('hidden', view !== 'branch');
         const exportBranchBtn = document.getElementById('bm-export-branch-btn');
         if (exportBranchBtn) exportBranchBtn.classList.toggle('hidden', view !== 'branch');
@@ -9161,9 +9215,10 @@
     function bmApplyViewButtons() {
         const act = 'px-3 py-1.5 bg-violet-700 text-white transition-colors whitespace-nowrap';
         const ina = 'px-3 py-1.5 text-slate-600 hover:bg-slate-50 transition-colors whitespace-nowrap';
-        const o = document.getElementById('bm-view-overall'), b = document.getElementById('bm-view-branch');
+        const o = document.getElementById('bm-view-overall'), b = document.getElementById('bm-view-branch'), sf = document.getElementById('bm-view-staff');
         if (o) o.className = bm.view === 'overall' ? act : ina;
         if (b) b.className = bm.view === 'branch' ? act : ina;
+        if (sf) sf.className = bm.view === 'staff' ? act : ina;
     }
     function bmApplyBasisButtons() {
         const act = 'px-3 py-1.5 bg-slate-700 text-white transition-colors whitespace-nowrap';
@@ -9175,8 +9230,689 @@
     window.bmRenderCurrentView = function() {
         if (!bm.data) return;
         bmUpdateDataBasisLabel();
-        if (bm.view === 'overall') bmRenderOverall(); else bmRenderBranch();
+        if (bm.view === 'overall') bmRenderOverall(); else if (bm.view === 'staff') window.bmStaffRender(); else bmRenderBranch();
     }
+
+    // ── 担当別 ビュー（担当者・積算・設計）──
+    // 基準は、上のツールバーの「明細データ（発生日）／原価集計（完了日）」と、期（年）・期間絞込に連動する。
+    //  明細データ：売上＝売上明細（税抜）、原価＝仕入明細（税抜。明細区分「消費税」の行は除く）。発生日の月に計上
+    //  原価集計　：売上・原価＝原価集計表の累計を、現場マスターの完了日の月にまとめて計上
+    // 担当者・積算・設計・拠点は、工番（親工番）から現場マスターを引いた値（拠点は「拠点上書き設定」も反映）
+    const BM_STAFF_AX = { manager: '担当者', estimator: '積算担当', designer: '設計担当' };
+    const bmM1 = (n) => ((n || 0) / 1e6).toLocaleString('ja-JP', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const bmM1s = (n) => `${n >= 0 ? '+' : '▲'}${bmM1(Math.abs(n))}`;
+    const bmPct = (v) => (v === null || v === undefined || !isFinite(v)) ? '-' : (v * 100).toFixed(1) + '%';
+    const BM_NUM = (v) => { const n = Number(String(v == null ? '' : v).replace(/,/g, '')); return isFinite(n) ? n : 0; };
+    const bmFmtV = {
+        m1: (v) => (v === null || v === undefined || v === '') ? '-' : bmM1(v), pct: (v) => bmPct(v),
+        pt: (v) => (v === null || v === undefined || !isFinite(v)) ? '-' : ((v >= 0 ? '+' : '') + (v * 100).toFixed(1) + 'pt'),
+        int: (v) => (v === null || v === undefined || v === '') ? '-' : Number(v).toLocaleString(), mon: (v) => (v === null || v === undefined) ? '-' : Number(v).toFixed(1), txt: (v) => v == null ? '' : String(v)
+    };
+    const bmEsc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const bmGroupName = (m, axis) => String((m && m[axis]) || '').trim() || `（${BM_STAFF_AX[axis]}未設定）`;
+    const bmSortNames = (a, b) => (a.startsWith('（') - b.startsWith('（'));
+    const bmYmOfDate = (v) => { const ts = window.parseDateValue ? window.parseDateValue(v) : null; if (!ts) return ''; const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+    const bmShort = (s, n) => { s = String(s); return s.length > n ? s.slice(0, n) + '…' : s; };
+
+    // 表（画面）：cols=[{h,f,t,warn}]、rows、o.drill＝行の先頭列を押したときの呼び出し（行番号を渡す）
+    function bmTblHtml(cols, rows, o) {
+        o = o || {};
+        const head = cols.map((c, i) => `<th class="px-3 py-2 ${i === 0 || c.t === 'txt' || !c.t ? 'text-left' : 'text-right'} whitespace-nowrap">${bmEsc(c.h)}</th>`).join('');
+        const body = rows.map((r, ri) => `<tr class="hover:bg-violet-50/40">${cols.map((c, ci) => {
+            const v = c.f(r), t = bmFmtV[c.t || 'txt'](v), cls = (c.warn && c.warn(r)) ? 'text-orange-600 font-bold' : '';
+            const cell = (ci === 0 && o.drill) ? `<button onclick="${o.drill}(${ri})" class="text-violet-700 font-bold hover:underline text-left">${bmEsc(t)}</button>` : ((c.drill && o.drill) ? `<button onclick="${o.drill}(${ri})" class="hover:underline hover:text-violet-700">${bmEsc(t)}</button>` : bmEsc(t));
+            return `<td class="px-3 py-1.5 ${ci === 0 || c.t === 'txt' || !c.t ? 'text-left' : 'text-right font-mono'} ${cls}">${cell}</td>`;
+        }).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length}" class="px-4 py-6 text-center text-slate-400">該当するデータがありません</td></tr>`;
+        return `<div class="overflow-auto max-h-[30rem]"><table class="w-full text-sm"><thead class="bg-slate-100 text-slate-600 text-xs sticky top-0"><tr>${head}</tr></thead><tbody class="divide-y divide-slate-100">${body}</tbody></table></div>`;
+    }
+    // 表（Excel）
+    function bmTblExcel(ws, startRow, cols, rows, NAVY) {
+        const hdr = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } }, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } };
+        const hr = ws.getRow(startRow); cols.forEach((c, i) => { const cell = hr.getCell(i + 1); cell.value = c.h; cell.style = hdr; }); hr.height = 30;
+        rows.forEach((r, ri) => {
+            const row = ws.getRow(startRow + 1 + ri);
+            cols.forEach((c, i) => {
+                const v = c.f(r), cell = row.getCell(i + 1);
+                if (c.t === 'm1') { cell.value = (v === null || v === undefined || v === '') ? null : v / 1e6; cell.numFmt = '#,##0.0'; }
+                else if (c.t === 'pct' || c.t === 'pt') { cell.value = (v === null || v === undefined || !isFinite(v)) ? null : v; cell.numFmt = '0.0%'; }
+                else if (c.t === 'int') { cell.value = (v === null || v === undefined || v === '') ? null : v; cell.numFmt = '#,##0'; }
+                else if (c.t === 'mon') { cell.value = v === null || v === undefined ? null : v; cell.numFmt = '0.0'; }
+                else cell.value = v == null ? '' : v;
+                if (c.warn && c.warn(r)) cell.font = { bold: true, color: { argb: 'FFC2410C' } };
+            });
+        });
+        return startRow + rows.length;
+    }
+    // 小窓（一覧の中身。複数の表を縦に並べられる。Excel出力つき）
+    window.bmShowTable = function(title, cols, rows, more) {
+        const secs = [{ name: '一覧', cols, rows }, ...(more || [])];
+        bm._sm = { title, secs };
+        document.getElementById('bm-sm-title').textContent = title;
+        document.getElementById('bm-sm-body').innerHTML = secs.map((s, i) => `${i ? `<div class="px-5 pt-4 pb-1 text-sm font-bold text-slate-600 border-t border-slate-200">${bmEsc(s.name)}</div>` : (secs.length > 1 ? `<div class="px-5 pt-3 pb-1 text-sm font-bold text-slate-600">${bmEsc(s.name)}</div>` : '')}${s.note ? `<div class="px-5 text-[11px] text-slate-400">${bmEsc(s.note)}</div>` : ''}${bmTblHtml(s.cols, s.rows, {})}`).join('');
+        document.getElementById('bm-sm').classList.remove('hidden');
+    };
+    window.bmSmClose = function() { document.getElementById('bm-sm').classList.add('hidden'); };
+    window.bmSmExcel = async function() {
+        try {
+            const d = bm._sm; if (!d || !d.secs.some(s => s.rows.length)) { alert('出力するデータがありません。'); return; }
+            const wb = new ExcelJS.Workbook(); const used = new Set();
+            d.secs.forEach((s, i) => {
+                let nm = String(s.name).replace(/[\\\/\?\*\[\]\:]/g, '_').slice(0, 28) || `表${i + 1}`; while (used.has(nm)) nm += '_'; used.add(nm);
+                const ws = wb.addWorksheet(nm); ws.columns = s.cols.map(() => ({ width: 16 })); ws.getColumn(1).width = 24; bmTblExcel(ws, 1, s.cols, s.rows, 'FF4C1D95'); ws.views = [{ state: 'frozen', ySplit: 1 }];
+            });
+            const wc = wb.addWorksheet('出力条件'); wc.columns = [{ width: 18 }, { width: 90 }]; wc.addRow(['内容', d.title]); wc.addRow(['期間', `${bmPeriodLabel(bm.basis, bm.periodKey)}`]); wc.addRow(['集計の基準', bm.dataBasis === 'cost' ? '原価集計（完了日）' : '明細データ（発生日）']);
+            const buf = await wb.xlsx.writeBuffer(), dt = new Date(), p2 = (n) => String(n).padStart(2, '0');
+            saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `支店長会議資料_内訳_${String(d.title).replace(/[\\\/:*?"<>|（）()\s]/g, '_').slice(0, 30)}_${dt.getFullYear()}${p2(dt.getMonth() + 1)}${p2(dt.getDate())}.xlsx`);
+        } catch (e) { console.error(e); alert('Excel出力でエラーが発生しました：' + e.message); }
+    };
+
+    // ── データの読み込み（現場マスター・原価集計・枝番別・売上/仕入明細の最終日・仕入明細の行）──
+    async function bmStaffLoad() {
+        const [sc, pc, cc, mc, bc] = await Promise.all([db.sales.count(), db.purchases.count(), db.costs.count(), db.masters.count(), db.costsBySub.count()]);
+        const key = [bm.dataBasis, sc, pc, cc, mc, bc, JSON.stringify(bm.branchOverrides || {}).length].join('|');
+        if (bm._staff && bm._staff.key === key) return bm._staff;
+        const masters = await db.masters.toArray(), mm = new Map(masters.map(m => [m.code, m]));
+        const costsAll = await db.costs.toArray(), cm = new Map(costsAll.map(c => [c.code, c]));
+        const subAll = await db.costsBySub.toArray(), subCosts = new Map(); subAll.forEach(c => { if (!subCosts.has(c.code)) subCosts.set(c.code, []); subCosts.get(c.code).push(c); });
+        const salesAll = await db.sales.toArray(), purchases = await db.purchases.toArray();
+        const ymOf = (d) => { const t = String(d || ''); return t.length >= 6 ? `${t.slice(0, 4)}-${t.slice(4, 6)}` : ''; };
+        const endYm = (code) => { const m = mm.get(code); return m ? bmYmOfDate(m.endDate) : ''; };
+        const lastDate = new Map(); const bumpLast = (code, d) => { const t = String(d || '').replace(/\D/g, ''); if (t.length >= 8 && (!lastDate.has(code) || t > lastDate.get(code))) lastDate.set(code, t.slice(0, 8)); };
+        salesAll.forEach(x => bumpLast(x.siteCode, x.date)); purchases.forEach(x => bumpLast(x.siteCode, x.date));
+        const agg = new Map();
+        const put = (code, ym, s, c) => { if (!ym) return; const k = code + '|' + ym; let a = agg.get(k); if (!a) { a = { code, ym, sales: 0, cost: 0 }; agg.set(k, a); } a.sales += s; a.cost += c; };
+        if (bm.dataBasis === 'cost') { costsAll.forEach(c => put(c.code, endYm(c.code), c.salesTotal || 0, c.costTotal || 0)); }
+        else { salesAll.forEach(x => put(x.siteCode, ymOf(x.date), x.amountExc || 0, 0)); purchases.forEach(x => { if (/消費税/.test(String(x.category || ''))) return; put(x.siteCode, ymOf(x.date), 0, x.amount || 0); }); }
+        const rows = [...agg.values()].map(a => { const m = mm.get(a.code) || {}; return { ...a, name: m.name || '', branch: bmEffectiveBranch(a.code, m.branch || '不明'), manager: String(m.manager || '').trim(), estimator: String(m.estimator || '').trim(), designer: String(m.designer || '').trim(), owner: m.owner || '', endDate: m.endDate || '' }; });
+        // 仕入明細の行（仕訳区分つき）。明細データ＝発生日の月／原価集計＝現場の完了月に計上
+        const plines = [];
+        purchases.forEach(x => {
+            if (/消費税/.test(String(x.category || ''))) return; const ym = bm.dataBasis === 'cost' ? endYm(x.siteCode) : ymOf(x.date); if (!ym) return;
+            plines.push({ code: x.siteCode, ym, date: x.date || '', voucherNo: x.voucherNo || '', vendor: String((window.vendorDisplay ? window.vendorDisplay(x) : x.vendor) || '').trim(), journal: String((window.journalDisplay ? window.journalDisplay(x) : x.journal) || '').trim() || '（区分なし）', product: x.productName || '', amount: x.amount || 0 });
+        });
+        const ja = new Map(); plines.forEach(p => { const k = p.code + '|' + p.ym + '|' + p.journal; let a = ja.get(k); if (!a) { a = { code: p.code, ym: p.ym, journal: p.journal, amount: 0 }; ja.set(k, a); } a.amount += p.amount; });
+        bm._staff = { key, rows, mm, cm, subCosts, lastDate, plines, jrows: [...ja.values()], hasCost: bm.dataBasis === 'cost' ? cc > 0 : pc > 0 };
+        return bm._staff;
+    }
+    function bmStaffPeriod() {
+        const months = bmGetFilteredMonths(), priorMonths = bmPeriodMonths(bm.basis, bm.periodKey - 1), { start, end } = bmGetFilterRange();
+        const cur = new Set(months.filter(ym => ym >= start && ym <= end)), priorToCur = new Map();
+        months.forEach((ym, i) => { if (cur.has(ym) && priorMonths[i]) priorToCur.set(priorMonths[i], ym); });
+        return { months, cur, priorToCur, total: months.length, curList: [...cur].sort() };
+    }
+    // 今期の範囲・拠点に当てはまる行（現場ごとにまとめた一覧）を作る。内訳の小窓で使う
+    const BM_SITE_COLS = [{ h: '工番', f: r => r.code, t: 'txt' }, { h: '現場名', f: r => r.name, t: 'txt' }, { h: '拠点', f: r => r.branch, t: 'txt' }, { h: '担当者', f: r => r.manager, t: 'txt' }, { h: '積算担当', f: r => r.estimator, t: 'txt' }, { h: '設計担当', f: r => r.designer, t: 'txt' }, { h: '施工主', f: r => r.owner, t: 'txt' }, { h: '売上(百万円)', f: r => r.sales, t: 'm1' }, { h: '原価(百万円)', f: r => r.cost, t: 'm1' }, { h: '粗利(百万円)', f: r => r.sales - r.cost, t: 'm1' }, { h: '粗利率', f: r => r.sales ? (r.sales - r.cost) / r.sales : null, t: 'pct', warn: r => r.sales ? (r.sales - r.cost) / r.sales < 0 : r.cost > 0 }];
+    function bmSitesFromRows(rows) {
+        const mp = new Map(); rows.forEach(r => { let s = mp.get(r.code); if (!s) { s = { code: r.code, name: r.name, branch: r.branch, manager: r.manager, estimator: r.estimator, designer: r.designer, owner: r.owner, sales: 0, cost: 0 }; mp.set(r.code, s); } s.sales += r.sales; s.cost += r.cost; });
+        return [...mp.values()].sort((a, b) => b.sales - a.sales);
+    }
+    function bmCurRows(S, branch) { const P = bmStaffPeriod(); return S.rows.filter(r => P.cur.has(r.ym) && (branch === 'ALL' || r.branch === branch)); }
+    function bmCurBranch() { const el = document.getElementById('bm-staff-branch'); return el ? (el.value || 'ALL') : 'ALL'; }
+    // 担当の名前（気づき・表の名前）を押したとき：その担当の現場一覧
+    window.bmStaffDrillName = async function(name, axis) {
+        const S = await bmStaffLoad(), ax = axis || bm.staffAxis, br = bmCurBranch();
+        const rows = bmCurRows(S, br).filter(r => (r[ax] || `（${BM_STAFF_AX[ax]}未設定）`) === name);
+        window.bmShowTable(`${name}（${BM_STAFF_AX[ax]}）の現場`, BM_SITE_COLS, bmSitesFromRows(rows));
+    };
+    window.bmInsDrill = function(el) { window.bmStaffDrillName(el.getAttribute('data-n'), el.getAttribute('data-a') || undefined); };
+    // 気づき（自動）の表示：⟦名前⟧ を、押せる名前にする。lv＝warn（要確認）／good／info
+    function bmInsightHtml(list, title) {
+        if (!list.length) return '';
+        const conv = (t, ax) => bmEsc(t).replace(/⟦(.+?)⟧/g, (m, n) => `<button data-n="${bmEsc(n)}" ${ax ? `data-a="${ax}"` : ''} onclick="window.bmInsDrill(this)" class="font-bold text-violet-700 hover:underline">${n}</button>`);
+        const ic = { warn: 'text-orange-600', good: 'text-emerald-600', info: 'text-slate-500' }, mk = { warn: '要確認', good: '良い点', info: '参考' };
+        return `<div class="glass-panel rounded-xl px-5 py-3 border-l-4 border-orange-400"><div class="font-bold text-orange-700 text-xs mb-1">${bmEsc(title || '気づき（自動）')}　<span class="font-normal text-slate-400">名前を押すと、その現場の一覧が出ます</span></div><ul class="space-y-1 text-sm text-slate-700">${list.map(x => `<li class="flex gap-2"><span class="shrink-0 text-[11px] font-bold ${ic[x.lv] || ic.info} w-12">${mk[x.lv] || mk.info}</span><span>${conv(x.t, x.ax)}</span></li>`).join('')}</ul></div>`;
+    }
+    const bmInsightPlain = (t) => String(t).replace(/⟦(.+?)⟧/g, '$1');
+
+    // ── 概要：集計・気づき・グラフ・クロス ──
+    function bmStaffCompute(S, axis, branch) {
+        const P = bmStaffPeriod(), curSet = P.cur, priorToCur = P.priorToCur;
+        const label = BM_STAFF_AX[axis], none = `（${label}未設定）`, gm = new Map(), tot = { sales: 0, cost: 0, prior: 0, priorCost: 0, sites: new Set() };
+        const monthsList = P.curList;
+        S.rows.forEach(r => {
+            if (branch !== 'ALL' && r.branch !== branch) return;
+            const isCur = curSet.has(r.ym), isPrior = priorToCur.has(r.ym); if (!isCur && !isPrior) return;
+            const nm = r[axis] || none; let g = gm.get(nm);
+            if (!g) { g = { name: nm, sales: 0, cost: 0, prior: 0, priorCost: 0, sites: new Set(), monthly: new Map(), siteMap: new Map() }; gm.set(nm, g); }
+            if (isCur) {
+                g.sales += r.sales; g.cost += r.cost; g.sites.add(r.code); tot.sales += r.sales; tot.cost += r.cost; tot.sites.add(r.code);
+                g.monthly.set(r.ym, (g.monthly.get(r.ym) || 0) + r.sales);
+                let s = g.siteMap.get(r.code); if (!s) { s = { code: r.code, name: r.name, branch: r.branch, manager: r.manager, estimator: r.estimator, designer: r.designer, owner: r.owner, endDate: r.endDate, sales: 0, cost: 0, profit: 0 }; g.siteMap.set(r.code, s); }
+                s.sales += r.sales; s.cost += r.cost; s.profit = s.sales - s.cost;
+            }
+            if (isPrior) { g.prior += r.sales; g.priorCost += r.cost; tot.prior += r.sales; tot.priorCost += r.cost; }
+        });
+        const groups = [...gm.values()].filter(g => g.sales || g.prior).map(g => {
+            const top = [...g.siteMap.values()].sort((a, b) => b.sales - a.sales)[0];
+            return { ...g, profit: g.sales - g.cost, margin: g.sales ? (g.sales - g.cost) / g.sales : null, priorMargin: g.prior ? (g.prior - g.priorCost) / g.prior : null, nSites: g.sites.size, topSite: top || null, topShare: top && g.sales ? top.sales / g.sales : null };
+        });
+        groups.sort((a, b) => (a.name.startsWith('（') - b.name.startsWith('（')) || b.sales - a.sales);
+        let cum = 0; groups.forEach(g => { g.share = tot.sales ? g.sales / tot.sales : 0; cum += g.share; g.cumShare = cum; });
+        return { axis, label, groups, tot: { ...tot, profit: tot.sales - tot.cost, margin: tot.sales ? (tot.sales - tot.cost) / tot.sales : null, priorMargin: tot.prior ? (tot.prior - tot.priorCost) / tot.prior : null, nSites: tot.sites.size }, months: monthsList, hasCost: S.hasCost, branch };
+    }
+    // 気づき（自動）：増減の要因を分けて拾う
+    function bmStaffInsights(D) {
+        const L = [], t = D.tot, real = D.groups.filter(g => !g.name.startsWith('（')), pct = bmPct, lb = D.label;
+        if (t.prior > 0) {
+            const d = t.sales - t.prior, diffs = D.groups.map(g => ({ g, d: g.sales - g.prior })).filter(x => x.d !== 0);
+            const up = diffs.filter(x => x.d > 0).sort((a, b) => b.d - a.d).slice(0, 3), dn = diffs.filter(x => x.d < 0).sort((a, b) => a.d - b.d).slice(0, 3);
+            L.push({ lv: d >= 0 ? 'good' : 'warn', t: `売上は前年同期より ${bmM1s(d)}百万円（前年比 ${(t.sales / t.prior * 100).toFixed(0)}%）。増えた主な${lb}：${up.length ? up.map(x => `⟦${x.g.name}⟧ ${bmM1s(x.d)}`).join('、') : 'なし'}／減った主な${lb}：${dn.length ? dn.map(x => `⟦${x.g.name}⟧ ${bmM1s(x.d)}`).join('、') : 'なし'}` });
+        }
+        if (D.hasCost && t.prior > 0 && t.margin !== null && t.priorMargin !== null) {
+            const gp1 = t.sales - t.cost, gp0 = t.prior - t.priorCost, volEff = (t.sales - t.prior) * t.priorMargin, rateEff = t.sales * (t.margin - t.priorMargin);
+            L.push({ lv: gp1 >= gp0 ? 'good' : 'warn', t: `粗利は前年同期より ${bmM1s(gp1 - gp0)}百万円。内訳は、売上の増減による分 ${bmM1s(volEff)}、粗利率の変化（${pct(t.priorMargin)}→${pct(t.margin)}）による分 ${bmM1s(rateEff)}。` });
+            const neg = real.filter(g => g.prior > 0 && g.margin !== null && g.priorMargin !== null).map(g => ({ g, e: g.sales * (g.margin - g.priorMargin) })).filter(x => x.e < -1e6).sort((a, b) => a.e - b.e).slice(0, 3);
+            if (neg.length) L.push({ lv: 'warn', t: `粗利率が前年より下がり、粗利を押し下げている${lb}：${neg.map(x => `⟦${x.g.name}⟧（${pct(x.g.priorMargin)}→${pct(x.g.margin)}、粗利 ${bmM1s(x.e)}百万円）`).join('、')}` });
+            const pos = real.filter(g => g.prior > 0 && g.margin !== null && g.priorMargin !== null).map(g => ({ g, e: g.sales * (g.margin - g.priorMargin) })).filter(x => x.e > 1e6).sort((a, b) => b.e - a.e).slice(0, 2);
+            if (pos.length) L.push({ lv: 'good', t: `粗利率が前年より上がり、粗利を押し上げている${lb}：${pos.map(x => `⟦${x.g.name}⟧（${pct(x.g.priorMargin)}→${pct(x.g.margin)}、粗利 ${bmM1s(x.e)}百万円）`).join('、')}` });
+        }
+        if (D.hasCost && t.margin !== null) {
+            const low = real.filter(g => g.margin !== null && g.sales >= t.sales * 0.03 && g.margin < t.margin - 0.05).map(g => ({ g, opp: g.sales * (t.margin - g.margin) })).sort((a, b) => b.opp - a.opp).slice(0, 5);
+            if (low.length) L.push({ lv: 'warn', t: `粗利率が全体（${pct(t.margin)}）より5pt以上低い${lb}（売上が全体の3%以上）：${low.map(x => `⟦${x.g.name}⟧（${pct(x.g.margin)}）`).join('、')}。全体の粗利率並みなら、粗利が合計で約 ${bmM1(low.reduce((a, x) => a + x.opp, 0))}百万円 増える計算です（目安）。` });
+            const ge = real.filter(g => g.prior > 0 && g.sales > g.prior * 1.1 && g.margin !== null && g.priorMargin !== null && g.margin < g.priorMargin - 0.03).slice(0, 4);
+            if (ge.length) L.push({ lv: 'warn', t: `売上は増えたのに、粗利率が3pt以上下がっている${lb}（増収減益に注意）：${ge.map(g => `⟦${g.name}⟧（売上 ${bmM1s(g.sales - g.prior)}百万円、粗利率 ${pct(g.priorMargin)}→${pct(g.margin)}）`).join('、')}` });
+            const neg2 = real.filter(g => g.margin !== null && g.margin < 0 && g.sales > 0).slice(0, 4);
+            if (neg2.length) L.push({ lv: 'warn', t: `粗利がマイナス（赤字）の${lb}：${neg2.map(g => `⟦${g.name}⟧（${pct(g.margin)}、粗利 ${bmM1s(g.profit)}百万円）`).join('、')}` });
+        }
+        if (real.length >= 3 && t.sales) {
+            const sh = (key) => { const s = real.slice().sort((a, b) => b[key] - a[key]).slice(0, 3); const tt = key === 'sales' ? t.sales : t.prior; return tt ? s.reduce((a, g) => a + g[key], 0) / tt : null; };
+            const c1 = sh('sales'), c0 = t.prior ? sh('prior') : null, names = real.slice(0, 3).map(g => `⟦${g.name}⟧`).join('・');
+            L.push({ lv: 'info', t: `売上の上位3人（${names}）で全体の ${pct(c1)} を占めています${c0 !== null ? `（前年同期は ${pct(c0)}。${c1 > c0 + 0.03 ? '集中が進んでいます' : c1 < c0 - 0.03 ? '分散が進んでいます' : 'ほぼ同じです'}）` : ''}。` });
+        }
+        const big = real.filter(g => g.nSites >= 2 && g.topShare !== null && g.topShare >= 0.5 && g.sales >= t.sales * 0.03).slice(0, 4);
+        if (big.length) L.push({ lv: 'warn', t: `売上の半分以上が1現場に偏っている${lb}：${big.map(g => `⟦${g.name}⟧（${pct(g.topShare)}＝${g.topSite.code} ${bmShort(g.topSite.name, 12)}）`).join('、')}。その現場の完了時期で、数字が大きく動きます。` });
+        const unset = D.groups.filter(g => g.name.startsWith('（')).reduce((a, g) => a + g.sales, 0);
+        if (t.sales && unset / t.sales >= 0.05) L.push({ lv: 'warn', t: `${lb}が未設定の売上が ${pct(unset / t.sales)}（${bmM1(unset)}百万円）あります。現場マスターの入力漏れの可能性があり、担当別の数字がその分だけ小さく見えています。` });
+        return L;
+    }
+    function bmStaffCharts(D, topN) {
+        const top = D.groups.slice(0, topN), nm = (g) => bmShort(g.name, 8), val = (n) => Math.round(n / 1e5) / 10, COL = ['#7c3aed', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4'], cfg = {};
+        cfg.yoy = { type: 'bar', data: { labels: top.map(nm), datasets: [{ label: '今期', data: top.map(g => val(g.sales)), backgroundColor: '#7c3aed', borderRadius: 3 }, { label: '前年同期', data: top.map(g => val(g.prior)), backgroundColor: '#cbd5e1', borderRadius: 3 }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { title: { display: true, text: '百万円' } } } } };
+        cfg.margin = { data: { labels: top.map(nm), datasets: [{ type: 'bar', label: '売上（百万円）', data: top.map(g => val(g.sales)), backgroundColor: '#7c3aed', borderRadius: 3, yAxisID: 'y' }, { type: 'line', label: '粗利率（%）', data: top.map(g => g.margin === null ? null : Math.round(g.margin * 1000) / 10), borderColor: '#ea580c', backgroundColor: '#ea580c', yAxisID: 'y1', tension: 0.2 }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { position: 'left', title: { display: true, text: '百万円' } }, y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: '粗利率 %' } } } } };
+        const pts = D.groups.filter(g => g.margin !== null && g.sales > 0 && !g.name.startsWith('（')).map(g => ({ x: val(g.sales), y: Math.round(g.margin * 1000) / 10, r: Math.max(4, Math.min(22, 4 + Math.sqrt(g.nSites) * 2.2)), name: g.name, n: g.nSites }));
+        cfg.bubble = { type: 'bubble', data: { datasets: [{ label: D.label, data: pts, backgroundColor: 'rgba(124,58,237,0.45)', borderColor: '#7c3aed' }] }, options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => { const p = c.raw; return `${p.name}：売上${p.x}百万円・粗利率${p.y}%・${p.n}現場`; } } } }, scales: { x: { title: { display: true, text: '売上（百万円）' } }, y: { title: { display: true, text: '粗利率（%）' } } } } };
+        const t5 = D.groups.filter(g => !g.name.startsWith('（')).slice(0, 5);
+        cfg.trend = { type: 'line', data: { labels: D.months.map(ym => `${Number(ym.split('-')[1])}月`), datasets: t5.map((g, i) => ({ label: g.name, data: D.months.map(ym => val(g.monthly.get(ym) || 0)), borderColor: COL[i % COL.length], backgroundColor: COL[i % COL.length], tension: 0.2 })) }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { title: { display: true, text: '百万円' } } } } };
+        return cfg;
+    }
+    function bmStaffChartDraw(id, cfg) {
+        const el = document.getElementById(id); if (!el || typeof Chart === 'undefined') return;
+        bm.staffCharts = bm.staffCharts || {};
+        if (bm.staffCharts[id] && typeof bm.staffCharts[id].destroy === 'function') bm.staffCharts[id].destroy();
+        bm.staffCharts[id] = new Chart(el, cfg);
+    }
+    function bmStaffCrossBuild(S, axisRow, axisCol, branch, measure) {
+        const P = bmStaffPeriod(), lr = BM_STAFF_AX[axisRow], lc = BM_STAFF_AX[axisCol], cell = new Map(), rowT = new Map(), colT = new Map();
+        S.rows.forEach(r => {
+            if (!P.cur.has(r.ym) || (branch !== 'ALL' && r.branch !== branch)) return;
+            const a = r[axisRow] || `（${lr}未設定）`, b = r[axisCol] || `（${lc}未設定）`, k = a + '\u0000' + b;
+            let c = cell.get(k); if (!c) { c = { sales: 0, cost: 0, sites: new Set() }; cell.set(k, c); }
+            c.sales += r.sales; c.cost += r.cost; c.sites.add(r.code);
+            [[rowT, a], [colT, b]].forEach(([mp, key]) => { let t = mp.get(key); if (!t) { t = { sales: 0, cost: 0, sites: new Set() }; mp.set(key, t); } t.sales += r.sales; t.cost += r.cost; t.sites.add(r.code); });
+        });
+        const ord = (mp) => [...mp.entries()].sort((a, b) => (a[0].startsWith('（') - b[0].startsWith('（')) || b[1].sales - a[1].sales).map(e => e[0]);
+        const v = (c) => !c ? null : measure === 'margin' ? (c.sales ? (c.sales - c.cost) / c.sales : null) : measure === 'count' ? c.sites.size : c.sales;
+        return { rows: ord(rowT).slice(0, 40), cols: ord(colT).slice(0, 14), cell, rowT, colT, v, lr, lc, axisRow, axisCol };
+    }
+    function bmStaffCrossHtml(X, measure) {
+        const f = (x) => x === null || x === undefined ? '' : measure === 'margin' ? bmPct(x) : measure === 'count' ? x.toLocaleString() : bmM1(x);
+        let max = 0; X.cell.forEach(c => { const x = X.v(c); if (x !== null && Math.abs(x) > max) max = Math.abs(x); });
+        const heat = (x) => { if (x === null || !max) return ''; if (measure === 'margin') return x < 0 ? 'background:rgba(239,68,68,0.35);' : x < 0.1 ? 'background:rgba(251,146,60,0.35);' : x < 0.2 ? 'background:rgba(251,191,36,0.20);' : 'background:rgba(16,185,129,0.20);'; return `background:rgba(124,58,237,${(0.08 + 0.45 * Math.abs(x) / max).toFixed(2)});`; };
+        if (!X.rows.length) return '<div class="px-4 py-6 text-center text-slate-400 text-sm">該当なし</div>';
+        bm._xv = X;
+        let h = `<table class="text-xs border-collapse min-w-full"><thead class="sticky top-0 z-10" style="background:#4c1d95;color:#fff"><tr><th class="px-3 py-2 text-left sticky left-0 z-20" style="background:#4c1d95">${X.lr} ＼ ${X.lc}</th>${X.cols.map(c => `<th class="px-3 py-2 text-right whitespace-nowrap">${bmEsc(c)}</th>`).join('')}<th class="px-3 py-2 text-right" style="background:#ea580c">合計</th></tr></thead><tbody>`;
+        X.rows.forEach((a, ri) => {
+            h += `<tr class="border-t border-slate-200"><td class="px-3 py-1.5 font-bold text-slate-800 sticky left-0 bg-white whitespace-nowrap">${bmEsc(a)}</td>`;
+            X.cols.forEach((b, ci) => { const x = X.v(X.cell.get(a + '\u0000' + b)); h += `<td class="px-3 py-1.5 text-right font-mono text-slate-800" style="${heat(x)}">${x === null ? '' : `<button onclick="window.bmStaffCrossDrill(${ri},${ci})" class="hover:underline">${f(x)}</button>`}</td>`; });
+            h += `<td class="px-3 py-1.5 text-right font-mono font-bold" style="background:#fff1e6;color:#9a3412"><button onclick="window.bmStaffCrossDrill(${ri},-1)" class="hover:underline">${f(X.v(X.rowT.get(a)))}</button></td></tr>`;
+        });
+        return h + '</tbody></table>';
+    }
+    window.bmStaffCrossDrill = async function(ri, ci) {
+        const X = bm._xv; if (!X) return; const S = await bmStaffLoad(), br = bmCurBranch(), a = X.rows[ri], b = ci >= 0 ? X.cols[ci] : null;
+        const rows = bmCurRows(S, br).filter(r => (r[X.axisRow] || `（${X.lr}未設定）`) === a && (b === null || (r[X.axisCol] || `（${X.lc}未設定）`) === b));
+        window.bmShowTable(`${X.lr}：${a}${b !== null ? ` × ${X.lc}：${b}` : '（合計）'} の現場`, BM_SITE_COLS, bmSitesFromRows(rows));
+    };
+    window.bmStaffDrill = async function(i) {
+        const g = bm._staffView && bm._staffView.groups[i]; if (!g) return;
+        const S = await bmStaffLoad(), br = bmCurBranch(), ax = bm._staffView.axis;
+        const rows = bmCurRows(S, br).filter(r => (r[ax] || `（${BM_STAFF_AX[ax]}未設定）`) === g.name);
+        const mon = new Map(); rows.forEach(r => { const m = mon.get(r.ym) || { ym: r.ym, sales: 0, cost: 0 }; m.sales += r.sales; m.cost += r.cost; mon.set(r.ym, m); });
+        window.bmShowTable(`${g.name}（${bm._staffView.label}）の現場`, BM_SITE_COLS, bmSitesFromRows(rows), [{ name: '月別の売上・原価', cols: [{ h: '年月', f: r => r.ym.replace('-', '/'), t: 'txt' }, { h: '売上(百万円)', f: r => r.sales, t: 'm1' }, { h: '原価(百万円)', f: r => r.cost, t: 'm1' }, { h: '粗利率', f: r => r.sales ? (r.sales - r.cost) / r.sales : null, t: 'pct' }], rows: [...mon.values()].sort((a, b) => a.ym.localeCompare(b.ym)) }]);
+    };
+    // ══ ① 積算の精度（受注金額＝全体の見積額。親工番にだけ入力する決まり）══
+    //   親工番の「受注金額」と、工番全体（親＋枝番）の実績（原価集計表の売上累計・原価累計）を比べる。予算は使わない
+    function bmAccuracyCompute(S, axis, branch) {
+        const P = bmStaffPeriod(), gm = new Map(); let nSites = 0, nOrd = 0, nOut = 0, ordSum = 0, salesOnOrd = 0;
+        S.mm.forEach((m, code) => {
+            const ym = bmYmOfDate(m.endDate); if (!ym || !P.cur.has(ym)) return;
+            const br = bmEffectiveBranch(code, m.branch || '不明'); if (branch !== 'ALL' && br !== branch) return;
+            const c = S.cm.get(code) || { salesTotal: 0, costTotal: 0 }, order = BM_NUM(m.orderAmount), sales = c.salesTotal || 0, cost = c.costTotal || 0, subs = (m.subCodes || []).length;
+            const nm = bmGroupName(m, axis); let g = gm.get(nm);
+            if (!g) { g = { name: nm, n: 0, nOrd: 0, ordSum: 0, salesOnOrd: 0, costOnOrd: 0, nOut: 0, sites: [] }; gm.set(nm, g); }
+            g.n++; nSites++;
+            if (order > 0) { g.nOrd++; g.ordSum += order; g.salesOnOrd += sales; g.costOnOrd += cost; nOrd++; ordSum += order; salesOnOrd += sales; if (Math.abs(sales / order - 1) > 0.2) { g.nOut++; nOut++; } }
+            g.sites.push({ code, name: m.name || '', ym, subs, order, sales, cost, branch: br, owner: m.owner || '', diff: order > 0 ? sales - order : null, ach: order > 0 ? sales / order : null, actM: sales ? (sales - cost) / sales : null });
+        });
+        const groups = [...gm.values()].map(g => ({ ...g, inputRate: g.n ? g.nOrd / g.n : null, diff: g.nOrd ? g.salesOnOrd - g.ordSum : null, ach: g.ordSum ? g.salesOnOrd / g.ordSum : null, actM: g.salesOnOrd ? (g.salesOnOrd - g.costOnOrd) / g.salesOnOrd : null, ordM: g.ordSum ? (g.ordSum - g.costOnOrd) / g.ordSum : null }));
+        groups.sort((a, b) => bmSortNames(a.name, b.name) || b.ordSum - a.ordSum || b.n - a.n);
+        const all = groups.flatMap(g => g.sites);
+        return { axis, label: BM_STAFF_AX[axis], groups, all, nSites, nOrd, nOut, ordSum, salesOnOrd };
+    }
+    const BM_ACC_COLS = (label) => [{ h: label, f: r => r.name, t: 'txt' }, { h: '完了現場数', f: r => r.n, t: 'int' }, { h: '受注金額あり', f: r => r.nOrd, t: 'int' }, { h: '受注金額の入力率', f: r => r.inputRate, t: 'pct', warn: r => r.n >= 3 && r.inputRate !== null && r.inputRate < 0.5 },
+        { h: '受注金額 計(百万円)', f: r => r.nOrd ? r.ordSum : null, t: 'm1' }, { h: '実績売上(工番全体)', f: r => r.nOrd ? r.salesOnOrd : null, t: 'm1' }, { h: '差額(売上－受注)', f: r => r.diff, t: 'm1' }, { h: '受注に対する売上', f: r => r.ach, t: 'pct', warn: r => r.ach !== null && Math.abs(r.ach - 1) > 0.2 },
+        { h: '±20%を超えた現場', f: r => r.nOrd ? r.nOut : null, t: 'int' }, { h: '実績原価(工番全体)', f: r => r.nOrd ? r.costOnOrd : null, t: 'm1' }, { h: '実績の粗利率', f: r => r.actM, t: 'pct' }, { h: '受注金額で売上が立った場合の粗利率', f: r => r.ordM, t: 'pct' }];
+    const BM_ACC_SITE_COLS = [{ h: '工番(親)', f: r => r.code, t: 'txt' }, { h: '現場名', f: r => r.name, t: 'txt' }, { h: '完了月', f: r => r.ym.replace('-', '/'), t: 'txt' }, { h: '枝番の数', f: r => r.subs, t: 'int' }, { h: '受注金額(百万円)', f: r => r.order || null, t: 'm1' }, { h: '実績売上(百万円)', f: r => r.sales, t: 'm1' }, { h: '差額(百万円)', f: r => r.diff, t: 'm1' }, { h: '受注に対する売上', f: r => r.ach, t: 'pct', warn: r => r.ach !== null && Math.abs(r.ach - 1) > 0.2 }, { h: '実績原価(百万円)', f: r => r.cost, t: 'm1' }, { h: '実績の粗利率', f: r => r.actM, t: 'pct' }, { h: '拠点', f: r => r.branch, t: 'txt' }, { h: '施工主', f: r => r.owner, t: 'txt' }];
+    function bmAccSubSection(S, sites) {
+        const rows = []; sites.forEach(s => (S.subCosts.get(s.code) || []).forEach(c => rows.push({ code: s.code, name: s.name, sub: c.subCode || '(親)', sales: c.salesTotal || 0, cost: c.costTotal || 0 })));
+        return { name: '親・枝番ごとの売上・原価（枝別の原価集計表）', note: rows.length ? '親工番の「受注金額」は工番全体の見積額です。実績は親＋枝番の合計なので、枝番ごとの内訳を並べています。' : '枝別の原価集計表が取り込まれていないため、親・枝番ごとの内訳は出せません。', cols: [{ h: '工番(親)', f: r => r.code, t: 'txt' }, { h: '現場名', f: r => r.name, t: 'txt' }, { h: '枝番', f: r => r.sub, t: 'txt' }, { h: '売上累計(百万円)', f: r => r.sales, t: 'm1' }, { h: '原価累計(百万円)', f: r => r.cost, t: 'm1' }], rows };
+    }
+    window.bmAccDrill = async function(i) {
+        const A = bm._acc, g = A && A.groups[i]; if (!g) return; const S = await bmStaffLoad(), sites = g.sites.slice().sort((a, b) => (b.order - a.order) || (b.sales - a.sales));
+        window.bmShowTable(`積算の精度：${g.name}（${A.label}）の完了現場`, BM_ACC_SITE_COLS, sites, [bmAccSubSection(S, sites)]);
+    };
+    function bmAccuracyInsights(A) {
+        const L = [], lb = A.label;
+        if (!A.nSites) return [{ lv: 'info', t: '今期の範囲に、完了した現場がありません。' }];
+        L.push({ lv: A.nOrd / A.nSites < 0.7 ? 'warn' : 'info', t: `完了現場 ${A.nSites}件のうち、受注金額が入っているのは ${A.nOrd}件（入力率 ${bmPct(A.nOrd / A.nSites)}）。受注金額は親工番にだけ入力する決まりなので、親工番の受注金額と、工番全体（親＋枝番）の実績を比べています。` });
+        if (!A.nOrd) return L;
+        const ach = A.salesOnOrd / A.ordSum;
+        L.push({ lv: Math.abs(ach - 1) > 0.1 ? 'warn' : 'good', t: `受注金額が入っている現場の合計：受注 ${bmM1(A.ordSum)}百万円 → 実績売上 ${bmM1(A.salesOnOrd)}百万円（${bmPct(ach)}、差額 ${bmM1s(A.salesOnOrd - A.ordSum)}百万円）。${ach > 1.05 ? '追加工事・変更が、受注金額に反映されていない可能性があります。' : ach < 0.95 ? '受注金額より実績売上が少ない（値引き・減額・未請求の可能性）。' : '受注金額と実績は、ほぼ合っています。'}` });
+        if (A.nOut) { const worst = A.all.filter(s => s.ach !== null && Math.abs(s.ach - 1) > 0.2).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff)).slice(0, 3); L.push({ lv: 'warn', t: `受注金額と実績売上が20%以上ずれた現場が ${A.nOut}件。差額の大きい現場：${worst.map(s => `${s.code} ${bmShort(s.name, 10)}（受注 ${bmM1(s.order)}→売上 ${bmM1(s.sales)}百万円、${bmPct(s.ach)}）`).join('、')}` }); }
+        const lowIn = A.groups.filter(g => !g.name.startsWith('（') && g.n >= 3 && g.inputRate < 0.5).slice(0, 4);
+        if (lowIn.length) L.push({ lv: 'warn', t: `受注金額の入力率が50%未満の${lb}（完了3件以上）：${lowIn.map(g => `⟦${g.name}⟧（${g.nOrd}/${g.n}件）`).join('、')}。入力漏れが、精度の確認を難しくしています。` });
+        const out = A.groups.filter(g => g.nOrd >= 2 && g.nOut >= 2).sort((a, b) => b.nOut - a.nOut).slice(0, 3);
+        if (out.length) L.push({ lv: 'warn', t: `20%以上ずれた現場が多い${lb}：${out.map(g => `⟦${g.name}⟧（${g.nOut}/${g.nOrd}件）`).join('、')}` });
+        const w = A.all.filter(s => s.ach !== null && s.subs > 0), wo = A.all.filter(s => s.ach !== null && s.subs === 0), av = (a) => a.reduce((x, s) => x + Math.abs(s.ach - 1), 0) / a.length;
+        if (w.length >= 3 && wo.length >= 3) L.push({ lv: 'info', t: `受注金額とのずれ（平均）：枝番がある現場 ${bmPct(av(w))}（${w.length}件）、枝番がない現場 ${bmPct(av(wo))}（${wo.length}件）。${av(w) > av(wo) + 0.05 ? '枝番がある現場のほうが、ずれが大きい傾向です（枝番の追加分を受注金額に反映しているか確認）。' : ''}` });
+        return L;
+    }
+    function bmAccuracyCharts(A, topN) {
+        const gs = A.groups.filter(g => g.nOrd > 0).sort((a, b) => b.ordSum - a.ordSum).slice(0, topN), v = (n) => Math.round(n / 1e5) / 10;
+        return { acc: { data: { labels: gs.map(g => bmShort(g.name, 8)), datasets: [{ type: 'bar', label: '受注金額（百万円）', data: gs.map(g => v(g.ordSum)), backgroundColor: '#cbd5e1', borderRadius: 3, yAxisID: 'y' }, { type: 'bar', label: '実績売上（百万円）', data: gs.map(g => v(g.salesOnOrd)), backgroundColor: '#7c3aed', borderRadius: 3, yAxisID: 'y' }, { type: 'line', label: '受注に対する売上（%）', data: gs.map(g => Math.round(g.ach * 1000) / 10), borderColor: '#ea580c', backgroundColor: '#ea580c', yAxisID: 'y1' }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { position: 'left', title: { display: true, text: '百万円' } }, y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: '%' } } } } } };
+    }
+    async function bmRenderAccuracy(S, branch, topN, host) {
+        const A = bmAccuracyCompute(S, bm.staffAxis, branch); bm._acc = A;
+        host.innerHTML = `${bmInsightHtml(bmAccuracyInsights(A))}
+            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1">受注金額と実績売上（受注金額が入っている${A.label}。上位${topN}）</h4><div class="h-72"><canvas id="bm-sp-acc-ch"></canvas></div></div>
+            <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-violet-50 px-5 py-3 border-b border-violet-200 text-sm font-bold text-slate-700">${A.label}別の一覧（名前を押すと完了現場の一覧と、親・枝番ごとの内訳）</div>${bmTblHtml(BM_ACC_COLS(A.label), A.groups, { drill: 'window.bmAccDrill' })}</div>
+            <p class="text-[11px] text-slate-400 px-1">完了＝現場マスターの完了日が、今期（期間絞込の範囲）の現場。実績は原価集計表の売上累計・原価累計（工番全体）です。予算は使っていません。</p>`;
+        bmStaffChartDraw('bm-sp-acc-ch', bmAccuracyCharts(A, topN).acc);
+    }
+
+    // ══ ② 完了の遅れ（現場マスターの親工番：着手日があって、完了日が未入力）══
+    function bmDelayCompute(S, axis, branch, monthsMin) {
+        const now = Date.now(), gm = new Map(); let total = 0, idleN = 0, salesAll = 0; const MS = 1000 * 60 * 60 * 24 * 30.4375;
+        S.mm.forEach((m, code) => {
+            if (window.parseDateValue && window.parseDateValue(m.endDate)) return;
+            const ts = window.parseDateValue ? window.parseDateValue(m.startDate) : null; if (!ts) return;
+            const br = bmEffectiveBranch(code, m.branch || '不明'); if (branch !== 'ALL' && br !== branch) return;
+            const el = (now - ts) / MS; if (el < monthsMin) return;
+            const c = S.cm.get(code) || { salesTotal: 0, costTotal: 0 }, nm = bmGroupName(m, axis), ld = S.lastDate.get(code) || '', lts = ld ? window.parseDateValue(ld) : null, idle = lts ? (now - lts) / MS : null, order = BM_NUM(m.orderAmount);
+            let g = gm.get(nm); if (!g) { g = { name: nm, n: 0, sales: 0, cost: 0, elSum: 0, maxEl: 0, maxName: '', nIdle: 0, salesIdle: 0, sites: [] }; gm.set(nm, g); }
+            g.n++; total++; g.sales += c.salesTotal || 0; g.cost += c.costTotal || 0; g.elSum += el; salesAll += c.salesTotal || 0; if (el > g.maxEl) { g.maxEl = el; g.maxName = `${code} ${m.name || ''}`.trim(); }
+            const isIdle = idle !== null && idle >= 3; if (isIdle) { g.nIdle++; g.salesIdle += c.salesTotal || 0; idleN++; }
+            g.sites.push({ code, name: m.name || '', start: bmYmOfDate(m.startDate), el, last: ld ? `${ld.slice(0, 4)}/${ld.slice(4, 6)}/${ld.slice(6, 8)}` : '（計上なし）', idle, sales: c.salesTotal || 0, cost: c.costTotal || 0, order, ach: order > 0 ? (c.salesTotal || 0) / order : null, branch: br, owner: m.owner || '' });
+        });
+        const groups = [...gm.values()].map(g => ({ ...g, avgEl: g.n ? g.elSum / g.n : 0 })).sort((a, b) => bmSortNames(a.name, b.name) || b.n - a.n);
+        return { axis, label: BM_STAFF_AX[axis], groups, all: groups.flatMap(g => g.sites), total, idleN, salesAll, monthsMin };
+    }
+    const BM_DELAY_COLS = (label) => [{ h: label, f: r => r.name, t: 'txt' }, { h: '件数', f: r => r.n, t: 'int' }, { h: '売上累計(百万円)', f: r => r.sales, t: 'm1' }, { h: '原価累計(百万円)', f: r => r.cost, t: 'm1' }, { h: '平均の経過月数', f: r => r.avgEl, t: 'mon' }, { h: '最長の経過月数', f: r => r.maxEl, t: 'mon' }, { h: '最長の現場', f: r => r.maxName, t: 'txt' }, { h: '3か月以上動きなし(件)', f: r => r.nIdle, t: 'int', warn: r => r.nIdle > 0 }, { h: 'そのうち売上累計(百万円)', f: r => r.nIdle ? r.salesIdle : null, t: 'm1' }];
+    const BM_DELAY_SITE_COLS = [{ h: '工番(親)', f: r => r.code, t: 'txt' }, { h: '現場名', f: r => r.name, t: 'txt' }, { h: '着手月', f: r => r.start.replace('-', '/'), t: 'txt' }, { h: '経過月数', f: r => r.el, t: 'mon' }, { h: '最後の計上日', f: r => r.last, t: 'txt' }, { h: '動きなしの月数', f: r => r.idle, t: 'mon', warn: r => r.idle !== null && r.idle >= 3 }, { h: '売上累計(百万円)', f: r => r.sales, t: 'm1' }, { h: '原価累計(百万円)', f: r => r.cost, t: 'm1' }, { h: '受注金額(百万円)', f: r => r.order || null, t: 'm1' }, { h: '受注に対する売上', f: r => r.ach, t: 'pct', warn: r => r.ach !== null && r.ach >= 0.95 }, { h: '拠点', f: r => r.branch, t: 'txt' }, { h: '施工主', f: r => r.owner, t: 'txt' }];
+    window.bmDelayDrill = function(i) { const D = bm._delay, g = D && D.groups[i]; if (g) window.bmShowTable(`完了の遅れ：${g.name}（${D.label}）の現場`, BM_DELAY_SITE_COLS, g.sites.slice().sort((a, b) => b.el - a.el)); };
+    function bmDelayInsights(D) {
+        const L = [], lb = D.label;
+        if (!D.total) return [{ lv: 'good', t: `着手から${D.monthsMin}か月以上経っていて、完了日が未入力の現場はありません。` }];
+        L.push({ lv: 'info', t: `着手から${D.monthsMin}か月以上経っていて、完了日が未入力の現場は ${D.total}件（売上累計 ${bmM1(D.salesAll)}百万円）。` });
+        if (D.idleN) { const idle = D.all.filter(s => s.idle !== null && s.idle >= 3).sort((a, b) => b.sales - a.sales).slice(0, 4); L.push({ lv: 'warn', t: `最後の計上（売上・仕入明細）から3か月以上動きがなく、完了日の入力漏れが疑われる現場が ${D.idleN}件。売上累計の大きい現場：${idle.map(s => `${s.code} ${bmShort(s.name, 10)}（${bmM1(s.sales)}百万円、${s.idle.toFixed(0)}か月動きなし）`).join('、')}` }); }
+        const near = D.all.filter(s => s.ach !== null && s.ach >= 0.95).sort((a, b) => b.sales - a.sales).slice(0, 4);
+        if (near.length) L.push({ lv: 'warn', t: `売上累計が受注金額の95%以上に達しているのに、完了日が未入力の現場：${near.map(s => `${s.code} ${bmShort(s.name, 10)}（${bmPct(s.ach)}）`).join('、')}` });
+        const noCost = D.all.filter(s => s.sales === 0 && s.cost === 0 && s.last === '（計上なし）').length; if (noCost) L.push({ lv: 'info', t: `売上・仕入とも計上がない現場が ${noCost}件あります（着手日だけが入っている現場）。` });
+        const top = D.groups.filter(g => !g.name.startsWith('（')).slice().sort((a, b) => b.n - a.n).slice(0, 3); if (top.length && D.total >= 3) L.push({ lv: 'info', t: `遅れている現場が多い${lb}：${top.map(g => `⟦${g.name}⟧（${g.n}件）`).join('、')}` });
+        return L;
+    }
+    function bmDelayCharts(D, topN) { const gs = D.groups.slice().sort((a, b) => b.n - a.n).slice(0, topN); return { delay: { type: 'bar', data: { labels: gs.map(g => bmShort(g.name, 8)), datasets: [{ label: '件数', data: gs.map(g => g.n), backgroundColor: '#ea580c', borderRadius: 3, yAxisID: 'y' }, { type: 'line', label: '平均の経過月数', data: gs.map(g => Math.round(g.avgEl * 10) / 10), borderColor: '#4c1d95', backgroundColor: '#4c1d95', yAxisID: 'y1' }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { position: 'left', title: { display: true, text: '件数' }, ticks: { precision: 0 } }, y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: '月' } } } } } }; }
+    async function bmRenderDelay(S, branch, topN, host) {
+        const mm = Number(bm.staffDelayMonths || 6), D = bmDelayCompute(S, bm.staffAxis, branch, mm); bm._delay = D;
+        host.innerHTML = `<div class="glass-panel rounded-xl px-5 py-3 flex flex-wrap items-center gap-3 text-sm text-slate-700"><b>完了の遅れ</b>：現場マスター（親工番）で、着手日が入っているのに完了日が未入力の現場のうち、着手から
+            <select onchange="window.bmStaffSetDelay(this.value)" class="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white font-bold">${[3, 6, 9, 12, 18, 24].map(v => `<option value="${v}" ${v === mm ? 'selected' : ''}>${v}か月</option>`).join('')}</select> 以上経っているものを、${D.label}ごとに数えます。
+            <span class="ml-auto text-xs ${D.total ? 'text-orange-600 font-bold' : 'text-slate-400'}">該当 ${D.total}件（今日時点。期・期間絞込には関係しません）</span></div>
+            ${bmInsightHtml(bmDelayInsights(D))}
+            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1">${D.label}ごとの件数と、平均の経過月数</h4><div class="h-72"><canvas id="bm-sp-delay-ch"></canvas></div></div>
+            <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-violet-50 px-5 py-3 border-b border-violet-200 text-sm font-bold text-slate-700">${D.label}別の一覧（名前を押すと現場の一覧）</div>${bmTblHtml(BM_DELAY_COLS(D.label), D.groups, { drill: 'window.bmDelayDrill' })}</div>
+            <p class="text-[11px] text-slate-400 px-1">判定は、現場マスターの親工番の着手日・完了日です（枝番の日付は見ていません）。売上累計・原価累計は原価集計表の値、最後の計上日は売上明細・仕入明細の最新の伝票日付です。</p>`;
+        bmStaffChartDraw('bm-sp-delay-ch', bmDelayCharts(D, topN).delay);
+    }
+    window.bmStaffSetDelay = function(v) { bm.staffDelayMonths = Number(v); window.bmStaffRender(); };
+
+    // ══ ③ 目標対比 ══
+    async function bmTargetLoad() { try { const r = await db.meta.get('bmStaffTargets'); bm.staffTargets = (r && r.value) || {}; } catch (e) { bm.staffTargets = {}; } }
+    function bmTargetCompute(S, axis, branch) {
+        const D = bmStaffCompute(S, axis, branch), key = bmBasisKey(bm.basis, bm.periodKey), tg = ((bm.staffTargets || {})[key] || {})[axis] || {}, P = bmStaffPeriod();
+        const frac = P.total ? P.curList.length / P.total : 1, names = new Set([...D.groups.map(g => g.name), ...Object.keys(tg)]);
+        const sales = new Map(D.groups.map(g => [g.name, g.sales])), prior = new Map(D.groups.map(g => [g.name, g.prior]));
+        const rows = [...names].map(nm => { const annual = (tg[nm] || 0) * 1e6, cumT = annual * frac, act = sales.get(nm) || 0; return { name: nm, annual, cumT, act, prior: prior.get(nm) || 0, rate: cumT ? act / cumT : null, annualRate: annual ? act / annual : null, gap: annual ? act - cumT : null }; }).filter(r => r.annual || r.act).sort((a, b) => bmSortNames(a.name, b.name) || b.annual - a.annual || b.act - a.act);
+        return { axis, label: BM_STAFF_AX[axis], rows, frac, key, nTarget: Object.keys(tg).length, months: P.curList.length, total: P.total };
+    }
+    const BM_TGT_COLS = (label) => [{ h: label, f: r => r.name, t: 'txt' }, { h: '年間目標(百万円)', f: r => r.annual || null, t: 'm1' }, { h: '累計目標(経過月で按分)', f: r => r.cumT || null, t: 'm1' }, { h: '実績(百万円)', f: r => r.act, t: 'm1' }, { h: '累計目標に対する達成率', f: r => r.rate, t: 'pct', warn: r => r.rate !== null && r.rate < 0.8 }, { h: '年間目標に対する進捗率', f: r => r.annualRate, t: 'pct' }, { h: '累計目標との差(百万円)', f: r => r.gap, t: 'm1' }, { h: '前年同期(百万円)', f: r => r.prior, t: 'm1' }];
+    window.bmTgtDrill = function(i) { const T = bm._tgt; if (T && T.rows[i]) window.bmStaffDrillName(T.rows[i].name, T.axis); };
+    function bmTargetInsights(T) {
+        const L = [], lb = T.label, w = T.rows.filter(r => r.annual && !r.name.startsWith('（'));
+        if (!w.length) return [{ lv: 'info', t: `${bmPeriodLabel(bm.basis, bm.periodKey)}の目標（${lb}）は登録されていません。「目標ひな形をExcel出力」で作ったExcelに記入して、取り込んでください。` }];
+        const totT = w.reduce((a, r) => a + r.cumT, 0), totA = w.reduce((a, r) => a + r.act, 0);
+        L.push({ lv: totA >= totT ? 'good' : 'warn', t: `目標を登録している${w.length}人の合計：累計目標 ${bmM1(totT)}百万円に対し、実績 ${bmM1(totA)}百万円（達成率 ${bmPct(totT ? totA / totT : null)}、差 ${bmM1s(totA - totT)}百万円）。` });
+        const lag = w.filter(r => r.rate !== null && r.rate < 0.8).sort((a, b) => a.gap - b.gap).slice(0, 4); if (lag.length) L.push({ lv: 'warn', t: `累計目標の80%に届いていない${lb}（差の大きい順）：${lag.map(r => `⟦${r.name}⟧（${bmPct(r.rate)}、${bmM1s(r.gap)}百万円）`).join('、')}` });
+        const ok = w.filter(r => r.rate !== null && r.rate >= 1).sort((a, b) => b.gap - a.gap).slice(0, 3); if (ok.length) L.push({ lv: 'good', t: `累計目標を達成している${lb}：${ok.map(r => `⟦${r.name}⟧（${bmPct(r.rate)}）`).join('、')}` });
+        const noT = T.rows.filter(r => !r.annual && r.act > 0 && !r.name.startsWith('（')).sort((a, b) => b.act - a.act).slice(0, 4); if (noT.length) L.push({ lv: 'info', t: `実績はあるが、目標が未登録の${lb}：${noT.map(r => `⟦${r.name}⟧（${bmM1(r.act)}百万円）`).join('、')}` });
+        return L;
+    }
+    function bmTargetCharts(T, topN) { const gs = T.rows.filter(r => r.annual).sort((a, b) => b.annual - a.annual).slice(0, topN), v = (n) => Math.round(n / 1e5) / 10; return { target: { type: 'bar', data: { labels: gs.map(r => bmShort(r.name, 8)), datasets: [{ label: '累計目標', data: gs.map(r => v(r.cumT)), backgroundColor: '#cbd5e1', borderRadius: 3 }, { label: '実績', data: gs.map(r => v(r.act)), backgroundColor: '#7c3aed', borderRadius: 3 }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { title: { display: true, text: '百万円' } } } } } }; }
+    async function bmRenderTarget(S, branch, topN, host) {
+        await bmTargetLoad(); const T = bmTargetCompute(S, bm.staffAxis, branch); bm._tgt = T;
+        host.innerHTML = `<div class="glass-panel rounded-xl px-5 py-3 text-sm text-slate-700"><div class="flex flex-wrap items-center gap-2"><b>目標対比</b>：${bmPeriodLabel(bm.basis, bm.periodKey)}　登録済みの目標 ${T.nTarget}件（${T.label}）
+            <span class="ml-auto flex flex-wrap gap-2"><button onclick="window.bmTargetTemplate()" class="text-xs font-bold bg-white border border-violet-300 text-violet-700 hover:bg-violet-50 rounded px-3 py-1.5"><i class="fa-solid fa-file-excel mr-1"></i>目標ひな形をExcel出力（現在の登録つき）</button>
+            <button onclick="document.getElementById('bm-tgt-file').click()" class="text-xs font-bold bg-violet-700 hover:bg-violet-800 text-white rounded px-3 py-1.5"><i class="fa-solid fa-file-import mr-1"></i>Excelから登録</button>
+            <button onclick="window.bmTargetClear()" class="text-xs text-slate-400 hover:text-red-600 underline">この期の目標を削除</button><input type="file" id="bm-tgt-file" accept=".xlsx,.xls" class="hidden" onchange="window.bmTargetImport(this)"></span></div>
+            <div class="mt-1 text-[11px] text-slate-400">目標は、期（年）ごと・見る軸ごとに、年間の売上目標（税抜・百万円）をExcelで登録します。累計目標は、年間目標を、経過月数（今期の絞込範囲 ${T.months}か月／${T.total}か月）で按分した値です。目標は拠点で分かれません（全社の個人目標）。</div></div>
+            ${bmInsightHtml(bmTargetInsights(T))}
+            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1">累計目標と実績（目標のある${T.label}）</h4><div class="h-72"><canvas id="bm-sp-tgt-ch"></canvas></div></div>
+            <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-violet-50 px-5 py-3 border-b border-violet-200 text-sm font-bold text-slate-700">${T.label}別の目標対比（名前を押すと現場の一覧）</div>${bmTblHtml(BM_TGT_COLS(T.label), T.rows, { drill: 'window.bmTgtDrill' })}</div>`;
+        bmStaffChartDraw('bm-sp-tgt-ch', bmTargetCharts(T, topN).target);
+    }
+    window.bmTargetTemplate = async function() {
+        try {
+            const S = await bmStaffLoad(); await bmTargetLoad(); const key = bmBasisKey(bm.basis, bm.periodKey), tg = (bm.staffTargets || {})[key] || {};
+            const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('目標'), NAVY = 'FF4C1D95';
+            ws.columns = [{ header: '見る軸', width: 12 }, { header: '名称', width: 26 }, { header: '年間目標(百万円)', width: 18 }, { header: '備考', width: 28 }, { header: '参考:今期の実績(百万円)', width: 20 }, { header: '参考:前年同期(百万円)', width: 20 }];
+            ws.getRow(1).eachCell((c, i) => { c.style = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: i <= 4 ? NAVY : 'FF64748B' } }, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } }; }); ws.getRow(1).height = 30;
+            for (const axis of Object.keys(BM_STAFF_AX)) { const T = bmTargetCompute(S, axis, 'ALL'), t = tg[axis] || {}; T.rows.filter(r => !r.name.startsWith('（')).forEach(r => ws.addRow([BM_STAFF_AX[axis], r.name, t[r.name] ?? '', '', r.act / 1e6, r.prior / 1e6])); }
+            const last = ws.rowCount + 100; for (let r = 2; r <= last; r++) { ws.getCell('A' + r).dataValidation = { type: 'list', allowBlank: true, formulae: ['"' + Object.values(BM_STAFF_AX).join(',') + '"'] }; }
+            ws.getColumn(3).numFmt = '#,##0.0'; ws.getColumn(5).numFmt = '#,##0.0'; ws.getColumn(6).numFmt = '#,##0.0'; ws.views = [{ state: 'frozen', ySplit: 1, xSplit: 2 }];
+            const wg = wb.addWorksheet('書き方'); wg.columns = [{ width: 20 }, { width: 100 }]; wg.addRow([`担当別の年間目標（${bmPeriodLabel(bm.basis, bm.periodKey)}）`]).font = { bold: true, size: 13, color: { argb: NAVY } }; wg.addRow([]);
+            [['目的', '担当者・積算担当・設計担当ごとの、年間の売上目標（税抜）を登録して、支店長会議資料の「担当別」で、実績との対比を出します。'], ['書き方', '「目標」シートの「年間目標(百万円)」に、数字を入れます（例 120 ＝ 1億2,000万円）。目標を決めない行は、空欄のままで構いません。一覧にない名前は、行を足して「見る軸」と「名称」を入れてください。'], ['対象の期', `この表は、現在選んでいる期（年）の「${bmPeriodLabel(bm.basis, bm.periodKey)}」用です。期（年）を変えて出力すると、その期用のひな形になります。`], ['参考:の列', '灰色の見出しの列は、取込時には使いません。'], ['取込', '「Excelから登録」で取り込むと、この期の目標を、Excelの内容にすべて置き換えます。']].forEach(([k, v]) => { const r = wg.addRow([k, v]); r.getCell(1).font = { bold: true, color: { argb: NAVY } }; r.getCell(2).alignment = { wrapText: true, vertical: 'top' }; r.getCell(1).alignment = { vertical: 'top' }; });
+            const buf = await wb.xlsx.writeBuffer(); saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `担当別目標_${bmPeriodLabel(bm.basis, bm.periodKey).replace(/[／/\\（）()]/g, '-')}.xlsx`);
+        } catch (e) { console.error(e); alert('Excel出力でエラーが発生しました：' + e.message); }
+    };
+    window.bmTargetImport = async function(input) {
+        const file = input && input.files && input.files[0]; if (!file) return;
+        try {
+            const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' }), ws = wb.Sheets[wb.SheetNames.find(n => n.includes('目標')) || wb.SheetNames[0]];
+            const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true }), sq = (v) => String(v == null ? '' : v).normalize('NFKC').replace(/\s+/g, '');
+            const hi = aoa.findIndex(r => r.some(c => sq(c) === '名称') && r.some(c => sq(c) === '見る軸'));
+            if (hi < 0) { alert('見出し行（「見る軸」「名称」の列）が見つかりません。「目標ひな形をExcel出力」で作ったExcelの「目標」シートを使ってください。'); return; }
+            const H = aoa[hi].map(sq), cA = H.indexOf('見る軸'), cN = H.indexOf('名称'), cT = H.findIndex(h => h.startsWith('年間目標'));
+            if (cT < 0) { alert('「年間目標(百万円)」の列が見つかりません。'); return; }
+            const rev = {}; Object.entries(BM_STAFF_AX).forEach(([k, l]) => { rev[l] = k; }); const out = { manager: {}, estimator: {}, designer: {} }, errors = []; let n = 0;
+            for (let i = hi + 1; i < aoa.length; i++) {
+                const r = aoa[i], ax = rev[String(r[cA] == null ? '' : r[cA]).trim()], nm = String(r[cN] == null ? '' : r[cN]).trim(), raw = r[cT];
+                if (raw === '' || raw === null || raw === undefined) continue; if (!nm) continue;
+                if (!ax) { errors.push(`${i + 1}行目（${nm}）：「見る軸」は 担当者／積算担当／設計担当 のいずれかにしてください`); continue; }
+                const v = Number(String(raw).replace(/,/g, '')); if (!isFinite(v) || v < 0) { errors.push(`${i + 1}行目（${nm}）：年間目標が数字ではありません（「${raw}」）`); continue; }
+                if (v > 0) { out[ax][nm] = v; n++; }
+            }
+            if (errors.length) { alert(`取り込めない行があります。Excelを直してからもう一度取り込んでください。\n\n${errors.slice(0, 10).join('\n')}${errors.length > 10 ? `\n…ほか${errors.length - 10}件` : ''}`); return; }
+            await bmTargetLoad(); const key = bmBasisKey(bm.basis, bm.periodKey), cur = (bm.staffTargets || {})[key] || {}, curN = Object.values(cur).reduce((a, o) => a + Object.keys(o).length, 0);
+            if (!confirm(`「${file.name}」から読み込みました。\n\n${bmPeriodLabel(bm.basis, bm.periodKey)}の目標：${n}件（担当者 ${Object.keys(out.manager).length}／積算 ${Object.keys(out.estimator).length}／設計 ${Object.keys(out.designer).length}）\n\nこの期の既存の目標（${curN}件）は、すべてこの内容に置き換えます。よろしいですか？`)) return;
+            bm.staffTargets = { ...(bm.staffTargets || {}), [key]: out }; await db.meta.put({ key: 'bmStaffTargets', value: bm.staffTargets });
+            alert(`登録しました（${n}件）。`); window.bmStaffRender();
+        } catch (e) { console.error(e); alert('Excelの取込でエラーが発生しました：' + e.message); } finally { if (input) input.value = ''; }
+    };
+    window.bmTargetClear = async function() {
+        await bmTargetLoad(); const key = bmBasisKey(bm.basis, bm.periodKey); if (!bm.staffTargets[key]) { alert('この期の目標は登録されていません。'); return; }
+        if (!confirm(`${bmPeriodLabel(bm.basis, bm.periodKey)}の目標を、すべて削除します。よろしいですか？`)) return;
+        delete bm.staffTargets[key]; await db.meta.put({ key: 'bmStaffTargets', value: bm.staffTargets }); window.bmStaffRender();
+    };
+
+    // ══ ④ 大口への依存（施工主）══
+    const bmOwnerKeyOf = (o) => { const od = window.ownerDisplay ? window.ownerDisplay(o) : o; return { key: (window.ownerKey ? window.ownerKey(od) : od) || '__none__', name: od || '（施工主未設定）' }; };
+    function bmOwnerCompute(S, axis, branch) {
+        const P = bmStaffPeriod(), om = new Map(), gm = new Map(); let total = 0, totalCost = 0, priorTotal = 0;
+        S.rows.forEach(r => {
+            if (branch !== 'ALL' && r.branch !== branch) return; const isCur = P.cur.has(r.ym), isPrior = P.priorToCur.has(r.ym); if (!isCur && !isPrior) return;
+            const { key: ok, name: on } = bmOwnerKeyOf(r.owner); let o = om.get(ok); if (!o) { o = { key: ok, name: on, sales: 0, cost: 0, prior: 0, sites: new Set(), staff: new Set() }; om.set(ok, o); }
+            if (isCur) { o.sales += r.sales; o.cost += r.cost; o.sites.add(r.code); o.staff.add(r[axis] || '-'); total += r.sales; totalCost += r.cost;
+                const gn = r[axis] || `（${BM_STAFF_AX[axis]}未設定）`; let g = gm.get(gn); if (!g) { g = { name: gn, sales: 0, owners: new Map() }; gm.set(gn, g); } g.sales += r.sales; g.owners.set(on, (g.owners.get(on) || 0) + r.sales); }
+            if (isPrior) { o.prior += r.sales; priorTotal += r.sales; }
+        });
+        const owners = [...om.values()].filter(o => o.sales || o.prior).sort((a, b) => b.sales - a.sales); let cum = 0;
+        owners.forEach(o => { o.share = total ? o.sales / total : 0; cum += o.share; o.cum = cum; o.margin = o.sales ? (o.sales - o.cost) / o.sales : null; o.nSites = o.sites.size; o.nStaff = o.staff.size; });
+        const groups = [...gm.values()].map(g => { const ls = [...g.owners.entries()].sort((a, b) => b[1] - a[1]); return { name: g.name, sales: g.sales, topOwner: ls[0] ? ls[0][0] : '', topShare: g.sales && ls[0] ? ls[0][1] / g.sales : null, top3Share: g.sales ? ls.slice(0, 3).reduce((a, e) => a + e[1], 0) / g.sales : null, nOwners: ls.length, list: ls }; }).filter(g => g.sales > 0).sort((a, b) => bmSortNames(a.name, b.name) || b.sales - a.sales);
+        const real = owners.filter(o => o.sales > 0 && !o.name.startsWith('（')), realP = owners.filter(o => o.prior > 0 && !o.name.startsWith('（')).sort((a, b) => b.prior - a.prior);
+        return { axis, label: BM_STAFF_AX[axis], owners, groups, total, margin: total ? (total - totalCost) / total : null, top1: total && real[0] ? real[0].sales / total : null, top5: total ? real.slice(0, 5).reduce((a, o) => a + o.sales, 0) / total : null, top10: total ? real.slice(0, 10).reduce((a, o) => a + o.sales, 0) / total : null, priorTop5: priorTotal ? realP.slice(0, 5).reduce((a, o) => a + o.prior, 0) / priorTotal : null };
+    }
+    const BM_OWN_COLS = [{ h: '施工主', f: r => r.name, t: 'txt' }, { h: '売上(百万円)', f: r => r.sales, t: 'm1' }, { h: '構成比', f: r => r.share, t: 'pct' }, { h: '累計構成比', f: r => r.cum, t: 'pct' }, { h: '粗利率', f: r => r.margin, t: 'pct' }, { h: '現場数', f: r => r.nSites, t: 'int' }, { h: '担当人数', f: r => r.nStaff, t: 'int' }, { h: '前年同期(百万円)', f: r => r.prior, t: 'm1' }, { h: '前年比', f: r => r.prior ? r.sales / r.prior : null, t: 'pct' }];
+    const BM_OWN_GRP_COLS = (label) => [{ h: label, f: r => r.name, t: 'txt' }, { h: '売上(百万円)', f: r => r.sales, t: 'm1' }, { h: '最大の施工主', f: r => r.topOwner, t: 'txt' }, { h: 'その構成比（依存度）', f: r => r.topShare, t: 'pct', warn: r => r.topShare !== null && r.topShare >= 0.5 }, { h: '上位3施工主の構成比', f: r => r.top3Share, t: 'pct' }, { h: '施工主の数', f: r => r.nOwners, t: 'int' }];
+    window.bmOwnDrill = async function(i) {
+        const O = bm._own, o = O && O.owners[i]; if (!o) return; const S = await bmStaffLoad(), br = bmCurBranch(), rows = bmCurRows(S, br).filter(r => bmOwnerKeyOf(r.owner).key === o.key);
+        const gm = new Map(); rows.forEach(r => { const n = r[O.axis] || `（${O.label}未設定）`; const g = gm.get(n) || { name: n, sales: 0, cost: 0 }; g.sales += r.sales; g.cost += r.cost; gm.set(n, g); });
+        window.bmShowTable(`施工主：${o.name} の現場`, BM_SITE_COLS, bmSitesFromRows(rows), [{ name: `${O.label}別の内訳（この施工主の売上を、誰が持っているか）`, cols: [{ h: O.label, f: r => r.name, t: 'txt' }, { h: '売上(百万円)', f: r => r.sales, t: 'm1' }, { h: 'この施工主に占める構成比', f: r => o.sales ? r.sales / o.sales : null, t: 'pct' }, { h: '粗利率', f: r => r.sales ? (r.sales - r.cost) / r.sales : null, t: 'pct' }], rows: [...gm.values()].sort((a, b) => b.sales - a.sales) }]);
+    };
+    window.bmOwnGrpDrill = async function(i) {
+        const O = bm._own, g = O && O.groups[i]; if (!g) return; const S = await bmStaffLoad(), br = bmCurBranch(), rows = bmCurRows(S, br).filter(r => (r[O.axis] || `（${O.label}未設定）`) === g.name);
+        window.bmShowTable(`${O.label}：${g.name} の施工主別の内訳`, [{ h: '施工主', f: r => r.name, t: 'txt' }, { h: '売上(百万円)', f: r => r.sales, t: 'm1' }, { h: 'この' + O.label + 'に占める構成比', f: r => g.sales ? r.sales / g.sales : null, t: 'pct', warn: r => g.sales && r.sales / g.sales >= 0.5 }], g.list.map(([name, sales]) => ({ name, sales })), [{ name: '現場の一覧', cols: BM_SITE_COLS, rows: bmSitesFromRows(rows) }]);
+    };
+    function bmOwnerInsights(O) {
+        const L = [], real = O.owners.filter(o => o.sales > 0 && !o.name.startsWith('（'));
+        if (!O.total) return [{ lv: 'info', t: '今期の範囲に、売上がありません。' }];
+        if (real[0]) L.push({ lv: O.top1 >= 0.3 ? 'warn' : 'info', t: `最大の施工主は ${real[0].name}（構成比 ${bmPct(O.top1)}、${bmM1(real[0].sales)}百万円）。上位5施工主で ${bmPct(O.top5)}、上位10施工主で ${bmPct(O.top10)}${O.priorTop5 !== null ? `（上位5施工主は、前年同期 ${bmPct(O.priorTop5)}）` : ''}。` });
+        const lost = O.owners.filter(o => o.prior >= 20e6 && o.sales < o.prior * 0.5).sort((a, b) => (a.sales - a.prior) - (b.sales - b.prior)).slice(0, 4);
+        if (lost.length) L.push({ lv: 'warn', t: `前年同期（2,000万円以上）から売上が半分以下になった施工主：${lost.map(o => `${o.name}（${bmM1(o.prior)}→${bmM1(o.sales)}百万円）`).join('、')}` });
+        const nw = O.owners.filter(o => o.prior === 0 && o.sales >= O.total * 0.05).slice(0, 3); if (nw.length) L.push({ lv: 'good', t: `前年同期になかった新しい大口の施工主：${nw.map(o => `${o.name}（${bmM1(o.sales)}百万円、構成比 ${bmPct(o.share)}）`).join('、')}` });
+        const dep = O.groups.filter(g => !g.name.startsWith('（') && g.topShare !== null && g.topShare >= 0.5 && g.sales >= O.total * 0.03).slice(0, 4);
+        if (dep.length) L.push({ lv: 'warn', t: `売上の半分以上が1つの施工主に偏っている${O.label}：${dep.map(g => `⟦${g.name}⟧（${g.topOwner} ${bmPct(g.topShare)}）`).join('、')}。その施工主の動向で、数字が大きく動きます。` });
+        if (O.margin !== null) { const lowM = real.slice(0, 10).filter(o => o.margin !== null && o.margin < O.margin - 0.05).slice(0, 4); if (lowM.length) L.push({ lv: 'warn', t: `上位10施工主のうち、粗利率が全体（${bmPct(O.margin)}）より5pt以上低い施工主：${lowM.map(o => `${o.name}（${bmPct(o.margin)}、売上 ${bmM1(o.sales)}百万円）`).join('、')}` }); }
+        return L;
+    }
+    function bmOwnerCharts(O, topN) {
+        const os = O.owners.filter(o => o.sales > 0).slice(0, Math.max(topN, 10)), v = (n) => Math.round(n / 1e5) / 10;
+        return { pareto: { data: { labels: os.map(o => bmShort(o.name, 8)), datasets: [{ type: 'bar', label: '売上（百万円）', data: os.map(o => v(o.sales)), backgroundColor: '#7c3aed', borderRadius: 3, yAxisID: 'y' }, { type: 'line', label: '累計構成比（%）', data: os.map(o => Math.round(o.cum * 1000) / 10), borderColor: '#ea580c', backgroundColor: '#ea580c', yAxisID: 'y1' }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { position: 'left', title: { display: true, text: '百万円' } }, y1: { position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false }, title: { display: true, text: '累計 %' } } } } } };
+    }
+    async function bmRenderOwner(S, branch, topN, host) {
+        const O = bmOwnerCompute(S, bm.staffAxis, branch); bm._own = O;
+        const kp = (l, v) => `<div class="glass-panel p-4 rounded-xl border-l-4 border-violet-400"><div class="text-xs text-slate-400 font-bold mb-1">${l}</div><div class="text-base font-black text-slate-800 font-mono">${v}</div></div>`;
+        host.innerHTML = `<div class="grid grid-cols-2 md:grid-cols-4 gap-3">${kp('最大の施工主の構成比', bmPct(O.top1))}${kp('上位5施工主の構成比', bmPct(O.top5))}${kp('上位10施工主の構成比', bmPct(O.top10))}${kp('施工主の数', O.owners.filter(o => o.sales > 0).length.toLocaleString())}</div>
+            ${bmInsightHtml(bmOwnerInsights(O))}
+            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1">施工主別の売上と累計構成比（パレート図）</h4><div class="h-80"><canvas id="bm-sp-own-ch"></canvas></div></div>
+            <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-violet-50 px-5 py-3 border-b border-violet-200 text-sm font-bold text-slate-700">施工主別の一覧（売上の多い順。名前を押すと、現場の一覧と、${O.label}ごとの内訳）</div>${bmTblHtml(BM_OWN_COLS, O.owners, { drill: 'window.bmOwnDrill' })}</div>
+            <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-violet-50 px-5 py-3 border-b border-violet-200 text-sm font-bold text-slate-700">${O.label}ごとの、最大の施工主への依存度（50%以上はオレンジ。名前を押すと施工主別の内訳）</div>${bmTblHtml(BM_OWN_GRP_COLS(O.label), O.groups, { drill: 'window.bmOwnGrpDrill' })}</div>
+            <p class="text-[11px] text-slate-400 px-1">施工主は現場マスターの施工主（表記の違いは同じ名前にまとめています）。売上は、上の基準（明細データ／原価集計）と期間に連動します。</p>`;
+        bmStaffChartDraw('bm-sp-own-ch', bmOwnerCharts(O, topN).pareto);
+    }
+
+    // ══ ⑤ 原価の内訳（仕訳区分別）══
+    function bmCostCompute(S, axis, branch, measure) {
+        const P = bmStaffPeriod(), gm = new Map(), jt = new Map(), siteSales = new Map(), siteCost = new Map(); let salesCur = 0, salesPrior = 0, costCur = 0, costPrior = 0;
+        const sumSales = new Map();
+        S.rows.forEach(r => { if (branch !== 'ALL' && r.branch !== branch) return; const nm = r[axis] || `（${BM_STAFF_AX[axis]}未設定）`; if (P.cur.has(r.ym)) { salesCur += r.sales; sumSales.set(nm, (sumSales.get(nm) || 0) + r.sales); siteSales.set(r.code, (siteSales.get(r.code) || 0) + r.sales); } if (P.priorToCur.has(r.ym)) salesPrior += r.sales; });
+        const sumPrior = new Map(); S.rows.forEach(r => { if (branch !== 'ALL' && r.branch !== branch) return; if (P.priorToCur.has(r.ym)) sumPrior.set(r.name, 0); });
+        S.plines.forEach(p => {
+            const m = S.mm.get(p.code) || {}; if (branch !== 'ALL' && bmEffectiveBranch(p.code, m.branch || '不明') !== branch) return;
+            const isCur = P.cur.has(p.ym), isPrior = P.priorToCur.has(p.ym); if (!isCur && !isPrior) return;
+            const nm = bmGroupName(m, axis); let t = jt.get(p.journal); if (!t) { t = { name: p.journal, cur: 0, prior: 0 }; jt.set(p.journal, t); }
+            if (isCur) { t.cur += p.amount; costCur += p.amount; siteCost.set(p.code, (siteCost.get(p.code) || 0) + p.amount); let g = gm.get(nm); if (!g) { g = { name: nm, total: 0, by: new Map() }; gm.set(nm, g); } g.total += p.amount; g.by.set(p.journal, (g.by.get(p.journal) || 0) + p.amount); }
+            if (isPrior) { t.prior += p.amount; costPrior += p.amount; }
+        });
+        const journals = [...jt.values()].sort((a, b) => b.cur - a.cur);
+        journals.forEach(t => { t.share = costCur ? t.cur / costCur : 0; t.rate = salesCur ? t.cur / salesCur : null; t.priorRate = salesPrior ? t.prior / salesPrior : null; t.diff = (t.rate !== null && t.priorRate !== null) ? t.rate - t.priorRate : null; });
+        const groups = [...gm.values()].map(g => ({ ...g, sales: sumSales.get(g.name) || 0 })).sort((a, b) => bmSortNames(a.name, b.name) || b.total - a.total);
+        groups.forEach(g => { g.rate = g.sales > 0 ? g.total / g.sales : null; g.anom = (g.sales <= 0 && g.total > 0) || (g.rate !== null && g.rate > 2); });
+        const noSales = [...siteCost.entries()].filter(([c, v]) => v > 0 && (siteSales.get(c) || 0) <= 0.001 * v).map(([c, v]) => ({ code: c, name: (S.mm.get(c) || {}).name || '', cost: v })).sort((a, b) => b.cost - a.cost);
+        return { axis, label: BM_STAFF_AX[axis], journals, groups, salesCur, salesPrior, costCur, costPrior, measure, siteSales, siteCost, noSales };
+    }
+    const BM_COST_COLS = [{ h: '仕訳区分', f: r => r.name, t: 'txt' }, { h: '今期の原価(百万円)', f: r => r.cur, t: 'm1' }, { h: '構成比', f: r => r.share, t: 'pct' }, { h: '対売上の原価率', f: r => r.rate, t: 'pct' }, { h: '前年同期の原価(百万円)', f: r => r.prior, t: 'm1' }, { h: '前年の対売上の原価率', f: r => r.priorRate, t: 'pct' }, { h: '原価率の差', f: r => r.diff, t: 'pt', warn: r => r.diff !== null && r.diff > 0.01 }];
+    function bmCostMatrix(C, measure) {
+        const top = C.journals.slice(0, 6).map(j => j.name), cols = [...top, ...(C.journals.length > 6 ? ['その他'] : [])], ms = measure || C.measure;
+        const raw = (g, c) => c === 'その他' ? [...g.by.entries()].filter(([k]) => !top.includes(k)).reduce((a, [, x]) => a + x, 0) : (g.by.get(c) || 0);
+        const val = (g, c) => { const v = raw(g, c); return ms === 'rate' ? (g.sales > 0 ? v / g.sales : null) : ms === 'share' ? (g.total ? v / g.total : null) : v; };
+        return { cols, val, raw, top };
+    }
+    const BM_COST_LINE_COLS = [{ h: '日付', f: r => r.date ? `${String(r.date).slice(0, 4)}/${String(r.date).slice(4, 6)}/${String(r.date).slice(6, 8)}` : '', t: 'txt' }, { h: '伝票No', f: r => r.voucherNo, t: 'txt' }, { h: '工番', f: r => r.code, t: 'txt' }, { h: '現場名', f: r => r.name, t: 'txt' }, { h: '仕入先', f: r => r.vendor, t: 'txt' }, { h: '仕訳区分', f: r => r.journal, t: 'txt' }, { h: '商品名', f: r => r.product, t: 'txt' }, { h: '金額(百万円)', f: r => r.amount, t: 'm1' }];
+    async function bmCostShowLines(title, S, C, filter) {
+        const P = bmStaffPeriod(), br = bmCurBranch(), lines = S.plines.filter(p => { const m = S.mm.get(p.code) || {}; return P.cur.has(p.ym) && (br === 'ALL' || bmEffectiveBranch(p.code, m.branch || '不明') === br) && filter(p, m); }).map(p => ({ ...p, name: (S.mm.get(p.code) || {}).name || '' }));
+        const sm = new Map(); lines.forEach(p => { let s = sm.get(p.code); if (!s) { const m = S.mm.get(p.code) || {}; s = { code: p.code, name: p.name, who: bmGroupName(m, C.axis), sales: C.siteSales.get(p.code) || 0, part: 0, all: C.siteCost.get(p.code) || 0 }; sm.set(p.code, s); } s.part += p.amount; });
+        const sites = [...sm.values()].sort((a, b) => b.part - a.part);
+        const secSites = { name: `現場別（売上と比べて、原価が大きい現場を探せます。売上が0の現場は赤字表示）`, cols: [{ h: '工番', f: r => r.code, t: 'txt' }, { h: '現場名', f: r => r.name, t: 'txt' }, { h: C.label, f: r => r.who, t: 'txt' }, { h: '売上(百万円)', f: r => r.sales, t: 'm1', warn: r => r.sales <= 0 }, { h: 'この内訳の原価(百万円)', f: r => r.part, t: 'm1' }, { h: '原価 計(百万円)', f: r => r.all, t: 'm1' }, { h: 'この内訳の原価÷売上', f: r => r.sales > 0 ? r.part / r.sales : null, t: 'pct', warn: r => r.sales > 0 && r.part / r.sales > 2 }, { h: '原価計÷売上', f: r => r.sales > 0 ? r.all / r.sales : null, t: 'pct', warn: r => r.sales > 0 && r.all / r.sales > 2 }], rows: sites };
+        const top = lines.slice().sort((a, b) => b.amount - a.amount).slice(0, 300);
+        window.bmShowTable(title, secSites.cols, secSites.rows, [{ name: `仕入明細（金額の大きい順に${top.length}行${lines.length > top.length ? `／全${lines.length}行` : ''}）`, cols: BM_COST_LINE_COLS, rows: top }]);
+    }
+    window.bmCostDrill = async function(gi, ci) {
+        const C = bm._cost, g = C && C.groups[gi]; if (!g) return; const S = await bmStaffLoad(), M = bmCostMatrix(C), col = ci >= 0 ? M.cols[ci] : null;
+        await bmCostShowLines(`${g.name}（${C.label}）${col ? ' × ' + col : '（原価計）'} の内訳`, S, C, (p, m) => bmGroupName(m, C.axis) === g.name && (!col || (col === 'その他' ? !M.top.includes(p.journal) : p.journal === col)));
+    };
+    window.bmCostJDrill = async function(ji) {
+        const C = bm._cost, j = C && C.journals[ji]; if (!j) return; const S = await bmStaffLoad();
+        await bmCostShowLines(`仕訳区分：${j.name} の内訳`, S, C, (p) => p.journal === j.name);
+    };
+    function bmCostInsights(C) {
+        const L = [], lb = C.label, rate = C.salesCur ? C.costCur / C.salesCur : null, prate = C.salesPrior ? C.costPrior / C.salesPrior : null;
+        if (!C.journals.length) return [{ lv: 'info', t: '今期の範囲に、仕入明細がありません。' }];
+        L.push({ lv: (rate !== null && prate !== null && rate > prate + 0.01) ? 'warn' : 'info', t: `全体の原価率（仕入明細の原価÷売上）は ${bmPct(rate)}${prate !== null ? `、前年同期は ${bmPct(prate)}（${bmFmtV.pt(rate - prate)}）` : ''}。` });
+        const worse = C.journals.filter(j => j.diff !== null && j.diff > 0.01).sort((a, b) => b.diff - a.diff).slice(0, 3);
+        if (worse.length) L.push({ lv: 'warn', t: `前年より原価率が上がった仕訳区分：${worse.map(j => `${j.name}（${bmPct(j.priorRate)}→${bmPct(j.rate)}、売上に対して約 ${bmM1(j.diff * C.salesCur)}百万円の押し上げ）`).join('、')}` });
+        const better = C.journals.filter(j => j.diff !== null && j.diff < -0.01).sort((a, b) => a.diff - b.diff).slice(0, 2);
+        if (better.length) L.push({ lv: 'good', t: `前年より原価率が下がった仕訳区分：${better.map(j => `${j.name}（${bmPct(j.priorRate)}→${bmPct(j.rate)}）`).join('、')}` });
+        const an = C.groups.filter(g => g.anom).sort((a, b) => b.total - a.total).slice(0, 5);
+        if (an.length) L.push({ lv: 'warn', t: `原価率が200%を超える、または売上がないのに原価がある${lb}：${an.map(g => `⟦${g.name}⟧（${g.sales > 0 ? bmPct(g.rate) : '売上なし'}、売上 ${bmM1(g.sales)}／原価 ${bmM1(g.total)}百万円）`).join('、')}。表のセルを押すと、原因（売上が立っていない現場、金額の大きい仕入）を確認できます。` });
+        if (C.noSales.length) L.push({ lv: 'warn', t: `今期の範囲に、売上が計上されていないのに仕入だけある現場が ${C.noSales.length}現場（仕入 ${bmM1(C.noSales.reduce((a, s) => a + s.cost, 0))}百万円）。大きい現場：${C.noSales.slice(0, 3).map(s => `${s.code} ${bmShort(s.name, 10)}（${bmM1(s.cost)}百万円）`).join('、')}` });
+        if (bm.dataBasis === 'detail') L.push({ lv: 'info', t: '明細データ（発生日）の基準では、仕入が売上より先に計上されるため、原価率が極端に出ることがあります。原価率の確認は、「原価集計（完了日）」の基準にすると、現場ごとの売上と原価が同じ月にそろいます。' });
+        return L;
+    }
+    function bmCostCharts(C, topN) {
+        const gs = C.groups.slice(0, topN), M = bmCostMatrix(C, 'amount'), COL = ['#7c3aed', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#94a3b8'];
+        return { cost: { type: 'bar', data: { labels: gs.map(g => bmShort(g.name, 8)), datasets: M.cols.map((c, i) => ({ label: c, data: gs.map(g => Math.round((M.val(g, c) || 0) / 1e5) / 10), backgroundColor: COL[i % COL.length] })) }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, title: { display: true, text: '百万円' } } } } } };
+    }
+    async function bmRenderCost(S, branch, topN, host) {
+        const meas = bm.staffCostMeasure || 'rate', C = bmCostCompute(S, bm.staffAxis, branch, meas); bm._cost = C;
+        const M = bmCostMatrix(C), f = (v) => v === null ? '' : meas === 'amount' ? bmM1(v) : bmPct(v);
+        let max = 0; C.groups.forEach(g => M.cols.forEach(c => { const v = M.val(g, c); if (v !== null && v > max && !(meas === 'rate' && v > 2)) max = v; }));
+        const mt = C.groups.length ? `<div class="overflow-auto max-h-[28rem]"><table class="text-xs border-collapse min-w-full"><thead class="sticky top-0" style="background:#4c1d95;color:#fff"><tr><th class="px-3 py-2 text-left sticky left-0" style="background:#4c1d95">${C.label} ＼ 仕訳区分</th>${M.cols.map(c => `<th class="px-3 py-2 text-right whitespace-nowrap">${bmEsc(c)}</th>`).join('')}<th class="px-3 py-2 text-right" style="background:#ea580c">原価 計(百万円)</th><th class="px-3 py-2 text-right" style="background:#ea580c">売上(百万円)</th><th class="px-3 py-2 text-right" style="background:#ea580c">原価率</th></tr></thead><tbody>${C.groups.map((g, gi) => `<tr class="border-t border-slate-200"><td class="px-3 py-1.5 font-bold text-slate-800 sticky left-0 bg-white whitespace-nowrap">${g.anom ? '<span class="text-orange-600" title="売上がない、または原価率が200%超">⚠</span> ' : ''}${bmEsc(g.name)}</td>${M.cols.map((c, ci) => { const v = M.val(g, c), bad = meas === 'rate' && v !== null && v > 2; return `<td class="px-3 py-1.5 text-right font-mono ${bad ? 'text-red-600 font-bold' : ''}" style="${v !== null && max && !bad ? `background:rgba(124,58,237,${(0.06 + 0.4 * Math.min(v, max) / max).toFixed(2)});` : (bad ? 'background:rgba(239,68,68,0.15);' : '')}">${v === null ? (meas === 'rate' && g.sales <= 0 && M.raw(g, c) > 0 ? `<button onclick="window.bmCostDrill(${gi},${ci})" class="text-red-600 hover:underline">売上なし</button>` : '') : `<button onclick="window.bmCostDrill(${gi},${ci})" class="hover:underline">${f(v)}</button>`}</td>`; }).join('')}<td class="px-3 py-1.5 text-right font-mono font-bold" style="background:#fff1e6;color:#9a3412"><button onclick="window.bmCostDrill(${gi},-1)" class="hover:underline">${bmM1(g.total)}</button></td><td class="px-3 py-1.5 text-right font-mono" style="background:#fff1e6;color:#9a3412">${bmM1(g.sales)}</td><td class="px-3 py-1.5 text-right font-mono ${g.anom ? 'text-red-600 font-bold' : ''}" style="background:#fff1e6;color:#9a3412">${g.sales > 0 ? bmPct(g.rate) : '売上なし'}</td></tr>`).join('')}</tbody></table></div>` : '<div class="px-4 py-6 text-center text-slate-400 text-sm">該当するデータがありません</div>';
+        host.innerHTML = `${!S.plines.length ? '<div class="glass-panel rounded-xl px-5 py-3 border-l-4 border-orange-400 text-sm text-orange-700">仕入明細が取り込まれていないため、原価の内訳は出せません。</div>' : ''}
+            ${bmInsightHtml(bmCostInsights(C))}
+            <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-violet-50 px-5 py-3 border-b border-violet-200 text-sm font-bold text-slate-700">仕訳区分ごとの原価と、前年との原価率の差（区分の名前を押すと、現場と仕入明細）</div>${bmTblHtml(BM_COST_COLS, C.journals, { drill: 'window.bmCostJDrill' })}</div>
+            <div class="glass-panel rounded-xl p-4"><h4 class="font-bold text-slate-600 text-sm mb-1">${C.label}ごとの原価の内訳（上位${topN}、百万円）</h4><div class="h-80"><canvas id="bm-sp-cost-ch"></canvas></div></div>
+            <div class="glass-panel rounded-xl overflow-hidden"><div class="bg-violet-50 px-5 py-3 border-b border-violet-200 flex flex-wrap items-center gap-3 text-sm font-bold text-slate-700">${C.label}×仕訳区分　表示
+                <select onchange="window.bmStaffSetCostMeasure(this.value)" class="text-sm border border-slate-200 rounded-lg px-2 py-1 bg-white font-bold"><option value="rate" ${meas === 'rate' ? 'selected' : ''}>対売上の原価率</option><option value="share" ${meas === 'share' ? 'selected' : ''}>原価に占める構成比</option><option value="amount" ${meas === 'amount' ? 'selected' : ''}>金額（百万円）</option></select>
+                <span class="text-[11px] font-normal text-slate-400">数字を押すと、現場別と仕入明細の内訳が出ます。⚠・赤字は、売上がない／原価率が200%超</span></div>${mt}</div>
+            <p class="text-[11px] text-slate-400 px-1">原価は仕入明細（税抜。消費税の行は除く）の仕訳区分ごと。売上は上の基準の売上です。原価集計（完了日）の基準では、完了した現場の仕入明細を、発生日に関係なくすべて集計しています。</p>`;
+        bmStaffChartDraw('bm-sp-cost-ch', bmCostCharts(C, topN).cost);
+    }
+    window.bmStaffSetCostMeasure = function(v) { bm.staffCostMeasure = v; window.bmStaffRender(); };
+
+    // ── タブ・描画 ──
+    const BM_STAFF_TABS = [['overview', '概要・グラフ'], ['accuracy', '積算の精度'], ['delay', '完了の遅れ'], ['target', '目標対比'], ['owner', '大口依存（施工主）'], ['cost', '原価の内訳']];
+    function bmStaffPaintTabs() {
+        const tab = bm.staffTab || 'overview', box = document.getElementById('bm-staff-tabs'); if (!box) return;
+        box.innerHTML = BM_STAFF_TABS.map(([k, l]) => `<button onclick="window.bmStaffSetTab('${k}')" class="px-4 py-1.5 rounded-lg text-sm font-bold border ${k === tab ? 'bg-violet-700 text-white border-violet-700' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}">${l}</button>`).join('');
+        BM_STAFF_TABS.forEach(([k]) => { const el = document.getElementById(k === 'overview' ? 'bm-sp-overview' : `bm-sp-${k}`); if (el) el.classList.toggle('hidden', k !== tab); });
+    }
+    window.bmStaffSetTab = function(k) { bm.staffTab = k; window.bmStaffRender(); };
+    async function bmStaffRenderTab(S, branch, topN) {
+        const tab = bm.staffTab, host = document.getElementById(`bm-sp-${tab}`); if (!host) return;
+        document.getElementById('bm-staff-note').textContent = `${bmPeriodLabel(bm.basis, bm.periodKey)}　／　${BM_STAFF_AX[bm.staffAxis]}ごと　／　拠点：${branch === 'ALL' ? '全拠点' : branch}　／　${bm.dataBasis === 'cost' ? '原価集計（完了日）' : '明細データ（発生日）'}の基準`;
+        if (tab === 'accuracy') await bmRenderAccuracy(S, branch, topN, host); else if (tab === 'delay') await bmRenderDelay(S, branch, topN, host); else if (tab === 'target') await bmRenderTarget(S, branch, topN, host); else if (tab === 'owner') await bmRenderOwner(S, branch, topN, host); else if (tab === 'cost') await bmRenderCost(S, branch, topN, host);
+    }
+    async function bmStaffRenderInner() {
+        const S = await bmStaffLoad();
+        const axisBox = document.getElementById('bm-staff-axis-box'); if (!axisBox) return;
+        axisBox.innerHTML = Object.entries(BM_STAFF_AX).map(([k, l]) => `<button onclick="window.bmStaffSetAxis('${k}')" class="px-3 py-1.5 transition-colors whitespace-nowrap ${bm.staffAxis === k ? 'bg-violet-700 text-white' : 'text-slate-600 hover:bg-slate-50'}">${l}</button>`).join('');
+        const bsel = document.getElementById('bm-staff-branch'), cur = bsel.value || 'ALL';
+        const brs = [...new Set(S.rows.map(r => r.branch))].sort((a, b) => a.localeCompare(b, 'ja'));
+        bsel.innerHTML = '<option value="ALL">全拠点</option>' + brs.map(b => `<option value="${b}">${b}</option>`).join(''); bsel.value = brs.includes(cur) ? cur : 'ALL';
+        const branch = bsel.value, topN = Number(document.getElementById('bm-staff-top').value) || 10;
+        bm.staffTab = bm.staffTab || 'overview'; bmStaffPaintTabs();
+        if (bm.staffTab !== 'overview') { await bmStaffRenderTab(S, branch, topN); return; }
+        const D = bmStaffCompute(S, bm.staffAxis, branch); bm._staffView = D;
+        document.getElementById('bm-staff-note').textContent = `${bmPeriodLabel(bm.basis, bm.periodKey)}（${D.months.length ? `${D.months[0].replace('-', '/')}〜${D.months[D.months.length - 1].replace('-', '/')}` : '-'}）／ ${bm.dataBasis === 'cost' ? '原価集計表の売上・原価を、現場の完了月に計上' : '売上明細（税抜）と仕入明細（税抜・消費税の行は除く）を、発生日の月に計上'} ／ ${D.label}は現場マスターの値${D.hasCost ? '' : '（原価データがないため、粗利・粗利率は出せません）'}`;
+        const yoy = D.tot.prior ? D.tot.sales / D.tot.prior - 1 : null;
+        const card = (l, v, sub) => `<div class="glass-panel p-4 rounded-xl border-l-4 border-violet-400"><div class="text-xs text-slate-400 font-bold mb-1">${l}</div><div class="text-base font-black text-slate-800 font-mono">${v}</div>${sub ? `<div class="text-[11px] text-slate-400 mt-0.5">${sub}</div>` : ''}</div>`;
+        const real = D.groups.filter(g => !g.name.startsWith('（'));
+        document.getElementById('bm-staff-cards').innerHTML = card('売上（税抜）', bmM1(D.tot.sales) + '百万円', `前年同期 ${bmM1(D.tot.prior)}百万円`) + card('前年同期比', yoy === null ? '-' : `${yoy >= 0 ? '+' : ''}${(yoy * 100).toFixed(1)}%`, '') + card('粗利', D.hasCost ? bmM1(D.tot.profit) + '百万円' : '-', D.hasCost && D.tot.priorMargin !== null ? `前年の粗利率 ${bmPct(D.tot.priorMargin)}` : '') + card('粗利率', D.hasCost ? bmPct(D.tot.margin) : '-', '')
+            + card(`${D.label}の人数`, real.length.toLocaleString(), `現場数 ${D.tot.nSites.toLocaleString()}`) + card('上位3人の構成比', D.tot.sales ? bmPct(real.slice(0, 3).reduce((a, g) => a + g.sales, 0) / D.tot.sales) : '-', '売上の集中度');
+        document.getElementById('bm-staff-insights').innerHTML = bmInsightHtml(bmStaffInsights(D));
+        document.getElementById('bm-staff-t1').textContent = `売上：今期と前年同期（${D.label}、上位${topN}）`; document.getElementById('bm-staff-t2').textContent = `売上（棒）と粗利率（線）（${D.label}、上位${topN}）`; document.getElementById('bm-staff-t4').textContent = `月別の売上推移（${D.label}、上位5）`;
+        const cfg = bmStaffCharts(D, topN);
+        bmStaffChartDraw('bm-staff-ch-yoy', cfg.yoy); bmStaffChartDraw('bm-staff-ch-margin', cfg.margin); bmStaffChartDraw('bm-staff-ch-bubble', cfg.bubble); bmStaffChartDraw('bm-staff-ch-trend', cfg.trend);
+        document.getElementById('bm-staff-table-title').textContent = `${D.label}別の一覧（売上の多い順）`; document.getElementById('bm-staff-th-name').textContent = D.label;
+        document.getElementById('bm-staff-body').innerHTML = D.groups.map((g, i) => `<tr class="hover:bg-violet-50/40"><td class="px-3 py-1.5 text-center text-slate-400">${g.name.startsWith('（') ? '-' : i + 1}</td><td class="px-3 py-1.5 font-bold"><button onclick="window.bmStaffDrill(${i})" class="text-violet-700 hover:underline text-left">${bmEsc(g.name)}</button></td><td class="px-3 py-1.5 text-right font-mono">${bmM1(g.sales)}</td><td class="px-3 py-1.5 text-right">${bmPct(g.share)}</td><td class="px-3 py-1.5 text-right text-slate-500">${bmPct(g.cumShare)}</td><td class="px-3 py-1.5 text-right font-mono">${D.hasCost ? bmM1(g.cost) : '-'}</td><td class="px-3 py-1.5 text-right font-mono">${D.hasCost ? bmM1(g.profit) : '-'}</td><td class="px-3 py-1.5 text-right ${g.margin !== null && D.tot.margin !== null && g.margin < D.tot.margin - 0.05 ? 'text-orange-600 font-bold' : ''}">${D.hasCost ? bmPct(g.margin) : '-'}</td><td class="px-3 py-1.5 text-center">${g.nSites}</td><td class="px-3 py-1.5 text-right font-mono text-slate-500">${bmM1(g.nSites ? g.sales / g.nSites : 0)}</td><td class="px-3 py-1.5 text-right font-mono text-slate-500">${bmM1(g.prior)}</td><td class="px-3 py-1.5 text-right font-mono ${g.sales - g.prior < 0 ? 'text-blue-600' : 'text-red-600'}">${g.sales - g.prior < 0 ? '▲' : ''}${bmM1(Math.abs(g.sales - g.prior))}</td><td class="px-3 py-1.5 text-right ${g.prior && g.sales < g.prior ? 'text-blue-600' : ''}">${g.prior ? ((g.sales / g.prior) * 100).toFixed(0) + '%' : '-'}</td></tr>`).join('') || '<tr><td colspan="13" class="px-4 py-8 text-center text-slate-400">該当するデータがありません</td></tr>';
+        const colSel = document.getElementById('bm-staff-cross-col'), others = Object.keys(BM_STAFF_AX).filter(k => k !== bm.staffAxis), prevCol = colSel.value;
+        colSel.innerHTML = others.map(k => `<option value="${k}">${BM_STAFF_AX[k]}</option>`).join(''); colSel.value = others.includes(prevCol) ? prevCol : others[0];
+        document.getElementById('bm-staff-cross-rowlabel').textContent = D.label;
+        const meas = document.getElementById('bm-staff-cross-m').value;
+        document.getElementById('bm-staff-cross-box').innerHTML = bmStaffCrossHtml(bmStaffCrossBuild(S, bm.staffAxis, colSel.value, branch, meas), meas);
+    }
+    window.bmStaffRender = function() { bmStaffRenderInner().catch(e => { console.error('担当別 描画エラー:', e); alert('担当別の表示でエラーが発生しました：' + e.message); }); };
+    window.bmStaffSetAxis = function(k) { bm.staffAxis = k; window.bmStaffRender(); };
+
+    // ── Excel出力：担当者・積算・設計の3シート（一覧・気づき・グラフ）＋ 追加の分析 ──
+    window.bmExportStaffExcel = async function() {
+        try {
+            const S = await bmStaffLoad(), branch = bmCurBranch(), topN = Number((document.getElementById('bm-staff-top') || {}).value) || 10;
+            const wb = new ExcelJS.Workbook(); wb.creator = 'G-Ledger';
+            const NAVY = 'FF4C1D95', hdr = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } }, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } };
+            const img = (cfg, w, h) => { try { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const ch = new Chart(cv, { ...cfg, options: { ...cfg.options, responsive: false, animation: false, devicePixelRatio: 1 } }); const b = typeof ch.toBase64Image === 'function' ? ch.toBase64Image('image/png', 1) : null; if (typeof ch.destroy === 'function') ch.destroy(); return b; } catch (e) { console.warn('グラフ画像の作成に失敗', e); return null; } };
+            const MK = { warn: '要確認', good: '良い点', info: '参考' };
+            const insRows = (ws, r, list, title) => { if (!list.length) return r; const h = ws.getRow(r++); h.getCell(1).value = title || '気づき（自動）'; h.getCell(1).font = { bold: true, color: { argb: 'FFC2410C' } }; list.forEach(x => { const c = ws.getRow(r++).getCell(1); c.value = `【${MK[x.lv] || '参考'}】${bmInsightPlain(x.t)}`; if (x.lv === 'warn') c.font = { color: { argb: 'FFC2410C' } }; }); return r + 1; };
+            const secT = (ws, row, text) => { const c = ws.getRow(row).getCell(1); c.value = text; c.font = { bold: true, size: 12, color: { argb: NAVY } }; };
+            const place = (ws, b64, col, r0) => { if (!b64) return; const id = wb.addImage({ base64: b64.split(',')[1] || b64, extension: 'png' }); ws.addImage(id, { tl: { col, row: r0 }, ext: { width: 560, height: 280 } }); };
+            const per = `${bmPeriodLabel(bm.basis, bm.periodKey)}（${bmGetFilterRange().start.replace('-', '/')}〜${bmGetFilterRange().end.replace('-', '/')}）`, basisTxt = bm.dataBasis === 'cost' ? '原価集計表・完了日基準' : '売上明細・仕入明細・発生日基準', brTxt = branch === 'ALL' ? '全拠点' : branch;
+            let any = false; const axes = Object.keys(BM_STAFF_AX);
+            for (const axis of axes) {
+                const D = bmStaffCompute(S, axis, branch); if (!D.groups.length) continue; any = true;
+                const ws = wb.addWorksheet(`${D.label}別`); ws.columns = [{ width: 7 }, { width: 22 }, ...Array(11).fill({ width: 13 })];
+                const t = ws.addRow([`支店長会議資料　担当別分析（${D.label}別）`]); t.font = { bold: true, size: 14, color: { argb: NAVY } };
+                ws.addRow([`${per}　／　拠点：${brTxt}　／　${basisTxt}　／　金額は税抜・百万円`]).font = { color: { argb: 'FF64748B' } };
+                ws.addRow(['', `売上 ${bmM1(D.tot.sales)}　前年同期 ${bmM1(D.tot.prior)}　粗利 ${D.hasCost ? bmM1(D.tot.profit) : '-'}　粗利率 ${D.hasCost ? bmPct(D.tot.margin) : '-'}　${D.label}${D.groups.filter(g => !g.name.startsWith('（')).length}人　現場${D.tot.nSites}`]).font = { bold: true };
+                let r = 5; r = insRows(ws, r, bmStaffInsights(D));
+                const cols = [{ h: '順位', f: g => g.__rank, t: 'int' }, { h: D.label, f: g => g.name, t: 'txt' }, { h: '売上(百万円)', f: g => g.sales, t: 'm1' }, { h: '構成比', f: g => g.share, t: 'pct' }, { h: '累計構成比', f: g => g.cumShare, t: 'pct' }, { h: '原価(百万円)', f: g => D.hasCost ? g.cost : null, t: 'm1' }, { h: '粗利(百万円)', f: g => D.hasCost ? g.profit : null, t: 'm1' }, { h: '粗利率', f: g => D.hasCost ? g.margin : null, t: 'pct' }, { h: '現場数', f: g => g.nSites, t: 'int' }, { h: '1現場あたり売上(百万円)', f: g => g.nSites ? g.sales / g.nSites : null, t: 'm1' }, { h: '前年同期売上(百万円)', f: g => g.prior, t: 'm1' }, { h: '前年差(百万円)', f: g => g.sales - g.prior, t: 'm1' }, { h: '前年比', f: g => g.prior ? g.sales / g.prior : null, t: 'pct' }];
+                D.groups.forEach((g, i) => { g.__rank = g.name.startsWith('（') ? null : i + 1; });
+                const hr = r; const end = bmTblExcel(ws, hr, cols, D.groups, NAVY);
+                const tr = ws.getRow(end + 1); [['合計', 2], [D.tot.sales, 3], [1, 4], [D.hasCost ? D.tot.cost : null, 6], [D.hasCost ? D.tot.profit : null, 7], [D.hasCost ? D.tot.margin : null, 8], [D.tot.nSites, 9], [D.tot.prior, 11], [D.tot.sales - D.tot.prior, 12], [D.tot.prior ? D.tot.sales / D.tot.prior : null, 13]].forEach(([v, c]) => { const cell = tr.getCell(c); if (c === 2) cell.value = v; else if ([3, 6, 7, 11, 12].includes(c)) { cell.value = v === null ? null : v / 1e6; cell.numFmt = '#,##0.0'; } else if ([4, 8, 13].includes(c)) { cell.value = v; cell.numFmt = '0.0%'; } else cell.value = v; }); tr.font = { bold: true }; tr.eachCell({ includeEmpty: true }, c => { c.border = { top: { style: 'thin', color: { argb: NAVY } } }; });
+                ws.views = [{ state: 'frozen', ySplit: hr, xSplit: 2 }];
+                const cfg = bmStaffCharts(D, topN), r0 = tr.number + 2; secT(ws, r0, `グラフ（${D.label}）`);
+                place(ws, img(cfg.yoy, 560, 280), 1, r0); place(ws, img(cfg.margin, 560, 280), 8, r0); place(ws, img(cfg.bubble, 560, 280), 1, r0 + 16); place(ws, img(cfg.trend, 560, 280), 8, r0 + 16);
+            }
+            if (!any) { alert('出力するデータがありません。期（年）・期間絞込・拠点を確認してください。'); return; }
+            const widths = (n) => Array.from({ length: n }, (_, i) => ({ width: i === 0 ? 24 : 15 }));
+            // 積算の精度
+            let ws = wb.addWorksheet('積算の精度'); ws.columns = widths(14); let r = 1;
+            ws.getRow(r).getCell(1).value = '積算の精度（受注金額＝全体の見積額。親工番にだけ入力する決まり）'; ws.getRow(r++).getCell(1).font = { bold: true, size: 14, color: { argb: NAVY } };
+            ws.getRow(r++).getCell(1).value = '親工番の受注金額と、工番全体（親＋枝番）の実績（原価集計表の売上累計・原価累計）を比べています。予算は使っていません。'; r++;
+            for (const axis of axes) { const A = bmAccuracyCompute(S, axis, branch); secT(ws, r++, `${A.label}別（完了現場 ${A.nSites}件／受注金額あり ${A.nOrd}件）`); if (axis === axes[0]) r = insRows(ws, r, bmAccuracyInsights(A)); const end = bmTblExcel(ws, r, BM_ACC_COLS(A.label), A.groups, NAVY); place(ws, img(bmAccuracyCharts(A, topN).acc, 560, 280), 13, r - 1); r = Math.max(end + 2, r + 16); }
+            const wsa = wb.addWorksheet('積算の精度（現場一覧）'); wsa.columns = widths(12); { const A = bmAccuracyCompute(S, 'estimator', branch); const rows = A.all.slice().sort((a, b) => (b.order - a.order) || (b.sales - a.sales)); const cols = [{ h: '積算担当', f: x => x.who, t: 'txt' }, ...BM_ACC_SITE_COLS]; A.groups.forEach(g => g.sites.forEach(s => { s.who = g.name; })); bmTblExcel(wsa, 1, cols, rows, NAVY); wsa.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } }; wsa.views = [{ state: 'frozen', ySplit: 1 }]; }
+            // 完了の遅れ
+            const dm = Number(bm.staffDelayMonths || 6); ws = wb.addWorksheet('完了の遅れ'); ws.columns = widths(10); r = 1;
+            ws.getRow(r).getCell(1).value = `完了の遅れ（着手から${dm}か月以上経っていて、完了日が未入力の現場）`; ws.getRow(r++).getCell(1).font = { bold: true, size: 14, color: { argb: NAVY } };
+            ws.getRow(r++).getCell(1).value = '現場マスター（親工番）の着手日・完了日で判定。今日時点の集計です（期・期間絞込には関係しません）。'; r++;
+            for (const axis of axes) { const D = bmDelayCompute(S, axis, branch, dm); secT(ws, r++, `${D.label}別（該当 ${D.total}件）`); if (axis === axes[0]) r = insRows(ws, r, bmDelayInsights(D)); const end = bmTblExcel(ws, r, BM_DELAY_COLS(D.label), D.groups, NAVY); place(ws, img(bmDelayCharts(D, topN).delay, 560, 280), 10, r - 1); r = Math.max(end + 2, r + 16); }
+            { const wl = wb.addWorksheet('完了の遅れ（現場一覧）'); wl.columns = widths(13); const D = bmDelayCompute(S, 'manager', branch, dm); D.groups.forEach(g => g.sites.forEach(s => { s.who = g.name; })); const rows = D.all.slice().sort((a, b) => b.el - a.el); bmTblExcel(wl, 1, [{ h: '担当者', f: x => x.who, t: 'txt' }, ...BM_DELAY_SITE_COLS], rows, NAVY); wl.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: BM_DELAY_SITE_COLS.length + 1 } }; wl.views = [{ state: 'frozen', ySplit: 1 }]; }
+            // 目標対比
+            await bmTargetLoad(); const tkey = bmBasisKey(bm.basis, bm.periodKey), tg = (bm.staffTargets || {})[tkey];
+            if (tg && Object.values(tg).some(o => Object.keys(o).length)) {
+                ws = wb.addWorksheet('目標対比'); ws.columns = widths(9); r = 1; ws.getRow(r).getCell(1).value = `目標対比（${bmPeriodLabel(bm.basis, bm.periodKey)}）`; ws.getRow(r++).getCell(1).font = { bold: true, size: 14, color: { argb: NAVY } }; ws.getRow(r++).getCell(1).value = '累計目標＝年間目標を、経過月数で按分した値。目標は拠点で分かれません（全社の個人目標）。'; r++;
+                for (const axis of axes) { const T = bmTargetCompute(S, axis, branch); if (!T.rows.some(x => x.annual)) continue; secT(ws, r++, `${T.label}別（経過 ${T.months}か月／${T.total}か月）`); r = insRows(ws, r, bmTargetInsights(T)); const end = bmTblExcel(ws, r, BM_TGT_COLS(T.label), T.rows, NAVY); place(ws, img(bmTargetCharts(T, topN).target, 560, 280), 9, r - 1); r = Math.max(end + 2, r + 16); }
+            }
+            // 大口依存
+            ws = wb.addWorksheet('施工主への依存'); ws.columns = widths(10); r = 1; ws.getRow(r).getCell(1).value = '大口への依存（施工主別）'; ws.getRow(r++).getCell(1).font = { bold: true, size: 14, color: { argb: NAVY } }; r++;
+            { const O = bmOwnerCompute(S, 'manager', branch); secT(ws, r++, `施工主別の一覧（最大 ${bmPct(O.top1)}／上位5 ${bmPct(O.top5)}／上位10 ${bmPct(O.top10)}）`); r = insRows(ws, r, bmOwnerInsights(O)); const end = bmTblExcel(ws, r, BM_OWN_COLS, O.owners, NAVY); place(ws, img(bmOwnerCharts(O, topN).pareto, 560, 280), 10, r - 1); r = Math.max(end + 2, r + 16); }
+            for (const axis of axes) { const O = bmOwnerCompute(S, axis, branch); secT(ws, r++, `${O.label}ごとの、最大の施工主への依存度`); r = bmTblExcel(ws, r, BM_OWN_GRP_COLS(O.label), O.groups, NAVY) + 2; }
+            // 原価の内訳
+            if (S.plines.length) {
+                ws = wb.addWorksheet('原価の内訳'); ws.columns = widths(12); r = 1; ws.getRow(r).getCell(1).value = '原価の内訳（仕訳区分別。仕入明細・税抜、消費税の行は除く）'; ws.getRow(r++).getCell(1).font = { bold: true, size: 14, color: { argb: NAVY } }; r++;
+                { const C = bmCostCompute(S, 'manager', branch, 'rate'); secT(ws, r++, `仕訳区分ごとの原価と、前年との原価率の差（全体の原価率 ${bmPct(C.salesCur ? C.costCur / C.salesCur : null)}／前年 ${bmPct(C.salesPrior ? C.costPrior / C.salesPrior : null)}）`); r = insRows(ws, r, bmCostInsights(C)); r = bmTblExcel(ws, r, BM_COST_COLS, C.journals, NAVY) + 2; }
+                for (const axis of axes) {
+                    const C = bmCostCompute(S, axis, branch, 'amount'), M = bmCostMatrix(C, 'amount'); secT(ws, r++, `${C.label}ごとの原価の内訳（百万円）`);
+                    const cols = [{ h: C.label, f: g => g.name, t: 'txt' }, ...M.cols.map(c => ({ h: c, f: g => M.val(g, c), t: 'm1' })), { h: '原価 計', f: g => g.total, t: 'm1' }, { h: '売上', f: g => g.sales, t: 'm1' }, { h: '原価率', f: g => g.sales > 0 ? g.total / g.sales : null, t: 'pct', warn: g => g.anom }, { h: '確認', f: g => g.anom ? (g.sales <= 0 ? '売上がない' : '原価率200%超') : '', t: 'txt' }];
+                    const end = bmTblExcel(ws, r, cols, C.groups, NAVY); place(ws, img(bmCostCharts(C, topN).cost, 560, 280), cols.length + 1, r - 1); r = Math.max(end + 2, r + 16);
+                }
+                const wp = wb.addWorksheet('原価の内訳（仕入明細）'); wp.columns = widths(10); { const P = bmStaffPeriod(), lines = S.plines.filter(p => { const m = S.mm.get(p.code) || {}; return P.cur.has(p.ym) && (branch === 'ALL' || bmEffectiveBranch(p.code, m.branch || '不明') === branch); }).map(p => { const m = S.mm.get(p.code) || {}; return { ...p, name: m.name || '', who: bmGroupName(m, 'manager') }; }).sort((a, b) => b.amount - a.amount); bmTblExcel(wp, 1, [{ h: '担当者', f: x => x.who, t: 'txt' }, ...BM_COST_LINE_COLS], lines, NAVY); wp.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: BM_COST_LINE_COLS.length + 1 } }; wp.views = [{ state: 'frozen', ySplit: 1 }]; }
+            }
+            const wc = wb.addWorksheet('出力条件'); wc.columns = [{ width: 22 }, { width: 100 }];
+            const tt = wc.addRow(['出力条件（支店長会議資料　担当別）']); tt.font = { bold: true, size: 13, color: { argb: NAVY } }; wc.addRow([]);
+            [['シート', '担当者別・積算担当別・設計担当別（一覧・気づき・グラフ）／積算の精度（＋現場一覧）／完了の遅れ（＋現場一覧）／目標対比（目標を登録しているとき）／施工主への依存／原価の内訳（＋仕入明細）'], ['集計の基準', bm.dataBasis === 'cost' ? '原価集計（完了日）：原価集計表の売上・原価を、現場マスターの完了日の月に計上' : '明細データ（発生日）：売上明細（税抜）と仕入明細（税抜。明細区分「消費税」の行は除く）を、発生日の月に計上'], ['期間', per], ['拠点', brTxt], ['前年同期', '前の期（年）の、同じ月の並び（期間絞込の月数）と比べています'], ['担当者・積算・設計', '工番（親工番）から現場マスターを引いた値です。空欄は「（未設定）」にまとめています。拠点は「拠点上書き設定」も反映しています'], ['積算の精度', '受注金額は親工番にだけ入力する決まりのため、親工番の受注金額と、工番全体（親＋枝番）の実績（原価集計表）を比べています。予算は使っていません'], ['気づき（自動）', '前年比の増減の要因、粗利の増減（売上の増減による分と粗利率の変化による分）、低粗利率の担当、増収減益、赤字、集中度、1現場への偏り、未設定の売上などを、自動で拾っています（目安です）']].forEach(([k, v]) => { const x = wc.addRow([k, v]); x.getCell(1).font = { bold: true, color: { argb: NAVY } }; x.getCell(2).alignment = { wrapText: true, vertical: 'top' }; x.getCell(1).alignment = { vertical: 'top' }; });
+            const buf = await wb.xlsx.writeBuffer(), d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+            saveAs(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `支店長会議資料_担当別_${bmPeriodLabel(bm.basis, bm.periodKey).replace(/[／/\\（）()]/g, '-')}_${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}.xlsx`);
+        } catch (e) { console.error('担当別Excel出力エラー:', e); alert('担当別の出力でエラーが発生しました：' + e.message); }
+    };
 
     // ── 工事全体ビュー ──
     function bmRenderOverall() {
