@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>G-Ledger | 現場原価管理台帳システム v121</title>
+    <title>G-Ledger | 現場原価管理台帳システム v125</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -61,6 +61,8 @@
         .chk-tip-hint { display: inline-flex; align-items: center; gap: 0.25rem; margin-left: 0.5rem; font-size: 0.6875rem; color: #64748b; border-bottom: 1px dotted #94a3b8; cursor: help; white-space: nowrap; }
         .chk-tip-body { display: none; position: absolute; left: 1.5rem; top: 100%; z-index: 60; width: min(36rem, 90vw); margin-top: 0.25rem; padding: 0.75rem 1rem; background: #ffffff; border: 1px solid #cbd5e1; border-top: 3px solid #1e3a5f; border-radius: 0.5rem; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18); font-size: 0.75rem; line-height: 1.55; color: #334155; }
         .chk-tip:hover .chk-tip-body, .chk-tip:focus .chk-tip-body, .chk-tip:focus-within .chk-tip-body { display: block; }
+/* 原価データ整合性チェック: チェックボックスのクリック（フォーカス）では詳細を開いたままにせず、カーソルを合わせたときだけ表示する */
+#cost-integrity-panel .chk-tip:focus:not(:hover) .chk-tip-body, #cost-integrity-panel .chk-tip:focus-within:not(:hover) .chk-tip-body { display: none; }
         .chk-tip-body ul { list-style: disc; margin: 0.25rem 0 0.25rem 1.1rem; padding: 0; }
         .chk-tip-body li { margin-bottom: 0.2rem; }
         .chk-tip-body .chk-tip-note { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 0.6875rem; }
@@ -87,7 +89,7 @@
     <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col shadow-2xl z-20 flex-shrink-0">
         <div class="p-6 border-b border-slate-800 flex items-center gap-3">
             <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center text-white font-bold">G</div>
-            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v100</span></h1>
+            <h1 class="text-lg font-bold text-white tracking-wide">G-Ledger <span class="text-xs font-normal text-slate-400 block">System v125</span></h1>
         </div>
         <nav class="flex-1 overflow-y-auto py-4">
             <ul class="space-y-1">
@@ -2508,7 +2510,7 @@
 <!-- 2. Cost Integrity Check -->
                 <div id="cost-integrity-panel" class="glass-panel p-6 rounded-xl border-l-4 border-red-500">
                     <h4 class="font-bold text-slate-700 mb-3 flex items-center gap-2"><i class="fa-solid fa-file-invoice-dollar text-red-500"></i> 原価データ整合性チェック</h4>
-                    <p class="text-[10px] text-slate-400 mb-1">※①〜⑥すべて、上の「対象範囲設定」（拠点・得意先・着手日期間・完了日期間）が適用されます。</p>
+                    <p class="text-[10px] text-slate-400 mb-1">※①〜⑦すべて、上の「対象範囲設定」（拠点・得意先・着手日期間・完了日期間）が適用されます。</p>
                     <p class="text-[11px] text-slate-500 mb-3">使い分けの目安: 決算前の確認は ⑤・⑥ ／ 日々の入力漏れ確認は ③ ／ 数字や日付がおかしい現場探しは ①・② ／ マスターの設定ミス確認は ④。各項目にカーソルを合わせると詳細が表示されます。</p>
                     <div class="bg-red-50 p-4 rounded-lg mb-4 space-y-4">
 
@@ -2652,6 +2654,39 @@
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-status-purchase" class="check-input" checked>仕入のみ</label>
                                 <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-status-none" class="check-input">計上なし</label>
                                 <label class="flex items-center gap-1 text-xs text-slate-500 ml-2"><input type="checkbox" id="chk-status-none-started" class="check-input" checked>計上なしは着手日が入力済みのものに限る</label>
+                            </div>
+                        </div>
+
+                        <div class="border-t border-red-100 pt-3">
+                            <div class="chk-tip" tabindex="0">
+                                <div class="check-group mb-1"><input type="checkbox" id="chk-cost-voucher-diff" class="check-input"><label for="chk-cost-voucher-diff" class="check-label font-bold">⑦ 完了日と異なる伝票日付を検出（異なる伝票に印）</label></div>
+                                <p class="chk-tip-brief">工番ごと（枝番は独立）に、売上・仕入の伝票を集めて、完了日と異なる伝票日付が1つでもある工番を探す。完了日と異なる伝票には印（●）を付けて、伝票日付の一覧と最新日付も出す（SMILEの自由帳票のような見え方）<span class="chk-tip-hint"><i class="fa-solid fa-circle-info"></i>詳細</span></p>
+                                <div class="chk-tip-body">
+                                    売上明細・仕入明細の<strong>伝票日付が、その工番の完了日と異なる伝票が1つでもある</strong>工番を検出します（完了日の入力誤り、または完了後・完了前の計上の確認用）。
+                                    <ul>
+                                        <li><strong>数字の元データ:</strong> 伝票日付・最新日付・金額は、<strong>売上明細・仕入明細</strong>の値です。日付の一覧の（　）は、その日付の伝票の件数です</li>
+                                        <li><strong>親工番</strong>は親工番の伝票だけ、<strong>枝番</strong>はその枝番の伝票だけで集計し、それぞれ自身の完了日と比べます（枝番は独立。枝番の伝票を親の完了日とは比べません）</li>
+                                        <li><strong>「⑦伝票日付と完了日の相違」シート</strong>：工番ごとに1行。日付の一覧は、完了日と異なる日付に「●」を付けて古い順に並べ、最新の伝票日付、完了日との差、異なる伝票の件数と金額を出します</li>
+                                        <li><strong>「⑦伝票明細（印つき）」シート</strong>：その工番の伝票を1行ずつ並べ、完了日と異なる伝票に「●」と、完了日との差（日）を付けます（＋は完了日より後、－は前）。工番ごとに色を分けています</li>
+                                        <li>完了日が未入力の親／枝番は対象外です（③・⑥でカバー）。枝番マスター未登録の枝番の伝票は、比べる完了日が無いため対象外です</li>
+                                    </ul>
+                                    <div class="chk-tip-note">「出力する工番」「伝票明細に出す行」で、出す範囲を選べます。②は完了日より後の伝票だけを出しますが、⑦は完了日より前の伝票も出します。</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 ml-6">
+                                <span class="text-xs font-bold text-slate-700">チェック対象の伝票:</span>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-vd-sales" class="check-input" checked>売上明細</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" id="chk-vd-purchase" class="check-input" checked>仕入明細（原価）</label>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 ml-6 mt-1">
+                                <span class="text-xs font-bold text-slate-700">出力する工番:</span>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-vd-output" value="diff" checked>完了日と異なる伝票が1つでもあるもの</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-vd-output" value="all">完了日が入力済みのものすべて</label>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 ml-6 mt-1">
+                                <span class="text-xs font-bold text-slate-700">伝票明細（印つき）に出す行:</span>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-vd-lines" value="all" checked>その工番の伝票すべて（異なるものに印）</label>
+                                <label class="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="chk-vd-lines" value="marked">印のある伝票だけ</label>
                             </div>
                         </div>
 
@@ -3115,7 +3150,7 @@
                                     <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">67</td><td class="border border-slate-200 px-3 py-1.5">受注金額[税抜] <code class="bg-slate-100 px-1 rounded">orderAmount</code></td><td class="border border-slate-200 px-3 py-1.5">BP列（&lt;00034&gt;）。結合出力の列選択で選べます（取り込み直しが必要です）</td></tr>
                                     <tr class="bg-slate-50"><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">71</td><td class="border border-slate-200 px-3 py-1.5">有効期間開始日 <code class="bg-slate-100 px-1 rounded">validStart</code></td><td class="border border-slate-200 px-3 py-1.5">BT列。0 は未設定（表示しない）</td></tr>
                                     <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">72</td><td class="border border-slate-200 px-3 py-1.5">有効期間終了日 <code class="bg-slate-100 px-1 rounded">validEnd</code></td><td class="border border-slate-200 px-3 py-1.5">BU列。99999999 は未設定（表示しない）</td></tr>
-                                <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">73</td><td class="border border-slate-200 px-3 py-1.5">着手日（BV列） <code class="bg-slate-100 px-1 rounded">startDate</code></td><td class="border border-slate-200 px-3 py-1.5">BV列 &lt;00056&gt;（契約日）。9/30頃から着手日として使用。入っていれば優先、空なら43列目の着手日</td></tr>
+                                <tr><td class="border border-slate-200 px-3 py-1.5 text-center font-mono font-bold">73</td><td class="border border-slate-200 px-3 py-1.5">着手日（BV列） <code class="bg-slate-100 px-1 rounded">startDate</code></td><td class="border border-slate-200 px-3 py-1.5">BV列 &lt;00056&gt;（契約日）。10月から着手日として使用。BV列が10/1以降ならBV列、それ以前は43列目の着手日（空のときだけBV列で補う）</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -3444,6 +3479,7 @@
     //             v2 = 新レイアウト（施工主=AE列・ランク名・元請工番・有効期間・備考・紹介元請会社）
     //             v3 = 着手日をBV列優先に変更、施工主を「AE列優先・空のとき10/1前は旧列」に変更
     //             v4 = 受注金額[税抜]（BP列）を追加
+    //   （着手日のルール変更：BV列が10/1以降ならBV列、それ以前はAR列。取込済みのデータは、起動時に migrateStartRule が自動で付け替える）
     //   purchase: 仕入明細に枝番（EC列）を保存しているか（subCode の有無で判定）
     // ※ 取込形式を変えたら、ここの版を上げる（上げると、取り込み直しが必要な旨が自動で表示される）
     window.DATA_LAYOUT = { master: 5 };
@@ -3451,7 +3487,7 @@
         const issues = [];
         const m1 = await db.masters.limit(1).first();
         if (m1 && m1.layoutVer !== window.DATA_LAYOUT.master) {
-            issues.push({ target: '現場マスター', reason: '現在のレイアウト（施工主=AE列、着手日=BV列優先、ランク名・元請工番・有効期間・備考・紹介元請会社・受注金額[税抜]、予算・各コード）で取り込まれていません。',
+            issues.push({ target: '現場マスター', reason: '現在のレイアウト（施工主=AE列、着手日=BV列が10/1以降ならBV列・それ以前はAR列、ランク名・元請工番・有効期間・備考・紹介元請会社・受注金額[税抜]、予算・各コード）で取り込まれていません。',
                           impact: '施工主・着手日・上記の表示項目が正しく反映されません（施工主別ランキングにも影響します）。データ不備チェックの「空欄チェック」「0以外のチェック」「使用不可コード」も使えません。' });
         }
         const p1 = await db.purchases.limit(1).first();
@@ -3511,8 +3547,32 @@
     };
     // 8桁日付の正規化。空・0・00000000 は '' （未入力）
     window.normDateOrEmpty = function(v) { const d = String(v == null ? '' : v).replace(/\D/g, ''); return (!d || /^0+$/.test(d)) ? '' : d; };
-    // 着手日：BV列（<00056>）が入っていればそれを使い、空なら従来の着手日（AR列・43列目）
-    window.pickStartDate = function(bv, old) { return window.normDateOrEmpty(bv) || String(old == null ? '' : old); };
+    // 着手日の決め方（2つの列がある）：
+    //   BV列（契約日 <00056>）が 20261001 以降 … BV列（10月から、契約日の列が着手日として使われる）
+    //   それ以外                              … 従来の着手日（AR列・43列目）。AR列が空のときだけ、BV列（10/1より前の契約日）で補う
+    window.pickStartDate = function(bv, old) {
+        const b = window.normDateOrEmpty(bv), o = window.normDateOrEmpty(old);
+        if (b && parseInt(b, 10) >= window.OWNER_SWITCH_DATE) return b;
+        return o || b;
+    };
+    // 着手日のルールを変えたので、取込済みの現場マスターの「着手日」「施工主（新旧の判定が着手日に依存）」を、保存している元の値から付け替える（1回だけ）
+    window.migrateStartRule = async function() {
+        const flag = await db.meta.get('startRuleVer'); if (flag && flag.value >= 2) return;
+        const masters = await db.masters.toArray(); let nStart = 0, nOwner = 0; const changed = [];
+        const fix = (rec) => {
+            if (!rec || rec.startDateBv === undefined) return false;
+            const st = window.pickStartDate(rec.startDateBv, rec.startDateOld); let ch = false;
+            if (st !== rec.startDate) { rec.startDate = st; ch = true; nStart++; }
+            if (rec.ownerNew !== undefined) { const ow = window.resolveOwnerName(st, rec.ownerNew, rec.referrer); if (ow !== rec.owner) { rec.owner = ow; ch = true; nOwner++; } }
+            return ch;
+        };
+        masters.forEach(m => { let c = fix(m); (m.subCodes || []).forEach(sc => { if (fix(sc)) c = true; }); if (c) changed.push(m); });
+        if (changed.length) await db.masters.bulkPut(changed);
+        await db.meta.put({ key: 'startRuleVer', value: 2 });
+        if (changed.length) console.info(`着手日のルール変更：${changed.length}現場（着手日 ${nStart}件・施工主 ${nOwner}件）を付け替えました`);
+        return { masters: changed.length, nStart, nOwner };
+    };
+    (function() { const run = () => window.migrateStartRule().catch(e => console.warn('着手日ルールの付け替えに失敗', e)); if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', run); else setTimeout(run, 0); })();
     // 施工主：AE列（新施工主）に値があれば、着手日に関係なく常にAE列を使う。
     //   AE列が空のときだけ、10/1より前の現場（着手日が20260930以前・着手日なしを含む）に限り旧列（47列目）で補う。
     //   10/1以降でAE列が空の現場は施工主なし（旧列は紹介元請会社として扱い、施工主には使わない）。
@@ -3914,7 +3974,7 @@
                     const subName = r[5]; 
                     const isParent = (subCode === '');
                     
-                    const startResolved = pickStartDate(r[73], r[43]);   // 着手日（BV列優先、空ならAR列）
+                    const startResolved = pickStartDate(r[73], r[43]);   // 着手日（BV列が10/1以降ならBV列、それ以前はAR列。AR列が空のときだけBV列で補う）
                     const orderAmtNum = (r[67] == null || r[67] === '') ? NaN : Number(String(r[67]).replace(/,/g, ''));   // 受注金額[税抜]（BP列 <00034>）
                     const rowObj = {
                         code: code,
@@ -16002,7 +16062,7 @@
                     code: parent.code, sub: isSub ? (r.subCode || '-') : '-', kind: isSub ? '枝番' : '親',
                     name: (isSub ? (r.subName || parent.name) : r.name) || '-',
                     start: fmtD(r.startDate),
-                    startSrc: r.startDateBv ? 'BV列' : (window.normDateOrEmpty(r.startDateOld) ? 'AR列（43列目）' : 'なし'),
+                    startSrc: (() => { const st = window.normDateOrEmpty(r.startDate), bv = window.normDateOrEmpty(r.startDateBv), ar = window.normDateOrEmpty(r.startDateOld); return !st ? 'なし' : (st === bv ? (parseInt(st, 10) >= window.OWNER_SWITCH_DATE ? 'BV列（契約日）' : 'BV列（AR列が空のため補完）') : (st === ar ? 'AR列（着手日）' : 'なし')); })(),
                     era: e === 'old' ? '旧運用（20260930以前）' : '着手日なし',
                     nn, nc: nc || '-', on, oc: oc || '-',
                     codeMatch: (nc && oc) ? (nc.toLowerCase() === oc.toLowerCase() ? '一致' : '不一致') : '比較できず',
@@ -16053,14 +16113,14 @@
         const fmt8 = (v) => { const d = String(v == null ? '' : v).replace(/\D/g, ''); return d.length === 8 ? `${d.slice(0,4)}/${d.slice(4,6)}/${d.slice(6,8)}` : String(v == null ? '' : v); };
         const bvN = N(bv), arN = N(ar);
         const start = window.pickStartDate(bv, ar);
-        const startSrc = bvN ? 'BV列' : (arN ? 'AR列（43列目）' : 'なし');
+        const startSrc = !start ? 'なし' : (start === bvN ? (parseInt(bvN, 10) >= window.OWNER_SWITCH_DATE ? 'BV列（契約日）' : 'BV列（AR列が空のため補完）') : 'AR列（着手日）');
         const era = window.ownerEra(start);
         const eraLabel = era === 'new' ? '新運用（20261001以降）' : (era === 'old' ? '旧運用（20260930以前）' : '着手日なし');
         const aeD = window.ownerDisplay(ae), oldD = window.ownerDisplay(old);
         const owner = window.resolveOwnerName(start, ae, old);
         const same = aeD && oldD && window.ownerKey(aeD) === window.ownerKey(oldD);
         const steps = [];
-        steps.push({ t: '1. 着手日の決定', d: `BV列「${bvN ? fmt8(bvN) : '空'}」／AR列「${arN ? fmt8(arN) : '空'}」 → ` + (bvN ? `BV列が入っているので、BV列「${fmt8(bvN)}」を着手日にします` : (arN ? `BV列が空なので、AR列「${fmt8(arN)}」を着手日にします` : 'どちらも空なので、着手日なしです')) });
+        steps.push({ t: '1. 着手日の決定', d: `BV列「${bvN ? fmt8(bvN) : '空'}」／AR列「${arN ? fmt8(arN) : '空'}」 → ` + (bvN && parseInt(bvN, 10) >= window.OWNER_SWITCH_DATE ? `BV列「${fmt8(bvN)}」が10/1以降なので、BV列を着手日にします（10月から契約日が着手日）` : (arN ? `AR列「${fmt8(arN)}」が入っているので、AR列を着手日にします（BV列は${bvN ? '10/1より前' : '空'}のため使いません）` : (bvN ? `AR列が空なので、10/1より前のBV列「${fmt8(bvN)}」で補います` : 'どちらも空なので、着手日なしです'))) });
         steps.push({ t: '2. 運用区分', d: `着手日が${start ? `「${fmt8(start)}」` : 'なし'} → ${eraLabel}` });
         let rule;
         if (aeD) rule = `AE列に施工主名「${aeD}」があるので、着手日に関係なくAE列を採用します`;
@@ -16161,9 +16221,15 @@ window.exportCostCheck = async function() {
         const doParentChild = document.getElementById('chk-cost-parent-child-mismatch')?.checked ?? false;
         const doEndSales    = document.getElementById('chk-cost-enddate-sales')?.checked ?? false;
         const doStatus      = document.getElementById('chk-cost-enddate-status')?.checked ?? false;
+        const doVDiff       = document.getElementById('chk-cost-voucher-diff')?.checked ?? false;   // ⑦ 伝票日付と完了日の相違
+        const doVDSales     = document.getElementById('chk-vd-sales')?.checked ?? false;
+        const doVDPurch     = document.getElementById('chk-vd-purchase')?.checked ?? false;
+        const vdOutput      = document.querySelector('input[name="chk-vd-output"]:checked')?.value || 'diff';
+        const vdLines       = document.querySelector('input[name="chk-vd-lines"]:checked')?.value || 'all';
         const scope = getCheckScope();
 
-        if (!doZero && !doVoucherOver && !doStale && !doParentChild && !doEndSales && !doStatus) { alert('チェック項目を1つ以上選択してください。'); return; }
+        if (!doZero && !doVoucherOver && !doStale && !doParentChild && !doEndSales && !doStatus && !doVDiff) { alert('チェック項目を1つ以上選択してください。'); return; }
+        if (doVDiff && !doVDSales && !doVDPurch) { alert('⑦のチェック対象の伝票（売上明細・仕入明細）を1つ以上選択してください。'); return; }
 
         // ③：経過月数 または 基準日（YYYYMMDD）のどちらで放置を判定するか
         const staleMode = document.querySelector('input[name="chk-stale-mode"]:checked')?.value || 'months';
@@ -16192,7 +16258,7 @@ window.exportCostCheck = async function() {
             const panel = document.getElementById('cost-integrity-panel'); if (!panel) return;
             const txt = (el) => String(el ? el.textContent : '').replace(/[\s\u3000]+/g, ' ').trim();
             const NAVY = 'FF1E3A5F';
-            const SHEETS = { 'chk-cost-zero': '①0円検出', 'chk-cost-voucher-after-end': '②完了日超過伝票', 'chk-cost-stale-no-end': '③完了日未入力の放置現場', 'chk-cost-parent-child-mismatch': '④親子項目不一致', 'chk-cost-enddate-sales': '⑤完了日・売上チェック', 'chk-cost-enddate-status': '⑥完了日入力状況一覧' };
+            const SHEETS = { 'chk-cost-zero': '①0円検出', 'chk-cost-voucher-after-end': '②完了日超過伝票', 'chk-cost-stale-no-end': '③完了日未入力の放置現場', 'chk-cost-parent-child-mismatch': '④親子項目不一致', 'chk-cost-enddate-sales': '⑤完了日・売上チェック', 'chk-cost-enddate-status': '⑥完了日入力状況一覧', 'chk-cost-voucher-diff': '⑦伝票日付と完了日の相違／⑦伝票明細（印つき）' };
             const ck = (id) => !!document.getElementById(id)?.checked;
             const lst = (pairs) => pairs.filter(([id]) => ck(id)).map(([, l]) => l).join('・') || '（なし）';
             const val = (id) => (document.getElementById(id)?.value || '').trim();
@@ -16201,6 +16267,7 @@ window.exportCostCheck = async function() {
                 'chk-cost-stale-no-end': () => staleMode === 'date' ? `放置の判定：基準日 ${staleDateStr} より前に最後の計上があるもの` : `放置の判定：最後の計上から ${staleMonths} か月以上`,
                 'chk-cost-parent-child-mismatch': () => `比べる項目：${lst([['chk-mismatch-branch', '拠点'], ['chk-mismatch-manager', '担当者'], ['chk-mismatch-estimator', '積算'], ['chk-mismatch-designer', '設計'], ['chk-mismatch-startdate', '着手日'], ['chk-mismatch-enddate', '完了日']])}`,
                 'chk-cost-enddate-sales': () => `出力する行：${document.querySelector('input[name="chk-enddate-sales-output"]:checked')?.value === 'row' ? '異常のある行のみ' : '異常のあるグループの全行（親＋枝番）'}`,
+                'chk-cost-voucher-diff': () => `チェック対象の伝票：${lst([['chk-vd-sales', '売上明細'], ['chk-vd-purchase', '仕入明細（原価）']])}／出力する工番：${{ diff: '完了日と異なる伝票が1つでもあるもの', all: '完了日が入力済みのものすべて' }[vdOutput] || ''}／伝票明細：${vdLines === 'marked' ? '印のある伝票だけ' : 'その工番の伝票すべて（異なるものに印）'}`,
                 'chk-cost-enddate-status': () => `出力する分類：${lst([['chk-status-sales', '売上あり'], ['chk-status-purchase', '仕入のみ'], ['chk-status-none', '計上なし']])}${stNone && stNoneStartedOnly ? '（計上なしは着手日が入力済みのものに限る）' : ''}`,
             };
             const ws = wb.addWorksheet('チェック内容の説明');
@@ -16219,7 +16286,7 @@ window.exportCostCheck = async function() {
             sec('チェック項目の説明');
             const hr = ws.addRow(['項目', '今回の実行', '出力シート', '概要', '判定のしかた（詳細）', '補足・今回の設定']);
             hr.eachCell(c => { c.font = { bold: true, color: { argb: NAVY } }; c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } }; c.alignment = { horizontal: 'center', vertical: 'middle' }; });
-            const ran = { 'chk-cost-zero': doZero, 'chk-cost-voucher-after-end': doVoucherOver, 'chk-cost-stale-no-end': doStale, 'chk-cost-parent-child-mismatch': doParentChild, 'chk-cost-enddate-sales': doEndSales, 'chk-cost-enddate-status': doStatus };
+            const ran = { 'chk-cost-zero': doZero, 'chk-cost-voucher-after-end': doVoucherOver, 'chk-cost-stale-no-end': doStale, 'chk-cost-parent-child-mismatch': doParentChild, 'chk-cost-enddate-sales': doEndSales, 'chk-cost-enddate-status': doStatus, 'chk-cost-voucher-diff': doVDiff };
             panel.querySelectorAll('.chk-tip').forEach(tip => {
                 const cb = tip.querySelector('input.check-input'); if (!cb || !SHEETS[cb.id]) return;
                 const brief = tip.querySelector('.chk-tip-brief'); const hint = brief && brief.querySelector('.chk-tip-hint'); if (hint) hint.remove();
@@ -16250,6 +16317,7 @@ window.exportCostCheck = async function() {
                 ['⑤完了日・売上　原価データ売上累計(親のみ)', '原価集計表', '参考として並べた、親工番の累計の値です'],
                 ['⑥入力状況　売上累計', '売上明細', '売上明細（税抜）を、親／枝番ごとに合計した値です'],
                 ['⑥入力状況　仕入累計', '仕入明細', '仕入明細を、親／枝番ごとに合計した値です'],
+                ['⑦伝票日付と完了日の相違／伝票明細　伝票日付・最新の伝票日付・金額', '売上明細・仕入明細', '親／枝番ごとに、その伝票だけで集めた値です（枝番は独立）。完了日は、現場マスターの親／枝番自身の完了日です'],
             ].forEach(([a, b, c]) => { const r = ws.addRow([a, '', b, '', c, '']); ws.mergeCells(r.number, 1, r.number, 2); ws.mergeCells(r.number, 3, r.number, 4); ws.mergeCells(r.number, 5, r.number, 6); r.eachCell({ includeEmpty: true }, x => { x.alignment = { wrapText: true, vertical: 'top' }; }); r.getCell(1).font = { bold: true }; r.getCell(3).font = { bold: true, color: { argb: 'FFC2410C' } }; });
             const note = ws.addRow(['※「原価集計表」と「売上明細・仕入明細」は、別々に取り込んだ別のデータです。数字を比べるときは、どちらの列かを確認してください。（列の見出しにも〔元データ〕を付けています）']); ws.mergeCells(note.number, 1, note.number, 6); note.getCell(1).font = { color: { argb: 'FF64748B' } }; note.getCell(1).alignment = { wrapText: true };
             ws.addRow([]);
@@ -16258,8 +16326,8 @@ window.exportCostCheck = async function() {
 
         const costs     = await db.costs.toArray();
         const masters   = await db.masters.toArray();
-        const allSales  = doVoucherOver || doStale || doEndSales || doStatus ? await db.sales.toArray()     : [];
-        const allPurch  = doVoucherOver || doStale || doStatus ? await db.purchases.toArray() : [];
+        const allSales  = doVoucherOver || doStale || doEndSales || doStatus || (doVDiff && doVDSales) ? await db.sales.toArray()     : [];
+        const allPurch  = doVoucherOver || doStale || doStatus || (doVDiff && doVDPurch) ? await db.purchases.toArray() : [];
         // 工番マスターに加えて、サブコード（親の拠点・得意先・完了日をフォールバックとして持たせる）も
         // 直接引けるようにしておく（原価・売上・仕入明細の工番がサブコードそのものであるケースに対応）。
         // 原価データ（db.costs）の工番は取込時に小文字化されているが、現場マスターの工番は取込元の
@@ -16833,6 +16901,99 @@ window.exportCostCheck = async function() {
                 if (e.status === '売上あり') row.eachCell({ includeEmpty: true }, (cell) => { if (!cell.fill) cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE6E6' } }; });
             });
             summaryLines.push(`⑥完了日入力状況：完了日未入力${out.length}行（親工番${parentRows6}件／枝番${subRows6}件）／売上あり${cntS['売上あり']}件、仕入のみ${cntS['仕入のみ']}件、計上なし${cntS['計上なし']}件`);
+        }
+
+
+        // ━━ ⑦ 完了日と異なる伝票日付の検出（工番ごと・枝番は独立。異なる伝票に印●。SMILEの自由帳票のような見え方）━━
+        if (doVDiff) {
+            const DAY_MS = 24 * 60 * 60 * 1000, RED = { argb: 'FFFF0000' };
+            const parentMapD = new Map(); masters.forEach(m => parentMapD.set(mmKey(m.code), m));
+            const groupsD = new Map(); let skippedUnregSubD = 0;
+            // 親工番の伝票は親、枝番付きの伝票はその枝番に、別々に集める（枝番は独立）
+            const collect = (rows, kind) => rows.forEach(r => {
+                const m = parentMapD.get(mmKey(r.siteCode)); if (!m) return;
+                if (!matchesCheckScope(m, scope, false)) return;
+                const mem = window.SiteGroup.find(m, r.subCode);
+                if (!mem) { skippedUnregSubD++; return; }
+                const endTs = toTs(mem.endDate); if (endTs === null) return;   // 完了日が未入力の親／枝番は対象外
+                if (!matchesCheckScope({ endDate: mem.endDate }, { ...scope, branch: 'ALL', customer: 'ALL', hasStartPeriodFilter: false }, true, false)) return;
+                const vTs = toTs(r.date); if (vTs === null) return;
+                const sub = mem.isSub ? (mem.sub || r.subCode || '') : '';
+                const key = mmKey(m.code) + '|' + sub;
+                let g = groupsD.get(key); if (!g) { g = { m, mem, sub, endTs, lines: [] }; groupsD.set(key, g); }
+                g.lines.push(kind === 'sales'
+                    ? { kind: '売上', date: String(r.date).trim(), ts: vTs, voucherNo: r.voucherNo || '', category: r.category || '', party: r.customer || '', product: r.productName || '', amount: Number(r.amountExc) || 0 }
+                    : { kind: '仕入', date: String(r.date).trim(), ts: vTs, voucherNo: r.voucherNo || '', category: r.category || '', party: window.vendorDisplay ? window.vendorDisplay(r) : (r.vendor || ''), product: r.productName || r.journal || '', amount: Number(r.amount) || 0 });
+            });
+            if (doVDSales) collect(allSales, 'sales');
+            if (doVDPurch) collect(allPurch, 'purch');
+            const fmtList = (g, kind) => {
+                const mp = new Map(); g.lines.filter(l => !kind || l.kind === kind).forEach(l => mp.set(l.date, (mp.get(l.date) || 0) + 1));
+                if (!mp.size) return '（なし）'; const ks = [...mp.keys()].sort();
+                return ks.slice(0, 12).map(k => `${toTs(k) !== g.endTs ? '●' : ''}${fmtDateDisp(k)}(${mp.get(k)}件)`).join('、') + (ks.length > 12 ? `、…ほか${ks.length - 12}日` : '');
+            };
+            // 判定：完了日と異なる伝票が1つでもある工番
+            const list = [...groupsD.values()].filter(g => g.lines.length).map(g => {
+                g.lines.forEach(l => { l.diff = Math.round((l.ts - g.endTs) / DAY_MS); l.marked = l.diff !== 0; });
+                const marked = g.lines.filter(l => l.marked), dates = [...new Set(g.lines.map(l => l.date))].sort(), latest = dates[dates.length - 1], oldest = dates[0];
+                return { g, marked, dates, latest, oldest, latestDiff: Math.round((toTs(latest) - g.endTs) / DAY_MS), oldestDiff: Math.round((toTs(oldest) - g.endTs) / DAY_MS), isDiff: marked.length > 0 };
+            }).filter(x => vdOutput === 'all' || x.isDiff).sort((x, y) => String(x.g.m.code).localeCompare(String(y.g.m.code), 'ja') || String(x.g.sub).localeCompare(String(y.g.sub), 'ja'));
+
+            // ── シート1：工番ごとに1行 ──
+            const ws = wb.addWorksheet('⑦伝票日付と完了日の相違');
+            const cols = [
+                { header: '工番（親）', key: 'code', width: 12 }, { header: '枝番', key: 'sub', width: 8 }, { header: '区分', key: 'level', width: 8 }, { header: '現場名', key: 'name', width: 30 },
+                { header: '施工主', key: 'owner', width: 16 }, { header: '得意先', key: 'customer', width: 20 }, { header: '積算担当', key: 'estimator', width: 12 }, { header: '拠点', key: 'branch', width: 10 }, { header: '担当者', key: 'manager', width: 12 },
+                { header: '完了日', key: 'endDate', width: 12 },
+                { header: '伝票の件数', key: 'nLines', width: 9 }, { header: '完了日と異なる伝票の件数', key: 'nMarked', width: 12 }, { header: '完了日と異なる伝票の金額\n（売上－仕入ではなく、売上・仕入それぞれの合計）', key: 'amtMarked', width: 20 },
+                { header: '伝票日付の一覧（件数）\n●＝完了日と異なる日付\n〔売上明細・仕入明細〕', key: 'list', width: 56 },
+            ];
+            if (doVDSales && doVDPurch) cols.push({ header: '売上のみの日付一覧\n〔売上明細〕', key: 'sList', width: 40 }, { header: '仕入のみの日付一覧\n〔仕入明細〕', key: 'pList', width: 40 });
+            cols.push({ header: '最古の伝票日付', key: 'oldest', width: 13 }, { header: '最新の伝票日付', key: 'last', width: 13 }, { header: '最新の伝票日付と完了日の差(日)', key: 'latestDiff', width: 14 }, { header: '判定', key: 'comment', width: 50 });
+            ws.columns = cols;
+            ws.getRow(1).eachCell((cell) => { cell.style = { ...headerStyle, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } }; }); ws.getRow(1).height = 62;
+            ws.views = [{ state: 'frozen', ySplit: 1 }];
+            ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
+            let nDiff = 0, nDiffParent = 0, nDiffSub = 0, nMarkedLines = 0;
+            list.forEach(x => {
+                const g = x.g, parts = [];
+                if (x.isDiff) { nDiff++; if (g.mem.kind === '親') nDiffParent++; else nDiffSub++; nMarkedLines += x.marked.length; flaggedCodes.add(g.m.code); }
+                if (x.isDiff) { const after = x.marked.filter(l => l.diff > 0).length, before = x.marked.length - after; parts.push(`完了日と異なる伝票が${x.marked.length}件（完了日より後 ${after}件／前 ${before}件）`); }
+                else parts.push('すべての伝票日付が完了日と一致');
+                if (x.dates.length > 1) parts.push(`伝票日付は${x.dates.length}種類`);
+                const e = { code: g.m.code, sub: g.sub || '-', level: g.mem.kind, name: (g.mem.name && g.mem.name.trim()) || g.m.name || '-', owner: g.mem.owner || '-', customer: g.mem.customer || '-', estimator: g.mem.estimator || '-', branch: g.mem.branch || '-', manager: g.mem.manager || '-', endDate: fmtDateDisp(g.mem.endDate), nLines: g.lines.length, nMarked: x.marked.length, amtMarked: x.marked.length ? `売上 ${x.marked.filter(l => l.kind === '売上').reduce((a, l) => a + l.amount, 0).toLocaleString()}／仕入 ${x.marked.filter(l => l.kind === '仕入').reduce((a, l) => a + l.amount, 0).toLocaleString()}` : '-', list: fmtList(g), oldest: fmtDateDisp(x.oldest), last: fmtDateDisp(x.latest), latestDiff: x.latestDiff, comment: parts.join(' ／ ') };
+                if (doVDSales && doVDPurch) { e.sList = fmtList(g, '売上'); e.pList = fmtList(g, '仕入'); }
+                const row = ws.addRow(e);
+                row.getCell('level').font = { bold: true };
+                if (x.isDiff) { ['nMarked', 'comment', 'latestDiff'].forEach(k => { row.getCell(k).font = { color: RED, bold: true }; }); row.getCell('list').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF1E6' } }; }
+                row.eachCell({ includeEmpty: true }, (cell) => { cell.alignment = { vertical: 'top', wrapText: true }; });
+                ['latestDiff', 'nLines', 'nMarked'].forEach(k => { row.getCell(k).alignment = { vertical: 'top', horizontal: 'right' }; });
+            });
+
+            // ── シート2：伝票明細（印つき）。工番ごとに色を分け、完了日と異なる伝票に「●」と差（日）を付ける ──
+            const wl = wb.addWorksheet('⑦伝票明細（印つき）');
+            const lcols = [
+                { header: '印', key: 'mark', width: 6 }, { header: '工番（親）', key: 'code', width: 12 }, { header: '枝番', key: 'sub', width: 8 }, { header: '区分', key: 'level', width: 8 }, { header: '現場名', key: 'name', width: 28 }, { header: '施工主', key: 'owner', width: 16 }, { header: '拠点', key: 'branch', width: 10 }, { header: '担当者', key: 'manager', width: 12 },
+                { header: '完了日', key: 'endDate', width: 12 }, { header: '種別', key: 'kind', width: 7 }, { header: '伝票日付', key: 'date', width: 12 }, { header: '完了日との差(日)\n（伝票日付－完了日）', key: 'diff', width: 14 }, { header: '伝票No', key: 'voucherNo', width: 12 }, { header: '明細区分', key: 'category', width: 10 }, { header: '相手先\n（売上＝得意先／仕入＝仕入先）', key: 'party', width: 24 }, { header: '商品名', key: 'product', width: 26 }, { header: '金額（税抜）', key: 'amount', width: 14 },
+            ];
+            wl.columns = lcols;
+            wl.getRow(1).eachCell((cell) => { cell.style = { ...headerStyle, alignment: { horizontal: 'center', vertical: 'middle', wrapText: true } }; }); wl.getRow(1).height = 46;
+            wl.views = [{ state: 'frozen', ySplit: 1 }];
+            wl.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: lcols.length } };
+            let band = 0, nLineRows = 0;
+            list.forEach(x => {
+                const g = x.g; band++;
+                const lines = (vdLines === 'marked' ? g.lines.filter(l => l.marked) : g.lines).slice().sort((a, b) => a.ts - b.ts || a.kind.localeCompare(b.kind, 'ja') || String(a.voucherNo).localeCompare(String(b.voucherNo), 'ja'));
+                lines.forEach((l, i) => {
+                    const row = wl.addRow({ mark: l.marked ? '●' : '', code: g.m.code, sub: g.sub || '-', level: g.mem.kind, name: (g.mem.name && g.mem.name.trim()) || g.m.name || '-', owner: g.mem.owner || '-', branch: g.mem.branch || '-', manager: g.mem.manager || '-', endDate: fmtDateDisp(g.mem.endDate), kind: l.kind, date: fmtDateDisp(l.date), diff: l.diff, voucherNo: l.voucherNo, category: l.category, party: l.party, product: l.product, amount: l.amount });
+                    nLineRows++;
+                    if (band % 2 === 0) row.eachCell({ includeEmpty: true }, (cell) => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } }; });
+                    if (i === 0) row.eachCell({ includeEmpty: true }, (cell) => { cell.border = { top: { style: 'thin', color: { argb: 'FF64748B' } } }; });
+                    if (l.marked) { ['mark', 'date', 'diff'].forEach(k => { row.getCell(k).font = { color: RED, bold: true }; }); row.getCell('mark').alignment = { horizontal: 'center' }; row.getCell('mark').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEE2E2' } }; }
+                    row.getCell('amount').numFmt = '#,##0'; row.getCell('diff').alignment = { horizontal: 'right' };
+                });
+            });
+            summaryLines.push(`⑦完了日と異なる伝票日付：出力${list.length}工番／うち完了日と異なる伝票があるのは${nDiff}件（親工番${nDiffParent}件／枝番${nDiffSub}件、印の伝票 ${nMarkedLines}行）` + (skippedUnregSubD > 0 ? `　※枝番マスター未登録の枝番の伝票${skippedUnregSubD}件は比較対象外` : ''));
         }
 
         if (wb.worksheets.length <= 1) { alert('出力するデータがありません'); return; }   // 先頭の「チェック内容の説明」シートだけのときは、検出なし
