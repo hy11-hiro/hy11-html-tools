@@ -86,6 +86,11 @@
 
     <!-- キャンバス -->
     <div id="canvasWrap" class="canvas-bg rounded-xl overflow-hidden border-2 border-gray-300 shadow-inner relative">
+      <div id="canvasDragOverlay" class="absolute inset-0 bg-blue-50/90 hidden items-center justify-center z-10 pointer-events-none border-4 border-dashed border-blue-400 rounded-xl">
+        <span class="text-xl font-bold text-blue-600 flex items-center gap-2">
+          <span class="material-icons text-3xl">add_photo_alternate</span>ここにドロップ
+        </span>
+      </div>
       <div id="loading" class="hidden absolute inset-0 bg-white/90 z-20 flex flex-col items-center justify-center">
         <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mb-2"></div>
         <span class="font-bold text-gray-600">処理中...</span>
@@ -299,8 +304,8 @@
             <div class="mt-2">
               <label class="block text-xs font-bold text-gray-500 mb-1">フォーマット</label>
               <select id="dateFormatSelect" class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold bg-white">
-                <option value="md_jp" selected>3月14日</option>
-                <option value="ymd_slash">2026/03/14</option>
+                <option value="md_jp">3月14日</option>
+                <option value="ymd_slash" selected>2026/03/14</option>
                 <option value="ymd_jp">2026年3月14日</option>
                 <option value="md_slash">3/14</option>
               </select>
@@ -310,13 +315,13 @@
           <div class="bg-green-50 border border-green-200 rounded-xl p-3">
             <div class="text-xs font-bold text-green-700 mb-2">⏰ 時間の表示場所</div>
             <div class="grid grid-cols-4 gap-1.5">
-              <label class="cursor-pointer"><input type="radio" name="timePlace" value="right" class="hidden peer" checked />
+              <label class="cursor-pointer"><input type="radio" name="timePlace" value="right" class="hidden peer" />
                 <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">右下</div></label>
               <label class="cursor-pointer"><input type="radio" name="timePlace" value="left" class="hidden peer" />
                 <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">左下</div></label>
               <label class="cursor-pointer"><input type="radio" name="timePlace" value="inline" class="hidden peer" />
                 <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-green-600 peer-checked:bg-green-100 peer-checked:text-green-700">備考下</div></label>
-              <label class="cursor-pointer"><input type="radio" name="timePlace" value="none" class="hidden peer" />
+              <label class="cursor-pointer"><input type="radio" name="timePlace" value="none" class="hidden peer" checked />
                 <div class="p-1.5 border-2 border-gray-300 rounded-lg text-center text-xs font-bold peer-checked:border-gray-500 peer-checked:bg-gray-100">なし</div></label>
             </div>
             <div class="mt-2">
@@ -513,6 +518,27 @@
         <span class="material-icons text-gray-500 text-base">format_size</span>サイズ・フォント
       </div>
       <div class="p-4 space-y-4">
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+          <div class="text-xs font-bold text-amber-800">📐 縦写真の扱い（横長 4:3 に加工）</div>
+          <div class="flex flex-wrap gap-1.5">
+            <span class="size-pill pm-pill" data-pm="keep">縦のまま</span>
+            <span class="size-pill pm-pill" data-pm="pad">余白を足す</span>
+            <span class="size-pill pm-pill" data-pm="crop">トリミング</span>
+            <span class="size-pill pm-pill" data-pm="squash">写真をつぶす</span>
+          </div>
+          <div class="text-[11px] text-gray-500">どれを選んでも黒板は変形しません。横写真には影響しません。</div>
+          <div id="padColorRow" class="hidden">
+            <label class="block text-xs font-bold text-gray-600 mb-1">余白の色</label>
+            <select id="padColorSelect" class="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-bold bg-white">
+              <option value="#000000">黒</option><option value="#ffffff">白</option><option value="#808080">グレー</option>
+            </select>
+          </div>
+          <div id="cropYRow" class="hidden">
+            <div class="flex justify-between text-xs font-bold text-gray-600 mb-1"><span>切り抜き位置（この写真）</span><span id="valCropY" class="bg-white px-1.5 rounded text-gray-500">50</span></div>
+            <input type="range" id="cropYSlider" min="0" max="100" step="1" value="50" />
+            <div class="flex justify-between text-[11px] text-gray-400"><span>上</span><span>下</span></div>
+          </div>
+        </div>
         <div>
           <label class="block font-bold text-gray-700 mb-1 text-sm">フォント</label>
           <select id="fontFamily" class="w-full p-2.5 border-2 border-gray-300 rounded-lg font-bold text-gray-800 bg-gray-50 text-sm">
@@ -677,9 +703,10 @@ const S = {
   bgColor:'#025c39', fgMode:'auto', fgColor:'#ffffff', boardId:'default',
   boardOffsetX:null, boardOffsetY:null,
   showBoard:true, showConstructor:false, showVehicleInMemo:true,
-  datePlace:'right', timePlace:'right',
-  dateFormat:'md_jp', timeFormat:'hm_jp',
+  datePlace:'right', timePlace:'none',
+  dateFormat:'ymd_slash', timeFormat:'hm_jp',
   workLabelType:'place',
+  portraitMode:'keep', padColor:'#000000', cropY:0.5,
   text:{project:'',workType:'',memo:'',constructorName:'ヒューマンヤード(株)',vehicleText:'',carNumber:'',date:'',time:''},
   style:{fontFamily:"'M PLUS Rounded 1c',sans-serif",fontScaleProject:1.0,fontScaleWorkType:1.0,fontScaleMemo:1.2,fontScaleDate:1.0,fontScaleTime:1.0,lineHeight:1.2,yOffset:0,vehicleGap:0},
 };
@@ -1022,15 +1049,37 @@ function buildTimePart(){
 }
 function drawML(ctx,text,x,y,lh){if(!text)return;text.split('\n').forEach((l,i)=>ctx.fillText(l,x,y+i*lh));}
 
+// 表示サイズを写真の縦横比に合わせる（max-height で縦だけ縮んで黒板が潰れるのを防ぐ）
+const LANDSCAPE_ASPECT=4/3;
+// 縦写真のとき、選んだ方法に応じた出力サイズ（横写真は常に元サイズ）
+function outputSize(img){
+  const w=img.width,h=img.height;
+  if(h<=w||S.portraitMode==='keep') return {w,h};
+  if(S.portraitMode==='crop') return {w,h:Math.round(w/LANDSCAPE_ASPECT)};
+  return {w:Math.round(h*LANDSCAPE_ASPECT),h};
+}
+function applyCanvasSize(img){const o=outputSize(img);canvas.width=o.w;canvas.height=o.h;}
+function fitCanvasDisplay(){
+  if(!canvas.width||!canvas.height) return;
+  canvas.style.maxWidth=`calc(75vh * ${canvas.width/canvas.height})`;
+}
 function draw(){
+  fitCanvasDisplay();
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
   if(S.image){
     const img=S.image,cw=canvas.width,ch=canvas.height;
-    const ir=img.width/img.height,cr=cw/ch;
-    let dw,dh,dx,dy;
-    if(ir>cr){dh=ch;dw=dh*ir;dx=-(dw-cw)/2;dy=0;}else{dw=cw;dh=dw/ir;dx=0;dy=-(dh-ch)/2;}
-    ctx.drawImage(img,dx,dy,dw,dh);
+    const mode=img.height>img.width?S.portraitMode:'keep';
+    if(mode==='pad'){
+      ctx.fillStyle=S.padColor||'#000000'; ctx.fillRect(0,0,cw,ch);
+      const sc=Math.min(cw/img.width,ch/img.height),dw=img.width*sc,dh=img.height*sc;
+      ctx.drawImage(img,(cw-dw)/2,(ch-dh)/2,dw,dh);
+    } else if(mode==='crop'){
+      const dw=cw,dh=dw*img.height/img.width;
+      ctx.drawImage(img,0,-(dh-ch)*(S.cropY??0.5),dw,dh);
+    } else {
+      ctx.drawImage(img,0,0,cw,ch);   // 縦のまま / つぶす（写真だけ変形、黒板は後から等倍で描く）
+    }
     if(S.showBoard){const{bx,by,bw,bh}=getBoardDimensions();drawBlackboard(ctx,bx,by,bw,bh);drawTextOnBoard(ctx,bx,by,bw,bh);}
   } else {
     ctx.fillStyle='#e2e8f0';ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -1066,12 +1115,13 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 function snapshot(){return clone({boardPos:S.boardPos,boardSize:S.boardSize,boardOffsetX:S.boardOffsetX,boardOffsetY:S.boardOffsetY,
   boardId:S.boardId,bgColor:S.bgColor,fgMode:S.fgMode,fgColor:S.fgColor,showBoard:S.showBoard,showConstructor:S.showConstructor,showVehicleInMemo:S.showVehicleInMemo,
   datePlace:S.datePlace,timePlace:S.timePlace,dateFormat:S.dateFormat,timeFormat:S.timeFormat,workLabelType:S.workLabelType,
+  portraitMode:S.portraitMode,padColor:S.padColor,cropY:S.cropY,
   text:S.text,style:S.style});}
 loadBoards();
 function loadState(st){Object.assign(S,clone(st));}
 // 黒板の内容は標準で「全写真共通」。個別編集をオンにした間だけ写真ごとに別々。
 let individualMode=false;
-const SHARED_TOP=['boardSize','boardPos','boardId','bgColor','fgMode','fgColor','showBoard','showConstructor','workLabelType','datePlace','timePlace','dateFormat','timeFormat','style'];
+const SHARED_TOP=['boardSize','boardPos','boardId','bgColor','fgMode','fgColor','showBoard','showConstructor','workLabelType','datePlace','timePlace','dateFormat','timeFormat','style','portraitMode','padColor'];
 const SHARED_TEXT=['project','workType','constructorName','memo'];
 function propagateShared(src){
   currentImages.forEach(o=>{
@@ -1123,8 +1173,24 @@ function syncUI(){
   ].forEach(([id,key,d])=>{$(id).value=S.style[key];$(d).textContent=Number(S.style[key]).toFixed(1);});
   const ff=$('fontFamily'), norm=v=>v.replace(/\s/g,'');
   Array.from(ff.options).forEach(o=>{if(norm(o.value)===norm(S.style.fontFamily))ff.value=o.value;});
-  updateColorUI(); updateBoardUI();
+  syncPortraitUI(); updateColorUI(); updateBoardUI();
 }
+function syncPortraitUI(){
+  const $=id=>document.getElementById(id), m=S.portraitMode||'keep';
+  document.querySelectorAll('.pm-pill').forEach(p=>p.classList.toggle('active',p.dataset.pm===m));
+  $('padColorRow').classList.toggle('hidden',m!=='pad'); $('cropYRow').classList.toggle('hidden',m!=='crop');
+  $('padColorSelect').value=S.padColor||'#000000';
+  const cy=Math.round((S.cropY??0.5)*100); $('cropYSlider').value=cy; $('valCropY').textContent=cy;
+}
+window.setPortraitMode=m=>{
+  S.portraitMode=m;
+  if(S.image){
+    saveState();   // 共通モードなら全写真に反映される
+    currentImages.forEach(o=>{if(o.state){o.state.boardOffsetX=null;o.state.boardOffsetY=null;}});
+    S.boardOffsetX=null; S.boardOffsetY=null; applyCanvasSize(S.image);
+  }
+  syncPortraitUI(); draw();
+};
 function updateColorUI(){
   const $=id=>document.getElementById(id);
   $('bgColorPicker').value=S.bgColor; $('bgColorHex').value=S.bgColor.toUpperCase();
@@ -1179,6 +1245,7 @@ function makeThumb(img){
   const c=document.createElement('canvas'); c.width=144; c.height=Math.max(1,Math.round(144*img.height/img.width));
   c.getContext('2d').drawImage(img,0,0,c.width,c.height); return c.toDataURL('image/jpeg',.7);
 }
+const AFTER_LOAD_TAB='site';   // 取り込み後の初期タブ（'settings'=設定 / 'site'=現場）
 function handleFiles(files){
   const list=Array.from(files||[]).filter(f=>f.type.startsWith('image/'));
   if(!list.length) return;
@@ -1195,12 +1262,12 @@ function handleFiles(files){
       const vNum=vehicleMode==='loadOrder'?it.loadOrder:it.vehicleIndex;
       it.state.text.vehicleText=vNum>0?`${vNum}台目`:''; it.state.text.carNumber=it.carNumber||'';
       if(isFileDated(it)){it.state.text.date=it.fileDate.replace(/-/g,'/');it.state.text.time=it.fileTime;}
-      it.state.showVehicleInMemo=true;
+      it.state.showVehicleInMemo=true; it.state.cropY=0.5;
     });
     currentImages=currentImages.concat(items);
     setImage(first);
     loading.classList.add('hidden');
-    if(currentImages.length>1) switchTab('batch');
+    if(first===0) switchTab(AFTER_LOAD_TAB);   // 初回の取り込み後は「現場」タブから始める
   };
   list.forEach((file,i)=>{
     const reader=new FileReader();
@@ -1222,7 +1289,7 @@ function setImage(idx){
   loadState(item.state);
   S.image=item.img; S.currentFileName=item.name;
   document.getElementById('currentFileLabel').textContent=item.name;
-  canvas.width=item.img.width; canvas.height=item.img.height;
+  applyCanvasSize(item.img);
   document.getElementById('currentImageNum').textContent=idx+1;
   document.getElementById('totalImageNum').textContent=currentImages.length;
   syncUI(); renderThumbs(); updateScopeUI(); draw();
@@ -1285,10 +1352,10 @@ window.applyCommonToAll=()=>{
 async function renderBlob(idx){
   saveState();
   const cur=currentImages[currentImgIdx], it=currentImages[idx];
-  loadState(it.state); S.image=it.img; canvas.width=it.img.width; canvas.height=it.img.height;
+  loadState(it.state); S.image=it.img; applyCanvasSize(it.img);
   await Promise.all(allTpls().map(tplReady)); draw();
   const blob=await getBlobAsync();
-  loadState(cur.state); S.image=cur.img; canvas.width=cur.img.width; canvas.height=cur.img.height; draw();
+  loadState(cur.state); S.image=cur.img; applyCanvasSize(cur.img); draw();
   return blob;
 }
 
@@ -1784,10 +1851,17 @@ document.getElementById('btnShare').addEventListener('click',async()=>{
 document.addEventListener('DOMContentLoaded',()=>{
   canvas.width=800;canvas.height=500;draw();
 
-  const dz=document.getElementById('dropZone');
-  dz.addEventListener('dragover',e=>{e.preventDefault();document.getElementById('dragOverlay').classList.replace('hidden','flex');});
-  dz.addEventListener('dragleave',()=>document.getElementById('dragOverlay').classList.replace('flex','hidden'));
-  dz.addEventListener('drop',e=>{e.preventDefault();document.getElementById('dragOverlay').classList.replace('flex','hidden');handleFiles(e.dataTransfer.files);});
+  // ドロップ領域：上のボタン枠＋キャンバス（プレビュー）のどちらにもドロップ可
+  [['dropZone','dragOverlay'],['canvasWrap','canvasDragOverlay']].forEach(([zid,oid])=>{
+    const z=document.getElementById(zid), ov=document.getElementById(oid);
+    const show=()=>ov.classList.replace('hidden','flex'), hide=()=>ov.classList.replace('flex','hidden');
+    z.addEventListener('dragover',e=>{e.preventDefault();show();});
+    z.addEventListener('dragleave',e=>{if(!z.contains(e.relatedTarget)) hide();});
+    z.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();hide();handleFiles(e.dataTransfer.files);});
+  });
+  // 枠の外に落としてもブラウザが写真を開いてしまわないようにする
+  window.addEventListener('dragover',e=>e.preventDefault());
+  window.addEventListener('drop',e=>e.preventDefault());
   document.getElementById('btnCamera').addEventListener('click',()=>document.getElementById('cameraInput').click());
   document.getElementById('btnFile'  ).addEventListener('click',()=>document.getElementById('fileInput').click());
   document.getElementById('cameraInput').addEventListener('change',e=>handleFiles(e.target.files));
@@ -1823,6 +1897,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   document.querySelectorAll('input[name="datePlace"]').forEach(r=>r.addEventListener('change',e=>{S.datePlace=e.target.value;draw();}));
   document.querySelectorAll('input[name="timePlace"]').forEach(r=>r.addEventListener('change',e=>{S.timePlace=e.target.value;draw();}));
+  document.querySelectorAll('.pm-pill').forEach(p=>p.addEventListener('click',()=>setPortraitMode(p.dataset.pm)));
+  document.getElementById('padColorSelect').addEventListener('change',e=>{S.padColor=e.target.value;draw();});
+  document.getElementById('cropYSlider').addEventListener('input',e=>{S.cropY=e.target.value/100;document.getElementById('valCropY').textContent=e.target.value;draw();});
   document.getElementById('dateFormatSelect').addEventListener('change',e=>{S.dateFormat=e.target.value;draw();});
   document.getElementById('timeFormatSelect').addEventListener('change',e=>{S.timeFormat=e.target.value;draw();});
 
